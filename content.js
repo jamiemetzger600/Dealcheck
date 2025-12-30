@@ -1,7 +1,10 @@
+// --- VERSION ---
+const VERSION = 'v1.1.2';
+
 // --- 1. HTML UI TEMPLATE ---
 const uiHTML = `
 <div id="deal-analyzer-container">
-  <div id="deal-analyzer-header">Deal Analyzer <span id="da-close">✕</span></div>
+  <div id="deal-analyzer-header">Deal Analyzer <span style="font-size:11px; opacity:0.8; font-weight:400;">${VERSION}</span> <span id="da-close">✕</span></div>
 
   <div class="da-section">
     <div class="da-flex-row">
@@ -64,6 +67,7 @@ const uiHTML = `
       <div class="da-row">
         <label class="da-label">Target Owner Salary (Annual) <span style="font-weight:400; color:#999; font-size:11px;">(Required for SBA)</span></label>
         <input type="text" id="da-target-salary" class="da-input" placeholder="150000" value="150000">
+        <div id="da-salary-warning" class="da-warning" style="background:#fee; border-left:3px solid #e74c3c; padding:6px 8px; margin-top:4px;">⚠️ Warning: Target salary exceeds available cash flow!</div>
       </div>
     </div>
 
@@ -143,9 +147,9 @@ const uiHTML = `
         <div style="font-size:13px; color:#666; margin-top:5px;">Monthly: <span id="da-fcf-monthly">$0</span></div>
       </div>
       <div class="da-result-box" style="border-left-color: #3498db;">
-        <div class="da-result-title">Salary + Free Cash Flow</div>
+        <div class="da-result-title">Total Owner Take-Home</div>
         <div class="da-result-value" id="da-owner-salary">$0</div>
-        <div style="font-size:11px; color:#999; margin-top:5px;">Target salary + remaining cash</div>
+        <div style="font-size:11px; color:#999; margin-top:5px;" id="da-owner-subtitle">Salary + FCF (max available: <span id="da-max-available">$0</span>)</div>
       </div>
     </div>
     
@@ -461,14 +465,28 @@ function calculate() {
   // 9. Total Debt Service (SBA + Seller Note, unless seller note is standby)
   const totalDebtService = sbaAnnualDebtService + (sellerStandby === 'yes' ? 0 : sellerAnnualDebtService);
 
-  // 10. Calculate Free Cash Flow
-  // FCF = EBITDA - Total Debt Service
-  const freeCashFlowAnnual = ebitda - totalDebtService;
+  // 10. Get Target Salary first
+  const targetSalary = parseNumber(document.getElementById('da-target-salary').value) || 0;
+  
+  // 11. Calculate Free Cash Flow AFTER salary
+  // Available Cash Flow = EBITDA - Total Debt Service
+  const availableCashFlow = ebitda - totalDebtService;
+  
+  // Free Cash Flow = Available Cash Flow - Target Salary
+  const freeCashFlowAnnual = Math.max(0, availableCashFlow - targetSalary);
   const freeCashFlowMonthly = freeCashFlowAnnual / 12;
   
-  // 11. Calculate Salary + Free Cash Flow
-  const targetSalary = parseNumber(document.getElementById('da-target-salary').value) || 0;
-  const salaryPlusFreeCashFlow = targetSalary + freeCashFlowAnnual;
+  // Validate that target salary doesn't exceed available cash flow
+  const salaryWarning = document.getElementById('da-salary-warning');
+  if (targetSalary > availableCashFlow && availableCashFlow > 0) {
+    salaryWarning.style.display = 'block';
+    salaryWarning.innerHTML = `⚠️ Warning: Target salary ($${formatNumber(targetSalary)}) exceeds available cash flow ($${formatNumber(availableCashFlow)})!`;
+  } else {
+    salaryWarning.style.display = 'none';
+  }
+  
+  // Total Owner Take-Home = Salary + Remaining Free Cash Flow
+  const totalOwnerTakeHome = targetSalary + freeCashFlowAnnual;
 
   // Debug logging
   console.log('=== DSCR Calculation Debug ===');
@@ -489,11 +507,12 @@ function calculate() {
   console.log('Seller Note:', fmt(sellerNoteAmt));
   console.log('SBA Annual Debt Service:', fmt(sbaAnnualDebtService));
   console.log('Seller Annual Debt Service:', fmt(sellerAnnualDebtService));
-  console.log('Total Debt Service (for FCF):', fmt(totalDebtService));
-  console.log('Free Cash Flow (Annual):', fmt(freeCashFlowAnnual));
-  console.log('Free Cash Flow (Monthly):', fmt(freeCashFlowMonthly));
+  console.log('Total Debt Service:', fmt(totalDebtService));
+  console.log('Available Cash Flow (EBITDA - Debt):', fmt(availableCashFlow));
   console.log('Target Salary:', fmt(targetSalary));
-  console.log('Salary + Free Cash Flow:', fmt(salaryPlusFreeCashFlow));
+  console.log('Free Cash Flow AFTER Salary:', fmt(freeCashFlowAnnual));
+  console.log('Free Cash Flow Monthly:', fmt(freeCashFlowMonthly));
+  console.log('Total Owner Take-Home:', fmt(totalOwnerTakeHome));
 
   // Display Deal Opportunity Banner
   const dealOpportunityDiv = document.getElementById('da-deal-opportunity');
@@ -513,7 +532,8 @@ function calculate() {
   document.getElementById('da-total-debt').innerText = fmt(totalDebtService);
   document.getElementById('da-fcf-annual').innerText = fmt(freeCashFlowAnnual);
   document.getElementById('da-fcf-monthly').innerText = fmt(freeCashFlowMonthly);
-  document.getElementById('da-owner-salary').innerText = fmt(salaryPlusFreeCashFlow);
+  document.getElementById('da-owner-salary').innerText = fmt(totalOwnerTakeHome);
+  document.getElementById('da-max-available').innerText = fmt(availableCashFlow);
 
   saveState();
 }

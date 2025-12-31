@@ -7,10 +7,7 @@ const uiHTML = `
   <div id="deal-analyzer-header">
     Deal Analyzer <span style="font-size:11px; opacity:0.8; font-weight:400;">${VERSION}</span>
     <div style="display:flex; gap:8px; align-items:center;">
-      <a href="venmo://paycharge?txn=pay&recipients=amco-digital&amount=10&note=Buy%20me%20a%20coffee%20%E2%98%95" 
-         id="da-coffee-btn" 
-         style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s; text-decoration:none;" 
-         title="Buy me a coffee ☕ ($10)">☕</a>
+      <span id="da-coffee-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Buy me a coffee ☕ ($10)">☕</span>
       <span id="da-settings-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Settings">⚙️</span>
       <span id="da-close" style="cursor:pointer;">✕</span>
     </div>
@@ -358,6 +355,13 @@ function drag(e) {
   }
 }
 document.getElementById('da-close').onclick = () => container.style.display = 'none';
+
+// Coffee button - opens Venmo with suggested amount
+document.getElementById('da-coffee-btn').onclick = () => {
+  if (confirm('☕ Buy me a coffee?\n\nSuggested amount: $10\n\nThis will open Venmo (@amco-digital)')) {
+    window.open('https://venmo.com/u/amco-digital', '_blank');
+  }
+};
 
 // Listen for messages from background script to toggle window
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

@@ -7,9 +7,6 @@ const uiHTML = `
   <div id="deal-analyzer-header">
     Deal Analyzer <span style="font-size:11px; opacity:0.8; font-weight:400;">${VERSION}</span>
     <div style="display:flex; gap:8px; align-items:center;">
-      <select id="da-saved-deals-list" class="da-select" style="font-size:11px; padding:4px 6px; max-width:150px;">
-        <option value="">Load deal...</option>
-      </select>
       <span id="da-save-deal-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Save current deal (Cmd/Ctrl+S)">💾</span>
       <span id="da-coffee-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Buy me a coffee ☕ ($10)">☕</span>
       <span id="da-settings-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Settings">⚙️</span>
@@ -222,7 +219,12 @@ const uiHTML = `
       <span style="font-size:10px; color:#999; font-weight:400;">(Included in all exports)</span>
     </div>
     <textarea id="da-deal-notes" class="da-input" placeholder="Add notes: questions for seller, red flags, follow-ups, pros/cons..." style="width:100%; min-height:60px; font-size:11px; padding:8px; resize:vertical; font-family:inherit; border:1px solid #ddd;"></textarea>
-    <input type="text" id="da-deal-name" class="da-input" placeholder="Deal name (for saving)" style="width:100%; font-size:11px; padding:6px 8px; margin-top:6px;">
+    <div style="display:flex; gap:6px; margin-top:6px;">
+      <input type="text" id="da-deal-name" class="da-input" placeholder="Deal name (for saving)" style="flex:1; font-size:11px; padding:6px 8px;">
+      <select id="da-saved-deals-list" class="da-select" style="flex:1; font-size:11px; padding:6px 8px;">
+        <option value="">Load saved deal...</option>
+      </select>
+    </div>
   </div>
 </div>
 `;

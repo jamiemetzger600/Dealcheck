@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.3.3';
+const VERSION = 'v1.3.4';
 
 // --- 1. HTML UI TEMPLATE ---
 const uiHTML = `
@@ -280,7 +280,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else {
       container.style.display = 'none';
     }
+    // Send response to acknowledge message received
+    sendResponse({ status: "toggled" });
   }
+  // Return true to indicate we'll send a response asynchronously (though we send it synchronously above)
+  return true;
 });
 
 // --- 3. IMPROVED "SMART" SCRAPING LOGIC ---
@@ -1206,7 +1210,7 @@ function getBusinessName() {
   
   // Strategy 2: Look for h1 heading
   const h1 = document.querySelector('h1');
-  if (h1 && h1.innerText.trim().length > 0 && h1.innerText.trim().length < 150) {
+  if (h1 && h1.innerText && h1.innerText.trim().length > 0 && h1.innerText.trim().length < 150) {
     console.log('Found h1:', h1.innerText.trim());
     return h1.innerText.trim();
   }
@@ -1223,7 +1227,7 @@ function getBusinessName() {
   
   for (const selector of selectors) {
     const el = document.querySelector(selector);
-    if (el && el.innerText.trim().length > 0 && el.innerText.trim().length < 150) {
+    if (el && el.innerText && el.innerText.trim().length > 0 && el.innerText.trim().length < 150) {
       console.log('Found via selector', selector, ':', el.innerText.trim());
       return el.innerText.trim();
     }

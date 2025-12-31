@@ -7,6 +7,10 @@ const uiHTML = `
   <div id="deal-analyzer-header">
     Deal Analyzer <span style="font-size:11px; opacity:0.8; font-weight:400;">${VERSION}</span>
     <div style="display:flex; gap:8px; align-items:center;">
+      <select id="da-saved-deals-list" class="da-select" style="font-size:11px; padding:4px 6px; max-width:150px;">
+        <option value="">Load deal...</option>
+      </select>
+      <span id="da-save-deal-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Save current deal (Cmd/Ctrl+S)">💾</span>
       <span id="da-coffee-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Buy me a coffee ☕ ($10)">☕</span>
       <span id="da-settings-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Settings">⚙️</span>
       <span id="da-close" style="cursor:pointer;">✕</span>
@@ -23,18 +27,6 @@ const uiHTML = `
       </div>
     </div>
     <div id="da-quality-score" style="font-size:28px; font-weight:700; color:#666;">--</div>
-  </div>
-
-  <!-- Save & Notes Section -->
-  <div class="da-section" style="background:#fafbfc; border-bottom:1px solid #ddd; padding:10px 15px;">
-    <div style="display:flex; gap:8px; margin-bottom:8px;">
-      <input type="text" id="da-deal-name" class="da-input" placeholder="Deal name (optional)" style="flex:1; font-size:12px; padding:6px 8px;">
-      <button id="da-save-deal-btn" class="da-btn" style="background:#9b59b6; white-space:nowrap; padding:6px 12px; font-size:12px;">💾 Save</button>
-      <select id="da-saved-deals-list" class="da-select" style="flex:1; font-size:12px; padding:6px 8px;">
-        <option value="">Load saved deal...</option>
-      </select>
-    </div>
-    <textarea id="da-deal-notes" class="da-input" placeholder="Add notes about this deal..." style="width:100%; min-height:50px; font-size:11px; padding:6px 8px; resize:vertical; font-family:inherit;"></textarea>
   </div>
 
   <div class="da-section">
@@ -221,6 +213,16 @@ const uiHTML = `
       <button id="da-recalc-btn" class="da-btn" style="flex:1;">↺ Refresh Data</button>
       <button id="da-share-btn" class="da-btn" style="flex:1; background:#3498db;">📤 Share Deal</button>
     </div>
+  </div>
+  
+  <!-- Deal Notes Section (Bottom) -->
+  <div class="da-section" style="background:#fafbfc; border-top:2px solid #ddd;">
+    <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+      📝 Deal Notes
+      <span style="font-size:10px; color:#999; font-weight:400;">(Included in all exports)</span>
+    </div>
+    <textarea id="da-deal-notes" class="da-input" placeholder="Add notes: questions for seller, red flags, follow-ups, pros/cons..." style="width:100%; min-height:60px; font-size:11px; padding:8px; resize:vertical; font-family:inherit; border:1px solid #ddd;"></textarea>
+    <input type="text" id="da-deal-name" class="da-input" placeholder="Deal name (for saving)" style="width:100%; font-size:11px; padding:6px 8px; margin-top:6px;">
   </div>
 </div>
 `;
@@ -1131,7 +1133,11 @@ document.getElementById('da-seller-percent').addEventListener('input', () => {
   }
 });
 
-document.getElementById('da-recalc-btn').addEventListener('click', scrapeData);
+// Contact Me button - opens email
+document.getElementById('da-contact-btn').addEventListener('click', () => {
+  const subject = encodeURIComponent('Deal Analyzer - Ideas, Bug Reports, Suggestions, Issues, Praise');
+  window.open(`mailto:jamiemetzger@gmail.com?subject=${subject}`, '_blank');
+});
 
 // --- 6. COLLAPSIBLE SECTIONS ---
 // Helper function to create collapsible section
@@ -1428,6 +1434,11 @@ function generateShareText() {
   // ROI Metrics
   const cocReturn = document.getElementById('da-coc-return').innerText || '0%';
   const payback = document.getElementById('da-payback').innerText || '0 yrs';
+  const qualityScore = document.getElementById('da-quality-score').innerText || '--';
+  
+  // Deal notes
+  const dealNotes = document.getElementById('da-deal-notes').value.trim();
+  const dealName = document.getElementById('da-deal-name').value.trim();
   
   const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
   let sellerNoteText = '';
@@ -1439,15 +1450,23 @@ function generateShareText() {
     sellerNoteText = `\n• Seller Note: ${sellerPercent}% (${sellerAmt}) @ ${sellerRate}%${sellerStandby}`;
   }
   
+  let notesSection = '';
+  if (dealNotes) {
+    notesSection = `\n\n📝 DEAL NOTES:\n${dealNotes}`;
+  }
+  
+  let nameHeader = dealName ? `${dealName}\n\n` : '';
+  
   return `📊 DEAL ANALYSIS SUMMARY
-
-🔗 Listing: ${listingUrl}
+${nameHeader}🔗 Listing: ${listingUrl}
 
 💰 FINANCIALS:
 • Business EBITDA: ${ebitda}
 • Asking Price: ${askingPrice}
 • Max Allowable Price: ${maxPrice}
 • Offer Price: ${offerPrice}
+
+🎯 DEAL QUALITY SCORE: ${qualityScore}/100
 
 💵 FINANCING STRUCTURE:
 • SBA Loan: ${sbaPercent}% (${sbaLoan}) @ ${bankRate}% (${bankTerm} years)
@@ -1462,7 +1481,7 @@ function generateShareText() {
 
 📊 RETURN ON INVESTMENT (Year 1):
 • Cash-on-Cash Return: ${cocReturn}
-• Payback Period: ${payback}
+• Payback Period: ${payback}${notesSection}
 
 ---
 Generated by Max Price Deal Analyzer ${VERSION}`;
@@ -1582,6 +1601,11 @@ function generatePDFFile() {
   
   const cocReturn = document.getElementById('da-coc-return').innerText || '0%';
   const payback = document.getElementById('da-payback').innerText || '0 yrs';
+  const qualityScore = document.getElementById('da-quality-score').innerText || '--';
+  
+  // Deal notes and name
+  const dealNotes = document.getElementById('da-deal-notes').value.trim();
+  const dealName = document.getElementById('da-deal-name').value.trim();
   
   // Helper function to draw a colored box
   const drawBox = (x, y, width, height, borderColor, bgColor) => {
@@ -1600,15 +1624,19 @@ function generatePDFFile() {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(22);
   doc.setFont(undefined, 'bold');
-  doc.text('DEAL ANALYSIS REPORT', 15, 16);
+  const headerTitle = dealName || 'DEAL ANALYSIS REPORT';
+  doc.text(headerTitle, 15, 16);
   
   y = 30;
   
-  // Date and URL
+  // Deal Quality Score & Date
   doc.setTextColor(0, 0, 0);
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'bold');
+  doc.text(`Quality Score: ${qualityScore}/100`, 15, y);
   doc.setFontSize(9);
   doc.setFont(undefined, 'normal');
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 15, y);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 100, y);
   y += 6;
   
   // Clickable URL
@@ -1806,6 +1834,37 @@ function generatePDFFile() {
   doc.text(`Salary: ${targetSalary} + FCF (max available: ${maxAvailable})`, 22, y);
   y += 15;
   
+  // Deal Notes Section (if present)
+  if (dealNotes) {
+    // Add page break if needed
+    if (y > 250) {
+      doc.addPage();
+      y = 15;
+    }
+    
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(102, 102, 102);
+    doc.text('DEAL NOTES', 15, y);
+    y += 6;
+    
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    
+    // Split notes into lines (max ~85 chars per line)
+    const noteLines = doc.splitTextToSize(dealNotes, 180);
+    noteLines.forEach(line => {
+      if (y > 280) {
+        doc.addPage();
+        y = 15;
+      }
+      doc.text(line, 15, y);
+      y += 5;
+    });
+    y += 5;
+  }
+  
   // Footer
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
@@ -1937,12 +1996,6 @@ document.addEventListener('keydown', (e) => {
     } else {
       container.style.display = 'none';
     }
-  }
-  
-  // Cmd/Ctrl + R: Refresh data (only when extension is visible)
-  if ((e.metaKey || e.ctrlKey) && e.key === 'r' && container.style.display === 'flex') {
-    e.preventDefault();
-    scrapeData();
   }
   
   // Cmd/Ctrl + S: Save deal (only when extension is visible)

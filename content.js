@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.3.1';
 
 // --- 1. HTML UI TEMPLATE ---
 const uiHTML = `
@@ -72,9 +72,10 @@ const uiHTML = `
     </div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px;">
-        <label style="cursor:pointer; display:flex; align-items:center; gap:8px;">
-          <input type="checkbox" id="da-seller-note-enabled" style="width:auto; cursor:pointer;">
+      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="da-seller-note-enabled" style="width:auto; cursor:pointer;">
+        <span id="da-seller-note-arrow" style="transition:transform 0.2s; display:inline-block; cursor:pointer; user-select:none;">▼</span>
+        <label for="da-seller-note-enabled" style="cursor:pointer;">
           <span>C. Seller Note <span style="font-weight:400; color:#999;">(Optional)</span></span>
         </label>
       </div>
@@ -119,54 +120,69 @@ const uiHTML = `
     
     <!-- MAX SCENARIO -->
     <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #ddd;">
-      <div style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Maximum Allowable (DSCR-Based)</div>
-      <div class="da-result-box">
-        <div class="da-result-title">Max Allowable Purchase Price</div>
-        <div class="da-result-value" id="da-max-price" style="font-size:16px;">$0</div>
+      <div id="da-max-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+        <span id="da-max-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+        <span>Maximum Allowable (DSCR-Based)</span>
       </div>
-      <div class="da-result-box" style="border-left-color: #95a5a6;">
-        <div class="da-result-title">Max Annual Debt Service</div>
-        <div class="da-result-value" id="da-max-debt" style="font-size:16px;">$0</div>
+      <div id="da-max-content">
+        <div class="da-result-box">
+          <div class="da-result-title">Max Allowable Purchase Price</div>
+          <div class="da-result-value" id="da-max-price" style="font-size:16px;">$0</div>
+        </div>
+        <div class="da-result-box" style="border-left-color: #95a5a6;">
+          <div class="da-result-title">Max Annual Debt Service</div>
+          <div class="da-result-value" id="da-max-debt" style="font-size:16px;">$0</div>
+        </div>
       </div>
     </div>
     
     <!-- ROI METRICS -->
     <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #ddd;">
-      <div style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Return on Investment (Year 1)</div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-        <div class="da-result-box" style="border-left-color: #e67e22; margin-top:0;">
-          <div class="da-result-title">Cash-on-Cash Return</div>
-          <div class="da-result-value" id="da-coc-return" style="font-size:18px;">0%</div>
-          <div style="font-size:9px; color:#999; margin-top:1px;">Annual return on equity</div>
-        </div>
-        <div class="da-result-box" style="border-left-color: #9b59b6; margin-top:0;">
-          <div class="da-result-title">Payback Period</div>
-          <div class="da-result-value" id="da-payback" style="font-size:18px;">0 yrs</div>
-          <div style="font-size:9px; color:#999; margin-top:1px;">Time to recover equity</div>
+      <div id="da-roi-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+        <span id="da-roi-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+        <span>Return on Investment (Year 1)</span>
+      </div>
+      <div id="da-roi-content">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div class="da-result-box" style="border-left-color: #e67e22; margin-top:0;">
+            <div class="da-result-title">Cash-on-Cash Return</div>
+            <div class="da-result-value" id="da-coc-return" style="font-size:18px;">0%</div>
+            <div style="font-size:9px; color:#999; margin-top:1px;">Annual return on equity</div>
+          </div>
+          <div class="da-result-box" style="border-left-color: #9b59b6; margin-top:0;">
+            <div class="da-result-title">Payback Period</div>
+            <div class="da-result-value" id="da-payback" style="font-size:18px;">0 yrs</div>
+            <div style="font-size:9px; color:#999; margin-top:1px;">Time to recover equity</div>
+          </div>
         </div>
       </div>
     </div>
     
     <!-- ACTUAL SCENARIO -->
     <div style="margin-bottom:10px;">
-      <div style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Actual Deal Scenario</div>
-      <div class="da-result-box" style="border-left-color: #e67e22;">
-        <div class="da-result-title">Offer Price <span style="font-weight:400; color:#999; font-size:9px;">(Click to Edit)</span></div>
-        <input type="text" id="da-actual-price" class="da-input" value="$0" readonly style="font-size:16px; font-weight:700; color:#2c3e50; border:none; background:transparent; padding:3px 0; cursor:pointer;">
+      <div id="da-actual-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+        <span id="da-actual-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+        <span>Actual Deal Scenario</span>
       </div>
-      <div class="da-result-box" style="border-left-color: #9b59b6;">
-        <div class="da-result-title">Total Debt Service</div>
-        <div class="da-result-value" id="da-total-debt" style="font-size:16px;">$0</div>
-      </div>
-      <div class="da-result-box" style="border-left-color: #27ae60;">
-        <div class="da-result-title">Free Cash Flow (Annual)</div>
-        <div class="da-result-value" id="da-fcf-annual" style="font-size:16px;">$0</div>
-        <div style="font-size:10px; color:#666; margin-top:3px;">Monthly: <span id="da-fcf-monthly">$0</span></div>
-      </div>
-      <div class="da-result-box" style="border-left-color: #3498db;">
-        <div class="da-result-title">Total Owner Take-Home</div>
-        <div class="da-result-value" id="da-owner-salary" style="font-size:16px;">$0</div>
-        <div style="font-size:9px; color:#999; margin-top:3px;" id="da-owner-subtitle">Salary + FCF (max available: <span id="da-max-available">$0</span>)</div>
+      <div id="da-actual-content">
+        <div class="da-result-box" style="border-left-color: #e67e22;">
+          <div class="da-result-title">Offer Price <span style="font-weight:400; color:#999; font-size:9px;">(Click to Edit)</span></div>
+          <input type="text" id="da-actual-price" class="da-input" value="$0" readonly style="font-size:16px; font-weight:700; color:#2c3e50; border:none; background:transparent; padding:3px 0; cursor:pointer;">
+        </div>
+        <div class="da-result-box" style="border-left-color: #9b59b6;">
+          <div class="da-result-title">Total Debt Service</div>
+          <div class="da-result-value" id="da-total-debt" style="font-size:16px;">$0</div>
+        </div>
+        <div class="da-result-box" style="border-left-color: #27ae60;">
+          <div class="da-result-title">Free Cash Flow (Annual)</div>
+          <div class="da-result-value" id="da-fcf-annual" style="font-size:16px;">$0</div>
+          <div style="font-size:10px; color:#666; margin-top:3px;">Monthly: <span id="da-fcf-monthly">$0</span></div>
+        </div>
+        <div class="da-result-box" style="border-left-color: #3498db;">
+          <div class="da-result-title">Total Owner Take-Home</div>
+          <div class="da-result-value" id="da-owner-salary" style="font-size:16px;">$0</div>
+          <div style="font-size:9px; color:#999; margin-top:3px;" id="da-owner-subtitle">Salary + FCF (max available: <span id="da-max-available">$0</span>)</div>
+        </div>
       </div>
     </div>
     
@@ -810,15 +826,61 @@ document.getElementById('da-seller-amt').addEventListener('click', () => {
   makeEditable('da-seller-amt', 'sellerNote');
 });
 
-// Seller note checkbox
+// Seller note checkbox - enables/disables the seller note
 document.getElementById('da-seller-note-enabled').addEventListener('change', (e) => {
-  const section = document.getElementById('da-seller-note-section');
-  section.style.display = e.target.checked ? 'block' : 'none';
   if (!e.target.checked) {
     document.getElementById('da-seller-amt').value = '';
     overrides.sellerNote = false;
   }
   calculate();
+});
+
+// Seller note arrow - collapses/expands the section
+let sellerNoteCollapsed = false;
+const sellerNoteArrow = document.getElementById('da-seller-note-arrow');
+const sellerNoteSection = document.getElementById('da-seller-note-section');
+const sellerNoteCheckbox = document.getElementById('da-seller-note-enabled');
+
+sellerNoteArrow.addEventListener('click', (e) => {
+  e.stopPropagation(); // Prevent triggering checkbox
+  
+  // Only allow collapse/expand if checkbox is checked
+  if (!sellerNoteCheckbox.checked) {
+    return;
+  }
+  
+  sellerNoteCollapsed = !sellerNoteCollapsed;
+  if (sellerNoteCollapsed) {
+    sellerNoteSection.style.display = 'none';
+    sellerNoteArrow.style.transform = 'rotate(-90deg)';
+  } else {
+    sellerNoteSection.style.display = 'block';
+    sellerNoteArrow.style.transform = 'rotate(0deg)';
+  }
+  
+  // Save state
+  chrome.storage.local.set({ sellerNoteCollapsed: sellerNoteCollapsed });
+});
+
+// When checkbox is checked, show section and reset arrow
+sellerNoteCheckbox.addEventListener('change', (e) => {
+  if (e.target.checked) {
+    sellerNoteSection.style.display = 'block';
+    sellerNoteArrow.style.transform = 'rotate(0deg)';
+    sellerNoteCollapsed = false;
+  } else {
+    sellerNoteSection.style.display = 'none';
+    sellerNoteArrow.style.transform = 'rotate(-90deg)';
+  }
+});
+
+// Restore seller note collapsed state
+chrome.storage.local.get(['sellerNoteCollapsed'], (result) => {
+  if (result.sellerNoteCollapsed && sellerNoteCheckbox.checked) {
+    sellerNoteCollapsed = true;
+    sellerNoteSection.style.display = 'none';
+    sellerNoteArrow.style.transform = 'rotate(-90deg)';
+  }
 });
 
 // Reset overrides when key inputs change
@@ -850,7 +912,45 @@ document.getElementById('da-seller-percent').addEventListener('input', () => {
 
 document.getElementById('da-recalc-btn').addEventListener('click', scrapeData);
 
-// --- 6. SHARE FUNCTIONALITY ---
+// --- 6. COLLAPSIBLE SECTIONS ---
+// Helper function to create collapsible section
+function setupCollapsible(headerId, contentId, arrowId, storageKey) {
+  const header = document.getElementById(headerId);
+  const content = document.getElementById(contentId);
+  const arrow = document.getElementById(arrowId);
+  let collapsed = false;
+
+  header.addEventListener('click', () => {
+    collapsed = !collapsed;
+    if (collapsed) {
+      content.style.display = 'none';
+      arrow.style.transform = 'rotate(-90deg)';
+    } else {
+      content.style.display = 'block';
+      arrow.style.transform = 'rotate(0deg)';
+    }
+    // Save state
+    const saveObj = {};
+    saveObj[storageKey] = collapsed;
+    chrome.storage.local.set(saveObj);
+  });
+
+  // Restore collapsed state
+  chrome.storage.local.get([storageKey], (result) => {
+    if (result[storageKey]) {
+      collapsed = true;
+      content.style.display = 'none';
+      arrow.style.transform = 'rotate(-90deg)';
+    }
+  });
+}
+
+// Setup all collapsible sections
+setupCollapsible('da-max-header', 'da-max-content', 'da-max-arrow', 'maxCollapsed');
+setupCollapsible('da-roi-header', 'da-roi-content', 'da-roi-arrow', 'roiCollapsed');
+setupCollapsible('da-actual-header', 'da-actual-content', 'da-actual-arrow', 'actualCollapsed');
+
+// --- 7. SHARE FUNCTIONALITY ---
 const shareModal = document.getElementById('da-share-modal');
 const shareBtn = document.getElementById('da-share-btn');
 const shareClose = document.getElementById('da-share-close');
@@ -1073,6 +1173,86 @@ function generateShareText() {
 
 ---
 Generated by Max Price Deal Analyzer ${VERSION}`;
+}
+
+// Helper function to get business name from page
+function getBusinessName() {
+  // Try multiple strategies to find the business name
+  
+  // Strategy 1: Look for page title (most reliable)
+  const pageTitle = document.title;
+  console.log('Page title:', pageTitle);
+  
+  if (pageTitle && pageTitle !== 'Business For Sale') {
+    // Clean up the title - remove common suffixes
+    let cleanTitle = pageTitle
+      .replace(/\s*-\s*BizQuest.*$/i, '')
+      .replace(/\s*\|\s*BizBuySell.*$/i, '')
+      .replace(/\s*-\s*Business For Sale.*$/i, '')
+      .replace(/\s*\|\s*Crexi.*$/i, '')
+      .replace(/\s*-\s*BizBuySell.*$/i, '')
+      .replace(/\s*\|\s*Business.*$/i, '')
+      .trim();
+    
+    console.log('Cleaned title:', cleanTitle);
+    
+    if (cleanTitle.length > 0 && cleanTitle.length < 150) {
+      return cleanTitle;
+    }
+  }
+  
+  // Strategy 2: Look for h1 heading
+  const h1 = document.querySelector('h1');
+  if (h1 && h1.innerText.trim().length > 0 && h1.innerText.trim().length < 150) {
+    console.log('Found h1:', h1.innerText.trim());
+    return h1.innerText.trim();
+  }
+  
+  // Strategy 3: Look for specific business name selectors
+  const selectors = [
+    '[data-testid="listing-title"]',
+    '.listing-title',
+    '.business-name',
+    'h1.title',
+    '[class*="title"]',
+    '[class*="heading"]'
+  ];
+  
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (el && el.innerText.trim().length > 0 && el.innerText.trim().length < 150) {
+      console.log('Found via selector', selector, ':', el.innerText.trim());
+      return el.innerText.trim();
+    }
+  }
+  
+  console.log('No business name found, using fallback');
+  // Fallback: Use generic name
+  return 'Deal-Analysis';
+}
+
+// Helper function to sanitize filename
+function sanitizeFilename(filename) {
+  // Remove or replace invalid filename characters
+  let sanitized = filename
+    .replace(/[<>:"/\\|?*]/g, '-')  // Replace invalid chars with dash
+    .replace(/\s+/g, ' ')             // Normalize whitespace
+    .replace(/--+/g, '-')             // Replace multiple dashes with single dash
+    .replace(/\.+$/, '')              // Remove trailing dots
+    .trim();
+  
+  // Limit length but try to keep whole words
+  if (sanitized.length > 80) {
+    sanitized = sanitized.substring(0, 80).trim();
+    // Remove partial word at end
+    const lastSpace = sanitized.lastIndexOf(' ');
+    if (lastSpace > 50) {
+      sanitized = sanitized.substring(0, lastSpace);
+    }
+  }
+  
+  console.log('Sanitized filename:', sanitized);
+  return sanitized;
 }
 
 // Generate actual PDF file with colors and formatting
@@ -1345,7 +1525,9 @@ function generatePDFFile() {
 document.getElementById('da-share-pdf').addEventListener('click', () => {
   try {
     const doc = generatePDFFile();
-    doc.save('Deal-Analysis.pdf');
+    const businessName = sanitizeFilename(getBusinessName());
+    const filename = `${businessName}.pdf`;
+    doc.save(filename);
     shareModal.style.display = 'none';
   } catch (err) {
     console.error('PDF generation error:', err);
@@ -1375,11 +1557,13 @@ document.getElementById('da-share-native').addEventListener('click', async () =>
       // Generate the actual PDF file
       const doc = generatePDFFile();
       const pdfBlob = doc.output('blob');
+      const businessName = sanitizeFilename(getBusinessName());
+      const filename = `${businessName}.pdf`;
       
       // Check if we can share files (better for AirDrop)
       if (navigator.canShare) {
         try {
-          const file = new File([pdfBlob], 'Deal-Analysis.pdf', { type: 'application/pdf' });
+          const file = new File([pdfBlob], filename, { type: 'application/pdf' });
           const fileShareData = {
             title: 'Deal Analysis - Business Acquisition',
             files: [file]

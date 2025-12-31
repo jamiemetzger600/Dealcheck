@@ -2,6 +2,26 @@
 
 All notable changes to the Deal Analyzer Chrome Extension will be documented in this file.
 
+## [1.3.1] - 2024-12-30
+
+### Added
+- Collapsible sections for Maximum Allowable, ROI, and Actual Deal Scenario
+- Smart PDF filename generation using business name from listing
+- Arrow indicators for all collapsible sections with smooth animations
+- Persistent collapse state for all sections (remembers user preferences)
+
+### Changed
+- Separated Seller Note checkbox and collapse arrow functionality
+- Checkbox enables/disables seller note in calculations
+- Arrow collapses/expands section independently
+- Improved filename sanitization (removes invalid characters, limits length intelligently)
+- Enhanced business name extraction with multiple fallback strategies
+
+### Fixed
+- Seller Note arrow now works independently from checkbox
+- PDF exports now use actual business name instead of generic "Deal-Analysis"
+- AirDrop shares now use descriptive filenames
+
 ## [1.3.0] - 2024-12-30
 
 ### Added

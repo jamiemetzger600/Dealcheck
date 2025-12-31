@@ -1,5 +1,19 @@
 // --- VERSION ---
-const VERSION = 'v1.4.0';
+const VERSION = 'v1.4.4';
+
+// Global error handler to catch any unhandled errors
+window.addEventListener('error', (event) => {
+  console.error('Global error caught:', event.error);
+  // Prevent error from bubbling and causing extension issues
+  event.preventDefault();
+});
+
+// Global promise rejection handler
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+  // Prevent error from bubbling
+  event.preventDefault();
+});
 
 // --- 1. HTML UI TEMPLATE ---
 const uiHTML = `
@@ -45,49 +59,59 @@ const uiHTML = `
     <div id="da-percent-error" class="da-warning" style="background:#fee; border-left-color:#e74c3c; display:none;">⚠️ Total percentages must equal 100%</div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px;">A. SBA</div>
-      <div class="da-flex-row">
-        <div style="flex:1">
-          <label class="da-label">Percentage (%)</label>
-          <input type="number" id="da-sba-percent" class="da-input" value="80" step="0.1" min="0" max="100">
-        </div>
-        <div style="flex:1">
-          <label class="da-label">Loan Size ($)</label>
-          <input type="text" id="da-sba-loan" class="da-input" value="" placeholder="0" readonly>
-        </div>
+      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;" id="da-sba-header">
+        <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+        <span>A. SBA</span>
       </div>
-      <div class="da-flex-row">
-        <div style="flex:1">
-          <label class="da-label">Interest Rate (%)</label>
-          <input type="number" id="da-bank-rate" class="da-input" value="11.5" step="0.1">
+      <div id="da-sba-section" style="margin-top:8px;">
+        <div class="da-flex-row">
+          <div style="flex:1">
+            <label class="da-label">Percentage (%)</label>
+            <input type="number" id="da-sba-percent" class="da-input" value="80" step="0.1" min="0" max="100">
+          </div>
+          <div style="flex:1">
+            <label class="da-label">Loan Size ($)</label>
+            <input type="text" id="da-sba-loan" class="da-input" value="" placeholder="0" readonly>
+          </div>
         </div>
-        <div style="flex:1">
-          <label class="da-label">Term (Yrs)</label>
-          <input type="number" id="da-bank-term" class="da-input" value="10">
-        </div>
-        <div style="flex:1">
-          <label class="da-label">Target DSCR</label>
-          <input type="number" id="da-dscr" class="da-input" value="1.25" step="0.05" min="1.0">
+        <div class="da-flex-row">
+          <div style="flex:1">
+            <label class="da-label">Interest Rate (%)</label>
+            <input type="number" id="da-bank-rate" class="da-input" value="11.5" step="0.1">
+          </div>
+          <div style="flex:1">
+            <label class="da-label">Term (Yrs)</label>
+            <input type="number" id="da-bank-term" class="da-input" value="10">
+          </div>
+          <div style="flex:1">
+            <label class="da-label">Target DSCR</label>
+            <input type="number" id="da-dscr" class="da-input" value="1.25" step="0.05" min="1.0">
+          </div>
         </div>
       </div>
     </div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px;">B. Buyer Equity</div>
-      <div class="da-flex-row">
-        <div style="flex:1">
-          <label class="da-label">Percentage (%)</label>
-          <input type="number" id="da-down-percent" class="da-input" value="10" step="0.1" min="0" max="100">
-        </div>
-        <div style="flex:1">
-          <label class="da-label">Equity Amount ($)</label>
-          <input type="text" id="da-down" class="da-input" value="" placeholder="0" readonly>
-        </div>
+      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;" id="da-buyer-equity-header">
+        <span id="da-buyer-equity-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+        <span>B. Buyer Equity</span>
       </div>
-      <div class="da-row">
-        <label class="da-label">Target Owner Salary (Annual) <span style="font-weight:400; color:#999; font-size:11px;">(Required for SBA)</span></label>
-        <input type="text" id="da-target-salary" class="da-input" placeholder="150000" value="150000">
-        <div id="da-salary-warning" class="da-warning" style="background:#fee; border-left:3px solid #e74c3c; padding:6px 8px; margin-top:4px;">⚠️ Warning: Target salary exceeds available cash flow!</div>
+      <div id="da-buyer-equity-section" style="margin-top:8px;">
+        <div class="da-flex-row">
+          <div style="flex:1">
+            <label class="da-label">Percentage (%)</label>
+            <input type="number" id="da-down-percent" class="da-input" value="10" step="0.1" min="0" max="100">
+          </div>
+          <div style="flex:1">
+            <label class="da-label">Equity Amount ($)</label>
+            <input type="text" id="da-down" class="da-input" value="" placeholder="0" readonly>
+          </div>
+        </div>
+        <div class="da-row">
+          <label class="da-label">Target Owner Salary (Annual) <span style="font-weight:400; color:#999; font-size:11px;">(Required for SBA)</span></label>
+          <input type="text" id="da-target-salary" class="da-input" placeholder="150000" value="150000">
+          <div id="da-salary-warning" class="da-warning" style="background:#fee; border-left:3px solid #e74c3c; padding:6px 8px; margin-top:4px;">⚠️ Warning: Target salary exceeds available cash flow!</div>
+        </div>
       </div>
     </div>
 
@@ -133,7 +157,8 @@ const uiHTML = `
   </div>
 
   <div class="da-section" style="background:#f4f6f9; flex-grow:1;">
-    <div id="da-deal-opportunity" class="da-warning" style="background:#d4edda; border-left-color:#28a745; color:#155724; display:none; margin-bottom:12px;">
+    <div id="da-deal-opportunity" class="da-warning" style="background:#d4edda; border-left-color:#28a745; color:#155724; display:none; margin-bottom:12px; position:relative; padding-right:30px;">
+      <span id="da-deal-opportunity-close" style="position:absolute; top:8px; right:8px; cursor:pointer; font-size:16px; opacity:0.7; line-height:1; transition:opacity 0.2s;" title="Dismiss">✕</span>
       💰 <strong>DEAL OPPORTUNITY!</strong><br>
       <span id="da-deal-savings"></span>
     </div>
@@ -290,26 +315,45 @@ const settingsModalHTML = `
 `;
 
 // Inject the UI
-const div = document.createElement('div');
-div.innerHTML = uiHTML;
-document.body.appendChild(div);
+try {
+  const div = document.createElement('div');
+  div.innerHTML = uiHTML;
+  document.body.appendChild(div);
+} catch (error) {
+  console.error('Error injecting main UI:', error);
+}
 
 // Inject the share modal
-const shareDiv = document.createElement('div');
-shareDiv.innerHTML = shareModalHTML;
-document.body.appendChild(shareDiv);
+try {
+  const shareDiv = document.createElement('div');
+  shareDiv.innerHTML = shareModalHTML;
+  document.body.appendChild(shareDiv);
+} catch (error) {
+  console.error('Error injecting share modal:', error);
+}
 
 // Inject the settings modal
-const settingsDiv = document.createElement('div');
-settingsDiv.innerHTML = settingsModalHTML;
-document.body.appendChild(settingsDiv);
+try {
+  const settingsDiv = document.createElement('div');
+  settingsDiv.innerHTML = settingsModalHTML;
+  document.body.appendChild(settingsDiv);
+} catch (error) {
+  console.error('Error injecting settings modal:', error);
+}
 
 // --- 2. DRAGGABLE WINDOW LOGIC ---
 const container = document.getElementById('deal-analyzer-container');
 const header = document.getElementById('deal-analyzer-header');
 
+// Check if elements exist
+if (!container || !header) {
+  console.error('Deal Analyzer UI elements not found. Extension may not work properly.');
+}
+
 // START HIDDEN BY DEFAULT - only show when user clicks extension icon
-container.style.display = 'none';
+if (container) {
+  container.style.display = 'none';
+}
 
 // User preferences with defaults
 let userPreferences = {
@@ -319,9 +363,11 @@ let userPreferences = {
 };
 let isDragging = false, currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
 
-header.addEventListener("mousedown", dragStart);
-document.addEventListener("mouseup", dragEnd);
-document.addEventListener("mousemove", drag);
+if (header && container) {
+  header.addEventListener("mousedown", dragStart);
+  document.addEventListener("mouseup", dragEnd);
+  document.addEventListener("mousemove", drag);
+}
 
 function dragStart(e) {
   initialX = e.clientX - xOffset;
@@ -330,7 +376,7 @@ function dragStart(e) {
 }
 function dragEnd() { isDragging = false; }
 function drag(e) {
-  if (isDragging) {
+  if (isDragging && container) {
     e.preventDefault();
     currentX = e.clientX - initialX;
     currentY = e.clientY - initialY;
@@ -358,25 +404,40 @@ function drag(e) {
     container.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
   }
 }
-document.getElementById('da-close').onclick = () => container.style.display = 'none';
+
+const closeBtn = document.getElementById('da-close');
+if (closeBtn && container) {
+  closeBtn.onclick = () => container.style.display = 'none';
+}
 
 // Coffee button - opens Venmo with suggested amount
-document.getElementById('da-coffee-btn').onclick = () => {
-  if (confirm('☕ Buy me a coffee?\n\nSuggested amount: $10\n\nThis will open Venmo (@amco-digital)')) {
-    window.open('https://venmo.com/u/amco-digital', '_blank');
-  }
-};
+const coffeeBtn = document.getElementById('da-coffee-btn');
+if (coffeeBtn) {
+  coffeeBtn.onclick = () => {
+    if (confirm('☕ Buy me a coffee?\n\nSuggested amount: $10\n\nThis will open Venmo (@amco-digital)')) {
+      window.open('https://venmo.com/u/amco-digital', '_blank');
+    }
+  };
+}
 
 // Listen for messages from background script to toggle window
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "toggleWindow") {
-    if (container.style.display === 'none') {
-      container.style.display = 'flex';
-    } else {
-      container.style.display = 'none';
+  try {
+    if (request.action === "toggleWindow") {
+      const container = document.getElementById('deal-analyzer-container');
+      if (container) {
+        if (container.style.display === 'none') {
+          container.style.display = 'flex';
+        } else {
+          container.style.display = 'none';
+        }
+      }
+      // Send response to acknowledge message received
+      sendResponse({ status: "toggled" });
     }
-    // Send response to acknowledge message received
-    sendResponse({ status: "toggled" });
+  } catch (error) {
+    console.error('Error handling message:', error);
+    sendResponse({ status: "error", message: error.message });
   }
   // Return true to indicate we'll send a response asynchronously (though we send it synchronously above)
   return true;
@@ -395,76 +456,134 @@ function parseCurrency(str) {
 // Helper: Finds a value on the page by looking for its label
 function findValueByLabel(keywords) {
   // We look at all common text containers
-  const candidates = document.querySelectorAll('b, strong, span, p, div, td, dt, h4, h5');
+  const candidates = document.querySelectorAll('b, strong, span, p, div, td, dt, h4, h5, h3');
+
+  console.log(`🔍 Searching for keywords:`, keywords);
+  let foundElements = [];
 
   for (const el of candidates) {
-    const text = el.innerText.trim().toLowerCase();
-    const labelFound = keywords.some(k => text === k.toLowerCase() || text.startsWith(k.toLowerCase() + ":"));
+    const text = el.innerText?.trim().toLowerCase();
+    if (!text) continue;
+    
+    const labelFound = keywords.some(k => {
+      const keyword = k.toLowerCase();
+      // Match: exact match, starts with keyword, or contains keyword (if short enough)
+      return text === keyword || 
+             text.startsWith(keyword + ":") || 
+             text.startsWith(keyword + " ") ||
+             (text.includes(keyword) && text.length < keyword.length + 100);
+    });
 
     if (labelFound) {
+      console.log(`✅ Found label "${text}" matching keywords:`, keywords);
+      foundElements.push(el);
+      
       // STRATEGY A: The value is in the next sibling element (e.g., <b>Price:</b> <span>$100</span>)
       let sibling = el.nextElementSibling;
-      if (sibling && sibling.innerText.match(/\$/)) {
-         return parseCurrency(sibling.innerText);
+      if (sibling) {
+        const siblingText = sibling.innerText?.trim();
+        console.log(`  → Checking next sibling: "${siblingText}"`);
+        if (siblingText && siblingText.match(/\$/)) {
+          const value = parseCurrency(siblingText);
+          console.log(`  → Strategy A (next sibling): "${siblingText}" = ${value}`);
+          if (value > 0) return value;
+        }
       }
 
       // STRATEGY B: The value is inside the parent's text (e.g., <p><b>Price:</b> $100</p>)
       if (el.parentElement) {
         const parentText = el.parentElement.innerText;
+        console.log(`  → Parent element text (first 200 chars): "${parentText.substring(0, 200)}..."`);
         // Remove the label itself to isolate the number
         const cleanParent = parentText.replace(el.innerText, "");
         if (cleanParent.match(/\$/)) {
-            return parseCurrency(cleanParent);
+          const value = parseCurrency(cleanParent);
+          console.log(`  → Strategy B (parent text): first $ value found = ${value}`);
+          if (value > 0) return value;
         }
       }
 
       // STRATEGY C: The value is in the same element? (e.g. <div>Price: $100</div>)
       if (el.innerText.match(/\$/)) {
-          return parseCurrency(el.innerText);
+        const value = parseCurrency(el.innerText);
+        console.log(`  → Strategy C (same element): "${el.innerText}" = ${value}`);
+        if (value > 0) return value;
       }
+      
+      console.log(`  ⚠️ Label found but no dollar value extracted`);
     }
   }
+  
+  console.log(`❌ No match found for keywords:`, keywords);
+  console.log(`   Found ${foundElements.length} elements with matching labels but no valid values`);
   return 0; // Not found
 }
 
 function scrapeData() {
-  // 1. Find Asking Price
-  // We try specific labels used by BizQuest, BizBuySell, Crexi
-  let askingPrice = findValueByLabel(["Asking Price", "Price", "Purchase Price"]);
+  try {
+    console.log('🔄 Starting scrapeData...');
+    console.log('📍 Current URL:', window.location.href);
+    
+    // 1. Find Asking Price
+    // We try specific labels used by BizQuest, BizBuySell, Crexi
+    console.log('\n💰 Looking for Asking Price...');
+    let askingPrice = findValueByLabel(["Asking Price", "Price", "Purchase Price"]);
+    console.log('💰 Asking Price found:', askingPrice);
 
-  // 2. Find EBITDA or SDE
-  // Priority 1: Look for explicit "EBITDA" first (cleanest number)
-  let ebitdaVal = findValueByLabel(["EBITDA"]);
-  let isSDE = false;
+    // 2. Find EBITDA or SDE
+    // Priority 1: Look for explicit "EBITDA" first (cleanest number)
+    console.log('\n📊 Looking for EBITDA...');
+    let ebitdaVal = findValueByLabel(["EBITDA"]);
+    let isSDE = false;
 
-  // Priority 2: If no EBITDA, look for Cash Flow / SDE
-  if (ebitdaVal === 0) {
-      ebitdaVal = findValueByLabel(["Cash Flow", "SDE", "Seller Discretionary Earnings", "Discretionary Earnings"]);
-      if (ebitdaVal > 0) {
-          isSDE = true;
-      }
+    // Priority 2: If no EBITDA, look for Cash Flow / SDE
+    if (ebitdaVal === 0) {
+        console.log('📊 No EBITDA found, looking for Cash Flow/SDE...');
+        ebitdaVal = findValueByLabel(["Cash Flow", "SDE", "Seller Discretionary Earnings", "Discretionary Earnings", "Seller's Discretionary Earnings"]);
+        if (ebitdaVal > 0) {
+            console.log('✅ Found SDE/Cash Flow:', ebitdaVal);
+            isSDE = true;
+        }
+    } else {
+        console.log('✅ Found EBITDA:', ebitdaVal);
+    }
+
+    // 3. Update Inputs with formatted numbers (with $ for currency fields)
+    const askingField = document.getElementById('da-asking');
+    if (askingPrice > 0 && askingField) {
+        askingField.value = '$' + formatNumber(askingPrice);
+        console.log('✅ Updated Asking Price field:', askingField.value);
+    } else {
+        console.log('⚠️ No asking price to update');
+    }
+
+    const ebitdaField = document.getElementById('da-ebitda');
+    const sdeWarning = document.getElementById('da-sde-warning');
+    if (ebitdaVal > 0 && ebitdaField) {
+        if (isSDE) {
+            console.log('⚠️ SDE detected, subtracting $200k for owner salary');
+            if (sdeWarning) sdeWarning.classList.add('visible');
+            // Apply $200k subtraction rule for SDE
+            const originalVal = ebitdaVal;
+            ebitdaVal = Math.max(0, ebitdaVal - 200000);
+            console.log(`   Original SDE: $${formatNumber(originalVal)}`);
+            console.log(`   After -$200k: $${formatNumber(ebitdaVal)}`);
+        } else {
+            if (sdeWarning) sdeWarning.classList.remove('visible');
+        }
+        ebitdaField.value = '$' + formatNumber(ebitdaVal);
+        console.log('✅ Updated EBITDA field:', ebitdaField.value);
+    } else {
+        console.log('⚠️ No EBITDA/SDE value to update');
+        // If we found nothing, clear the warning so it doesn't confuse user
+        if (sdeWarning) sdeWarning.classList.remove('visible');
+    }
+
+    console.log('🏁 Scraping complete, triggering calculation...\n');
+    calculate();
+  } catch (error) {
+    console.error('❌ Error in scrapeData:', error);
   }
-
-  // 3. Update Inputs with formatted numbers (with $ for currency fields)
-  if (askingPrice > 0) {
-      document.getElementById('da-asking').value = '$' + formatNumber(askingPrice);
-  }
-
-  if (ebitdaVal > 0) {
-      if (isSDE) {
-          document.getElementById('da-sde-warning').classList.add('visible');
-          // Apply $200k subtraction rule for SDE
-          ebitdaVal = Math.max(0, ebitdaVal - 200000);
-      } else {
-          document.getElementById('da-sde-warning').classList.remove('visible');
-      }
-      document.getElementById('da-ebitda').value = '$' + formatNumber(ebitdaVal);
-  } else {
-      // If we found nothing, clear the warning so it doesn't confuse user
-      document.getElementById('da-sde-warning').classList.remove('visible');
-  }
-
-  calculate();
 }
 
 // Helper: Parse number from formatted string (removes commas and $)
@@ -472,6 +591,18 @@ function parseNumber(str) {
   if (!str) return 0;
   const cleaned = String(str).replace(/[,$]/g, '');
   return parseFloat(cleaned) || 0;
+}
+
+// Helper: Safely get element value (handles null/undefined)
+function safeGetValue(id, defaultValue = '') {
+  const element = document.getElementById(id);
+  return element ? (element.value || defaultValue) : defaultValue;
+}
+
+// Helper: Safely get element text content (handles null/undefined)
+function safeGetText(id, defaultValue = '') {
+  const element = document.getElementById(id);
+  return element ? (element.innerText || defaultValue) : defaultValue;
 }
 
 // Helper: Format number with commas
@@ -492,8 +623,11 @@ function formatCompact(n) {
   return n.toFixed(0);
 }
 
-// Helper: Format currency with commas
+// Helper: Format currency with commas (handles negative numbers)
 function fmt(n) {
+  if (n < 0) {
+    return "-$" + formatNumber(Math.abs(n));
+  }
   return "$" + formatNumber(n);
 }
 
@@ -556,6 +690,8 @@ function updateDealQualityBanner(score, askingPrice, maxPrice, cocReturn, paybac
   const text = document.getElementById('da-quality-text');
   const scoreDisplay = document.getElementById('da-quality-score');
   const banner = document.getElementById('da-quality-banner');
+  
+  if (!badge || !text || !scoreDisplay || !banner) return;
   
   scoreDisplay.innerText = score;
   
@@ -766,8 +902,8 @@ function calculate() {
   // Available Cash Flow = EBITDA - Total Debt Service
   const availableCashFlow = ebitda - totalDebtService;
   
-  // Free Cash Flow = Available Cash Flow - Target Salary
-  const freeCashFlowAnnual = Math.max(0, availableCashFlow - targetSalary);
+  // Free Cash Flow = Available Cash Flow - Target Salary (can be negative)
+  const freeCashFlowAnnual = availableCashFlow - targetSalary;
   const freeCashFlowMonthly = freeCashFlowAnnual / 12;
   
   // Validate that target salary doesn't exceed available cash flow
@@ -779,7 +915,7 @@ function calculate() {
     salaryWarning.style.display = 'none';
   }
   
-  // Total Owner Take-Home = Salary + Remaining Free Cash Flow
+  // Total Owner Take-Home = Salary + Remaining Free Cash Flow (can show cash shortfall if negative)
   const totalOwnerTakeHome = targetSalary + freeCashFlowAnnual;
 
   // 12. Calculate ROI Metrics
@@ -833,41 +969,67 @@ function calculate() {
   // Display Deal Opportunity Banner
   const dealOpportunityDiv = document.getElementById('da-deal-opportunity');
   const dealSavingsSpan = document.getElementById('da-deal-savings');
-  if (isDealOpportunity) {
+  if (isDealOpportunity && dealOpportunityDiv && dealSavingsSpan) {
     const savings = maxPurchasePrice - askingPrice;
     dealOpportunityDiv.style.display = 'block';
     dealSavingsSpan.innerText = `Asking price is ${fmt(savings)} below your max allowable price!`;
-  } else {
+  } else if (dealOpportunityDiv) {
     dealOpportunityDiv.style.display = 'none';
   }
 
   // Display Results
-  document.getElementById('da-max-price').innerText = fmt(maxPurchasePrice);
-  // da-actual-price is now an input field, updated above
-  document.getElementById('da-max-debt').innerText = fmt(maxAnnualDebtService);
-  document.getElementById('da-total-debt').innerText = fmt(totalDebtService);
-  document.getElementById('da-fcf-annual').innerText = fmt(freeCashFlowAnnual);
-  document.getElementById('da-fcf-monthly').innerText = fmt(freeCashFlowMonthly);
-  document.getElementById('da-owner-salary').innerText = fmt(totalOwnerTakeHome);
-  document.getElementById('da-max-available').innerText = fmt(availableCashFlow);
+  const maxPriceEl = document.getElementById('da-max-price');
+  const maxDebtEl = document.getElementById('da-max-debt');
+  const totalDebtEl = document.getElementById('da-total-debt');
+  const fcfAnnualEl = document.getElementById('da-fcf-annual');
+  const fcfMonthlyEl = document.getElementById('da-fcf-monthly');
+  const ownerSalaryEl = document.getElementById('da-owner-salary');
+  const maxAvailableEl = document.getElementById('da-max-available');
+  
+  if (maxPriceEl) maxPriceEl.innerText = fmt(maxPurchasePrice);
+  if (maxDebtEl) maxDebtEl.innerText = fmt(maxAnnualDebtService);
+  if (totalDebtEl) totalDebtEl.innerText = fmt(totalDebtService);
+  
+  // Free Cash Flow - color red if negative
+  if (fcfAnnualEl) {
+    fcfAnnualEl.innerText = fmt(freeCashFlowAnnual);
+    fcfAnnualEl.style.color = freeCashFlowAnnual < 0 ? '#e74c3c' : '#2c3e50';
+  }
+  if (fcfMonthlyEl) {
+    fcfMonthlyEl.innerText = fmt(freeCashFlowMonthly);
+    fcfMonthlyEl.style.color = freeCashFlowMonthly < 0 ? '#e74c3c' : '#666';
+  }
+  
+  // Total Owner Take-Home - color red if negative
+  if (ownerSalaryEl) {
+    ownerSalaryEl.innerText = fmt(totalOwnerTakeHome);
+    ownerSalaryEl.style.color = totalOwnerTakeHome < 0 ? '#e74c3c' : '#2c3e50';
+  }
+  
+  if (maxAvailableEl) maxAvailableEl.innerText = fmt(availableCashFlow);
   
   // Display ROI Metrics
   const cocElement = document.getElementById('da-coc-return');
-  cocElement.innerText = cashOnCashReturn.toFixed(1) + '%';
-  // Color code based on return quality
-  if (cashOnCashReturn >= 100) {
-    cocElement.style.color = '#27ae60'; // Green for excellent (100%+)
-  } else if (cashOnCashReturn >= 50) {
-    cocElement.style.color = '#16a085'; // Teal for good (50%+)
-  } else if (cashOnCashReturn >= 25) {
-    cocElement.style.color = '#f39c12'; // Orange for okay (25%+)
-  } else {
-    cocElement.style.color = '#e74c3c'; // Red for poor (<25%)
+  if (cocElement) {
+    cocElement.innerText = cashOnCashReturn.toFixed(1) + '%';
+    // Color code based on return quality
+    if (cashOnCashReturn >= 100) {
+      cocElement.style.color = '#27ae60'; // Green for excellent (100%+)
+    } else if (cashOnCashReturn >= 50) {
+      cocElement.style.color = '#16a085'; // Teal for good (50%+)
+    } else if (cashOnCashReturn >= 25) {
+      cocElement.style.color = '#f39c12'; // Orange for okay (25%+)
+    } else {
+      cocElement.style.color = '#e74c3c'; // Red for poor (<25%)
+    }
   }
   
-  document.getElementById('da-payback').innerText = paybackPeriod > 0 && paybackPeriod < 100 
-    ? paybackPeriod.toFixed(1) + ' yrs' 
-    : (paybackPeriod >= 100 ? '∞' : 'N/A');
+  const paybackEl = document.getElementById('da-payback');
+  if (paybackEl) {
+    paybackEl.innerText = paybackPeriod > 0 && paybackPeriod < 100 
+      ? paybackPeriod.toFixed(1) + ' yrs' 
+      : (paybackPeriod >= 100 ? '∞' : 'N/A');
+  }
 
   // Calculate and Update Deal Quality Score
   const dealScore = calculateDealQualityScore(
@@ -1026,120 +1188,169 @@ function loadState() {
 }
 
 // Set up event listeners
-document.querySelectorAll('input, select').forEach(el => {
-  // Skip SBA percent - it has its own handler to reset overrides first
-  if (el.id !== 'da-sba-percent') {
-    el.addEventListener('input', calculate);
-  }
-  if (el.type === 'text') {
-    el.addEventListener('blur', formatInputOnBlur);
-    el.addEventListener('focus', unformatInputOnFocus);
-  }
-});
+try {
+  document.querySelectorAll('input, select').forEach(el => {
+    // Skip SBA percent - it has its own handler to reset overrides first
+    if (el.id !== 'da-sba-percent') {
+      el.addEventListener('input', calculate);
+    }
+    if (el.type === 'text') {
+      el.addEventListener('blur', formatInputOnBlur);
+      el.addEventListener('focus', unformatInputOnFocus);
+    }
+  });
+} catch (error) {
+  console.error('Error setting up input event listeners:', error);
+}
 
 // Make auto-calculated fields editable on click
-document.getElementById('da-actual-price').addEventListener('click', () => {
-  makeEditable('da-actual-price', 'actualPrice');
-});
-document.getElementById('da-sba-loan').addEventListener('click', () => {
-  makeEditable('da-sba-loan', 'sbaLoan');
-});
-document.getElementById('da-down').addEventListener('click', () => {
-  makeEditable('da-down', 'downPayment');
-});
-document.getElementById('da-seller-amt').addEventListener('click', () => {
-  makeEditable('da-seller-amt', 'sellerNote');
-});
+const actualPriceField = document.getElementById('da-actual-price');
+if (actualPriceField) {
+  actualPriceField.addEventListener('click', () => {
+    makeEditable('da-actual-price', 'actualPrice');
+  });
+}
+
+const sbaLoanField = document.getElementById('da-sba-loan');
+if (sbaLoanField) {
+  sbaLoanField.addEventListener('click', () => {
+    makeEditable('da-sba-loan', 'sbaLoan');
+  });
+}
+
+const downField = document.getElementById('da-down');
+if (downField) {
+  downField.addEventListener('click', () => {
+    makeEditable('da-down', 'downPayment');
+  });
+}
+
+const sellerAmtField = document.getElementById('da-seller-amt');
+if (sellerAmtField) {
+  sellerAmtField.addEventListener('click', () => {
+    makeEditable('da-seller-amt', 'sellerNote');
+  });
+}
 
 // Seller note checkbox - enables/disables the seller note
-document.getElementById('da-seller-note-enabled').addEventListener('change', (e) => {
-  if (!e.target.checked) {
-    document.getElementById('da-seller-amt').value = '';
-    overrides.sellerNote = false;
-  }
-  calculate();
-});
+const sellerNoteCheckbox = document.getElementById('da-seller-note-enabled');
+if (sellerNoteCheckbox) {
+  sellerNoteCheckbox.addEventListener('change', (e) => {
+    const sellerAmtField = document.getElementById('da-seller-amt');
+    if (!e.target.checked && sellerAmtField) {
+      sellerAmtField.value = '';
+      overrides.sellerNote = false;
+    }
+    calculate();
+  });
+}
 
 // Seller note arrow - collapses/expands the section
 let sellerNoteCollapsed = false;
 const sellerNoteArrow = document.getElementById('da-seller-note-arrow');
 const sellerNoteSection = document.getElementById('da-seller-note-section');
-const sellerNoteCheckbox = document.getElementById('da-seller-note-enabled');
 
-sellerNoteArrow.addEventListener('click', (e) => {
-  e.stopPropagation(); // Prevent triggering checkbox
-  
-  // Only allow collapse/expand if checkbox is checked
-  if (!sellerNoteCheckbox.checked) {
-    return;
-  }
-  
-  sellerNoteCollapsed = !sellerNoteCollapsed;
-  if (sellerNoteCollapsed) {
-    sellerNoteSection.style.display = 'none';
-    sellerNoteArrow.style.transform = 'rotate(-90deg)';
-  } else {
-    sellerNoteSection.style.display = 'block';
-    sellerNoteArrow.style.transform = 'rotate(0deg)';
-  }
-  
-  // Save state
-  chrome.storage.local.set({ sellerNoteCollapsed: sellerNoteCollapsed });
-});
+if (sellerNoteArrow && sellerNoteSection && sellerNoteCheckbox) {
+  sellerNoteArrow.addEventListener('click', (e) => {
+    e.stopPropagation(); // Prevent triggering checkbox
+    
+    // Only allow collapse/expand if checkbox is checked
+    if (!sellerNoteCheckbox.checked) {
+      return;
+    }
+    
+    sellerNoteCollapsed = !sellerNoteCollapsed;
+    if (sellerNoteCollapsed) {
+      sellerNoteSection.style.display = 'none';
+      sellerNoteArrow.style.transform = 'rotate(-90deg)';
+    } else {
+      sellerNoteSection.style.display = 'block';
+      sellerNoteArrow.style.transform = 'rotate(0deg)';
+    }
+    
+    // Save state
+    chrome.storage.local.set({ sellerNoteCollapsed: sellerNoteCollapsed });
+  });
+}
 
 // When checkbox is checked, show section and reset arrow
-sellerNoteCheckbox.addEventListener('change', (e) => {
-  if (e.target.checked) {
-    sellerNoteSection.style.display = 'block';
-    sellerNoteArrow.style.transform = 'rotate(0deg)';
-    sellerNoteCollapsed = false;
-  } else {
-    sellerNoteSection.style.display = 'none';
-    sellerNoteArrow.style.transform = 'rotate(-90deg)';
-  }
-});
+if (sellerNoteCheckbox && sellerNoteSection && sellerNoteArrow) {
+  sellerNoteCheckbox.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      sellerNoteSection.style.display = 'block';
+      sellerNoteArrow.style.transform = 'rotate(0deg)';
+      sellerNoteCollapsed = false;
+    } else {
+      sellerNoteSection.style.display = 'none';
+      sellerNoteArrow.style.transform = 'rotate(-90deg)';
+    }
+  });
+}
 
 // Restore seller note collapsed state
-chrome.storage.local.get(['sellerNoteCollapsed'], (result) => {
-  if (result.sellerNoteCollapsed && sellerNoteCheckbox.checked) {
-    sellerNoteCollapsed = true;
-    sellerNoteSection.style.display = 'none';
-    sellerNoteArrow.style.transform = 'rotate(-90deg)';
-  }
-});
+if (sellerNoteCheckbox && sellerNoteSection && sellerNoteArrow) {
+  chrome.storage.local.get(['sellerNoteCollapsed'], (result) => {
+    if (result.sellerNoteCollapsed && sellerNoteCheckbox.checked) {
+      sellerNoteCollapsed = true;
+      sellerNoteSection.style.display = 'none';
+      sellerNoteArrow.style.transform = 'rotate(-90deg)';
+    }
+  });
+}
 
 // Reset overrides when key inputs change
-document.getElementById('da-asking').addEventListener('input', () => {
-  // When asking price changes, reset actual price override
-  overrides.actualPrice = false;
-  const actualPriceField = document.getElementById('da-actual-price');
-  actualPriceField.setAttribute('readonly', 'readonly');
-  calculate();
-});
-
-document.getElementById('da-sba-percent').addEventListener('input', () => {
-  // When SBA % changes, reset the loan size override so it recalculates
-  overrides.sbaLoan = false;
-  const sbaLoanField = document.getElementById('da-sba-loan');
-  sbaLoanField.setAttribute('readonly', 'readonly');
-  calculate();
-});
-document.getElementById('da-down-percent').addEventListener('input', () => {
-  if (!overrides.downPayment) {
+const askingField = document.getElementById('da-asking');
+if (askingField) {
+  askingField.addEventListener('input', () => {
+    // When asking price changes, reset actual price override
+    overrides.actualPrice = false;
+    const actualPriceField = document.getElementById('da-actual-price');
+    if (actualPriceField) {
+      actualPriceField.setAttribute('readonly', 'readonly');
+    }
     calculate();
-  }
-});
-document.getElementById('da-seller-percent').addEventListener('input', () => {
-  if (!overrides.sellerNote) {
-    calculate();
-  }
-});
+  });
+}
 
-// Contact Me button - opens email
-document.getElementById('da-contact-btn').addEventListener('click', () => {
-  const subject = encodeURIComponent('Deal Analyzer - Ideas, Bug Reports, Suggestions, Issues, Praise');
-  window.open(`mailto:jamiemetzger@gmail.com?subject=${subject}`, '_blank');
-});
+const sbaPercentField = document.getElementById('da-sba-percent');
+if (sbaPercentField) {
+  sbaPercentField.addEventListener('input', () => {
+    // When SBA % changes, reset the loan size override so it recalculates
+    overrides.sbaLoan = false;
+    const sbaLoanField = document.getElementById('da-sba-loan');
+    if (sbaLoanField) {
+      sbaLoanField.setAttribute('readonly', 'readonly');
+    }
+    calculate();
+  });
+}
+
+const downPercentField = document.getElementById('da-down-percent');
+if (downPercentField) {
+  downPercentField.addEventListener('input', () => {
+    if (!overrides.downPayment) {
+      calculate();
+    }
+  });
+}
+
+const sellerPercentField = document.getElementById('da-seller-percent');
+if (sellerPercentField) {
+  sellerPercentField.addEventListener('input', () => {
+    if (!overrides.sellerNote) {
+      calculate();
+    }
+  });
+}
+
+// Contact Me button - opens email (only if element exists)
+const contactBtn = document.getElementById('da-contact-btn');
+if (contactBtn) {
+  contactBtn.addEventListener('click', () => {
+    const subject = encodeURIComponent('Deal Analyzer - Ideas, Bug Reports, Suggestions, Issues, Praise');
+    window.open(`mailto:jamiemetzger@gmail.com?subject=${subject}`, '_blank');
+  });
+}
 
 // --- 6. COLLAPSIBLE SECTIONS ---
 // Helper function to create collapsible section
@@ -1178,6 +1389,8 @@ function setupCollapsible(headerId, contentId, arrowId, storageKey) {
 setupCollapsible('da-max-header', 'da-max-content', 'da-max-arrow', 'maxCollapsed');
 setupCollapsible('da-roi-header', 'da-roi-content', 'da-roi-arrow', 'roiCollapsed');
 setupCollapsible('da-actual-header', 'da-actual-content', 'da-actual-arrow', 'actualCollapsed');
+setupCollapsible('da-sba-header', 'da-sba-section', 'da-sba-arrow', 'sbaCollapsed');
+setupCollapsible('da-buyer-equity-header', 'da-buyer-equity-section', 'da-buyer-equity-arrow', 'buyerEquityCollapsed');
 
 // --- 7. SHARE FUNCTIONALITY ---
 const shareModal = document.getElementById('da-share-modal');
@@ -1185,21 +1398,27 @@ const shareBtn = document.getElementById('da-share-btn');
 const shareClose = document.getElementById('da-share-close');
 
 // Open share modal
-shareBtn.addEventListener('click', () => {
-  shareModal.style.display = 'flex';
-});
+if (shareBtn && shareModal) {
+  shareBtn.addEventListener('click', () => {
+    shareModal.style.display = 'flex';
+  });
+}
 
 // Close share modal
-shareClose.addEventListener('click', () => {
-  shareModal.style.display = 'none';
-});
+if (shareClose && shareModal) {
+  shareClose.addEventListener('click', () => {
+    shareModal.style.display = 'none';
+  });
+}
 
 // Close modal when clicking outside
-shareModal.addEventListener('click', (e) => {
-  if (e.target === shareModal) {
-    shareModal.style.display = 'none';
-  }
-});
+if (shareModal) {
+  shareModal.addEventListener('click', (e) => {
+    if (e.target === shareModal) {
+      shareModal.style.display = 'none';
+    }
+  });
+}
 
 // --- 8. SETTINGS FUNCTIONALITY ---
 const settingsModal = document.getElementById('da-settings-modal');
@@ -1209,59 +1428,107 @@ const settingsSave = document.getElementById('da-settings-save');
 const settingsReset = document.getElementById('da-settings-reset');
 
 // Open settings modal
-settingsBtn.addEventListener('click', () => {
-  // Load current preferences into modal
-  document.getElementById('da-target-coc').value = userPreferences.targetCOC;
-  document.getElementById('da-target-payback').value = userPreferences.targetPayback;
-  document.getElementById('da-format-compact').checked = userPreferences.compactFormat;
-  settingsModal.style.display = 'flex';
-});
+if (settingsBtn && settingsModal) {
+  settingsBtn.addEventListener('click', () => {
+    // Load current preferences into modal fields
+    const targetCocField = document.getElementById('da-target-coc');
+    const targetPaybackField = document.getElementById('da-target-payback');
+    const formatCompactField = document.getElementById('da-format-compact');
+    
+    // Ensure preferences are loaded (in case page just loaded)
+    chrome.storage.local.get(['userPreferences'], (result) => {
+      if (result.userPreferences) {
+        userPreferences = result.userPreferences;
+      }
+      
+      // Set field values from preferences
+      if (targetCocField) targetCocField.value = userPreferences.targetCOC;
+      if (targetPaybackField) targetPaybackField.value = userPreferences.targetPayback;
+      if (formatCompactField) formatCompactField.checked = userPreferences.compactFormat;
+      
+      settingsModal.style.display = 'flex';
+    });
+  });
+}
 
 // Close settings modal
-settingsClose.addEventListener('click', () => {
-  settingsModal.style.display = 'none';
-});
+if (settingsClose && settingsModal) {
+  settingsClose.addEventListener('click', () => {
+    settingsModal.style.display = 'none';
+  });
+}
 
 // Close modal when clicking outside
-settingsModal.addEventListener('click', (e) => {
-  if (e.target === settingsModal) {
-    settingsModal.style.display = 'none';
-  }
-});
+if (settingsModal) {
+  settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) {
+      settingsModal.style.display = 'none';
+    }
+  });
+}
 
 // Save settings
-settingsSave.addEventListener('click', () => {
-  // Update preferences
-  userPreferences.targetCOC = parseFloat(document.getElementById('da-target-coc').value) || 25;
-  userPreferences.targetPayback = parseFloat(document.getElementById('da-target-payback').value) || 4;
-  userPreferences.compactFormat = document.getElementById('da-format-compact').checked;
-  
-  // Save to storage
-  chrome.storage.local.set({ userPreferences: userPreferences }, () => {
-    console.log('Settings saved:', userPreferences);
+if (settingsSave && settingsModal) {
+  settingsSave.addEventListener('click', () => {
+    // Update preferences
+    const targetCocField = document.getElementById('da-target-coc');
+    const targetPaybackField = document.getElementById('da-target-payback');
+    const formatCompactField = document.getElementById('da-format-compact');
+    
+    // Validate and parse values
+    const newTargetCOC = targetCocField ? (parseFloat(targetCocField.value) || 25) : 25;
+    const newTargetPayback = targetPaybackField ? (parseFloat(targetPaybackField.value) || 4) : 4;
+    const newCompactFormat = formatCompactField ? formatCompactField.checked : false;
+    
+    // Update preferences object
+    userPreferences.targetCOC = newTargetCOC;
+    userPreferences.targetPayback = newTargetPayback;
+    userPreferences.compactFormat = newCompactFormat;
+    
+    // Save to chrome storage (persistent)
+    chrome.storage.local.set({ userPreferences: userPreferences }, () => {
+      console.log('✅ Settings saved successfully:', userPreferences);
+      
+      // Verify save by reading back
+      chrome.storage.local.get(['userPreferences'], (result) => {
+        console.log('✅ Verified saved settings:', result.userPreferences);
+      });
+    });
+    
+    // Recalculate with new targets immediately
+    calculate();
+    
+    // Close modal with success feedback
+    const saveBtn = document.getElementById('da-settings-save');
+    if (saveBtn) {
+      const originalText = saveBtn.innerHTML;
+      const originalBg = saveBtn.style.background;
+      saveBtn.innerHTML = '✅ Saved!';
+      saveBtn.style.background = '#27ae60';
+      setTimeout(() => {
+        settingsModal.style.display = 'none';
+        saveBtn.innerHTML = originalText;
+        saveBtn.style.background = originalBg || '#27ae60';
+      }, 1000);
+    } else {
+      // If button not found, just close modal
+      settingsModal.style.display = 'none';
+    }
   });
-  
-  // Recalculate with new targets
-  calculate();
-  
-  // Close modal with success feedback
-  const saveBtn = document.getElementById('da-settings-save');
-  const originalText = saveBtn.innerHTML;
-  saveBtn.innerHTML = '✅ Saved!';
-  saveBtn.style.background = '#27ae60';
-  setTimeout(() => {
-    settingsModal.style.display = 'none';
-    saveBtn.innerHTML = originalText;
-    saveBtn.style.background = '#27ae60';
-  }, 1000);
-});
+}
 
 // Reset to defaults
-settingsReset.addEventListener('click', () => {
-  document.getElementById('da-target-coc').value = 25;
-  document.getElementById('da-target-payback').value = 4;
-  document.getElementById('da-format-compact').checked = false;
-});
+if (settingsReset) {
+  settingsReset.addEventListener('click', () => {
+    const targetCocField = document.getElementById('da-target-coc');
+    const targetPaybackField = document.getElementById('da-target-payback');
+    const formatCompactField = document.getElementById('da-format-compact');
+    
+    if (targetCocField) targetCocField.value = 25;
+    if (targetPaybackField) targetPaybackField.value = 4;
+    if (formatCompactField) formatCompactField.checked = false;
+  });
+}
 
 // Load user preferences on startup
 function loadUserPreferences() {
@@ -1269,50 +1536,56 @@ function loadUserPreferences() {
     if (result.userPreferences) {
       userPreferences = result.userPreferences;
       console.log('Loaded preferences:', userPreferences);
+      
+      // Apply preferences immediately after loading
+      // This ensures the UI is updated with saved preferences
+      calculate(); // Recalculate with loaded preferences
     }
   });
 }
 
 // Generate PDF-ready HTML
 function generatePDFHTML() {
-  const listingUrl = window.location.href;
-  const ebitda = document.getElementById('da-ebitda').value || '$0';
-  const askingPrice = document.getElementById('da-asking').value || '$0';
-  const maxPrice = document.getElementById('da-max-price').innerText || '$0';
-  const offerPrice = document.getElementById('da-actual-price').value || '$0';
-  const maxDebt = document.getElementById('da-max-debt').innerText || '$0';
-  const totalDebt = document.getElementById('da-total-debt').innerText || '$0';
-  const fcfAnnual = document.getElementById('da-fcf-annual').innerText || '$0';
-  const fcfMonthly = document.getElementById('da-fcf-monthly').innerText || '$0';
-  const ownerTakeHome = document.getElementById('da-owner-salary').innerText || '$0';
-  const targetSalary = document.getElementById('da-target-salary').value || '$0';
-  const maxAvailable = document.getElementById('da-max-available').innerText || '$0';
+  try {
+    const listingUrl = window.location.href;
+    const ebitda = safeGetValue('da-ebitda', '$0');
+    const askingPrice = safeGetValue('da-asking', '$0');
+    const maxPrice = safeGetText('da-max-price', '$0');
+    const offerPrice = safeGetValue('da-actual-price', '$0');
+    const maxDebt = safeGetText('da-max-debt', '$0');
+    const totalDebt = safeGetText('da-total-debt', '$0');
+    const fcfAnnual = safeGetText('da-fcf-annual', '$0');
+    const fcfMonthly = safeGetText('da-fcf-monthly', '$0');
+    const ownerTakeHome = safeGetText('da-owner-salary', '$0');
+    const targetSalary = safeGetValue('da-target-salary', '$0');
+    const maxAvailable = safeGetText('da-max-available', '$0');
+    
+    const sbaPercent = safeGetValue('da-sba-percent', '0');
+    const sbaLoan = safeGetValue('da-sba-loan', '$0');
+    const downPercent = safeGetValue('da-down-percent', '0');
+    const downPayment = safeGetValue('da-down', '$0');
+    const bankRate = safeGetValue('da-bank-rate', '0');
+    const bankTerm = safeGetValue('da-bank-term', '0');
+    const dscr = safeGetValue('da-dscr', '0');
+    
+    const cocReturn = safeGetText('da-coc-return', '0%');
+    const payback = safeGetText('da-payback', '0 yrs');
+    
+    const sellerNoteCheckbox = document.getElementById('da-seller-note-enabled');
+    const sellerNoteEnabled = sellerNoteCheckbox ? sellerNoteCheckbox.checked : false;
+    let sellerNoteHTML = '';
+    if (sellerNoteEnabled) {
+      const sellerPercent = safeGetValue('da-seller-percent', '0');
+      const sellerAmt = safeGetValue('da-seller-amt', '$0');
+      const sellerRate = safeGetValue('da-seller-rate', '0');
+      const sellerStandby = safeGetValue('da-seller-standby', 'no') === 'yes' ? ' (Standby)' : '';
+      const sellerPaymentType = safeGetValue('da-seller-payment-type', 'amortizing') === 'interest-only' ? 'Interest Only' : 'Amortizing';
+      sellerNoteHTML = `
+        <tr><td style="padding:8px; border-bottom:1px solid #eee;"><strong>Seller Note:</strong></td><td style="padding:8px; border-bottom:1px solid #eee;">${sellerPercent}% (${sellerAmt}) @ ${sellerRate}%${sellerStandby} - ${sellerPaymentType}</td></tr>
+      `;
+    }
   
-  const sbaPercent = document.getElementById('da-sba-percent').value || '0';
-  const sbaLoan = document.getElementById('da-sba-loan').value || '$0';
-  const downPercent = document.getElementById('da-down-percent').value || '0';
-  const downPayment = document.getElementById('da-down').value || '$0';
-  const bankRate = document.getElementById('da-bank-rate').value || '0';
-  const bankTerm = document.getElementById('da-bank-term').value || '0';
-  const dscr = document.getElementById('da-dscr').value || '0';
-  
-  const cocReturn = document.getElementById('da-coc-return').innerText || '0%';
-  const payback = document.getElementById('da-payback').innerText || '0 yrs';
-  
-  const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
-  let sellerNoteHTML = '';
-  if (sellerNoteEnabled) {
-    const sellerPercent = document.getElementById('da-seller-percent').value || '0';
-    const sellerAmt = document.getElementById('da-seller-amt').value || '$0';
-    const sellerRate = document.getElementById('da-seller-rate').value || '0';
-    const sellerStandby = document.getElementById('da-seller-standby').value === 'yes' ? ' (Standby)' : '';
-    const sellerPaymentType = document.getElementById('da-seller-payment-type').value === 'interest-only' ? 'Interest Only' : 'Amortizing';
-    sellerNoteHTML = `
-      <tr><td style="padding:8px; border-bottom:1px solid #eee;"><strong>Seller Note:</strong></td><td style="padding:8px; border-bottom:1px solid #eee;">${sellerPercent}% (${sellerAmt}) @ ${sellerRate}%${sellerStandby} - ${sellerPaymentType}</td></tr>
-    `;
-  }
-  
-  return `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -1411,46 +1684,52 @@ function generatePDFHTML() {
   </div>
 </body>
 </html>`;
+  } catch (error) {
+    console.error('Error in generatePDFHTML:', error);
+    return '<html><body>Error generating PDF HTML</body></html>';
+  }
 }
 
 // Generate share text
 function generateShareText() {
-  const listingUrl = window.location.href;
-  const ebitda = document.getElementById('da-ebitda').value || '$0';
-  const askingPrice = document.getElementById('da-asking').value || '$0';
-  const maxPrice = document.getElementById('da-max-price').innerText || '$0';
-  const offerPrice = document.getElementById('da-actual-price').value || '$0';
-  const totalDebt = document.getElementById('da-total-debt').innerText || '$0';
-  const fcfAnnual = document.getElementById('da-fcf-annual').innerText || '$0';
-  const ownerTakeHome = document.getElementById('da-owner-salary').innerText || '$0';
-  const targetSalary = document.getElementById('da-target-salary').value || '$0';
-  
-  const sbaPercent = document.getElementById('da-sba-percent').value || '0';
-  const sbaLoan = document.getElementById('da-sba-loan').value || '$0';
-  const downPercent = document.getElementById('da-down-percent').value || '0';
-  const downPayment = document.getElementById('da-down').value || '$0';
-  const bankRate = document.getElementById('da-bank-rate').value || '0';
-  const bankTerm = document.getElementById('da-bank-term').value || '0';
-  const dscr = document.getElementById('da-dscr').value || '0';
-  
-  // ROI Metrics
-  const cocReturn = document.getElementById('da-coc-return').innerText || '0%';
-  const payback = document.getElementById('da-payback').innerText || '0 yrs';
-  const qualityScore = document.getElementById('da-quality-score').innerText || '--';
-  
-  // Deal notes
-  const dealNotes = document.getElementById('da-deal-notes').value.trim();
-  const dealName = document.getElementById('da-deal-name').value.trim();
-  
-  const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
-  let sellerNoteText = '';
-  if (sellerNoteEnabled) {
-    const sellerPercent = document.getElementById('da-seller-percent').value || '0';
-    const sellerAmt = document.getElementById('da-seller-amt').value || '$0';
-    const sellerRate = document.getElementById('da-seller-rate').value || '0';
-    const sellerStandby = document.getElementById('da-seller-standby').value === 'yes' ? ' (Standby)' : '';
-    sellerNoteText = `\n• Seller Note: ${sellerPercent}% (${sellerAmt}) @ ${sellerRate}%${sellerStandby}`;
-  }
+  try {
+    const listingUrl = window.location.href;
+    const ebitda = safeGetValue('da-ebitda', '$0');
+    const askingPrice = safeGetValue('da-asking', '$0');
+    const maxPrice = safeGetText('da-max-price', '$0');
+    const offerPrice = safeGetValue('da-actual-price', '$0');
+    const totalDebt = safeGetText('da-total-debt', '$0');
+    const fcfAnnual = safeGetText('da-fcf-annual', '$0');
+    const ownerTakeHome = safeGetText('da-owner-salary', '$0');
+    const targetSalary = safeGetValue('da-target-salary', '$0');
+    
+    const sbaPercent = safeGetValue('da-sba-percent', '0');
+    const sbaLoan = safeGetValue('da-sba-loan', '$0');
+    const downPercent = safeGetValue('da-down-percent', '0');
+    const downPayment = safeGetValue('da-down', '$0');
+    const bankRate = safeGetValue('da-bank-rate', '0');
+    const bankTerm = safeGetValue('da-bank-term', '0');
+    const dscr = safeGetValue('da-dscr', '0');
+    
+    // ROI Metrics
+    const cocReturn = safeGetText('da-coc-return', '0%');
+    const payback = safeGetText('da-payback', '0 yrs');
+    const qualityScore = safeGetText('da-quality-score', '--');
+    
+    // Deal notes
+    const dealNotes = safeGetValue('da-deal-notes', '').trim();
+    const dealName = safeGetValue('da-deal-name', '').trim();
+    
+    const sellerNoteCheckbox = document.getElementById('da-seller-note-enabled');
+    const sellerNoteEnabled = sellerNoteCheckbox ? sellerNoteCheckbox.checked : false;
+    let sellerNoteText = '';
+    if (sellerNoteEnabled) {
+      const sellerPercent = safeGetValue('da-seller-percent', '0');
+      const sellerAmt = safeGetValue('da-seller-amt', '$0');
+      const sellerRate = safeGetValue('da-seller-rate', '0');
+      const sellerStandby = safeGetValue('da-seller-standby', 'no') === 'yes' ? ' (Standby)' : '';
+      sellerNoteText = `\n• Seller Note: ${sellerPercent}% (${sellerAmt}) @ ${sellerRate}%${sellerStandby}`;
+    }
   
   let notesSection = '';
   if (dealNotes) {
@@ -1487,6 +1766,10 @@ ${nameHeader}🔗 Listing: ${listingUrl}
 
 ---
 Generated by Max Price Deal Analyzer ${VERSION}`;
+  } catch (error) {
+    console.error('Error in generateShareText:', error);
+    return 'Error generating share text. Please try again.';
+  }
 }
 
 // Helper function to get business name from page
@@ -1571,43 +1854,44 @@ function sanitizeFilename(filename) {
 
 // Generate actual PDF file with colors and formatting
 function generatePDFFile() {
-  // Check if jsPDF is loaded
-  if (typeof window.jspdf === 'undefined') {
-    throw new Error('jsPDF library not loaded. Please reload the page.');
-  }
-  
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  
-  // Get all the data
-  const listingUrl = window.location.href;
-  const ebitda = document.getElementById('da-ebitda').value || '$0';
-  const askingPrice = document.getElementById('da-asking').value || '$0';
-  const maxPrice = document.getElementById('da-max-price').innerText || '$0';
-  const offerPrice = document.getElementById('da-actual-price').value || '$0';
-  const maxDebt = document.getElementById('da-max-debt').innerText || '$0';
-  const totalDebt = document.getElementById('da-total-debt').innerText || '$0';
-  const fcfAnnual = document.getElementById('da-fcf-annual').innerText || '$0';
-  const fcfMonthly = document.getElementById('da-fcf-monthly').innerText || '$0';
-  const ownerTakeHome = document.getElementById('da-owner-salary').innerText || '$0';
-  const targetSalary = document.getElementById('da-target-salary').value || '$0';
-  const maxAvailable = document.getElementById('da-max-available').innerText || '$0';
-  
-  const sbaPercent = document.getElementById('da-sba-percent').value || '0';
-  const sbaLoan = document.getElementById('da-sba-loan').value || '$0';
-  const downPercent = document.getElementById('da-down-percent').value || '0';
-  const downPayment = document.getElementById('da-down').value || '$0';
-  const bankRate = document.getElementById('da-bank-rate').value || '0';
-  const bankTerm = document.getElementById('da-bank-term').value || '0';
-  const dscr = document.getElementById('da-dscr').value || '0';
-  
-  const cocReturn = document.getElementById('da-coc-return').innerText || '0%';
-  const payback = document.getElementById('da-payback').innerText || '0 yrs';
-  const qualityScore = document.getElementById('da-quality-score').innerText || '--';
-  
-  // Deal notes and name
-  const dealNotes = document.getElementById('da-deal-notes').value.trim();
-  const dealName = document.getElementById('da-deal-name').value.trim();
+  try {
+    // Check if jsPDF is loaded
+    if (typeof window.jspdf === 'undefined') {
+      throw new Error('jsPDF library not loaded. Please reload the page.');
+    }
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Get all the data
+    const listingUrl = window.location.href;
+    const ebitda = safeGetValue('da-ebitda', '$0');
+    const askingPrice = safeGetValue('da-asking', '$0');
+    const maxPrice = safeGetText('da-max-price', '$0');
+    const offerPrice = safeGetValue('da-actual-price', '$0');
+    const maxDebt = safeGetText('da-max-debt', '$0');
+    const totalDebt = safeGetText('da-total-debt', '$0');
+    const fcfAnnual = safeGetText('da-fcf-annual', '$0');
+    const fcfMonthly = safeGetText('da-fcf-monthly', '$0');
+    const ownerTakeHome = safeGetText('da-owner-salary', '$0');
+    const targetSalary = safeGetValue('da-target-salary', '$0');
+    const maxAvailable = safeGetText('da-max-available', '$0');
+    
+    const sbaPercent = safeGetValue('da-sba-percent', '0');
+    const sbaLoan = safeGetValue('da-sba-loan', '$0');
+    const downPercent = safeGetValue('da-down-percent', '0');
+    const downPayment = safeGetValue('da-down', '$0');
+    const bankRate = safeGetValue('da-bank-rate', '0');
+    const bankTerm = safeGetValue('da-bank-term', '0');
+    const dscr = safeGetValue('da-dscr', '0');
+    
+    const cocReturn = safeGetText('da-coc-return', '0%');
+    const payback = safeGetText('da-payback', '0 yrs');
+    const qualityScore = safeGetText('da-quality-score', '--');
+    
+    // Deal notes and name
+    const dealNotes = safeGetValue('da-deal-notes', '').trim();
+    const dealName = safeGetValue('da-deal-name', '').trim();
   
   // Helper function to draw a colored box
   const drawBox = (x, y, width, height, borderColor, bgColor) => {
@@ -1755,13 +2039,14 @@ function generatePDFFile() {
   y += 5;
   
   // Seller Note if enabled
-  const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+  const sellerNoteCheckbox = document.getElementById('da-seller-note-enabled');
+  const sellerNoteEnabled = sellerNoteCheckbox ? sellerNoteCheckbox.checked : false;
   if (sellerNoteEnabled) {
-    const sellerPercent = document.getElementById('da-seller-percent').value || '0';
-    const sellerAmt = document.getElementById('da-seller-amt').value || '$0';
-    const sellerRate = document.getElementById('da-seller-rate').value || '0';
-    const sellerStandby = document.getElementById('da-seller-standby').value === 'yes' ? ' (Standby)' : '';
-    const sellerPaymentType = document.getElementById('da-seller-payment-type').value === 'interest-only' ? 'Interest Only' : 'Amortizing';
+    const sellerPercent = safeGetValue('da-seller-percent', '0');
+    const sellerAmt = safeGetValue('da-seller-amt', '$0');
+    const sellerRate = safeGetValue('da-seller-rate', '0');
+    const sellerStandby = safeGetValue('da-seller-standby', 'no') === 'yes' ? ' (Standby)' : '';
+    const sellerPaymentType = safeGetValue('da-seller-payment-type', 'amortizing') === 'interest-only' ? 'Interest Only' : 'Amortizing';
     doc.text(`Seller Note: ${sellerPercent}% (${sellerAmt}) @ ${sellerRate}%${sellerStandby} - ${sellerPaymentType}`, 20, y);
     y += 5;
   }
@@ -1873,120 +2158,161 @@ function generatePDFFile() {
   doc.text(`Generated by Max Price Deal Analyzer ${VERSION}`, 15, y);
   
   return doc;
+  } catch (error) {
+    console.error('Error in generatePDFFile:', error);
+    throw error; // Re-throw so calling code can handle it
+  }
 }
 
 // PDF Export
-document.getElementById('da-share-pdf').addEventListener('click', () => {
-  try {
-    const doc = generatePDFFile();
-    const businessName = sanitizeFilename(getBusinessName());
-    const filename = `${businessName}.pdf`;
-    doc.save(filename);
-    shareModal.style.display = 'none';
-  } catch (err) {
-    console.error('PDF generation error:', err);
-    alert('PDF generation failed: ' + err.message + '\n\nPlease reload the extension and try again.');
-  }
-});
-
-// Email share
-document.getElementById('da-share-email').addEventListener('click', () => {
-  const subject = encodeURIComponent('Deal Analysis - Business Acquisition Opportunity');
-  const body = encodeURIComponent(generateShareText());
-  window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
-  shareModal.style.display = 'none';
-});
-
-// SMS share
-document.getElementById('da-share-sms').addEventListener('click', () => {
-  const body = encodeURIComponent(generateShareText());
-  window.open(`sms:?&body=${body}`, '_blank');
-  shareModal.style.display = 'none';
-});
-
-// Native share (includes AirDrop on Apple devices) - Share as actual PDF
-document.getElementById('da-share-native').addEventListener('click', async () => {
-  if (navigator.share) {
+const sharePdfBtn = document.getElementById('da-share-pdf');
+if (sharePdfBtn && shareModal) {
+  sharePdfBtn.addEventListener('click', () => {
     try {
-      // Generate the actual PDF file
       const doc = generatePDFFile();
-      const pdfBlob = doc.output('blob');
       const businessName = sanitizeFilename(getBusinessName());
       const filename = `${businessName}.pdf`;
-      
-      // Check if we can share files (better for AirDrop)
-      if (navigator.canShare) {
-        try {
-          const file = new File([pdfBlob], filename, { type: 'application/pdf' });
-          const fileShareData = {
-            title: 'Deal Analysis - Business Acquisition',
-            files: [file]
-          };
-          
-          if (navigator.canShare(fileShareData)) {
-            await navigator.share(fileShareData);
-            shareModal.style.display = 'none';
-            return;
-          }
-        } catch (fileErr) {
-          console.log('PDF file sharing not supported:', fileErr);
-        }
-      }
-      
-      // Fallback to text-only sharing
-      const shareText = generateShareText();
-      await navigator.share({
-        title: 'Deal Analysis - Business Acquisition',
-        text: shareText
-      });
+      doc.save(filename);
       shareModal.style.display = 'none';
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error('Share error:', err);
-        alert('Share failed: ' + err.message + '\n\nTry the "Export as PDF" button to download, then AirDrop the file.');
-      }
+      console.error('PDF generation error:', err);
+      alert('PDF generation failed: ' + err.message + '\n\nPlease reload the extension and try again.');
     }
-  } else {
-    alert('Native sharing not supported on this browser. Try the "Export as PDF" button instead.');
-  }
-});
+  });
+}
+
+// Email share
+const shareEmailBtn = document.getElementById('da-share-email');
+if (shareEmailBtn && shareModal) {
+  shareEmailBtn.addEventListener('click', () => {
+    try {
+      const subject = encodeURIComponent('Deal Analysis - Business Acquisition Opportunity');
+      const body = encodeURIComponent(generateShareText());
+      window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+      shareModal.style.display = 'none';
+    } catch (err) {
+      console.error('Email share error:', err);
+      alert('Email share failed: ' + err.message);
+    }
+  });
+}
+
+// SMS share
+const shareSmsBtn = document.getElementById('da-share-sms');
+if (shareSmsBtn && shareModal) {
+  shareSmsBtn.addEventListener('click', () => {
+    try {
+      const body = encodeURIComponent(generateShareText());
+      window.open(`sms:?&body=${body}`, '_blank');
+      shareModal.style.display = 'none';
+    } catch (err) {
+      console.error('SMS share error:', err);
+      alert('SMS share failed: ' + err.message);
+    }
+  });
+}
+
+// Native share (includes AirDrop on Apple devices) - Share as actual PDF
+const shareNativeBtn = document.getElementById('da-share-native');
+if (shareNativeBtn && shareModal) {
+  shareNativeBtn.addEventListener('click', async () => {
+    if (navigator.share) {
+      try {
+        // Generate the actual PDF file
+        const doc = generatePDFFile();
+        const pdfBlob = doc.output('blob');
+        const businessName = sanitizeFilename(getBusinessName());
+        const filename = `${businessName}.pdf`;
+        
+        // Check if we can share files (better for AirDrop)
+        if (navigator.canShare) {
+          try {
+            const file = new File([pdfBlob], filename, { type: 'application/pdf' });
+            const fileShareData = {
+              title: 'Deal Analysis - Business Acquisition',
+              files: [file]
+            };
+            
+            if (navigator.canShare(fileShareData)) {
+              await navigator.share(fileShareData);
+              shareModal.style.display = 'none';
+              return;
+            }
+          } catch (fileErr) {
+            console.log('PDF file sharing not supported:', fileErr);
+          }
+        }
+        
+        // Fallback to text-only sharing
+        const shareText = generateShareText();
+        await navigator.share({
+          title: 'Deal Analysis - Business Acquisition',
+          text: shareText
+        });
+        shareModal.style.display = 'none';
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Share error:', err);
+          alert('Share failed: ' + err.message + '\n\nTry the "Export as PDF" button to download, then AirDrop the file.');
+        }
+      }
+    } else {
+      alert('Native sharing not supported on this browser. Try the "Export as PDF" button instead.');
+    }
+  });
+}
 
 // Copy to clipboard
-document.getElementById('da-share-copy').addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(generateShareText());
-    const btn = document.getElementById('da-share-copy');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '✅ Copied!';
-    btn.style.background = '#27ae60';
-    setTimeout(() => {
-      btn.innerHTML = originalText;
-      btn.style.background = '#95a5a6';
-    }, 2000);
-  } catch (err) {
-    // Fallback for older browsers
-    const textarea = document.createElement('textarea');
-    textarea.value = generateShareText();
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textarea);
-    
-    const btn = document.getElementById('da-share-copy');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '✅ Copied!';
-    btn.style.background = '#27ae60';
-    setTimeout(() => {
-      btn.innerHTML = originalText;
-      btn.style.background = '#95a5a6';
-    }, 2000);
-  }
-});
+const shareCopyBtn = document.getElementById('da-share-copy');
+if (shareCopyBtn) {
+  shareCopyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(generateShareText());
+      const btn = document.getElementById('da-share-copy');
+      if (btn) {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✅ Copied!';
+        btn.style.background = '#27ae60';
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.background = '#95a5a6';
+        }, 2000);
+      }
+    } catch (err) {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = generateShareText();
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      
+      const btn = document.getElementById('da-share-copy');
+      if (btn) {
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✅ Copied!';
+        btn.style.background = '#27ae60';
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.background = '#95a5a6';
+        }, 2000);
+      }
+    }
+  });
+}
 
 loadUserPreferences();
 loadState();
+
+// Debug: Log current preferences after 1 second to verify persistence
+setTimeout(() => {
+  console.log('🔍 Current user preferences after load:', userPreferences);
+  chrome.storage.local.get(['userPreferences'], (result) => {
+    console.log('🔍 User preferences in storage:', result.userPreferences);
+  });
+}, 1000);
 
 // --- 9. KEYBOARD SHORTCUTS ---
 document.addEventListener('keydown', (e) => {
@@ -2010,7 +2336,7 @@ document.addEventListener('keydown', (e) => {
 // --- 10. SAVE & LOAD DEALS ---
 function saveDeal() {
   // Get or generate deal name
-  let dealName = document.getElementById('da-deal-name').value.trim();
+  let dealName = safeGetValue('da-deal-name', '').trim();
   if (!dealName) {
     // Auto-generate name from URL or business name
     const urlParts = window.location.pathname.split('/');
@@ -2022,34 +2348,34 @@ function saveDeal() {
     name: dealName,
     url: window.location.href,
     savedAt: new Date().toISOString(),
-    notes: document.getElementById('da-deal-notes').value,
+    notes: safeGetValue('da-deal-notes', ''),
     inputs: {
-      ebitda: document.getElementById('da-ebitda').value,
-      asking: document.getElementById('da-asking').value,
-      sbaPercent: document.getElementById('da-sba-percent').value,
-      sbaLoan: document.getElementById('da-sba-loan').value,
-      bankRate: document.getElementById('da-bank-rate').value,
-      bankTerm: document.getElementById('da-bank-term').value,
-      dscr: document.getElementById('da-dscr').value,
-      downPercent: document.getElementById('da-down-percent').value,
-      down: document.getElementById('da-down').value,
-      targetSalary: document.getElementById('da-target-salary').value,
-      sellerNoteEnabled: document.getElementById('da-seller-note-enabled').checked,
-      sellerPercent: document.getElementById('da-seller-percent').value,
-      sellerAmt: document.getElementById('da-seller-amt').value,
-      sellerRate: document.getElementById('da-seller-rate').value,
-      sellerStandby: document.getElementById('da-seller-standby').value,
-      sellerPaymentType: document.getElementById('da-seller-payment-type').value,
-      actualPrice: document.getElementById('da-actual-price').value
+      ebitda: safeGetValue('da-ebitda', ''),
+      asking: safeGetValue('da-asking', ''),
+      sbaPercent: safeGetValue('da-sba-percent', ''),
+      sbaLoan: safeGetValue('da-sba-loan', ''),
+      bankRate: safeGetValue('da-bank-rate', ''),
+      bankTerm: safeGetValue('da-bank-term', ''),
+      dscr: safeGetValue('da-dscr', ''),
+      downPercent: safeGetValue('da-down-percent', ''),
+      down: safeGetValue('da-down', ''),
+      targetSalary: safeGetValue('da-target-salary', ''),
+      sellerNoteEnabled: document.getElementById('da-seller-note-enabled')?.checked || false,
+      sellerPercent: safeGetValue('da-seller-percent', ''),
+      sellerAmt: safeGetValue('da-seller-amt', ''),
+      sellerRate: safeGetValue('da-seller-rate', ''),
+      sellerStandby: safeGetValue('da-seller-standby', ''),
+      sellerPaymentType: safeGetValue('da-seller-payment-type', ''),
+      actualPrice: safeGetValue('da-actual-price', '')
     },
     results: {
-      maxPrice: document.getElementById('da-max-price').innerText,
-      totalDebt: document.getElementById('da-total-debt').innerText,
-      fcfAnnual: document.getElementById('da-fcf-annual').innerText,
-      ownerTakeHome: document.getElementById('da-owner-salary').innerText,
-      cocReturn: document.getElementById('da-coc-return').innerText,
-      payback: document.getElementById('da-payback').innerText,
-      qualityScore: document.getElementById('da-quality-score').innerText
+      maxPrice: safeGetText('da-max-price', ''),
+      totalDebt: safeGetText('da-total-debt', ''),
+      fcfAnnual: safeGetText('da-fcf-annual', ''),
+      ownerTakeHome: safeGetText('da-owner-salary', ''),
+      cocReturn: safeGetText('da-coc-return', ''),
+      payback: safeGetText('da-payback', ''),
+      qualityScore: safeGetText('da-quality-score', '')
     }
   };
   
@@ -2142,21 +2468,56 @@ function updateSavedDealsList() {
 }
 
 // Event listeners for save/load
-document.getElementById('da-save-deal-btn').addEventListener('click', saveDeal);
-document.getElementById('da-saved-deals-list').addEventListener('change', (e) => {
-  if (e.target.value) {
-    loadDeal(e.target.value);
-  }
-});
+const saveDealBtn = document.getElementById('da-save-deal-btn');
+if (saveDealBtn) {
+  saveDealBtn.addEventListener('click', saveDeal);
+}
+
+const savedDealsList = document.getElementById('da-saved-deals-list');
+if (savedDealsList) {
+  savedDealsList.addEventListener('change', (e) => {
+    if (e.target.value) {
+      loadDeal(e.target.value);
+    }
+  });
+}
 
 // Auto-save notes as user types (debounced)
 let notesTimeout;
-document.getElementById('da-deal-notes').addEventListener('input', () => {
-  clearTimeout(notesTimeout);
-  notesTimeout = setTimeout(() => {
-    saveState(); // Save notes with current state
-  }, 1000);
-});
+const dealNotesField = document.getElementById('da-deal-notes');
+if (dealNotesField) {
+  dealNotesField.addEventListener('input', () => {
+    clearTimeout(notesTimeout);
+    notesTimeout = setTimeout(() => {
+      saveState(); // Save notes with current state
+    }, 1000);
+  });
+}
 
 // Load saved deals list on startup
 updateSavedDealsList();
+
+// Recalc button - refreshes data from page
+const recalcBtn = document.getElementById('da-recalc-btn');
+if (recalcBtn) {
+  recalcBtn.addEventListener('click', () => {
+    scrapeData();
+  });
+}
+
+// Deal opportunity close button - dismisses the banner
+const dealOpportunityClose = document.getElementById('da-deal-opportunity-close');
+const dealOpportunityDiv = document.getElementById('da-deal-opportunity');
+if (dealOpportunityClose && dealOpportunityDiv) {
+  dealOpportunityClose.addEventListener('click', () => {
+    dealOpportunityDiv.style.display = 'none';
+  });
+  
+  // Add hover effect
+  dealOpportunityClose.addEventListener('mouseenter', () => {
+    dealOpportunityClose.style.opacity = '1';
+  });
+  dealOpportunityClose.addEventListener('mouseleave', () => {
+    dealOpportunityClose.style.opacity = '0.7';
+  });
+}

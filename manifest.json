@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Max Price Deal Analyzer",
-  "version": "1.4.0",
+  "version": "1.4.4",
   "description": "Calculates Max Allowable Purchase Price based on DSCR and EBITDA/SDE.",
   "permissions": ["storage", "activeTab"],
   "icons": {

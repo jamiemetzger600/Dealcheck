@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.3.1';
+const VERSION = 'v1.3.2';
 
 // --- 1. HTML UI TEMPLATE ---
 const uiHTML = `

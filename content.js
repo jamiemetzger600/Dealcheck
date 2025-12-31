@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.3.2';
+const VERSION = 'v1.3.3';
 
 // --- 1. HTML UI TEMPLATE ---
 const uiHTML = `
@@ -226,6 +226,9 @@ document.body.appendChild(shareDiv);
 // --- 2. DRAGGABLE WINDOW LOGIC ---
 const container = document.getElementById('deal-analyzer-container');
 const header = document.getElementById('deal-analyzer-header');
+
+// START HIDDEN BY DEFAULT - only show when user clicks extension icon
+container.style.display = 'none';
 let isDragging = false, currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
 
 header.addEventListener("mousedown", dragStart);

@@ -36,6 +36,8 @@
 #da-close { cursor: pointer; font-weight: bold; opacity: 0.8; }
 #da-close:hover { opacity: 1; }
 
+#da-coffee-btn:hover { opacity: 1 !important; transform: scale(1.1); }
+
 /* Sections */
 .da-section { padding: 8px; border-bottom: 1px solid #eee; }
 .da-row { margin-bottom: 6px; }

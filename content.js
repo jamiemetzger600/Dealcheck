@@ -1,10 +1,44 @@
 // --- VERSION ---
-const VERSION = 'v1.3.4';
+const VERSION = 'v1.4.0';
 
 // --- 1. HTML UI TEMPLATE ---
 const uiHTML = `
 <div id="deal-analyzer-container">
-  <div id="deal-analyzer-header">Deal Analyzer <span style="font-size:11px; opacity:0.8; font-weight:400;">${VERSION}</span> <span id="da-close">✕</span></div>
+  <div id="deal-analyzer-header">
+    Deal Analyzer <span style="font-size:11px; opacity:0.8; font-weight:400;">${VERSION}</span>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <a href="venmo://paycharge?txn=pay&recipients=amco-digital&amount=10&note=Buy%20me%20a%20coffee%20%E2%98%95" 
+         id="da-coffee-btn" 
+         style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s; text-decoration:none;" 
+         title="Buy me a coffee ☕ ($10)">☕</a>
+      <span id="da-settings-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Settings">⚙️</span>
+      <span id="da-close" style="cursor:pointer;">✕</span>
+    </div>
+  </div>
+
+  <!-- Deal Quality Score Banner -->
+  <div id="da-quality-banner" style="background:#f8f9fa; border-bottom:2px solid #ddd; padding:8px 15px; display:flex; justify-content:space-between; align-items:center;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div id="da-quality-badge" style="font-size:20px;">📊</div>
+      <div>
+        <div style="font-size:11px; color:#666; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Deal Quality</div>
+        <div id="da-quality-text" style="font-size:14px; font-weight:700; color:#333;">Analyzing...</div>
+      </div>
+    </div>
+    <div id="da-quality-score" style="font-size:28px; font-weight:700; color:#666;">--</div>
+  </div>
+
+  <!-- Save & Notes Section -->
+  <div class="da-section" style="background:#fafbfc; border-bottom:1px solid #ddd; padding:10px 15px;">
+    <div style="display:flex; gap:8px; margin-bottom:8px;">
+      <input type="text" id="da-deal-name" class="da-input" placeholder="Deal name (optional)" style="flex:1; font-size:12px; padding:6px 8px;">
+      <button id="da-save-deal-btn" class="da-btn" style="background:#9b59b6; white-space:nowrap; padding:6px 12px; font-size:12px;">💾 Save</button>
+      <select id="da-saved-deals-list" class="da-select" style="flex:1; font-size:12px; padding:6px 8px;">
+        <option value="">Load saved deal...</option>
+      </select>
+    </div>
+    <textarea id="da-deal-notes" class="da-input" placeholder="Add notes about this deal..." style="width:100%; min-height:50px; font-size:11px; padding:6px 8px; resize:vertical; font-family:inherit;"></textarea>
+  </div>
 
   <div class="da-section">
     <div class="da-flex-row">
@@ -213,6 +247,47 @@ const shareModalHTML = `
 </div>
 `;
 
+// Settings Modal HTML
+const settingsModalHTML = `
+<div id="da-settings-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:8px; padding:24px; max-width:450px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h3 style="margin:0; font-size:18px; color:#2c3e50;">⚙️ Settings & Targets</h3>
+      <span id="da-settings-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
+    </div>
+    
+    <div style="margin-bottom:20px;">
+      <h4 style="font-size:14px; color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Deal Quality Targets</h4>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">Target Cash-on-Cash Return (%)</label>
+        <input type="number" id="da-target-coc" class="da-input" value="25" step="1" min="0" max="200" style="width:100%;">
+        <div style="font-size:10px; color:#999; margin-top:2px;">Your minimum acceptable annual return on equity investment</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">Target Payback Period (Years)</label>
+        <input type="number" id="da-target-payback" class="da-input" value="4" step="0.5" min="1" max="20" style="width:100%;">
+        <div style="font-size:10px; color:#999; margin-top:2px;">Maximum years to recover your initial equity investment</div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom:20px;">
+      <h4 style="font-size:14px; color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Display Preferences</h4>
+      <div style="margin-bottom:12px;">
+        <label style="display:flex; align-items:center; cursor:pointer; gap:8px;">
+          <input type="checkbox" id="da-format-compact" style="cursor:pointer;">
+          <span style="font-size:12px; color:#666; font-weight:600;">Use compact number format (1.2M instead of 1,200,000)</span>
+        </label>
+      </div>
+    </div>
+    
+    <div style="display:flex; gap:8px;">
+      <button id="da-settings-save" class="da-btn" style="flex:1; background:#27ae60;">💾 Save Settings</button>
+      <button id="da-settings-reset" class="da-btn" style="flex:1; background:#95a5a6;">↺ Reset Defaults</button>
+    </div>
+  </div>
+</div>
+`;
+
 // Inject the UI
 const div = document.createElement('div');
 div.innerHTML = uiHTML;
@@ -223,12 +298,24 @@ const shareDiv = document.createElement('div');
 shareDiv.innerHTML = shareModalHTML;
 document.body.appendChild(shareDiv);
 
+// Inject the settings modal
+const settingsDiv = document.createElement('div');
+settingsDiv.innerHTML = settingsModalHTML;
+document.body.appendChild(settingsDiv);
+
 // --- 2. DRAGGABLE WINDOW LOGIC ---
 const container = document.getElementById('deal-analyzer-container');
 const header = document.getElementById('deal-analyzer-header');
 
 // START HIDDEN BY DEFAULT - only show when user clicks extension icon
 container.style.display = 'none';
+
+// User preferences with defaults
+let userPreferences = {
+  targetCOC: 25, // 25% Cash-on-Cash return
+  targetPayback: 4, // 4 years payback period
+  compactFormat: false
+};
 let isDragging = false, currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
 
 header.addEventListener("mousedown", dragStart);
@@ -381,12 +468,114 @@ function parseNumber(str) {
 
 // Helper: Format number with commas
 function formatNumber(n) {
+  if (userPreferences.compactFormat) {
+    return formatCompact(n);
+  }
   return n.toLocaleString(undefined, {maximumFractionDigits:0});
+}
+
+// Helper: Format number in compact form (1.2M, 500K, etc.)
+function formatCompact(n) {
+  if (n >= 1000000) {
+    return (n / 1000000).toFixed(1) + 'M';
+  } else if (n >= 1000) {
+    return (n / 1000).toFixed(0) + 'K';
+  }
+  return n.toFixed(0);
 }
 
 // Helper: Format currency with commas
 function fmt(n) {
   return "$" + formatNumber(n);
+}
+
+// Helper: Calculate Deal Quality Score (0-100)
+function calculateDealQualityScore(askingPrice, maxPrice, cocReturn, paybackPeriod) {
+  let score = 0;
+  
+  // Component 1: Price Score (40 points)
+  // Perfect score if asking <= max, lose points as asking exceeds max
+  if (maxPrice > 0) {
+    const priceRatio = askingPrice / maxPrice;
+    if (priceRatio <= 1.0) {
+      score += 40; // Perfect score if at or below max
+    } else if (priceRatio <= 1.1) {
+      score += 30; // 10% above max = 30 points
+    } else if (priceRatio <= 1.2) {
+      score += 20; // 20% above max = 20 points
+    } else if (priceRatio <= 1.3) {
+      score += 10; // 30% above max = 10 points
+    }
+    // else 0 points if >30% above max
+  }
+  
+  // Component 2: Cash-on-Cash Return Score (35 points)
+  // Compare to target COC
+  const targetCOC = userPreferences.targetCOC;
+  if (cocReturn >= targetCOC * 1.5) {
+    score += 35; // 50% above target = perfect
+  } else if (cocReturn >= targetCOC) {
+    score += 30; // At or above target = great
+  } else if (cocReturn >= targetCOC * 0.75) {
+    score += 20; // 75% of target = okay
+  } else if (cocReturn >= targetCOC * 0.5) {
+    score += 10; // 50% of target = poor
+  }
+  // else 0 points if < 50% of target
+  
+  // Component 3: Payback Period Score (25 points)
+  // Compare to target payback
+  const targetPayback = userPreferences.targetPayback;
+  if (paybackPeriod > 0 && paybackPeriod < 100) {
+    if (paybackPeriod <= targetPayback * 0.75) {
+      score += 25; // 25% faster than target = perfect
+    } else if (paybackPeriod <= targetPayback) {
+      score += 20; // At or better than target = great
+    } else if (paybackPeriod <= targetPayback * 1.5) {
+      score += 15; // Within 50% of target = okay
+    } else if (paybackPeriod <= targetPayback * 2) {
+      score += 5; // Within 2x target = poor
+    }
+  }
+  // else 0 points if no valid payback
+  
+  return Math.round(score);
+}
+
+// Helper: Update Deal Quality Banner
+function updateDealQualityBanner(score, askingPrice, maxPrice, cocReturn, paybackPeriod) {
+  const badge = document.getElementById('da-quality-badge');
+  const text = document.getElementById('da-quality-text');
+  const scoreDisplay = document.getElementById('da-quality-score');
+  const banner = document.getElementById('da-quality-banner');
+  
+  scoreDisplay.innerText = score;
+  
+  if (score >= 80) {
+    badge.innerText = '🟢';
+    text.innerText = 'Excellent Deal';
+    text.style.color = '#27ae60';
+    scoreDisplay.style.color = '#27ae60';
+    banner.style.borderBottomColor = '#27ae60';
+  } else if (score >= 60) {
+    badge.innerText = '🟡';
+    text.innerText = 'Good Deal';
+    text.style.color = '#f39c12';
+    scoreDisplay.style.color = '#f39c12';
+    banner.style.borderBottomColor = '#f39c12';
+  } else if (score >= 40) {
+    badge.innerText = '🟠';
+    text.innerText = 'Fair Deal';
+    text.style.color = '#e67e22';
+    scoreDisplay.style.color = '#e67e22';
+    banner.style.borderBottomColor = '#e67e22';
+  } else {
+    badge.innerText = '🔴';
+    text.innerText = 'Weak Deal';
+    text.style.color = '#e74c3c';
+    scoreDisplay.style.color = '#e74c3c';
+    banner.style.borderBottomColor = '#e74c3c';
+  }
 }
 
 // Track which fields have been manually overridden
@@ -672,6 +861,21 @@ function calculate() {
     ? paybackPeriod.toFixed(1) + ' yrs' 
     : (paybackPeriod >= 100 ? '∞' : 'N/A');
 
+  // Calculate and Update Deal Quality Score
+  const dealScore = calculateDealQualityScore(
+    askingPrice || actualPurchasePrice, 
+    maxPurchasePrice, 
+    cashOnCashReturn, 
+    paybackPeriod
+  );
+  updateDealQualityBanner(
+    dealScore, 
+    askingPrice || actualPurchasePrice, 
+    maxPurchasePrice, 
+    cashOnCashReturn, 
+    paybackPeriod
+  );
+
   saveState();
 }
 
@@ -731,6 +935,8 @@ function saveState() {
         sellerStandby: document.getElementById('da-seller-standby').value,
         sellerPaymentType: document.getElementById('da-seller-payment-type').value,
         dscr: document.getElementById('da-dscr').value,
+        dealName: document.getElementById('da-deal-name').value,
+        dealNotes: document.getElementById('da-deal-notes').value,
         overrides: overrides
     };
     chrome.storage.local.set({daState: state});
@@ -802,6 +1008,10 @@ function loadState() {
             document.getElementById('da-seller-standby').value = state.sellerStandby || 'no';
             document.getElementById('da-seller-payment-type').value = state.sellerPaymentType || 'amortizing';
             document.getElementById('da-dscr').value = state.dscr || 1.25;
+            
+            // Deal Name & Notes
+            document.getElementById('da-deal-name').value = state.dealName || '';
+            document.getElementById('da-deal-notes').value = state.dealNotes || '';
         }
         scrapeData();
     });
@@ -978,6 +1188,78 @@ shareModal.addEventListener('click', (e) => {
     shareModal.style.display = 'none';
   }
 });
+
+// --- 8. SETTINGS FUNCTIONALITY ---
+const settingsModal = document.getElementById('da-settings-modal');
+const settingsBtn = document.getElementById('da-settings-btn');
+const settingsClose = document.getElementById('da-settings-close');
+const settingsSave = document.getElementById('da-settings-save');
+const settingsReset = document.getElementById('da-settings-reset');
+
+// Open settings modal
+settingsBtn.addEventListener('click', () => {
+  // Load current preferences into modal
+  document.getElementById('da-target-coc').value = userPreferences.targetCOC;
+  document.getElementById('da-target-payback').value = userPreferences.targetPayback;
+  document.getElementById('da-format-compact').checked = userPreferences.compactFormat;
+  settingsModal.style.display = 'flex';
+});
+
+// Close settings modal
+settingsClose.addEventListener('click', () => {
+  settingsModal.style.display = 'none';
+});
+
+// Close modal when clicking outside
+settingsModal.addEventListener('click', (e) => {
+  if (e.target === settingsModal) {
+    settingsModal.style.display = 'none';
+  }
+});
+
+// Save settings
+settingsSave.addEventListener('click', () => {
+  // Update preferences
+  userPreferences.targetCOC = parseFloat(document.getElementById('da-target-coc').value) || 25;
+  userPreferences.targetPayback = parseFloat(document.getElementById('da-target-payback').value) || 4;
+  userPreferences.compactFormat = document.getElementById('da-format-compact').checked;
+  
+  // Save to storage
+  chrome.storage.local.set({ userPreferences: userPreferences }, () => {
+    console.log('Settings saved:', userPreferences);
+  });
+  
+  // Recalculate with new targets
+  calculate();
+  
+  // Close modal with success feedback
+  const saveBtn = document.getElementById('da-settings-save');
+  const originalText = saveBtn.innerHTML;
+  saveBtn.innerHTML = '✅ Saved!';
+  saveBtn.style.background = '#27ae60';
+  setTimeout(() => {
+    settingsModal.style.display = 'none';
+    saveBtn.innerHTML = originalText;
+    saveBtn.style.background = '#27ae60';
+  }, 1000);
+});
+
+// Reset to defaults
+settingsReset.addEventListener('click', () => {
+  document.getElementById('da-target-coc').value = 25;
+  document.getElementById('da-target-payback').value = 4;
+  document.getElementById('da-format-compact').checked = false;
+});
+
+// Load user preferences on startup
+function loadUserPreferences() {
+  chrome.storage.local.get(['userPreferences'], (result) => {
+    if (result.userPreferences) {
+      userPreferences = result.userPreferences;
+      console.log('Loaded preferences:', userPreferences);
+    }
+  });
+}
 
 // Generate PDF-ready HTML
 function generatePDFHTML() {
@@ -1638,4 +1920,184 @@ document.getElementById('da-share-copy').addEventListener('click', async () => {
   }
 });
 
+loadUserPreferences();
 loadState();
+
+// --- 9. KEYBOARD SHORTCUTS ---
+document.addEventListener('keydown', (e) => {
+  // Cmd/Ctrl + E: Toggle extension
+  if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+    e.preventDefault();
+    if (container.style.display === 'none') {
+      container.style.display = 'flex';
+    } else {
+      container.style.display = 'none';
+    }
+  }
+  
+  // Cmd/Ctrl + R: Refresh data (only when extension is visible)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'r' && container.style.display === 'flex') {
+    e.preventDefault();
+    scrapeData();
+  }
+  
+  // Cmd/Ctrl + S: Save deal (only when extension is visible)
+  if ((e.metaKey || e.ctrlKey) && e.key === 's' && container.style.display === 'flex') {
+    e.preventDefault();
+    saveDeal();
+  }
+});
+
+// --- 10. SAVE & LOAD DEALS ---
+function saveDeal() {
+  // Get or generate deal name
+  let dealName = document.getElementById('da-deal-name').value.trim();
+  if (!dealName) {
+    // Auto-generate name from URL or business name
+    const urlParts = window.location.pathname.split('/');
+    dealName = `Deal ${new Date().toLocaleDateString()}`;
+  }
+  
+  // Gather all deal data
+  const dealData = {
+    name: dealName,
+    url: window.location.href,
+    savedAt: new Date().toISOString(),
+    notes: document.getElementById('da-deal-notes').value,
+    inputs: {
+      ebitda: document.getElementById('da-ebitda').value,
+      asking: document.getElementById('da-asking').value,
+      sbaPercent: document.getElementById('da-sba-percent').value,
+      sbaLoan: document.getElementById('da-sba-loan').value,
+      bankRate: document.getElementById('da-bank-rate').value,
+      bankTerm: document.getElementById('da-bank-term').value,
+      dscr: document.getElementById('da-dscr').value,
+      downPercent: document.getElementById('da-down-percent').value,
+      down: document.getElementById('da-down').value,
+      targetSalary: document.getElementById('da-target-salary').value,
+      sellerNoteEnabled: document.getElementById('da-seller-note-enabled').checked,
+      sellerPercent: document.getElementById('da-seller-percent').value,
+      sellerAmt: document.getElementById('da-seller-amt').value,
+      sellerRate: document.getElementById('da-seller-rate').value,
+      sellerStandby: document.getElementById('da-seller-standby').value,
+      sellerPaymentType: document.getElementById('da-seller-payment-type').value,
+      actualPrice: document.getElementById('da-actual-price').value
+    },
+    results: {
+      maxPrice: document.getElementById('da-max-price').innerText,
+      totalDebt: document.getElementById('da-total-debt').innerText,
+      fcfAnnual: document.getElementById('da-fcf-annual').innerText,
+      ownerTakeHome: document.getElementById('da-owner-salary').innerText,
+      cocReturn: document.getElementById('da-coc-return').innerText,
+      payback: document.getElementById('da-payback').innerText,
+      qualityScore: document.getElementById('da-quality-score').innerText
+    }
+  };
+  
+  // Load existing saved deals
+  chrome.storage.local.get(['savedDeals'], (result) => {
+    let savedDeals = result.savedDeals || [];
+    
+    // Check if deal with this name already exists
+    const existingIndex = savedDeals.findIndex(d => d.name === dealName);
+    if (existingIndex >= 0) {
+      // Update existing deal
+      savedDeals[existingIndex] = dealData;
+    } else {
+      // Add new deal
+      savedDeals.push(dealData);
+    }
+    
+    // Save to storage
+    chrome.storage.local.set({ savedDeals: savedDeals }, () => {
+      console.log('Deal saved:', dealName);
+      updateSavedDealsList();
+      
+      // Visual feedback
+      const saveBtn = document.getElementById('da-save-deal-btn');
+      const originalText = saveBtn.innerHTML;
+      saveBtn.innerHTML = '✅ Saved!';
+      setTimeout(() => {
+        saveBtn.innerHTML = originalText;
+      }, 2000);
+    });
+  });
+}
+
+function loadDeal(dealName) {
+  chrome.storage.local.get(['savedDeals'], (result) => {
+    const savedDeals = result.savedDeals || [];
+    const deal = savedDeals.find(d => d.name === dealName);
+    
+    if (!deal) return;
+    
+    // Load all inputs
+    document.getElementById('da-deal-name').value = deal.name;
+    document.getElementById('da-deal-notes').value = deal.notes || '';
+    document.getElementById('da-ebitda').value = deal.inputs.ebitda;
+    document.getElementById('da-asking').value = deal.inputs.asking;
+    document.getElementById('da-sba-percent').value = deal.inputs.sbaPercent;
+    document.getElementById('da-sba-loan').value = deal.inputs.sbaLoan;
+    document.getElementById('da-bank-rate').value = deal.inputs.bankRate;
+    document.getElementById('da-bank-term').value = deal.inputs.bankTerm;
+    document.getElementById('da-dscr').value = deal.inputs.dscr;
+    document.getElementById('da-down-percent').value = deal.inputs.downPercent;
+    document.getElementById('da-down').value = deal.inputs.down;
+    document.getElementById('da-target-salary').value = deal.inputs.targetSalary;
+    document.getElementById('da-seller-note-enabled').checked = deal.inputs.sellerNoteEnabled;
+    document.getElementById('da-seller-percent').value = deal.inputs.sellerPercent;
+    document.getElementById('da-seller-amt').value = deal.inputs.sellerAmt;
+    document.getElementById('da-seller-rate').value = deal.inputs.sellerRate;
+    document.getElementById('da-seller-standby').value = deal.inputs.sellerStandby;
+    document.getElementById('da-seller-payment-type').value = deal.inputs.sellerPaymentType;
+    document.getElementById('da-actual-price').value = deal.inputs.actualPrice;
+    
+    // Show seller note section if enabled
+    if (deal.inputs.sellerNoteEnabled) {
+      document.getElementById('da-seller-note-section').style.display = 'block';
+    }
+    
+    // Recalculate
+    calculate();
+    
+    console.log('Deal loaded:', dealName);
+  });
+}
+
+function updateSavedDealsList() {
+  chrome.storage.local.get(['savedDeals'], (result) => {
+    const savedDeals = result.savedDeals || [];
+    const select = document.getElementById('da-saved-deals-list');
+    
+    // Clear existing options except first
+    select.innerHTML = '<option value="">Load saved deal...</option>';
+    
+    // Add saved deals
+    savedDeals.forEach(deal => {
+      const option = document.createElement('option');
+      option.value = deal.name;
+      option.textContent = `${deal.name} (${new Date(deal.savedAt).toLocaleDateString()})`;
+      select.appendChild(option);
+    });
+  });
+}
+
+// Event listeners for save/load
+document.getElementById('da-save-deal-btn').addEventListener('click', saveDeal);
+document.getElementById('da-saved-deals-list').addEventListener('change', (e) => {
+  if (e.target.value) {
+    loadDeal(e.target.value);
+  }
+});
+
+// Auto-save notes as user types (debounced)
+let notesTimeout;
+document.getElementById('da-deal-notes').addEventListener('input', () => {
+  clearTimeout(notesTimeout);
+  notesTimeout = setTimeout(() => {
+    saveState(); // Save notes with current state
+  }, 1000);
+});
+
+// Load saved deals list on startup
+updateSavedDealsList();

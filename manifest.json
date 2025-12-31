@@ -4,8 +4,20 @@
   "version": "1.3.1",
   "description": "Calculates Max Allowable Purchase Price based on DSCR and EBITDA/SDE.",
   "permissions": ["storage", "activeTab"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
-    "default_title": "Toggle Deal Analyzer"
+    "default_title": "Toggle Deal Analyzer",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "background": {
     "service_worker": "background.js"

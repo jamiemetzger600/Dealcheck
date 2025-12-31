@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.3.0';
 
 // --- 1. HTML UI TEMPLATE ---
 const uiHTML = `
@@ -118,42 +118,59 @@ const uiHTML = `
     </div>
     
     <!-- MAX SCENARIO -->
-    <div style="margin-bottom:15px; padding-bottom:12px; border-bottom:2px solid #ddd;">
-      <div style="font-size:12px; font-weight:700; color:#666; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Maximum Affordable (DSCR-Based)</div>
+    <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #ddd;">
+      <div style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Maximum Allowable (DSCR-Based)</div>
       <div class="da-result-box">
         <div class="da-result-title">Max Allowable Purchase Price</div>
-        <div class="da-result-value" id="da-max-price">$0</div>
+        <div class="da-result-value" id="da-max-price" style="font-size:16px;">$0</div>
       </div>
       <div class="da-result-box" style="border-left-color: #95a5a6;">
         <div class="da-result-title">Max Annual Debt Service</div>
-        <div class="da-result-value" id="da-max-debt">$0</div>
+        <div class="da-result-value" id="da-max-debt" style="font-size:16px;">$0</div>
+      </div>
+    </div>
+    
+    <!-- ROI METRICS -->
+    <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #ddd;">
+      <div style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Return on Investment (Year 1)</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <div class="da-result-box" style="border-left-color: #e67e22; margin-top:0;">
+          <div class="da-result-title">Cash-on-Cash Return</div>
+          <div class="da-result-value" id="da-coc-return" style="font-size:18px;">0%</div>
+          <div style="font-size:9px; color:#999; margin-top:1px;">Annual return on equity</div>
+        </div>
+        <div class="da-result-box" style="border-left-color: #9b59b6; margin-top:0;">
+          <div class="da-result-title">Payback Period</div>
+          <div class="da-result-value" id="da-payback" style="font-size:18px;">0 yrs</div>
+          <div style="font-size:9px; color:#999; margin-top:1px;">Time to recover equity</div>
+        </div>
       </div>
     </div>
     
     <!-- ACTUAL SCENARIO -->
-    <div style="margin-bottom:15px;">
-      <div style="font-size:12px; font-weight:700; color:#666; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Actual Deal Scenario</div>
+    <div style="margin-bottom:10px;">
+      <div style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Actual Deal Scenario</div>
       <div class="da-result-box" style="border-left-color: #e67e22;">
-        <div class="da-result-title">Offer Price <span style="font-weight:400; color:#999; font-size:11px;">(Click to Edit)</span></div>
-        <input type="text" id="da-actual-price" class="da-input" value="$0" readonly style="font-size:24px; font-weight:700; color:#2c3e50; border:none; background:transparent; padding:5px 0; cursor:pointer;">
+        <div class="da-result-title">Offer Price <span style="font-weight:400; color:#999; font-size:9px;">(Click to Edit)</span></div>
+        <input type="text" id="da-actual-price" class="da-input" value="$0" readonly style="font-size:16px; font-weight:700; color:#2c3e50; border:none; background:transparent; padding:3px 0; cursor:pointer;">
       </div>
       <div class="da-result-box" style="border-left-color: #9b59b6;">
         <div class="da-result-title">Total Debt Service</div>
-        <div class="da-result-value" id="da-total-debt">$0</div>
+        <div class="da-result-value" id="da-total-debt" style="font-size:16px;">$0</div>
       </div>
       <div class="da-result-box" style="border-left-color: #27ae60;">
         <div class="da-result-title">Free Cash Flow (Annual)</div>
-        <div class="da-result-value" id="da-fcf-annual">$0</div>
-        <div style="font-size:13px; color:#666; margin-top:5px;">Monthly: <span id="da-fcf-monthly">$0</span></div>
+        <div class="da-result-value" id="da-fcf-annual" style="font-size:16px;">$0</div>
+        <div style="font-size:10px; color:#666; margin-top:3px;">Monthly: <span id="da-fcf-monthly">$0</span></div>
       </div>
       <div class="da-result-box" style="border-left-color: #3498db;">
         <div class="da-result-title">Total Owner Take-Home</div>
-        <div class="da-result-value" id="da-owner-salary">$0</div>
-        <div style="font-size:11px; color:#999; margin-top:5px;" id="da-owner-subtitle">Salary + FCF (max available: <span id="da-max-available">$0</span>)</div>
+        <div class="da-result-value" id="da-owner-salary" style="font-size:16px;">$0</div>
+        <div style="font-size:9px; color:#999; margin-top:3px;" id="da-owner-subtitle">Salary + FCF (max available: <span id="da-max-available">$0</span>)</div>
       </div>
     </div>
     
-    <div style="display:flex; gap:8px; margin-top:8px;">
+    <div style="display:flex; gap:6px; margin-top:6px;">
       <button id="da-recalc-btn" class="da-btn" style="flex:1;">↺ Refresh Data</button>
       <button id="da-share-btn" class="da-btn" style="flex:1; background:#3498db;">📤 Share Deal</button>
     </div>
@@ -170,7 +187,8 @@ const shareModalHTML = `
       <span id="da-share-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
     </div>
     <div style="display:flex; flex-direction:column; gap:10px;">
-      <button id="da-share-email" class="da-btn" style="background:#e74c3c;">📧 Email</button>
+      <button id="da-share-pdf" class="da-btn" style="background:#e74c3c;">📄 Export as PDF</button>
+      <button id="da-share-email" class="da-btn" style="background:#3498db;">📧 Email</button>
       <button id="da-share-sms" class="da-btn" style="background:#27ae60;">💬 SMS</button>
       <button id="da-share-native" class="da-btn" style="background:#9b59b6;">📱 Share (AirDrop)</button>
       <button id="da-share-copy" class="da-btn" style="background:#95a5a6;">📋 Copy to Clipboard</button>
@@ -544,6 +562,23 @@ function calculate() {
   // Total Owner Take-Home = Salary + Remaining Free Cash Flow
   const totalOwnerTakeHome = targetSalary + freeCashFlowAnnual;
 
+  // 12. Calculate ROI Metrics
+  const totalEquityInvested = downPayment;
+  
+  // Cash-on-Cash Return = Total Owner Take-Home / Total Equity Invested
+  // This includes both salary and free cash flow as return on investment
+  let cashOnCashReturn = 0;
+  if (totalEquityInvested > 0) {
+    cashOnCashReturn = (totalOwnerTakeHome / totalEquityInvested) * 100;
+  }
+  
+  // Payback Period = Total Equity Invested / Total Owner Take-Home
+  // How long to recover the initial equity investment
+  let paybackPeriod = 0;
+  if (totalOwnerTakeHome > 0) {
+    paybackPeriod = totalEquityInvested / totalOwnerTakeHome;
+  }
+
   // Debug logging
   console.log('=== DSCR Calculation Debug ===');
   console.log('EBITDA:', fmt(ebitda));
@@ -569,6 +604,11 @@ function calculate() {
   console.log('Free Cash Flow AFTER Salary:', fmt(freeCashFlowAnnual));
   console.log('Free Cash Flow Monthly:', fmt(freeCashFlowMonthly));
   console.log('Total Owner Take-Home:', fmt(totalOwnerTakeHome));
+  console.log('=== ROI Metrics ===');
+  console.log('Total Equity Invested:', fmt(totalEquityInvested));
+  console.log('Total Owner Take-Home (Year 1):', fmt(totalOwnerTakeHome));
+  console.log('Cash-on-Cash Return:', cashOnCashReturn.toFixed(2) + '%');
+  console.log('Payback Period:', paybackPeriod.toFixed(2) + ' years');
 
   // Display Deal Opportunity Banner
   const dealOpportunityDiv = document.getElementById('da-deal-opportunity');
@@ -576,7 +616,7 @@ function calculate() {
   if (isDealOpportunity) {
     const savings = maxPurchasePrice - askingPrice;
     dealOpportunityDiv.style.display = 'block';
-    dealSavingsSpan.innerText = `Asking price is ${fmt(savings)} below your max affordable price!`;
+    dealSavingsSpan.innerText = `Asking price is ${fmt(savings)} below your max allowable price!`;
   } else {
     dealOpportunityDiv.style.display = 'none';
   }
@@ -590,6 +630,24 @@ function calculate() {
   document.getElementById('da-fcf-monthly').innerText = fmt(freeCashFlowMonthly);
   document.getElementById('da-owner-salary').innerText = fmt(totalOwnerTakeHome);
   document.getElementById('da-max-available').innerText = fmt(availableCashFlow);
+  
+  // Display ROI Metrics
+  const cocElement = document.getElementById('da-coc-return');
+  cocElement.innerText = cashOnCashReturn.toFixed(1) + '%';
+  // Color code based on return quality
+  if (cashOnCashReturn >= 100) {
+    cocElement.style.color = '#27ae60'; // Green for excellent (100%+)
+  } else if (cashOnCashReturn >= 50) {
+    cocElement.style.color = '#16a085'; // Teal for good (50%+)
+  } else if (cashOnCashReturn >= 25) {
+    cocElement.style.color = '#f39c12'; // Orange for okay (25%+)
+  } else {
+    cocElement.style.color = '#e74c3c'; // Red for poor (<25%)
+  }
+  
+  document.getElementById('da-payback').innerText = paybackPeriod > 0 && paybackPeriod < 100 
+    ? paybackPeriod.toFixed(1) + ' yrs' 
+    : (paybackPeriod >= 100 ? '∞' : 'N/A');
 
   saveState();
 }
@@ -814,6 +872,146 @@ shareModal.addEventListener('click', (e) => {
   }
 });
 
+// Generate PDF-ready HTML
+function generatePDFHTML() {
+  const listingUrl = window.location.href;
+  const ebitda = document.getElementById('da-ebitda').value || '$0';
+  const askingPrice = document.getElementById('da-asking').value || '$0';
+  const maxPrice = document.getElementById('da-max-price').innerText || '$0';
+  const offerPrice = document.getElementById('da-actual-price').value || '$0';
+  const maxDebt = document.getElementById('da-max-debt').innerText || '$0';
+  const totalDebt = document.getElementById('da-total-debt').innerText || '$0';
+  const fcfAnnual = document.getElementById('da-fcf-annual').innerText || '$0';
+  const fcfMonthly = document.getElementById('da-fcf-monthly').innerText || '$0';
+  const ownerTakeHome = document.getElementById('da-owner-salary').innerText || '$0';
+  const targetSalary = document.getElementById('da-target-salary').value || '$0';
+  const maxAvailable = document.getElementById('da-max-available').innerText || '$0';
+  
+  const sbaPercent = document.getElementById('da-sba-percent').value || '0';
+  const sbaLoan = document.getElementById('da-sba-loan').value || '$0';
+  const downPercent = document.getElementById('da-down-percent').value || '0';
+  const downPayment = document.getElementById('da-down').value || '$0';
+  const bankRate = document.getElementById('da-bank-rate').value || '0';
+  const bankTerm = document.getElementById('da-bank-term').value || '0';
+  const dscr = document.getElementById('da-dscr').value || '0';
+  
+  const cocReturn = document.getElementById('da-coc-return').innerText || '0%';
+  const payback = document.getElementById('da-payback').innerText || '0 yrs';
+  
+  const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+  let sellerNoteHTML = '';
+  if (sellerNoteEnabled) {
+    const sellerPercent = document.getElementById('da-seller-percent').value || '0';
+    const sellerAmt = document.getElementById('da-seller-amt').value || '$0';
+    const sellerRate = document.getElementById('da-seller-rate').value || '0';
+    const sellerStandby = document.getElementById('da-seller-standby').value === 'yes' ? ' (Standby)' : '';
+    const sellerPaymentType = document.getElementById('da-seller-payment-type').value === 'interest-only' ? 'Interest Only' : 'Amortizing';
+    sellerNoteHTML = `
+      <tr><td style="padding:8px; border-bottom:1px solid #eee;"><strong>Seller Note:</strong></td><td style="padding:8px; border-bottom:1px solid #eee;">${sellerPercent}% (${sellerAmt}) @ ${sellerRate}%${sellerStandby} - ${sellerPaymentType}</td></tr>
+    `;
+  }
+  
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Deal Analysis Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 40px; color: #333; }
+    h1 { color: #0d2e4e; border-bottom: 3px solid #0d2e4e; padding-bottom: 10px; }
+    h2 { color: #0d2e4e; margin-top: 30px; border-bottom: 2px solid #ddd; padding-bottom: 8px; }
+    .section { margin: 20px 0; }
+    .metric-box { background: #f8f9fa; border-left: 4px solid #27ae60; padding: 15px; margin: 10px 0; border-radius: 4px; }
+    .metric-box.orange { border-left-color: #e67e22; }
+    .metric-box.purple { border-left-color: #9b59b6; }
+    .metric-box.blue { border-left-color: #3498db; }
+    .metric-box.teal { border-left-color: #16a085; }
+    .metric-box.red { border-left-color: #e74c3c; }
+    .metric-box.gray { border-left-color: #95a5a6; }
+    .metric-title { font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: 0.5px; }
+    .metric-value { font-size: 24px; font-weight: 700; color: #2c3e50; margin-top: 5px; }
+    .metric-subtitle { font-size: 12px; color: #999; margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    td { padding: 8px; border-bottom: 1px solid #eee; }
+    .url { color: #3498db; word-break: break-all; font-size: 12px; }
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 2px solid #ddd; font-size: 11px; color: #999; text-align: center; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  </style>
+</head>
+<body>
+  <h1>Deal Analysis Report</h1>
+  <p><strong>Listing URL:</strong><br><span class="url">${listingUrl}</span></p>
+  <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+  
+  <h2>Financial Overview</h2>
+  <table>
+    <tr><td style="padding:8px; border-bottom:1px solid #eee;"><strong>Business EBITDA:</strong></td><td style="padding:8px; border-bottom:1px solid #eee;">${ebitda}</td></tr>
+    <tr><td style="padding:8px; border-bottom:1px solid #eee;"><strong>Asking Price:</strong></td><td style="padding:8px; border-bottom:1px solid #eee;">${askingPrice}</td></tr>
+  </table>
+  
+  <h2>Maximum Allowable (DSCR-Based)</h2>
+  <div class="grid">
+    <div class="metric-box">
+      <div class="metric-title">Max Allowable Purchase Price</div>
+      <div class="metric-value">${maxPrice}</div>
+    </div>
+    <div class="metric-box gray">
+      <div class="metric-title">Max Annual Debt Service</div>
+      <div class="metric-value">${maxDebt}</div>
+    </div>
+  </div>
+  
+  <h2>Return on Investment (Year 1)</h2>
+  <div class="grid">
+    <div class="metric-box orange">
+      <div class="metric-title">Cash-on-Cash Return</div>
+      <div class="metric-value">${cocReturn}</div>
+      <div class="metric-subtitle">Annual return on equity</div>
+    </div>
+    <div class="metric-box purple">
+      <div class="metric-title">Payback Period</div>
+      <div class="metric-value">${payback}</div>
+      <div class="metric-subtitle">Time to recover equity</div>
+    </div>
+  </div>
+  
+  <h2>Financing Structure</h2>
+  <table>
+    <tr><td style="padding:8px; border-bottom:1px solid #eee;"><strong>SBA Loan:</strong></td><td style="padding:8px; border-bottom:1px solid #eee;">${sbaPercent}% (${sbaLoan}) @ ${bankRate}% for ${bankTerm} years</td></tr>
+    <tr><td style="padding:8px; border-bottom:1px solid #eee;"><strong>Target DSCR:</strong></td><td style="padding:8px; border-bottom:1px solid #eee;">${dscr}</td></tr>
+    <tr><td style="padding:8px; border-bottom:1px solid #eee;"><strong>Buyer Equity:</strong></td><td style="padding:8px; border-bottom:1px solid #eee;">${downPercent}% (${downPayment})</td></tr>
+    ${sellerNoteHTML}
+  </table>
+  
+  <h2>Actual Deal Scenario</h2>
+  <div class="metric-box orange">
+    <div class="metric-title">Offer Price</div>
+    <div class="metric-value">${offerPrice}</div>
+  </div>
+  <div class="grid">
+    <div class="metric-box purple">
+      <div class="metric-title">Total Debt Service</div>
+      <div class="metric-value">${totalDebt}</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-title">Free Cash Flow (Annual)</div>
+      <div class="metric-value">${fcfAnnual}</div>
+      <div class="metric-subtitle">Monthly: ${fcfMonthly}</div>
+    </div>
+  </div>
+  <div class="metric-box blue">
+    <div class="metric-title">Total Owner Take-Home</div>
+    <div class="metric-value">${ownerTakeHome}</div>
+    <div class="metric-subtitle">Target Salary: ${targetSalary} + Free Cash Flow (max available: ${maxAvailable})</div>
+  </div>
+  
+  <div class="footer">
+    Generated by Max Price Deal Analyzer ${VERSION}
+  </div>
+</body>
+</html>`;
+}
+
 // Generate share text
 function generateShareText() {
   const listingUrl = window.location.href;
@@ -827,18 +1025,25 @@ function generateShareText() {
   const targetSalary = document.getElementById('da-target-salary').value || '$0';
   
   const sbaPercent = document.getElementById('da-sba-percent').value || '0';
+  const sbaLoan = document.getElementById('da-sba-loan').value || '$0';
   const downPercent = document.getElementById('da-down-percent').value || '0';
+  const downPayment = document.getElementById('da-down').value || '$0';
   const bankRate = document.getElementById('da-bank-rate').value || '0';
   const bankTerm = document.getElementById('da-bank-term').value || '0';
   const dscr = document.getElementById('da-dscr').value || '0';
+  
+  // ROI Metrics
+  const cocReturn = document.getElementById('da-coc-return').innerText || '0%';
+  const payback = document.getElementById('da-payback').innerText || '0 yrs';
   
   const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
   let sellerNoteText = '';
   if (sellerNoteEnabled) {
     const sellerPercent = document.getElementById('da-seller-percent').value || '0';
+    const sellerAmt = document.getElementById('da-seller-amt').value || '$0';
     const sellerRate = document.getElementById('da-seller-rate').value || '0';
     const sellerStandby = document.getElementById('da-seller-standby').value === 'yes' ? ' (Standby)' : '';
-    sellerNoteText = `\n• Seller Note: ${sellerPercent}% @ ${sellerRate}%${sellerStandby}`;
+    sellerNoteText = `\n• Seller Note: ${sellerPercent}% (${sellerAmt}) @ ${sellerRate}%${sellerStandby}`;
   }
   
   return `📊 DEAL ANALYSIS SUMMARY
@@ -848,12 +1053,12 @@ function generateShareText() {
 💰 FINANCIALS:
 • Business EBITDA: ${ebitda}
 • Asking Price: ${askingPrice}
-• Max Affordable Price: ${maxPrice}
+• Max Allowable Price: ${maxPrice}
 • Offer Price: ${offerPrice}
 
 💵 FINANCING STRUCTURE:
-• SBA Loan: ${sbaPercent}% @ ${bankRate}% (${bankTerm} years)
-• Buyer Equity: ${downPercent}%${sellerNoteText}
+• SBA Loan: ${sbaPercent}% (${sbaLoan}) @ ${bankRate}% (${bankTerm} years)
+• Buyer Equity: ${downPercent}% (${downPayment})${sellerNoteText}
 • Target DSCR: ${dscr}
 
 📈 CASH FLOW:
@@ -862,9 +1067,291 @@ function generateShareText() {
 • Free Cash Flow: ${fcfAnnual}
 • Total Owner Take-Home: ${ownerTakeHome}
 
+📊 RETURN ON INVESTMENT (Year 1):
+• Cash-on-Cash Return: ${cocReturn}
+• Payback Period: ${payback}
+
 ---
 Generated by Max Price Deal Analyzer ${VERSION}`;
 }
+
+// Generate actual PDF file with colors and formatting
+function generatePDFFile() {
+  // Check if jsPDF is loaded
+  if (typeof window.jspdf === 'undefined') {
+    throw new Error('jsPDF library not loaded. Please reload the page.');
+  }
+  
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  
+  // Get all the data
+  const listingUrl = window.location.href;
+  const ebitda = document.getElementById('da-ebitda').value || '$0';
+  const askingPrice = document.getElementById('da-asking').value || '$0';
+  const maxPrice = document.getElementById('da-max-price').innerText || '$0';
+  const offerPrice = document.getElementById('da-actual-price').value || '$0';
+  const maxDebt = document.getElementById('da-max-debt').innerText || '$0';
+  const totalDebt = document.getElementById('da-total-debt').innerText || '$0';
+  const fcfAnnual = document.getElementById('da-fcf-annual').innerText || '$0';
+  const fcfMonthly = document.getElementById('da-fcf-monthly').innerText || '$0';
+  const ownerTakeHome = document.getElementById('da-owner-salary').innerText || '$0';
+  const targetSalary = document.getElementById('da-target-salary').value || '$0';
+  const maxAvailable = document.getElementById('da-max-available').innerText || '$0';
+  
+  const sbaPercent = document.getElementById('da-sba-percent').value || '0';
+  const sbaLoan = document.getElementById('da-sba-loan').value || '$0';
+  const downPercent = document.getElementById('da-down-percent').value || '0';
+  const downPayment = document.getElementById('da-down').value || '$0';
+  const bankRate = document.getElementById('da-bank-rate').value || '0';
+  const bankTerm = document.getElementById('da-bank-term').value || '0';
+  const dscr = document.getElementById('da-dscr').value || '0';
+  
+  const cocReturn = document.getElementById('da-coc-return').innerText || '0%';
+  const payback = document.getElementById('da-payback').innerText || '0 yrs';
+  
+  // Helper function to draw a colored box
+  const drawBox = (x, y, width, height, borderColor, bgColor) => {
+    doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+    doc.rect(x, y, width, height, 'F');
+    doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+    doc.setLineWidth(0.8);
+    doc.line(x, y, x, y + height);
+  };
+  
+  let y = 15;
+  
+  // Header with background
+  doc.setFillColor(13, 46, 78); // Navy blue
+  doc.rect(0, 0, 210, 25, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(22);
+  doc.setFont(undefined, 'bold');
+  doc.text('DEAL ANALYSIS REPORT', 15, 16);
+  
+  y = 30;
+  
+  // Date and URL
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 15, y);
+  y += 6;
+  
+  // Clickable URL
+  doc.setTextColor(52, 152, 219); // Blue
+  doc.setFont(undefined, 'italic');
+  doc.textWithLink('View Listing', 15, y, { url: listingUrl });
+  doc.setTextColor(0, 0, 0);
+  y += 10;
+  
+  // Financial Overview Section
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(102, 102, 102);
+  doc.text('FINANCIAL OVERVIEW', 15, y);
+  y += 6;
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Business EBITDA: ${ebitda}`, 20, y);
+  y += 5;
+  doc.text(`Asking Price: ${askingPrice}`, 20, y);
+  y += 10;
+  
+  // Maximum Allowable Section with colored boxes
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(102, 102, 102);
+  doc.text('MAXIMUM ALLOWABLE (DSCR-BASED)', 15, y);
+  y += 6;
+  
+  // Green box for Max Price
+  drawBox(15, y - 3, 3, 16, [39, 174, 96], [248, 249, 250]);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(85, 85, 85);
+  doc.text('MAX ALLOWABLE PURCHASE PRICE', 22, y);
+  y += 4;
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(44, 62, 80);
+  doc.text(maxPrice, 22, y);
+  y += 10;
+  
+  // Gray box for Max Debt
+  drawBox(15, y - 3, 3, 16, [149, 165, 166], [248, 249, 250]);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(85, 85, 85);
+  doc.text('MAX ANNUAL DEBT SERVICE', 22, y);
+  y += 4;
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(44, 62, 80);
+  doc.text(maxDebt, 22, y);
+  y += 12;
+  
+  // ROI Section with colored boxes
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(102, 102, 102);
+  doc.text('RETURN ON INVESTMENT (YEAR 1)', 15, y);
+  y += 6;
+  
+  // Orange box - Cash on Cash
+  drawBox(15, y - 3, 3, 16, [230, 126, 34], [248, 249, 250]);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(85, 85, 85);
+  doc.text('CASH-ON-CASH RETURN', 22, y);
+  y += 4;
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(44, 62, 80);
+  doc.text(cocReturn, 22, y);
+  doc.setFontSize(7);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(153, 153, 153);
+  y += 4;
+  doc.text('Annual return on equity', 22, y);
+  y += 8;
+  
+  // Purple box - Payback
+  drawBox(15, y - 3, 3, 16, [155, 89, 182], [248, 249, 250]);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(85, 85, 85);
+  doc.text('PAYBACK PERIOD', 22, y);
+  y += 4;
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(44, 62, 80);
+  doc.text(payback, 22, y);
+  doc.setFontSize(7);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(153, 153, 153);
+  y += 4;
+  doc.text('Time to recover equity', 22, y);
+  y += 12;
+  
+  // Financing Structure
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(102, 102, 102);
+  doc.text('FINANCING STRUCTURE', 15, y);
+  y += 6;
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(0, 0, 0);
+  doc.text(`SBA Loan: ${sbaPercent}% (${sbaLoan}) @ ${bankRate}% for ${bankTerm} years`, 20, y);
+  y += 5;
+  doc.text(`Target DSCR: ${dscr}`, 20, y);
+  y += 5;
+  doc.text(`Buyer Equity: ${downPercent}% (${downPayment})`, 20, y);
+  y += 5;
+  
+  // Seller Note if enabled
+  const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+  if (sellerNoteEnabled) {
+    const sellerPercent = document.getElementById('da-seller-percent').value || '0';
+    const sellerAmt = document.getElementById('da-seller-amt').value || '$0';
+    const sellerRate = document.getElementById('da-seller-rate').value || '0';
+    const sellerStandby = document.getElementById('da-seller-standby').value === 'yes' ? ' (Standby)' : '';
+    const sellerPaymentType = document.getElementById('da-seller-payment-type').value === 'interest-only' ? 'Interest Only' : 'Amortizing';
+    doc.text(`Seller Note: ${sellerPercent}% (${sellerAmt}) @ ${sellerRate}%${sellerStandby} - ${sellerPaymentType}`, 20, y);
+    y += 5;
+  }
+  y += 5;
+  
+  // Actual Deal Scenario with colored boxes
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(102, 102, 102);
+  doc.text('ACTUAL DEAL SCENARIO', 15, y);
+  y += 6;
+  
+  // Orange box - Offer Price
+  drawBox(15, y - 3, 3, 16, [230, 126, 34], [248, 249, 250]);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(85, 85, 85);
+  doc.text('OFFER PRICE', 22, y);
+  y += 4;
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(44, 62, 80);
+  doc.text(offerPrice, 22, y);
+  y += 10;
+  
+  // Purple box - Total Debt Service
+  drawBox(15, y - 3, 3, 16, [155, 89, 182], [248, 249, 250]);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(85, 85, 85);
+  doc.text('TOTAL DEBT SERVICE', 22, y);
+  y += 4;
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(44, 62, 80);
+  doc.text(totalDebt, 22, y);
+  y += 10;
+  
+  // Green box - Free Cash Flow
+  drawBox(15, y - 3, 3, 20, [39, 174, 96], [248, 249, 250]);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(85, 85, 85);
+  doc.text('FREE CASH FLOW (ANNUAL)', 22, y);
+  y += 4;
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(44, 62, 80);
+  doc.text(fcfAnnual, 22, y);
+  y += 5;
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(102, 102, 102);
+  doc.text(`Monthly: ${fcfMonthly}`, 22, y);
+  y += 9;
+  
+  // Blue box - Total Owner Take-Home
+  drawBox(15, y - 3, 3, 20, [52, 152, 219], [248, 249, 250]);
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(85, 85, 85);
+  doc.text('TOTAL OWNER TAKE-HOME', 22, y);
+  y += 4;
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(44, 62, 80);
+  doc.text(ownerTakeHome, 22, y);
+  y += 5;
+  doc.setFontSize(7);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(153, 153, 153);
+  doc.text(`Salary: ${targetSalary} + FCF (max available: ${maxAvailable})`, 22, y);
+  y += 15;
+  
+  // Footer
+  doc.setFontSize(8);
+  doc.setTextColor(150, 150, 150);
+  doc.text(`Generated by Max Price Deal Analyzer ${VERSION}`, 15, y);
+  
+  return doc;
+}
+
+// PDF Export
+document.getElementById('da-share-pdf').addEventListener('click', () => {
+  try {
+    const doc = generatePDFFile();
+    doc.save('Deal-Analysis.pdf');
+    shareModal.style.display = 'none';
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    alert('PDF generation failed: ' + err.message + '\n\nPlease reload the extension and try again.');
+  }
+});
 
 // Email share
 document.getElementById('da-share-email').addEventListener('click', () => {
@@ -881,22 +1368,48 @@ document.getElementById('da-share-sms').addEventListener('click', () => {
   shareModal.style.display = 'none';
 });
 
-// Native share (includes AirDrop on Apple devices)
+// Native share (includes AirDrop on Apple devices) - Share as actual PDF
 document.getElementById('da-share-native').addEventListener('click', async () => {
   if (navigator.share) {
     try {
+      // Generate the actual PDF file
+      const doc = generatePDFFile();
+      const pdfBlob = doc.output('blob');
+      
+      // Check if we can share files (better for AirDrop)
+      if (navigator.canShare) {
+        try {
+          const file = new File([pdfBlob], 'Deal-Analysis.pdf', { type: 'application/pdf' });
+          const fileShareData = {
+            title: 'Deal Analysis - Business Acquisition',
+            files: [file]
+          };
+          
+          if (navigator.canShare(fileShareData)) {
+            await navigator.share(fileShareData);
+            shareModal.style.display = 'none';
+            return;
+          }
+        } catch (fileErr) {
+          console.log('PDF file sharing not supported:', fileErr);
+        }
+      }
+      
+      // Fallback to text-only sharing
+      const shareText = generateShareText();
       await navigator.share({
         title: 'Deal Analysis - Business Acquisition',
-        text: generateShareText()
+        text: shareText
       });
       shareModal.style.display = 'none';
     } catch (err) {
       if (err.name !== 'AbortError') {
-        alert('Share failed. Try copying to clipboard instead.');
+        console.error('Share error:', err);
+        alert('Share failed: ' + err.message + '\n\nTry the "Export as PDF" button to download, then AirDrop the file.');
       }
     }
   } else {
-    alert('Native sharing not supported on this browser. Try Email, SMS, or Copy to Clipboard.');
+    alert('Native sharing not supported on this browser. Try the "Export as PDF" button instead.');
   }
 });
 

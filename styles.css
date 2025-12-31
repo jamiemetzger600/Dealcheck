@@ -20,13 +20,14 @@
 
 /* Header */
 #deal-analyzer-header {
-  padding: 12px 15px;
+  padding: 8px 12px;
   background-color: #0d2e4e; /* Professional Navy */
   color: white;
   cursor: move;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
   font-weight: 600;
+  font-size: 13px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -36,20 +37,20 @@
 #da-close:hover { opacity: 1; }
 
 /* Sections */
-.da-section { padding: 12px; border-bottom: 1px solid #eee; }
-.da-row { margin-bottom: 10px; }
-.da-flex-row { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; }
+.da-section { padding: 8px; border-bottom: 1px solid #eee; }
+.da-row { margin-bottom: 6px; }
+.da-flex-row { display: flex; gap: 6px; align-items: stretch; margin-bottom: 6px; }
 .da-flex-row > div { display: flex; flex-direction: column; }
 
 /* Inputs */
-.da-label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 500;}
+.da-label { display: block; font-size: 10px; color: #666; margin-bottom: 2px; font-weight: 500;}
 .da-input {
   width: 100%;
-  padding: 8px;
+  padding: 5px 6px;
   box-sizing: border-box;
   border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 14px;
+  border-radius: 3px;
+  font-size: 12px;
 }
 .da-input[readonly] {
   background-color: #f5f5f5;
@@ -59,24 +60,24 @@
   background-color: #e8e8e8;
   border-color: #999;
 }
-.da-select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
+.da-select { width: 100%; padding: 5px 6px; border-radius: 3px; border: 1px solid #ccc; font-size: 12px; }
 
 /* Results */
 .da-result-box {
   background-color: #f8f9fa;
-  border-left: 4px solid #27ae60;
-  padding: 8px 12px;
-  margin-top: 8px;
-  border-radius: 0 4px 4px 0;
+  border-left: 3px solid #27ae60;
+  padding: 6px 8px;
+  margin-top: 6px;
+  border-radius: 0 3px 3px 0;
 }
-.da-result-title { font-size: 10px; text-transform: uppercase; color: #555; letter-spacing: 0.5px; }
-.da-result-value { font-size: 20px; font-weight: 700; color: #2c3e50; margin-top: 2px;}
+.da-result-title { font-size: 9px; text-transform: uppercase; color: #555; letter-spacing: 0.3px; }
+.da-result-value { font-size: 14px; font-weight: 700; color: #2c3e50; margin-top: 1px;}
 
 /* Buttons & Warnings */
 .da-btn {
-  background: #0066cc; color: white; border: none; padding: 10px;
-  width: 100%; border-radius: 4px; cursor: pointer; margin-top: 10px; font-weight: 600;
+  background: #0066cc; color: white; border: none; padding: 8px;
+  width: 100%; border-radius: 3px; cursor: pointer; margin-top: 6px; font-weight: 600; font-size: 12px;
 }
 .da-btn:hover { background: #0052a3; }
-.da-warning { font-size: 11px; color: #d35400; background: #fae5d3; padding: 4px; border-radius: 3px; margin-top: 4px; display: none; }
+.da-warning { font-size: 10px; color: #d35400; background: #fae5d3; padding: 3px 5px; border-radius: 2px; margin-top: 3px; display: none; }
 .da-warning.visible { display: block; }

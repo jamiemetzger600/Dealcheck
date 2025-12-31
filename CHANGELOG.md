@@ -2,6 +2,28 @@
 
 All notable changes to the Deal Analyzer Chrome Extension will be documented in this file.
 
+## [1.3.0] - 2024-12-30
+
+### Added
+- ROI Calculator with Cash-on-Cash Return and Payback Period metrics
+- Professional PDF export with color-coded sections and clickable listing links
+- PDF sharing via AirDrop and native share
+- Actual dollar amounts in share text for financing structure
+
+### Changed
+- **FIXED: ROI calculations now use Total Owner Take-Home** (salary + FCF) instead of just FCF
+- Simplified ROI metrics - removed 5-Year ROI and Equity Multiple, kept Year 1 focus
+- Renamed "Actual Purchase Price" to "Offer Price"
+- Updated color coding thresholds for Cash-on-Cash Return (100%+ excellent, 50%+ good, 25%+ okay)
+- Made UI more compact with reduced font sizes, padding, and spacing throughout
+- Reduced dropdown text size to match other inputs
+
+### Fixed
+- ROI calculations now accurately reflect true return on investment
+- Payback period now correctly calculates time to recover equity
+- PDF generation error handling improved
+- All "Affordable" terminology changed to "Allowable" for consistency
+
 ## [1.2.0] - 2024-12-30
 
 ### Added
@@ -56,7 +78,7 @@ All notable changes to the Deal Analyzer Chrome Extension will be documented in 
 - Auto-scraping of EBITDA/SDE and Asking Price from listing pages
 - SDE adjustment (subtracts $200k for owner salary)
 - Free cash flow calculations (annual and monthly)
-- Deal opportunity detection (when asking < max affordable)
+- Deal opportunity detection (when asking < max allowable)
 - Draggable floating window interface
 - Persistent settings storage
 - Debug logging for calculations

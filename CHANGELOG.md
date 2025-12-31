@@ -1,105 +1,184 @@
 # Changelog
 
-All notable changes to the Deal Analyzer Chrome Extension will be documented in this file.
+All notable changes to the Max Price Deal Analyzer extension will be documented in this file.
 
-## [1.3.1] - 2024-12-30
+## [1.4.0] - 2024-12-31 - Quick Wins Release
 
-### Added
-- Collapsible sections for Maximum Allowable, ROI, and Actual Deal Scenario
-- Smart PDF filename generation using business name from listing
-- Arrow indicators for all collapsible sections with smooth animations
-- Persistent collapse state for all sections (remembers user preferences)
+### ✨ New Features
 
-### Changed
-- Separated Seller Note checkbox and collapse arrow functionality
-- Checkbox enables/disables seller note in calculations
-- Arrow collapses/expands section independently
-- Improved filename sanitization (removes invalid characters, limits length intelligently)
-- Enhanced business name extraction with multiple fallback strategies
+#### Deal Quality Score
+- **Live scoring system** (0-100) that updates as you adjust inputs
+- **Intelligent weighting**:
+  - 40% - Price vs Max Allowable
+  - 35% - Cash-on-Cash Return vs Target
+  - 25% - Payback Period vs Target
+- **Color-coded ratings**:
+  - 🟢 Excellent (80-100): Strong deal
+  - 🟡 Good (60-79): Acceptable deal
+  - 🟠 Fair (40-59): Marginal deal
+  - 🔴 Weak (0-39): Poor deal
+- Banner display at top of extension showing current score
 
-### Fixed
-- Seller Note arrow now works independently from checkbox
-- PDF exports now use actual business name instead of generic "Deal-Analysis"
-- AirDrop shares now use descriptive filenames
+#### Settings & Customization
+- **Settings modal** (⚙️ icon in header)
+- **User-defined targets**:
+  - Target Cash-on-Cash Return (default: 25%)
+  - Target Payback Period (default: 4 years)
+- **Display preferences**:
+  - Compact number format (1.2M vs 1,200,000)
+- Settings persist across sessions
+
+#### Save & Load Deals
+- **Save deals** with custom names for later reference
+- **Deal library** - dropdown to quickly load saved deals
+- **Auto-generated names** if none provided
+- Each deal saves:
+  - All inputs and assumptions
+  - Calculated results
+  - Notes
+  - URL and timestamp
+- **Update existing deals** by re-saving with same name
+
+#### Deal Notes
+- Dedicated text area for deal-specific notes
+- Auto-saves every 1 second
+- Persists with deal state
+- Great for tracking:
+  - Questions for seller
+  - Red flags
+  - Due diligence items
+  - Follow-up tasks
+
+#### Keyboard Shortcuts
+- **Cmd/Ctrl + E**: Toggle extension visibility
+- **Cmd/Ctrl + R**: Refresh/scrape data from page
+- **Cmd/Ctrl + S**: Quick save current deal
+- Power user efficiency improvements
+
+### 🎨 UI Improvements
+- Quality banner prominently displays deal score
+- Settings accessible from header
+- Save/Load section integrated cleanly
+- Better visual hierarchy
+- Responsive feedback on user actions
+
+### 🔧 Technical Improvements
+- Modular formatting functions
+- User preferences stored separately
+- Deal library management
+- Debounced auto-save for performance
+- All features work together seamlessly
+
+---
+
+## [1.3.4] - 2024-12-31
+
+### 🐛 Bug Fixes
+- Fixed console errors for null element access
+- Fixed background.js connection errors
+- Added proper message acknowledgment
+- Improved error handling throughout
+
+---
+
+## [1.3.3] - 2024-12-31
+
+### 🐛 Bug Fixes
+- Extension now starts hidden by default
+- Only appears when user clicks extension icon
+- Prevents unwanted display on non-deal sites
+
+---
 
 ## [1.3.0] - 2024-12-30
 
-### Added
-- ROI Calculator with Cash-on-Cash Return and Payback Period metrics
-- Professional PDF export with color-coded sections and clickable listing links
-- PDF sharing via AirDrop and native share
-- Actual dollar amounts in share text for financing structure
+### ✨ New Features
+- Cash-on-Cash Return calculator
+- Payback Period calculator
+- Collapsible sections for cleaner UI
+- Professional PDF export with formatting
 
-### Changed
-- **FIXED: ROI calculations now use Total Owner Take-Home** (salary + FCF) instead of just FCF
-- Simplified ROI metrics - removed 5-Year ROI and Equity Multiple, kept Year 1 focus
-- Renamed "Actual Purchase Price" to "Offer Price"
-- Updated color coding thresholds for Cash-on-Cash Return (100%+ excellent, 50%+ good, 25%+ okay)
-- Made UI more compact with reduced font sizes, padding, and spacing throughout
-- Reduced dropdown text size to match other inputs
-
-### Fixed
-- ROI calculations now accurately reflect true return on investment
-- Payback period now correctly calculates time to recover equity
-- PDF generation error handling improved
-- All "Affordable" terminology changed to "Allowable" for consistency
+---
 
 ## [1.2.0] - 2024-12-30
 
-### Added
-- Extension icon click support - toggle window visibility without page refresh
-- Share functionality with multiple options:
-  - Email sharing with pre-filled deal summary
-  - SMS sharing for mobile devices
-  - Native share API support (includes AirDrop on Mac/iOS)
-  - Copy to clipboard with visual confirmation
-- Background service worker for extension icon handling
-- Share modal with clean UI for all sharing options
+### ✨ New Features
+- Extension icon toggle functionality
+- Share module (Email, SMS, AirDrop, Clipboard)
+- UI positioning improvements
+- Drag constraints
 
-### Changed
-- Renamed "Actual Purchase Price" to "Offer Price" for clarity
-- Improved window positioning - now starts at 120px from top (was 50px)
-- Added drag constraints to prevent window from being lost above viewport
-- Window can no longer be dragged above 10px from top or below visible area
-
-### Fixed
-- Window now appears when clicking extension icon (no page refresh needed)
-- Window positioning no longer conflicts with Chrome toolbar
-- Dragging window above toolbar no longer makes it unrecoverable
+---
 
 ## [1.1.2] - 2024-12-29
 
-### Added
-- Version number display in header (v1.1.2)
-- Salary validation warning when target salary exceeds available cash flow
-- "Total Owner Take-Home" display showing Salary + Free Cash Flow
-- Max available cash flow indicator in owner take-home section
-- Standby seller note support in DSCR calculations (excludes standby notes from debt service)
+### ✨ New Features
+- Salary validation warnings
+- Standby seller note support
+- UI improvements and condensing
 
-### Changed
-- Condensed EBITDA and Asking Price fields to single row
-- Reduced spacing throughout UI for more compact display
-- Combined Standby, Interest Rate, and Payment Type fields on one line in Seller Note section
-- Updated label from "Business EBITDA (or Adjusted SDE)" to "Business EBITDA"
-- Renamed "Available for Owner Salary" to "Total Owner Take-Home"
-
-### Fixed
-- Seller note standby logic now properly excludes debt service from DSCR calculation per SBA lender treatment
-- Improved field alignment in flex rows
+---
 
 ## [1.0.0] - 2024-12-28
 
-### Added
-- Initial release
-- DSCR-based Max Allowable Purchase Price calculation
-- SBA loan configuration (percentage, rate, term, target DSCR)
-- Buyer equity input
-- Optional seller note financing with interest-only or amortizing options
-- Auto-scraping of EBITDA/SDE and Asking Price from listing pages
-- SDE adjustment (subtracts $200k for owner salary)
-- Free cash flow calculations (annual and monthly)
-- Deal opportunity detection (when asking < max allowable)
-- Draggable floating window interface
+### 🎉 Initial Release
+- DSCR-based max price calculator
+- Smart scraping from BizQuest, BizBuySell, Crexi
+- Draggable window interface
+- SBA loan calculator
+- Seller note support
 - Persistent settings storage
-- Debug logging for calculations
+- Free cash flow projections
+- Owner take-home calculations
 
+---
+
+## Upcoming Features
+
+See [ROADMAP.md](ROADMAP.md) for planned features and future enhancements.
+
+### Next Priority (v1.5.0)
+- Multi-deal comparison view
+- Deal pipeline dashboard
+- Export saved deals to CSV
+- Delete saved deals
+- Deal tags/categories
+
+### Future Enhancements
+- Comparable deals analysis
+- Working capital calculator
+- Break-even analysis
+- Exit strategy calculator
+- Industry-specific presets
+- Team sharing features
+
+---
+
+## Monetization Plans
+
+### Freemium Model
+**Free Tier:**
+- Basic calculator
+- 5 saved deals max
+- Limited PDF exports
+
+**Premium ($14.99/mo or $149/year):**
+- Unlimited saved deals
+- Comp analysis module
+- Multi-deal comparison
+- Advanced analytics
+- Priority support
+- Export to Excel
+- Team sharing
+
+**Target Market:**
+- Business buyers (search fund, ETA)
+- SBA borrowers
+- Business brokers
+- M&A advisors
+- Private equity analysts
+
+**Revenue Goal:**
+- Year 1: $25K (150 paid users)
+- Year 2: $100K (500 paid users)
+- Year 3: $250K (1,250 paid users)

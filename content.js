@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.1.2';
+const VERSION = 'v1.2.0';
 
 // --- 1. HTML UI TEMPLATE ---
 const uiHTML = `
@@ -134,7 +134,7 @@ const uiHTML = `
     <div style="margin-bottom:15px;">
       <div style="font-size:12px; font-weight:700; color:#666; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Actual Deal Scenario</div>
       <div class="da-result-box" style="border-left-color: #e67e22;">
-        <div class="da-result-title">Actual Purchase Price <span style="font-weight:400; color:#999; font-size:11px;">(Click to edit)</span></div>
+        <div class="da-result-title">Offer Price <span style="font-weight:400; color:#999; font-size:11px;">(Click to Edit)</span></div>
         <input type="text" id="da-actual-price" class="da-input" value="$0" readonly style="font-size:24px; font-weight:700; color:#2c3e50; border:none; background:transparent; padding:5px 0; cursor:pointer;">
       </div>
       <div class="da-result-box" style="border-left-color: #9b59b6;">
@@ -153,7 +153,28 @@ const uiHTML = `
       </div>
     </div>
     
-    <button id="da-recalc-btn" class="da-btn">↺ Refresh Data</button>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button id="da-recalc-btn" class="da-btn" style="flex:1;">↺ Refresh Data</button>
+      <button id="da-share-btn" class="da-btn" style="flex:1; background:#3498db;">📤 Share Deal</button>
+    </div>
+  </div>
+</div>
+`;
+
+// Share Modal HTML
+const shareModalHTML = `
+<div id="da-share-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:8px; padding:24px; max-width:400px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h3 style="margin:0; font-size:18px; color:#2c3e50;">Share Deal Analysis</h3>
+      <span id="da-share-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button id="da-share-email" class="da-btn" style="background:#e74c3c;">📧 Email</button>
+      <button id="da-share-sms" class="da-btn" style="background:#27ae60;">💬 SMS</button>
+      <button id="da-share-native" class="da-btn" style="background:#9b59b6;">📱 Share (AirDrop)</button>
+      <button id="da-share-copy" class="da-btn" style="background:#95a5a6;">📋 Copy to Clipboard</button>
+    </div>
   </div>
 </div>
 `;
@@ -162,6 +183,11 @@ const uiHTML = `
 const div = document.createElement('div');
 div.innerHTML = uiHTML;
 document.body.appendChild(div);
+
+// Inject the share modal
+const shareDiv = document.createElement('div');
+shareDiv.innerHTML = shareModalHTML;
+document.body.appendChild(shareDiv);
 
 // --- 2. DRAGGABLE WINDOW LOGIC ---
 const container = document.getElementById('deal-analyzer-container');
@@ -183,12 +209,42 @@ function drag(e) {
     e.preventDefault();
     currentX = e.clientX - initialX;
     currentY = e.clientY - initialY;
-    xOffset = currentX;
-    yOffset = currentY;
+    
+    // Prevent dragging above the top of the viewport (min 10px from top)
+    const containerRect = container.getBoundingClientRect();
+    const minTop = 10;
+    const maxBottom = window.innerHeight - 50; // Keep at least 50px of header visible at bottom
+    
+    // Calculate what the new top position would be
+    const newTop = 120 + currentY; // 120 is the initial top position from CSS
+    
+    // Constrain the Y position
+    if (newTop < minTop) {
+      currentY = minTop - 120;
+      yOffset = currentY;
+    } else if (newTop > maxBottom) {
+      currentY = maxBottom - 120;
+      yOffset = currentY;
+    } else {
+      xOffset = currentX;
+      yOffset = currentY;
+    }
+    
     container.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
   }
 }
 document.getElementById('da-close').onclick = () => container.style.display = 'none';
+
+// Listen for messages from background script to toggle window
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "toggleWindow") {
+    if (container.style.display === 'none') {
+      container.style.display = 'flex';
+    } else {
+      container.style.display = 'none';
+    }
+  }
+});
 
 // --- 3. IMPROVED "SMART" SCRAPING LOGIC ---
 
@@ -735,4 +791,147 @@ document.getElementById('da-seller-percent').addEventListener('input', () => {
 });
 
 document.getElementById('da-recalc-btn').addEventListener('click', scrapeData);
+
+// --- 6. SHARE FUNCTIONALITY ---
+const shareModal = document.getElementById('da-share-modal');
+const shareBtn = document.getElementById('da-share-btn');
+const shareClose = document.getElementById('da-share-close');
+
+// Open share modal
+shareBtn.addEventListener('click', () => {
+  shareModal.style.display = 'flex';
+});
+
+// Close share modal
+shareClose.addEventListener('click', () => {
+  shareModal.style.display = 'none';
+});
+
+// Close modal when clicking outside
+shareModal.addEventListener('click', (e) => {
+  if (e.target === shareModal) {
+    shareModal.style.display = 'none';
+  }
+});
+
+// Generate share text
+function generateShareText() {
+  const listingUrl = window.location.href;
+  const ebitda = document.getElementById('da-ebitda').value || '$0';
+  const askingPrice = document.getElementById('da-asking').value || '$0';
+  const maxPrice = document.getElementById('da-max-price').innerText || '$0';
+  const offerPrice = document.getElementById('da-actual-price').value || '$0';
+  const totalDebt = document.getElementById('da-total-debt').innerText || '$0';
+  const fcfAnnual = document.getElementById('da-fcf-annual').innerText || '$0';
+  const ownerTakeHome = document.getElementById('da-owner-salary').innerText || '$0';
+  const targetSalary = document.getElementById('da-target-salary').value || '$0';
+  
+  const sbaPercent = document.getElementById('da-sba-percent').value || '0';
+  const downPercent = document.getElementById('da-down-percent').value || '0';
+  const bankRate = document.getElementById('da-bank-rate').value || '0';
+  const bankTerm = document.getElementById('da-bank-term').value || '0';
+  const dscr = document.getElementById('da-dscr').value || '0';
+  
+  const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+  let sellerNoteText = '';
+  if (sellerNoteEnabled) {
+    const sellerPercent = document.getElementById('da-seller-percent').value || '0';
+    const sellerRate = document.getElementById('da-seller-rate').value || '0';
+    const sellerStandby = document.getElementById('da-seller-standby').value === 'yes' ? ' (Standby)' : '';
+    sellerNoteText = `\n• Seller Note: ${sellerPercent}% @ ${sellerRate}%${sellerStandby}`;
+  }
+  
+  return `📊 DEAL ANALYSIS SUMMARY
+
+🔗 Listing: ${listingUrl}
+
+💰 FINANCIALS:
+• Business EBITDA: ${ebitda}
+• Asking Price: ${askingPrice}
+• Max Affordable Price: ${maxPrice}
+• Offer Price: ${offerPrice}
+
+💵 FINANCING STRUCTURE:
+• SBA Loan: ${sbaPercent}% @ ${bankRate}% (${bankTerm} years)
+• Buyer Equity: ${downPercent}%${sellerNoteText}
+• Target DSCR: ${dscr}
+
+📈 CASH FLOW:
+• Annual Debt Service: ${totalDebt}
+• Target Owner Salary: ${targetSalary}
+• Free Cash Flow: ${fcfAnnual}
+• Total Owner Take-Home: ${ownerTakeHome}
+
+---
+Generated by Max Price Deal Analyzer ${VERSION}`;
+}
+
+// Email share
+document.getElementById('da-share-email').addEventListener('click', () => {
+  const subject = encodeURIComponent('Deal Analysis - Business Acquisition Opportunity');
+  const body = encodeURIComponent(generateShareText());
+  window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+  shareModal.style.display = 'none';
+});
+
+// SMS share
+document.getElementById('da-share-sms').addEventListener('click', () => {
+  const body = encodeURIComponent(generateShareText());
+  window.open(`sms:?&body=${body}`, '_blank');
+  shareModal.style.display = 'none';
+});
+
+// Native share (includes AirDrop on Apple devices)
+document.getElementById('da-share-native').addEventListener('click', async () => {
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Deal Analysis - Business Acquisition',
+        text: generateShareText()
+      });
+      shareModal.style.display = 'none';
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        alert('Share failed. Try copying to clipboard instead.');
+      }
+    }
+  } else {
+    alert('Native sharing not supported on this browser. Try Email, SMS, or Copy to Clipboard.');
+  }
+});
+
+// Copy to clipboard
+document.getElementById('da-share-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(generateShareText());
+    const btn = document.getElementById('da-share-copy');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '✅ Copied!';
+    btn.style.background = '#27ae60';
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.style.background = '#95a5a6';
+    }, 2000);
+  } catch (err) {
+    // Fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = generateShareText();
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    
+    const btn = document.getElementById('da-share-copy');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '✅ Copied!';
+    btn.style.background = '#27ae60';
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.style.background = '#95a5a6';
+    }, 2000);
+  }
+});
+
 loadState();

@@ -1,7 +1,7 @@
 /* Container for the floating app */
 #deal-analyzer-container {
   position: fixed;
-  top: 50px;
+  top: 120px;
   right: 50px;
   width: 380px;
   background-color: #ffffff;
@@ -14,7 +14,7 @@
   flex-direction: column;
   resize: both;
   overflow: auto;
-  max-height: 90vh;
+  max-height: calc(100vh - 140px);
   color: #333;
 }
 

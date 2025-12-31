@@ -2,6 +2,29 @@
 
 All notable changes to the Deal Analyzer Chrome Extension will be documented in this file.
 
+## [1.2.0] - 2024-12-30
+
+### Added
+- Extension icon click support - toggle window visibility without page refresh
+- Share functionality with multiple options:
+  - Email sharing with pre-filled deal summary
+  - SMS sharing for mobile devices
+  - Native share API support (includes AirDrop on Mac/iOS)
+  - Copy to clipboard with visual confirmation
+- Background service worker for extension icon handling
+- Share modal with clean UI for all sharing options
+
+### Changed
+- Renamed "Actual Purchase Price" to "Offer Price" for clarity
+- Improved window positioning - now starts at 120px from top (was 50px)
+- Added drag constraints to prevent window from being lost above viewport
+- Window can no longer be dragged above 10px from top or below visible area
+
+### Fixed
+- Window now appears when clicking extension icon (no page refresh needed)
+- Window positioning no longer conflicts with Chrome toolbar
+- Dragging window above toolbar no longer makes it unrecoverable
+
 ## [1.1.2] - 2024-12-29
 
 ### Added

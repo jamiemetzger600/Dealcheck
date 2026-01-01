@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deal Analyzer Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-listing {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .detail {
+            margin: 15px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+        }
+        .detail strong {
+            color: #2c3e50;
+        }
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <h3>📌 Testing Instructions</h3>
+        <ol>
+            <li>Load this extension in Chrome (chrome://extensions → Developer mode → Load unpacked)</li>
+            <li>Click the extension icon to activate the Deal Analyzer</li>
+            <li>Verify that the Target Offer Calculator section appears</li>
+            <li>Click "🎯 Calculate Target Offer Price" button</li>
+            <li>Verify the calculations are correct</li>
+        </ol>
+    </div>
+
+    <div class="test-listing">
+        <h1>Test Business Listing - Pizza Restaurant</h1>
+        
+        <div class="detail">
+            <strong>EBITDA:</strong> $500,000
+        </div>
+        
+        <div class="detail">
+            <strong>Asking Price:</strong> $2,000,000
+        </div>
+        
+        <div class="detail">
+            <strong>Business Type:</strong> Quick Service Restaurant
+        </div>
+        
+        <div class="detail">
+            <strong>Location:</strong> Denver, CO
+        </div>
+        
+        <div class="detail">
+            <strong>Cash Flow:</strong> $500,000
+        </div>
+        
+        <div class="detail">
+            <strong>Revenue:</strong> $2,500,000
+        </div>
+
+        <h2>Expected Test Results</h2>
+        <div class="detail">
+            <strong>Test Scenario:</strong>
+            <ul>
+                <li>EBITDA: $500,000</li>
+                <li>Target Salary: $150,000</li>
+                <li>Target COC: 25%</li>
+                <li>Target Payback: 4 years</li>
+                <li>SBA: 80% @ 11.5% for 10 years</li>
+                <li>Equity: 20%</li>
+                <li>DSCR: 1.25x</li>
+            </ul>
+        </div>
+        
+        <div class="detail">
+            <strong>Manual Calculation:</strong>
+            <ul>
+                <li>Available for returns (EBITDA - Salary): $350,000</li>
+                <li>SBA debt service per $1: ~0.1356 (11.5% over 10 years)</li>
+                <li>Total DS per $1 (80% × 0.1356): ~0.1085</li>
+                <li>Equity per $1: 0.20</li>
+                <li>Target COC: 0.25</li>
+                <li>Formula: P = $350,000 / (0.25 × 0.20 + 0.1085)</li>
+                <li>Formula: P = $350,000 / (0.05 + 0.1085)</li>
+                <li>Formula: P = $350,000 / 0.1585</li>
+                <li><strong>Expected Target Price: ~$2,208,000</strong></li>
+            </ul>
+        </div>
+        
+        <div class="detail">
+            <strong>Verification:</strong>
+            <ul>
+                <li>At $2,208,000: Equity = $441,600 (20%)</li>
+                <li>SBA Loan = $1,766,400 (80%)</li>
+                <li>Annual Debt Service = ~$239,000</li>
+                <li>Free Cash Flow = $500k - $239k - $150k = $111,000</li>
+                <li>Total Take-Home = $150k + $111k = $261,000</li>
+                <li>COC = $261,000 / $441,600 = 59% (way higher than 25%! Need to check math)</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
+

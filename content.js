@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.5.2';
+const VERSION = 'v1.5.3';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -1356,11 +1356,70 @@ function updateFinancingSummaries() {
   const dscr = parseFloat(document.getElementById('da-dscr').value) || 0;
   document.getElementById('da-sba-summary').innerText = `${sbaPercent}% • ${bankRate}% • ${bankTerm}yr • ${dscr}x DSCR`;
   
-  // Update Buyer Equity summary
+  // Update Buyer Equity summary with salary validation
   const downPercent = parseFloat(document.getElementById('da-down-percent').value) || 0;
   const targetSalary = parseNumber(document.getElementById('da-target-salary').value) || 0;
   const salaryFormatted = targetSalary >= 1000 ? '$' + Math.round(targetSalary / 1000) + 'k' : '$' + targetSalary;
-  document.getElementById('da-buyer-equity-summary').innerText = `${downPercent}% • ${salaryFormatted} salary`;
+  
+  // Check if salary is feasible (only if we have enough data to calculate)
+  const ebitda = parseNumber(document.getElementById('da-ebitda').value) || 0;
+  const summaryEl = document.getElementById('da-buyer-equity-summary');
+  
+  if (ebitda > 0 && targetSalary > 0) {
+    // Quick calculation of available cash flow
+    const bankRateDecimal = (parseFloat(document.getElementById('da-bank-rate').value) || 0) / 100;
+    const bankYears = parseFloat(document.getElementById('da-bank-term').value) || 10;
+    const actualPrice = parseNumber(document.getElementById('da-actual-price').value) || 0;
+    
+    if (actualPrice > 0 && bankRateDecimal > 0 && bankYears > 0) {
+      const sbaLoanSize = (sbaPercent / 100) * actualPrice;
+      const r = bankRateDecimal / 12;
+      const n = bankYears * 12;
+      const monthlyPayment = sbaLoanSize * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+      const sbaAnnualDebtService = monthlyPayment * 12;
+      
+      // Add seller note debt service if applicable
+      const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+      let sellerAnnualDebtService = 0;
+      if (sellerNoteEnabled) {
+        const sellerPercent = parseFloat(document.getElementById('da-seller-percent').value) || 0;
+        const sellerNoteAmt = (sellerPercent / 100) * actualPrice;
+        const sellerRate = (parseFloat(document.getElementById('da-seller-rate').value) || 0) / 100;
+        const sellerPaymentType = document.getElementById('da-seller-payment-type').value;
+        const sellerStandby = document.getElementById('da-seller-standby').value;
+        
+        if (sellerNoteAmt > 0 && sellerStandby === 'no') {
+          if (sellerPaymentType === 'interest-only') {
+            sellerAnnualDebtService = sellerNoteAmt * sellerRate;
+          } else {
+            const sellerYears = 5;
+            const rSeller = sellerRate / 12;
+            const nSeller = sellerYears * 12;
+            if (rSeller > 0) {
+              const monthlySeller = sellerNoteAmt * (rSeller * Math.pow(1 + rSeller, nSeller)) / (Math.pow(1 + rSeller, nSeller) - 1);
+              sellerAnnualDebtService = monthlySeller * 12;
+            } else {
+              sellerAnnualDebtService = sellerNoteAmt / sellerYears;
+            }
+          }
+        }
+      }
+      
+      const totalDebtService = sbaAnnualDebtService + sellerAnnualDebtService;
+      const availableCashFlow = ebitda - totalDebtService;
+      
+      // If salary exceeds available cash flow, make it red and bold
+      if (targetSalary > availableCashFlow) {
+        summaryEl.innerHTML = `${downPercent}% • <span style="color:#e74c3c; font-weight:700;">${salaryFormatted} salary ⚠️</span>`;
+      } else {
+        summaryEl.innerText = `${downPercent}% • ${salaryFormatted} salary`;
+      }
+    } else {
+      summaryEl.innerText = `${downPercent}% • ${salaryFormatted} salary`;
+    }
+  } else {
+    summaryEl.innerText = `${downPercent}% • ${salaryFormatted} salary`;
+  }
   
   // Update Seller Note summary
   const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;

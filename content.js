@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.6.1';
+const VERSION = 'v1.6.2';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -1845,11 +1845,10 @@ function calculateTargetOffer() {
     return;
   }
   
-  // Update display with current targets
-  document.getElementById('da-target-coc-display').innerText = targetCOC;
-  document.getElementById('da-target-payback-display').innerText = targetPaybackYears;
-  document.getElementById('da-target-coc-result').innerText = targetCOC;
-  document.getElementById('da-target-payback-result').innerText = targetPaybackYears;
+  // Update display with current targets (these are shown in the collapsed description)
+  // Note: The actual display elements are updated in the subtitle after calculation
+  console.log('Target COC:', targetCOC + '%');
+  console.log('Target Payback:', targetPaybackYears + ' years');
   
   // CALCULATION STRATEGY (Constraint-Based Approach):
   // 
@@ -3454,23 +3453,24 @@ loadState();
 
 // Update Target Offer Calculator display with user's actual settings
 function updateTargetOfferDisplay() {
-  const cocDisplay = document.getElementById('da-target-coc-display');
-  const paybackDisplay = document.getElementById('da-target-payback-display');
+  // Update salary and DSCR displays in the description
   const salaryDisplay = document.getElementById('da-target-salary-display');
   const dscrDisplay = document.getElementById('da-target-dscr-display');
   
-  if (cocDisplay) cocDisplay.innerText = userPreferences.targetCOC || 25;
-  if (paybackDisplay) paybackDisplay.innerText = userPreferences.targetPayback || 4;
-  
-  // Update salary and DSCR from current inputs
-  const targetSalary = parseNumber(document.getElementById('da-target-salary')?.value) || 150000;
-  const targetDSCR = parseFloat(document.getElementById('da-dscr')?.value) || 1.25;
-  
+  // Update salary display
   if (salaryDisplay) {
+    const targetSalary = parseNumber(document.getElementById('da-target-salary')?.value) || 150000;
     const salaryK = Math.round(targetSalary / 1000);
     salaryDisplay.innerText = salaryK + 'k';
   }
-  if (dscrDisplay) dscrDisplay.innerText = targetDSCR;
+  
+  // Update DSCR display
+  if (dscrDisplay) {
+    const targetDSCR = parseFloat(document.getElementById('da-dscr')?.value) || 1.25;
+    dscrDisplay.innerText = targetDSCR;
+  }
+  
+  console.log('✅ Target Offer display updated');
 }
 
 // Call after preferences are loaded

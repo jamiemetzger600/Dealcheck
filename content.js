@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.5.0';
+const VERSION = 'v1.5.2';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -60,9 +60,12 @@ const uiHTML = `
     <div id="da-percent-error" class="da-warning" style="background:#fee; border-left-color:#e74c3c; display:none;">⚠️ Total percentages must equal 100%</div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;" id="da-sba-header">
-        <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
-        <span>A. SBA</span>
+      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-sba-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+          <span>A. SBA</span>
+        </div>
+        <span id="da-sba-summary" style="font-size:11px; color:#666; font-weight:400;">80% • 11.5% • 10yr • 1.25x DSCR</span>
       </div>
       <div id="da-sba-section" style="margin-top:8px;">
         <div class="da-flex-row">
@@ -93,9 +96,12 @@ const uiHTML = `
     </div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;" id="da-buyer-equity-header">
-        <span id="da-buyer-equity-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
-        <span>B. Buyer Equity</span>
+      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-buyer-equity-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="da-buyer-equity-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+          <span>B. Buyer Equity</span>
+        </div>
+        <span id="da-buyer-equity-summary" style="font-size:11px; color:#666; font-weight:400;">10% • $150k salary</span>
       </div>
       <div id="da-buyer-equity-section" style="margin-top:8px;">
         <div class="da-flex-row">
@@ -117,12 +123,15 @@ const uiHTML = `
     </div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" id="da-seller-note-enabled" style="width:auto; cursor:pointer;">
-        <span id="da-seller-note-arrow" style="transition:transform 0.2s; display:inline-block; cursor:pointer; user-select:none;">▼</span>
-        <label for="da-seller-note-enabled" style="cursor:pointer;">
-          <span>C. Seller Note <span style="font-weight:400; color:#999;">(Optional)</span></span>
-        </label>
+      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="da-seller-note-enabled" style="width:auto; cursor:pointer;">
+          <span id="da-seller-note-arrow" style="transition:transform 0.2s; display:inline-block; cursor:pointer; user-select:none;">▼</span>
+          <label for="da-seller-note-enabled" style="cursor:pointer;">
+            <span>C. Seller Note <span style="font-weight:400; color:#999;">(Optional)</span></span>
+          </label>
+        </div>
+        <span id="da-seller-note-summary" style="font-size:11px; color:#666; font-weight:400;">10% • 6.0% • Amortizing</span>
       </div>
       <div id="da-seller-note-section" style="display:none; margin-top:8px;">
         <div class="da-row">
@@ -649,6 +658,9 @@ const platformScrapers = {
     
     // Strategy 2: Look in detail cards/sections
     const detailSections = document.querySelectorAll('.details-card, .detail-section, .listing-details, [class*="detail"]');
+    let sdeValue = 0;
+    let ebitdaValue = 0;
+    
     for (const section of detailSections) {
       const text = section.innerText || '';
       
@@ -666,25 +678,49 @@ const platformScrapers = {
         }
       }
       
-      // Check for EBITDA/SDE
-      if (!data.ebitda && (/ebitda|cash flow|sde|discretionary earnings/i.test(text))) {
+      // Check for EBITDA specifically
+      if (/\bebitda\b/i.test(text)) {
         const lines = text.split('\n');
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
-          if (/ebitda/i.test(line) && lines[i + 1]) {
-            data.ebitda = parseCurrency(lines[i + 1]);
-            data.isSDE = false;
-            console.log('  ✅ Found EBITDA in details:', data.ebitda);
-            break;
-          }
-          if ((/cash flow|sde|discretionary earnings/i.test(line)) && lines[i + 1]) {
-            data.ebitda = parseCurrency(lines[i + 1]);
-            data.isSDE = true;
-            console.log('  ✅ Found SDE/Cash Flow in details:', data.ebitda);
-            break;
+          if (/\bebitda\b/i.test(line) && lines[i + 1]) {
+            ebitdaValue = parseCurrency(lines[i + 1]);
+            if (ebitdaValue > 0) {
+              console.log('  ✅ Found EBITDA in details:', ebitdaValue);
+              break;
+            }
           }
         }
       }
+      
+      // Check for SDE/Cash Flow
+      if (/cash flow|sde|discretionary earnings/i.test(text)) {
+        const lines = text.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if ((/cash flow|sde|discretionary earnings/i.test(line)) && lines[i + 1]) {
+            sdeValue = parseCurrency(lines[i + 1]);
+            if (sdeValue > 0) {
+              console.log('  ✅ Found SDE/Cash Flow in details:', sdeValue);
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // Prefer EBITDA over SDE when both are present
+    if (ebitdaValue > 0) {
+      data.ebitda = ebitdaValue;
+      data.isSDE = false;
+      console.log('  ℹ️ Using EBITDA (preferred):', ebitdaValue);
+      if (sdeValue > 0) {
+        console.log('  ℹ️ Also found SDE (' + sdeValue + ') but using EBITDA');
+      }
+    } else if (sdeValue > 0) {
+      data.ebitda = sdeValue;
+      data.isSDE = true;
+      console.log('  ℹ️ Using SDE (no EBITDA found):', sdeValue);
     }
     
     // Strategy 3: Try JSON-LD structured data (many listing sites use this)
@@ -941,6 +977,12 @@ const platformScrapers = {
 function parseCurrency(str) {
   if (!str) return 0;
   
+  // Check for "Not Disclosed", "N/A", "Undisclosed", etc.
+  if (/not\s+disclosed|undisclosed|n\/a|not\s+available|confidential/i.test(str)) {
+    console.log('  ⚠️ Value is not disclosed:', str);
+    return 0;
+  }
+  
   // Handle abbreviated formats like "1.5M", "500K", "2.3B"
   const abbrevMatch = str.match(/([\d,.]+)\s*([MmKkBb])\b/);
   if (abbrevMatch) {
@@ -1083,19 +1125,28 @@ function scrapeData() {
     
     if (ebitdaVal === 0) {
       console.log('\n📊 Platform scraper didn\'t find EBITDA, trying generic scraper...');
-      // Priority 1: Look for explicit "EBITDA" first (cleanest number)
-      ebitdaVal = findValueByLabel(["EBITDA"]);
       
-      // Priority 2: If no EBITDA, look for Cash Flow / SDE
-      if (ebitdaVal === 0) {
-        console.log('📊 No EBITDA found, looking for Cash Flow/SDE...');
-        ebitdaVal = findValueByLabel(["Cash Flow", "SDE", "Seller Discretionary Earnings", "Discretionary Earnings", "Seller's Discretionary Earnings", "Net Operating Income", "NOI"]);
-        if (ebitdaVal > 0) {
-          console.log('✅ Generic scraper found SDE/Cash Flow:', ebitdaVal);
-          isSDE = true;
+      // ALWAYS prefer EBITDA over SDE when both are present
+      // Priority 1: Look for explicit "EBITDA" first (most accurate for M&A)
+      const ebitdaValue = findValueByLabel(["EBITDA"]);
+      
+      // Priority 2: Look for Cash Flow / SDE as backup
+      const sdeValue = findValueByLabel(["Cash Flow", "SDE", "Seller Discretionary Earnings", "Discretionary Earnings", "Seller's Discretionary Earnings", "Net Operating Income", "NOI"]);
+      
+      // Prefer EBITDA if found, otherwise use SDE
+      if (ebitdaValue > 0) {
+        ebitdaVal = ebitdaValue;
+        isSDE = false;
+        console.log('✅ Found EBITDA (preferred):', ebitdaVal);
+        if (sdeValue > 0) {
+          console.log('   ℹ️ Also found SDE (' + sdeValue + ') but using EBITDA instead');
         }
+      } else if (sdeValue > 0) {
+        ebitdaVal = sdeValue;
+        isSDE = true;
+        console.log('✅ Found SDE/Cash Flow (no EBITDA available):', ebitdaVal);
       } else {
-        console.log('✅ Generic scraper found EBITDA:', ebitdaVal);
+        console.log('⚠️ No EBITDA or SDE found');
       }
     }
     
@@ -1296,8 +1347,46 @@ const overrides = {
   actualPrice: false
 };
 
+// --- UPDATE FINANCING SUMMARIES ---
+function updateFinancingSummaries() {
+  // Update SBA summary
+  const sbaPercent = parseFloat(document.getElementById('da-sba-percent').value) || 0;
+  const bankRate = parseFloat(document.getElementById('da-bank-rate').value) || 0;
+  const bankTerm = parseFloat(document.getElementById('da-bank-term').value) || 0;
+  const dscr = parseFloat(document.getElementById('da-dscr').value) || 0;
+  document.getElementById('da-sba-summary').innerText = `${sbaPercent}% • ${bankRate}% • ${bankTerm}yr • ${dscr}x DSCR`;
+  
+  // Update Buyer Equity summary
+  const downPercent = parseFloat(document.getElementById('da-down-percent').value) || 0;
+  const targetSalary = parseNumber(document.getElementById('da-target-salary').value) || 0;
+  const salaryFormatted = targetSalary >= 1000 ? '$' + Math.round(targetSalary / 1000) + 'k' : '$' + targetSalary;
+  document.getElementById('da-buyer-equity-summary').innerText = `${downPercent}% • ${salaryFormatted} salary`;
+  
+  // Update Seller Note summary
+  const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+  const sellerPercent = parseFloat(document.getElementById('da-seller-percent').value) || 0;
+  const sellerRate = parseFloat(document.getElementById('da-seller-rate').value) || 0;
+  const sellerPaymentType = document.getElementById('da-seller-payment-type').value;
+  const sellerStandby = document.getElementById('da-seller-standby').value;
+  
+  if (sellerNoteEnabled) {
+    let summary = `${sellerPercent}% • ${sellerRate}% • ${sellerPaymentType === 'interest-only' ? 'Interest Only' : 'Amortizing'}`;
+    if (sellerStandby === 'yes') {
+      summary += ' • Standby';
+    }
+    document.getElementById('da-seller-note-summary').innerText = summary;
+    document.getElementById('da-seller-note-summary').style.opacity = '1';
+  } else {
+    document.getElementById('da-seller-note-summary').innerText = 'Not enabled';
+    document.getElementById('da-seller-note-summary').style.opacity = '0.4';
+  }
+}
+
 // --- 4. FINANCIAL MATH ---
 function calculate() {
+  // Update financing summaries first
+  updateFinancingSummaries();
+  
   // Get Inputs
   const ebitda = parseNumber(document.getElementById('da-ebitda').value) || 0;
   const targetDSCR = parseFloat(document.getElementById('da-dscr').value) || 1.25;

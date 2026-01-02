@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.5.6';
+const VERSION = 'v1.5.7';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -1991,7 +1991,13 @@ function calculateTargetOffer() {
     console.log('Salary-constrained price:', targetOfferPrice);
     console.log('Actual COC at this price:', actualCOC.toFixed(1) + '%');
     
-    alert('⚠️ Salary Constraint Applied\n\nYour target salary ($' + formatNumber(S) + ') limits the maximum offer price.\n\nThe calculator found a price that:\n✓ Covers your salary\n✓ Leaves positive free cash flow\n\nHowever, the COC return will be ' + actualCOC.toFixed(0) + '% (lower than your ' + targetCOC + '% target).\n\nTo hit your ' + targetCOC + '% COC target:\n• Lower target salary, OR\n• Increase down payment %, OR\n• Find a business with higher EBITDA');
+    // Determine if actual COC is higher or lower than target
+    const cocDifference = actualCOC - targetCOC;
+    const cocComparison = cocDifference > 0 
+      ? actualCOC.toFixed(0) + '% (higher than your ' + targetCOC + '% target)'
+      : actualCOC.toFixed(0) + '% (lower than your ' + targetCOC + '% target)';
+    
+    alert('⚠️ Salary Constraint Applied\n\nYour target salary ($' + formatNumber(S) + ') limits the maximum offer price.\n\nThe calculator found a price that:\n✓ Covers your salary\n✓ Leaves positive free cash flow\n\nThe COC return will be ' + cocComparison + '.\n\nNote: The salary requirement forces a specific price point that may differ from your pure COC optimization.');
   }
   
   console.log('FINAL TARGET OFFER PRICE:', targetOfferPrice);

@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.7.1';
+const VERSION = 'v1.7.3';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -317,6 +317,9 @@ const uiHTML = `
       <span style="font-size:10px; color:#999; font-weight:400;">(Included in all exports)</span>
     </div>
     <textarea id="da-deal-notes" class="da-input" placeholder="Add notes: questions for seller, red flags, follow-ups, pros/cons..." style="width:100%; min-height:60px; font-size:11px; padding:8px; resize:vertical; font-family:inherit; border:1px solid #ddd;"></textarea>
+    <div id="da-deal-url-link" style="display:none; margin-top:6px; padding:6px 8px; background:#e8f4f8; border:1px solid #b3d9e6; border-radius:4px; font-size:11px;">
+      🔗 <a id="da-deal-url-anchor" href="#" target="_blank" style="color:#0066cc; text-decoration:none; font-weight:500;">View Original Listing</a>
+    </div>
     <div style="display:flex; gap:6px; margin-top:6px;">
       <input type="text" id="da-deal-name" class="da-input" placeholder="Deal name (for saving)" style="flex:1; font-size:11px; padding:6px 8px;">
       <select id="da-saved-deals-list" class="da-select" style="flex:1; font-size:11px; padding:6px 8px;">
@@ -349,7 +352,7 @@ const shareModalHTML = `
 // Settings Modal HTML
 const settingsModalHTML = `
 <div id="da-settings-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center;">
-  <div style="background:white; border-radius:8px; padding:24px; max-width:450px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+  <div id="da-settings-modal-content" style="background:white; border-radius:8px; padding:24px; max-width:450px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
       <h3 style="margin:0; font-size:18px; color:#2c3e50;">⚙️ Settings & Targets</h3>
       <span id="da-settings-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
@@ -507,7 +510,19 @@ if (container) {
 let userPreferences = {
   targetCOC: 25, // 25% Cash-on-Cash return
   targetPayback: 4, // 4 years payback period
-  compactFormat: false
+  compactFormat: false,
+  // Persistent financing settings across tabs
+  sbaPercent: 80,
+  bankRate: 11.5,
+  bankTerm: 10,
+  dscr: 1.25,
+  downPercent: 10,
+  targetSalary: 250000,
+  sellerNoteEnabled: false,
+  sellerPercent: 10,
+  sellerRate: 5.0,
+  sellerStandby: 'no',
+  sellerPaymentType: 'amortizing'
 };
 let isDragging = false, currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
 
@@ -1450,9 +1465,6 @@ function updateFinancingSummaries() {
 
 // --- 4. FINANCIAL MATH ---
 function calculate() {
-  // Update financing summaries first
-  updateFinancingSummaries();
-  
   // Get Inputs
   const ebitda = parseNumber(document.getElementById('da-ebitda').value) || 0;
   const targetDSCR = parseFloat(document.getElementById('da-dscr').value) || 1.25;
@@ -1539,13 +1551,18 @@ function calculate() {
   
   // Check if user has manually overridden the actual price
   if (overrides.actualPrice) {
-    actualPurchasePrice = parseNumber(document.getElementById('da-actual-price').value) || maxPurchasePrice;
+    actualPurchasePrice = parseNumber(document.getElementById('da-actual-price').value) || askingPrice || maxPurchasePrice;
   } else {
-    // Auto-calculate: use lower of asking or max
-    if (askingPrice > 0 && askingPrice < maxPurchasePrice) {
+    // Default to Asking Price to show realistic ROI returns
+    // User can use "Calculate Target Offer" or manually edit to change it
+    if (askingPrice > 0) {
       actualPurchasePrice = askingPrice;
-      isDealOpportunity = true;
+      // Mark as opportunity if asking is below DSCR max
+      if (askingPrice < maxPurchasePrice) {
+        isDealOpportunity = true;
+      }
     } else {
+      // Fallback to max if no asking price
       actualPurchasePrice = maxPurchasePrice;
     }
     // Update the field
@@ -1568,6 +1585,7 @@ function calculate() {
   if (!overrides.downPayment || shouldRecalcComponents) {
     downPayment = (downPercent / 100) * actualPurchasePrice;
     document.getElementById('da-down').value = fmt(downPayment);
+    console.log(`💰 Recalculated Buyer Equity: ${downPercent}% of $${formatNumber(actualPurchasePrice)} = $${formatNumber(downPayment)}`);
   } else {
     downPayment = parseNumber(document.getElementById('da-down').value) || 0;
   }
@@ -1582,6 +1600,9 @@ function calculate() {
   } else {
     sellerNoteAmt = 0;
   }
+
+  // Update financing summaries after component amounts are recalculated
+  updateFinancingSummaries();
 
   // 7. Calculate SBA Annual Debt Service (actual payment based on loan size)
   let sbaAnnualDebtService = 0;
@@ -2187,12 +2208,58 @@ function saveState() {
         overrides: overrides
     };
     chrome.storage.local.set({daState: state});
+    
+    // Also update userPreferences for cross-tab persistence
+    saveFinancingPreferences();
+}
+
+// Save financing settings to userPreferences for cross-tab persistence
+function saveFinancingPreferences() {
+    userPreferences.sbaPercent = parseFloat(document.getElementById('da-sba-percent').value) || 80;
+    userPreferences.bankRate = parseFloat(document.getElementById('da-bank-rate').value) || 11.5;
+    userPreferences.bankTerm = parseFloat(document.getElementById('da-bank-term').value) || 10;
+    userPreferences.dscr = parseFloat(document.getElementById('da-dscr').value) || 1.25;
+    userPreferences.downPercent = parseFloat(document.getElementById('da-down-percent').value) || 10;
+    userPreferences.targetSalary = parseNumber(document.getElementById('da-target-salary').value) || 250000;
+    userPreferences.sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+    userPreferences.sellerPercent = parseFloat(document.getElementById('da-seller-percent').value) || 10;
+    userPreferences.sellerRate = parseFloat(document.getElementById('da-seller-rate').value) || 5.0;
+    userPreferences.sellerStandby = document.getElementById('da-seller-standby').value || 'no';
+    userPreferences.sellerPaymentType = document.getElementById('da-seller-payment-type').value || 'amortizing';
+    
+    chrome.storage.local.set({ userPreferences: userPreferences });
+    console.log('💾 Saved financing preferences for cross-tab persistence');
 }
 
 function loadState() {
-    chrome.storage.local.get(['daState'], function(result) {
+    // Load both userPreferences (cross-tab settings) and daState (same-tab state)
+    chrome.storage.local.get(['userPreferences', 'daState'], function(result) {
+        // First, load user preferences (cross-tab persistent settings)
+        if (result.userPreferences) {
+            userPreferences = result.userPreferences;
+            console.log('📋 Loaded user preferences for cross-tab persistence');
+        }
+        
+        // Apply user preferences as defaults
+        document.getElementById('da-target-salary').value = userPreferences.targetSalary || 250000;
+        document.getElementById('da-sba-percent').value = userPreferences.sbaPercent || 80;
+        document.getElementById('da-bank-rate').value = userPreferences.bankRate || 11.5;
+        document.getElementById('da-bank-term').value = userPreferences.bankTerm || 10;
+        document.getElementById('da-dscr').value = userPreferences.dscr || 1.25;
+        document.getElementById('da-down-percent').value = userPreferences.downPercent || 10;
+        
+        const sellerNoteEnabled = userPreferences.sellerNoteEnabled || false;
+        document.getElementById('da-seller-note-enabled').checked = sellerNoteEnabled;
+        document.getElementById('da-seller-note-section').style.display = sellerNoteEnabled ? 'block' : 'none';
+        document.getElementById('da-seller-percent').value = userPreferences.sellerPercent || 10;
+        document.getElementById('da-seller-rate').value = userPreferences.sellerRate || 5.0;
+        document.getElementById('da-seller-standby').value = userPreferences.sellerStandby || 'no';
+        document.getElementById('da-seller-payment-type').value = userPreferences.sellerPaymentType || 'amortizing';
+        
+        // Then, override with daState if it exists (for same-tab state restoration)
         if (result.daState) {
             const state = result.daState;
+            console.log('📋 Loaded daState for same-tab restoration');
             
             // Restore overrides
             if (state.overrides) {
@@ -2200,9 +2267,11 @@ function loadState() {
             }
             
             // Target Salary
-            document.getElementById('da-target-salary').value = state.targetSalary || '150000';
+            if (state.targetSalary) {
+                document.getElementById('da-target-salary').value = state.targetSalary;
+            }
             
-            // Actual Price
+            // Actual Price (only restore if user had manually overridden it)
             const actualPriceVal = state.actualPrice ? parseNumber(state.actualPrice) : 0;
             const actualPriceField = document.getElementById('da-actual-price');
             if (overrides.actualPrice && actualPriceVal > 0) {
@@ -2213,7 +2282,9 @@ function loadState() {
             }
             
             // SBA
-            document.getElementById('da-sba-percent').value = state.sbaPercent || 80;
+            if (state.sbaPercent) {
+                document.getElementById('da-sba-percent').value = state.sbaPercent;
+            }
             const sbaLoanVal = state.sbaLoan ? parseNumber(state.sbaLoan) : 0;
             const sbaLoanField = document.getElementById('da-sba-loan');
             if (overrides.sbaLoan && sbaLoanVal > 0) {
@@ -2223,11 +2294,17 @@ function loadState() {
                 sbaLoanField.setAttribute('readonly', 'readonly');
             }
             
-            document.getElementById('da-bank-rate').value = state.bankRate || 11.5;
-            document.getElementById('da-bank-term').value = state.bankTerm || 10;
+            if (state.bankRate) {
+                document.getElementById('da-bank-rate').value = state.bankRate;
+            }
+            if (state.bankTerm) {
+                document.getElementById('da-bank-term').value = state.bankTerm;
+            }
             
             // Buyer Equity
-            document.getElementById('da-down-percent').value = state.downPercent || 10;
+            if (state.downPercent) {
+                document.getElementById('da-down-percent').value = state.downPercent;
+            }
             const downVal = state.down ? parseNumber(state.down) : 0;
             const downField = document.getElementById('da-down');
             if (overrides.downPayment && downVal > 0) {
@@ -2238,10 +2315,14 @@ function loadState() {
             }
             
             // Seller Note
-            const sellerNoteEnabled = state.sellerNoteEnabled || false;
-            document.getElementById('da-seller-note-enabled').checked = sellerNoteEnabled;
-            document.getElementById('da-seller-note-section').style.display = sellerNoteEnabled ? 'block' : 'none';
-            document.getElementById('da-seller-percent').value = state.sellerPercent || 10;
+            if (state.hasOwnProperty('sellerNoteEnabled')) {
+                const stateSellerEnabled = state.sellerNoteEnabled;
+                document.getElementById('da-seller-note-enabled').checked = stateSellerEnabled;
+                document.getElementById('da-seller-note-section').style.display = stateSellerEnabled ? 'block' : 'none';
+            }
+            if (state.sellerPercent) {
+                document.getElementById('da-seller-percent').value = state.sellerPercent;
+            }
             const sellerAmtVal = state.sellerAmt ? parseNumber(state.sellerAmt) : 0;
             const sellerAmtField = document.getElementById('da-seller-amt');
             if (overrides.sellerNote && sellerAmtVal > 0) {
@@ -2251,12 +2332,20 @@ function loadState() {
                 sellerAmtField.setAttribute('readonly', 'readonly');
             }
             
-            document.getElementById('da-seller-rate').value = state.sellerRate || 6.0;
-            document.getElementById('da-seller-standby').value = state.sellerStandby || 'no';
-            document.getElementById('da-seller-payment-type').value = state.sellerPaymentType || 'amortizing';
-            document.getElementById('da-dscr').value = state.dscr || 1.25;
+            if (state.sellerRate) {
+                document.getElementById('da-seller-rate').value = state.sellerRate;
+            }
+            if (state.sellerStandby) {
+                document.getElementById('da-seller-standby').value = state.sellerStandby;
+            }
+            if (state.sellerPaymentType) {
+                document.getElementById('da-seller-payment-type').value = state.sellerPaymentType;
+            }
+            if (state.dscr) {
+                document.getElementById('da-dscr').value = state.dscr;
+            }
             
-            // Deal Name & Notes
+            // Deal Name & Notes (always from state, not preferences)
             document.getElementById('da-deal-name').value = state.dealName || '';
             document.getElementById('da-deal-notes').value = state.dealNotes || '';
         }
@@ -2536,13 +2625,21 @@ if (settingsClose && settingsModal) {
   });
 }
 
-// Close modal when clicking outside
+// Close modal when clicking outside (on the dark overlay)
 if (settingsModal) {
   settingsModal.addEventListener('click', (e) => {
     if (e.target === settingsModal) {
       settingsModal.style.display = 'none';
     }
   });
+  
+  // Prevent clicks inside the modal content from closing it
+  const modalContent = document.getElementById('da-settings-modal-content');
+  if (modalContent) {
+    modalContent.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+  }
 }
 
 // Save settings
@@ -3662,6 +3759,17 @@ function loadDeal(dealName) {
       document.getElementById('da-seller-note-section').style.display = 'block';
     }
     
+    // Show deal URL link if available
+    const dealUrlLink = document.getElementById('da-deal-url-link');
+    const dealUrlAnchor = document.getElementById('da-deal-url-anchor');
+    if (deal.url && dealUrlLink && dealUrlAnchor) {
+      dealUrlAnchor.href = deal.url;
+      dealUrlLink.style.display = 'block';
+      console.log('Deal URL loaded:', deal.url);
+    } else if (dealUrlLink) {
+      dealUrlLink.style.display = 'none';
+    }
+    
     // Recalculate
     calculate();
     
@@ -3698,6 +3806,12 @@ if (savedDealsList) {
   savedDealsList.addEventListener('change', (e) => {
     if (e.target.value) {
       loadDeal(e.target.value);
+    } else {
+      // Hide the deal URL link when no deal is selected
+      const dealUrlLink = document.getElementById('da-deal-url-link');
+      if (dealUrlLink) {
+        dealUrlLink.style.display = 'none';
+      }
     }
   });
 }

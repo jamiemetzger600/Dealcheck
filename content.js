@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.6.0';
+const VERSION = 'v1.6.1';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -2085,8 +2085,15 @@ function calculateTargetOffer() {
 
 // Event listener for Calculate Target Offer button
 const calculateTargetOfferBtn = document.getElementById('da-calculate-target-offer-btn');
+console.log('🎯 Target Offer Button found:', calculateTargetOfferBtn);
 if (calculateTargetOfferBtn) {
-  calculateTargetOfferBtn.addEventListener('click', calculateTargetOffer);
+  calculateTargetOfferBtn.addEventListener('click', () => {
+    console.log('🎯 Calculate Target Offer button clicked!');
+    calculateTargetOffer();
+  });
+  console.log('✅ Target Offer button event listener attached');
+} else {
+  console.error('❌ Target Offer button NOT found in DOM!');
 }
 
 // Event listener for Use Target Offer button

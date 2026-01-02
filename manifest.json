@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Max Price Deal Analyzer",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Calculates Max Allowable Purchase Price based on DSCR and EBITDA/SDE. Enhanced scraping for BizQuest, BizBuySell, Crexi, LoopNet, Zillow, Redfin, and more.",
   "permissions": ["storage", "activeTab"],
   "icons": {

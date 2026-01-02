@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.7.0';
+const VERSION = 'v1.7.1';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -222,11 +222,12 @@ const uiHTML = `
     <div id="da-target-offer-content">
       <div style="background:#f0f8ff; border:1px solid #3498db; border-radius:4px; padding:10px; margin-bottom:8px;">
         <div style="font-size:11px; color:#2c3e50; margin-bottom:8px;">
-          <strong>Calculate the maximum price you can afford</strong> that ensures:<br>
-          ✓ Your salary is fully covered ($<span id="da-target-salary-display">150k</span>)<br>
+          <strong>Calculate the maximum offer price</strong> that meets ALL requirements:<br>
+          ✓ Achieves your target <span id="da-target-coc-display">25</span>% COC return<br>
+          ✓ Your salary is covered ($<span id="da-target-salary-display">150k</span>)<br>
           ✓ DSCR requirement is met (<span id="da-target-dscr-display">1.25</span>x)<br>
-          ✓ Positive free cash flow remains<br>
-          <em style="font-size:10px; color:#666;">Then shows what COC return this achieves</em>
+          ✓ Never exceeds the asking price<br>
+          <em style="font-size:10px; color:#666;">Shows which constraint limits your offer</em>
         </div>
         <button id="da-calculate-target-offer-btn" class="da-btn" style="width:100%; background:#3498db; font-weight:600;">🎯 Calculate Target Offer Price</button>
       </div>
@@ -1966,9 +1967,40 @@ function calculateTargetOffer() {
     console.log('\n💰 CONSTRAINT 2 (Salary): No salary requirement');
   }
   
-  // Take the MINIMUM of both constraints (most restrictive wins)
-  const targetOfferPrice = Math.min(maxPriceFromDSCR, maxPriceFromSalary);
-  const bindingConstraint = targetOfferPrice === maxPriceFromDSCR ? 'DSCR' : 'Salary';
+  // CONSTRAINT 3: Target COC Return
+  // COC = (EBITDA - Debt Service) / Equity
+  // targetCOC/100 = (E - P*ds) / (P*d)
+  // targetCOC/100 * P * d = E - P*ds
+  // P * (targetCOC/100 * d + ds) = E
+  // P = E / (targetCOC/100 * d + ds)
+  const cocDecimal = targetCOC / 100;
+  const maxPriceFromCOC = E / (cocDecimal * d + ds);
+  console.log('\n🎯 CONSTRAINT 3 (Target COC):');
+  console.log('   Target COC:', targetCOC + '%');
+  console.log('   Max price (COC-based):', fmt(maxPriceFromCOC));
+  
+  // CONSTRAINT 4: Asking Price (Never recommend higher than asking)
+  let maxPriceFromAsking = Infinity;
+  if (askingPrice > 0) {
+    maxPriceFromAsking = askingPrice;
+    console.log('\n💵 CONSTRAINT 4 (Asking Price):');
+    console.log('   Max price (Asking Price):', fmt(maxPriceFromAsking));
+  }
+  
+  // Take the MINIMUM of ALL constraints (most restrictive wins)
+  const targetOfferPrice = Math.min(maxPriceFromDSCR, maxPriceFromSalary, maxPriceFromCOC, maxPriceFromAsking);
+  
+  // Determine which constraint was binding
+  let bindingConstraint = '';
+  if (targetOfferPrice === maxPriceFromAsking && askingPrice > 0) {
+    bindingConstraint = 'Asking Price';
+  } else if (targetOfferPrice === maxPriceFromCOC) {
+    bindingConstraint = 'Target COC';
+  } else if (targetOfferPrice === maxPriceFromSalary) {
+    bindingConstraint = 'Salary';
+  } else {
+    bindingConstraint = 'DSCR';
+  }
   
   console.log('\n🎯 BINDING CONSTRAINT:', bindingConstraint);
   console.log('🎯 RECOMMENDED OFFER PRICE:', fmt(targetOfferPrice));
@@ -2013,14 +2045,16 @@ function calculateTargetOffer() {
   }
   
   // Show informative message about what constraint limited the price
-  if (bindingConstraint === 'Salary' && S > 0) {
-    console.log('\n💡 NOTE: Salary requirement ($' + formatNumber(S) + ') was the limiting factor.');
-    console.log('   If salary were lower, you could offer up to $' + formatNumber(maxPriceFromDSCR) + ' (DSCR limit)');
-  } else {
-    console.log('\n💡 NOTE: DSCR requirement (' + targetDSCR + 'x) was the limiting factor.');
-    if (S > 0) {
-      console.log('   Salary is comfortably covered with $' + formatNumber(freeCashFlow) + ' FCF remaining');
-    }
+  console.log('\n💡 BINDING CONSTRAINT: ' + bindingConstraint);
+  if (bindingConstraint === 'Asking Price') {
+    console.log('   Recommended price matches asking price (would exceed asking if higher)');
+  } else if (bindingConstraint === 'Target COC') {
+    console.log('   Price limited by your ' + targetCOC + '% COC target');
+    console.log('   Higher price would result in lower COC return');
+  } else if (bindingConstraint === 'Salary') {
+    console.log('   Salary requirement ($' + formatNumber(S) + ') was the limiting factor');
+  } else if (bindingConstraint === 'DSCR') {
+    console.log('   DSCR requirement (' + targetDSCR + 'x) was the limiting factor');
   }
   
   // Display results
@@ -2028,10 +2062,20 @@ function calculateTargetOffer() {
   document.getElementById('da-target-fcf').innerText = fmt(freeCashFlow);
   document.getElementById('da-target-takehome').innerText = fmt(totalTakeHome);
   
-  // Update subtitle to show actual achieved metrics
+  // Update subtitle to show actual achieved metrics and binding constraint
   const subtitleEl = document.getElementById('da-target-offer-subtitle');
   if (subtitleEl) {
-    subtitleEl.innerHTML = `Achieves <strong>${actualCOC.toFixed(0)}% COC</strong> return with <strong>${actualPayback.toFixed(1)} year</strong> payback • DSCR: ${actualDSCR.toFixed(2)}x`;
+    let constraintMsg = '';
+    if (bindingConstraint === 'Asking Price') {
+      constraintMsg = ' • <span style="color:#e67e22;">Limited by asking price</span>';
+    } else if (bindingConstraint === 'Target COC') {
+      constraintMsg = ' • <span style="color:#27ae60;">Meets your ' + targetCOC + '% COC target ✓</span>';
+    } else if (bindingConstraint === 'Salary') {
+      constraintMsg = ' • <span style="color:#e67e22;">Limited by salary requirement</span>';
+    } else if (bindingConstraint === 'DSCR') {
+      constraintMsg = ' • <span style="color:#e67e22;">Limited by DSCR requirement</span>';
+    }
+    subtitleEl.innerHTML = `Achieves <strong>${actualCOC.toFixed(0)}% COC</strong> return with <strong>${actualPayback.toFixed(1)} year</strong> payback • DSCR: ${actualDSCR.toFixed(2)}x${constraintMsg}`;
   }
   
   // Compare to asking price
@@ -3453,9 +3497,15 @@ loadState();
 
 // Update Target Offer Calculator display with user's actual settings
 function updateTargetOfferDisplay() {
-  // Update salary and DSCR displays in the description
+  // Update COC, salary and DSCR displays in the description
+  const cocDisplay = document.getElementById('da-target-coc-display');
   const salaryDisplay = document.getElementById('da-target-salary-display');
   const dscrDisplay = document.getElementById('da-target-dscr-display');
+  
+  // Update COC display
+  if (cocDisplay) {
+    cocDisplay.innerText = userPreferences.targetCOC || 25;
+  }
   
   // Update salary display
   if (salaryDisplay) {
@@ -3470,7 +3520,7 @@ function updateTargetOfferDisplay() {
     dscrDisplay.innerText = targetDSCR;
   }
   
-  console.log('✅ Target Offer display updated');
+  console.log('✅ Target Offer display updated (COC: ' + (userPreferences.targetCOC || 25) + '%)');
 }
 
 // Call after preferences are loaded

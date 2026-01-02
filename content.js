@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.5.5';
+const VERSION = 'v1.5.6';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -1848,13 +1848,30 @@ function calculateTargetOffer() {
   document.getElementById('da-target-payback-result').innerText = targetPaybackYears;
   
   // CALCULATION STRATEGY:
-  // COC = Total Take-Home / Equity Investment
-  // Total Take-Home = EBITDA - Debt Service (all available cash)
-  // Equity Investment = downPercent% * P
+  // The owner's actual return = EBITDA - Debt Service - Owner Salary
+  // This is the cash available for equity return (Free Cash Flow + Salary the owner takes home)
   // 
-  // targetCOC/100 = (EBITDA - P * debtServicePer1) / (downPercent/100 * P)
+  // COC = (EBITDA - Debt Service - Salary + Salary) / Equity = (EBITDA - Debt Service) / Equity
+  // BUT we need to ensure FCF is positive, so:
+  // EBITDA - Debt Service >= Salary (minimum requirement)
+  // 
+  // For COC calculation:
+  // targetCOC = (EBITDA - Debt Service) / Equity
+  // targetCOC = (EBITDA - P * ds) / (d * P)
+  // 
   // Solving for P:
-  // P = EBITDA / (targetCOC/100 * downPercent/100 + debtServicePer1)
+  // P = EBITDA / (targetCOC * d + ds)
+  //
+  // HOWEVER: We must ensure salary is covered!
+  // Available after debt = EBITDA - Debt Service >= Salary
+  // So: EBITDA - P * ds >= Salary
+  // P <= (EBITDA - Salary) / ds
+  //
+  // We need to find P that satisfies BOTH constraints:
+  // 1. Meets COC target: P = EBITDA / (c * d + ds)
+  // 2. Covers salary: P <= (EBITDA - Salary) / ds
+  //
+  // The salary-constrained formula should be used when salary is significant
   
   // Calculate debt service coefficients (DS per $1 of price)
   let sbaDebtServicePer1 = 0;
@@ -1896,8 +1913,9 @@ function calculateTargetOffer() {
   console.log('Seller DS per $1:', sellerDebtServicePer1);
   console.log('Total DS per $1:', totalDebtServicePer1);
   
-  // Solve for price P
+  // Solve for price P with two constraints
   const E = ebitda;
+  const S = targetSalary;
   const d = downPercent / 100;
   const ds = totalDebtServicePer1;
   const c = targetCOC / 100;
@@ -1912,6 +1930,7 @@ function calculateTargetOffer() {
     return;
   }
   
+  // Calculate price based on COC target
   const denominator = (c * d + ds);
   
   if (denominator <= 0) {
@@ -1919,14 +1938,63 @@ function calculateTargetOffer() {
     return;
   }
   
-  const targetOfferPrice = E / denominator;
+  let targetOfferPrice = E / denominator;
+  
+  // NOW CHECK: Does this price leave enough cash for salary?
+  // Available cash after debt = EBITDA - (Price * ds)
+  const availableCash = E - (targetOfferPrice * ds);
   
   console.log('E (EBITDA):', E);
+  console.log('S (Target Salary):', S);
   console.log('d (equity %):', d);
   console.log('ds (total debt service per $1):', ds);
   console.log('c (target COC):', c);
-  console.log('Denominator:', denominator);
-  console.log('TARGET OFFER PRICE:', targetOfferPrice);
+  console.log('Initial target price (COC-based):', targetOfferPrice);
+  console.log('Available cash at this price:', availableCash);
+  console.log('Need for salary:', S);
+  
+  // If salary exceeds available cash, we need to constrain the price
+  if (S > 0 && availableCash < S) {
+    console.warn('⚠️ COC-based price does not cover salary! Recalculating with salary constraint...');
+    
+    // With salary constraint: EBITDA - P*ds >= S
+    // So: P <= (EBITDA - S) / ds
+    // But we still want to hit COC target, so we solve differently:
+    // 
+    // Free Cash Flow + Salary = Total Return to Owner
+    // (EBITDA - P*ds - S) + S = EBITDA - P*ds
+    // COC = (EBITDA - P*ds) / (d * P)
+    // 
+    // But FCF must be >= 0:
+    // EBITDA - P*ds - S >= 0
+    // P*ds <= EBITDA - S
+    // P <= (EBITDA - S) / ds
+    
+    const maxPriceForSalary = (E - S) / ds;
+    
+    console.log('Max price to cover salary:', maxPriceForSalary);
+    
+    if (maxPriceForSalary <= 0) {
+      alert('❌ Cannot calculate target offer:\n\nEBITDA ($' + formatNumber(E) + ') is too low to cover both:\n• Target salary ($' + formatNumber(S) + ')\n• Debt service at any reasonable price\n\nOptions:\n1. Lower target salary\n2. Increase down payment %\n3. Find a business with higher EBITDA');
+      return;
+    }
+    
+    // Use the salary-constrained price
+    targetOfferPrice = Math.min(targetOfferPrice, maxPriceForSalary);
+    
+    // Recalculate actual COC at this constrained price
+    const equity = targetOfferPrice * d;
+    const debtService = targetOfferPrice * ds;
+    const actualReturn = E - debtService;
+    const actualCOC = (actualReturn / equity) * 100;
+    
+    console.log('Salary-constrained price:', targetOfferPrice);
+    console.log('Actual COC at this price:', actualCOC.toFixed(1) + '%');
+    
+    alert('⚠️ Salary Constraint Applied\n\nYour target salary ($' + formatNumber(S) + ') limits the maximum offer price.\n\nThe calculator found a price that:\n✓ Covers your salary\n✓ Leaves positive free cash flow\n\nHowever, the COC return will be ' + actualCOC.toFixed(0) + '% (lower than your ' + targetCOC + '% target).\n\nTo hit your ' + targetCOC + '% COC target:\n• Lower target salary, OR\n• Increase down payment %, OR\n• Find a business with higher EBITDA');
+  }
+  
+  console.log('FINAL TARGET OFFER PRICE:', targetOfferPrice);
   
   // Validate result
   if (targetOfferPrice <= 0 || !isFinite(targetOfferPrice)) {

@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.5.4';
+const VERSION = 'v1.5.5';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -2452,6 +2452,9 @@ if (settingsSave && settingsModal) {
     // Recalculate with new targets immediately
     calculate();
     
+    // Update Target Offer Calculator display
+    updateTargetOfferDisplay();
+    
     // Close modal with success feedback
     const saveBtn = document.getElementById('da-settings-save');
     if (saveBtn) {
@@ -3367,6 +3370,18 @@ if (shareCopyBtn) {
 
 loadUserPreferences();
 loadState();
+
+// Update Target Offer Calculator display with user's actual settings
+function updateTargetOfferDisplay() {
+  const cocDisplay = document.getElementById('da-target-coc-display');
+  const paybackDisplay = document.getElementById('da-target-payback-display');
+  
+  if (cocDisplay) cocDisplay.innerText = userPreferences.targetCOC || 25;
+  if (paybackDisplay) paybackDisplay.innerText = userPreferences.targetPayback || 4;
+}
+
+// Call after preferences are loaded
+setTimeout(updateTargetOfferDisplay, 100);
 
 // Debug: Log current preferences after 1 second to verify persistence
 setTimeout(() => {

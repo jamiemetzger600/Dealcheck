@@ -1,4 +1,4 @@
-# Testing Guide for v1.4.0
+# Testing Guide for v1.5.0
 
 ## How to Test the New Features
 
@@ -7,6 +7,256 @@
 2. Enable "Developer mode" (top right)
 3. Click "Load unpacked" and select the extension folder
 4. OR click the reload icon if already loaded
+
+---
+
+## 🆕 NEW IN v1.5.0: Enhanced Multi-Platform Scraping
+
+### Feature: Platform Detection & Scraping 🔍
+
+**Test Steps:**
+
+1. **BizQuest Test:**
+   - Navigate to https://www.bizquest.com/
+   - Find any business listing with financial details
+   - Click extension icon to open
+   - Check that data auto-populates
+   - Open console (F12) and look for "Platform detected: bizquest"
+
+2. **BizBuySell Test:**
+   - Navigate to https://www.bizbuysell.com/
+   - Find any business listing
+   - Click extension icon
+   - Verify EBITDA/SDE and Asking Price populate
+   - Check console for "Platform detected: bizbuysell"
+
+3. **Crexi Test (Commercial Real Estate):**
+   - Navigate to https://www.crexi.com/
+   - Find a property with NOI listed
+   - Open extension
+   - Verify asking price and NOI populate
+   - Check console for "Platform detected: crexi"
+
+4. **LoopNet Test:**
+   - Navigate to https://www.loopnet.com/
+   - Find a commercial property
+   - Open extension
+   - Verify data scraping
+   - Check console for "Platform detected: loopnet"
+
+5. **Zillow Test:**
+   - Navigate to https://www.zillow.com/
+   - Find a commercial/investment property
+   - Open extension
+   - Check if price populates
+
+6. **Redfin Test:**
+   - Navigate to https://www.redfin.com/
+   - Find any listing
+   - Open extension
+   - Verify price scraping
+
+**Expected Results:**
+- ✅ Platform correctly detected (see console)
+- ✅ Asking Price populates automatically
+- ✅ EBITDA/SDE/NOI populates (if available on page)
+- ✅ Console shows detailed scraping logs with strategies
+- ✅ "Platform scraper" attempts logged before "Generic scraper"
+
+---
+
+### Feature: Scraping Diagnostics Panel 🛠️
+
+**Test Steps:**
+
+1. Open extension on any listing page
+2. Click the **🔍 debug icon** in the header (next to settings)
+3. Observe the diagnostics modal:
+   - Current URL displayed
+   - Platform detected
+   - Status (Data Found / No Data Found)
+   - Asking Price value or "Not found"
+   - EBITDA/SDE value or "Not found"
+
+4. **Test Re-scrape:**
+   - Click "🔄 Re-scrape Page" button
+   - Wait a moment
+   - Check that diagnostics update
+
+5. **Test Console Button:**
+   - Click "📋 Open Console (F12)" button
+   - Should see helpful alert
+
+6. **Test on Page With No Data:**
+   - Go to a search results page (not a listing)
+   - Open extension and diagnostics
+   - Should show "No Data Found" with red indicators
+
+7. **Test on Supported Platform:**
+   - Go to BizQuest listing
+   - Open diagnostics
+   - Should show green "Data Found" status
+   - Platform should be "bizquest" in blue/green
+
+**Expected Results:**
+- ✅ Diagnostics modal opens/closes smoothly
+- ✅ Shows current scraping status
+- ✅ Color coding: green = found, red = not found
+- ✅ Re-scrape button works
+- ✅ Helpful troubleshooting tips visible
+- ✅ Platform name displayed correctly
+
+---
+
+### Feature: Enhanced Currency Parsing 💰
+
+**Test Cases:**
+
+Test on pages that use abbreviated formats:
+
+1. **1.5M format:**
+   - Find a listing showing "$1.5M"
+   - Open extension
+   - Should parse as $1,500,000
+
+2. **500K format:**
+   - Find a listing showing "$500K" or "500k"
+   - Open extension
+   - Should parse as $500,000
+
+3. **2.3B format:**
+   - Find a listing showing "$2.3B" (rare, but supported)
+   - Should parse as $2,300,000,000
+
+4. **Standard formats still work:**
+   - "$1,500,000" → $1,500,000
+   - "$1500000" → $1,500,000
+   - "1,500,000" → $1,500,000
+
+**Expected Results:**
+- ✅ All abbreviation formats parsed correctly
+- ✅ Standard comma-separated formats still work
+- ✅ Console shows parsed values
+
+---
+
+### Feature: Console Logging 📋
+
+**Test Steps:**
+
+1. Open any listing page
+2. Open browser console (F12)
+3. Click extension icon to open
+4. Watch console output
+
+**Expected Console Output:**
+```
+🔄 Starting scrapeData...
+📍 Current URL: https://...
+🏢 Platform detected: bizquest
+🎯 Attempting bizquest-specific scraper...
+  ✅ Found asking price in details: 1500000
+  ✅ Found SDE/Cash Flow in details: 450000
+✅ Platform scraper found asking price: 1500000
+✅ Platform scraper found EBITDA/SDE: 450000 (SDE)
+✅ Updated Asking Price field: $1,500,000
+⚠️ SDE detected, subtracting $200k for owner salary
+   Original SDE: $450,000
+   After -$200k: $250,000
+✅ Updated EBITDA field: $250,000
+
+📋 SCRAPING SUMMARY:
+   Platform: bizquest
+   Asking Price: $1,500,000
+   EBITDA/SDE: $250,000 (SDE)
+🏁 Scraping complete, triggering calculation...
+```
+
+**Expected Results:**
+- ✅ Detailed step-by-step logs
+- ✅ Shows which strategies attempted
+- ✅ Clear indication of success/failure
+- ✅ Summary at the end
+- ✅ No error messages
+
+---
+
+### Integration Test: Complete Scraping Workflow 🔄
+
+**Test the complete scraping experience:**
+
+1. **Navigate** to BizQuest.com
+2. **Search** for a business listing
+3. **Click** on a listing with visible financial data
+4. **Open console** (F12) to monitor
+5. **Click** extension icon
+6. **Verify:**
+   - Console shows platform detection
+   - Data populates automatically
+   - No errors in console
+7. **Click** 🔍 debug icon
+8. **Verify:**
+   - Diagnostics show correct data
+   - Status is "✅ Data Found"
+   - Platform correctly identified
+9. **Adjust** one of the scraped values manually
+10. **Click** re-scrape in diagnostics
+11. **Verify:**
+    - Values reset to scraped data
+    - Console shows new scraping attempt
+
+**Expected Results:**
+- ✅ Seamless experience start to finish
+- ✅ All scraping features work together
+- ✅ No console errors
+- ✅ Diagnostics helpful for debugging
+
+---
+
+## Edge Cases to Test
+
+### Scraping Edge Cases
+
+1. **No Financial Data on Page:**
+   - Go to homepage or search results
+   - Open extension
+   - Should handle gracefully (no errors)
+   - Diagnostics should show "No Data Found"
+
+2. **Partially Available Data:**
+   - Find listing with price but no EBITDA
+   - Should scrape price, leave EBITDA empty
+   - No errors
+
+3. **Multiple Dollar Amounts on Page:**
+   - Listing with price, revenue, and EBITDA
+   - Should find correct values
+   - Check console logs to see decision-making
+
+4. **Dynamically Loaded Content:**
+   - Some sites load data via JavaScript
+   - Extension should wait briefly
+   - Use `waitForElement()` helper
+
+5. **Login-Protected Data:**
+   - Some sites hide financials unless logged in
+   - Should gracefully show "Not found"
+   - Diagnostics explain this in troubleshooting section
+
+### Platform Edge Cases
+
+1. **Unknown Platform:**
+   - Visit an unlisted site with financial data
+   - Should detect as "generic"
+   - Generic scraper should still attempt to find data
+
+2. **Subdomain Variations:**
+   - www.bizquest.com vs bizquest.com
+   - Should both detect correctly
+
+---
+
+## Previous Features (v1.4.0)
 
 ### Feature 1: Deal Quality Score ✅
 

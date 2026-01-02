@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.4.4';
+const VERSION = 'v1.6.2';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -23,6 +23,7 @@ const uiHTML = `
     <div style="display:flex; gap:8px; align-items:center;">
       <span id="da-save-deal-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Save current deal (Cmd/Ctrl+S)">💾</span>
       <span id="da-coffee-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Buy me a coffee ☕ ($10)">☕</span>
+      <span id="da-debug-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Scraping Diagnostics">🔍</span>
       <span id="da-settings-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Settings">⚙️</span>
       <span id="da-close" style="cursor:pointer;">✕</span>
     </div>
@@ -59,9 +60,12 @@ const uiHTML = `
     <div id="da-percent-error" class="da-warning" style="background:#fee; border-left-color:#e74c3c; display:none;">⚠️ Total percentages must equal 100%</div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;" id="da-sba-header">
-        <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
-        <span>A. SBA</span>
+      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-sba-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+          <span>A. SBA</span>
+        </div>
+        <span id="da-sba-summary" style="font-size:11px; color:#666; font-weight:400;">80% • 11.5% • 10yr • 1.25x DSCR</span>
       </div>
       <div id="da-sba-section" style="margin-top:8px;">
         <div class="da-flex-row">
@@ -92,9 +96,12 @@ const uiHTML = `
     </div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;" id="da-buyer-equity-header">
-        <span id="da-buyer-equity-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
-        <span>B. Buyer Equity</span>
+      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-buyer-equity-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="da-buyer-equity-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+          <span>B. Buyer Equity</span>
+        </div>
+        <span id="da-buyer-equity-summary" style="font-size:11px; color:#666; font-weight:400;">10% ($0) • $150k salary</span>
       </div>
       <div id="da-buyer-equity-section" style="margin-top:8px;">
         <div class="da-flex-row">
@@ -116,12 +123,15 @@ const uiHTML = `
     </div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" id="da-seller-note-enabled" style="width:auto; cursor:pointer;">
-        <span id="da-seller-note-arrow" style="transition:transform 0.2s; display:inline-block; cursor:pointer; user-select:none;">▼</span>
-        <label for="da-seller-note-enabled" style="cursor:pointer;">
-          <span>C. Seller Note <span style="font-weight:400; color:#999;">(Optional)</span></span>
-        </label>
+      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="da-seller-note-enabled" style="width:auto; cursor:pointer;">
+          <span id="da-seller-note-arrow" style="transition:transform 0.2s; display:inline-block; cursor:pointer; user-select:none;">▼</span>
+          <label for="da-seller-note-enabled" style="cursor:pointer;">
+            <span>C. Seller Note <span style="font-weight:400; color:#999;">(Optional)</span></span>
+          </label>
+        </div>
+        <span id="da-seller-note-summary" style="font-size:11px; color:#666; font-weight:400;">10% • 6.0% • Amortizing</span>
       </div>
       <div id="da-seller-note-section" style="display:none; margin-top:8px;">
         <div class="da-row">
@@ -200,15 +210,77 @@ const uiHTML = `
             <div style="font-size:9px; color:#999; margin-top:1px;">Time to recover equity</div>
           </div>
         </div>
+    </div>
+  </div>
+  
+  <!-- TARGET OFFER CALCULATOR -->
+  <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #ddd;">
+    <div id="da-target-offer-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+      <span id="da-target-offer-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+      <span>🎯 Target Offer Calculator</span>
+    </div>
+    <div id="da-target-offer-content">
+      <div style="background:#f0f8ff; border:1px solid #3498db; border-radius:4px; padding:10px; margin-bottom:8px;">
+        <div style="font-size:11px; color:#2c3e50; margin-bottom:8px;">
+          <strong>Calculate the maximum price you can afford</strong> that ensures:<br>
+          ✓ Your salary is fully covered ($<span id="da-target-salary-display">150k</span>)<br>
+          ✓ DSCR requirement is met (<span id="da-target-dscr-display">1.25</span>x)<br>
+          ✓ Positive free cash flow remains<br>
+          <em style="font-size:10px; color:#666;">Then shows what COC return this achieves</em>
+        </div>
+        <button id="da-calculate-target-offer-btn" class="da-btn" style="width:100%; background:#3498db; font-weight:600;">🎯 Calculate Target Offer Price</button>
+      </div>
+      
+      <div id="da-target-offer-results" style="display:none;">
+        <div class="da-result-box" style="border-left-color:#3498db; background:#f0f8ff;">
+          <div class="da-result-title" style="font-weight:700; color:#2c3e50;">🎯 Recommended Offer Price</div>
+          <div class="da-result-value" id="da-target-offer-price" style="font-size:20px; font-weight:700; color:#3498db;">$0</div>
+          <div style="font-size:10px; color:#666; margin-top:4px; line-height:1.4;" id="da-target-offer-subtitle">
+            To achieve your <span id="da-target-coc-result">25</span>% COC return in <span id="da-target-payback-result">4</span> years
+          </div>
+        </div>
+        
+        <div id="da-target-comparison" style="margin-top:8px; padding:8px; border-radius:4px; font-size:11px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <span style="font-weight:600;">vs. Asking Price:</span>
+            <span id="da-target-diff-amount" style="font-weight:700;">$0</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Difference:</span>
+            <span id="da-target-diff-percent" style="font-weight:700;">0%</span>
+          </div>
+        </div>
+        
+        <div style="margin-top:8px; padding:8px; background:#f8f9fa; border-radius:4px; font-size:10px; color:#666;">
+          <div style="font-weight:600; margin-bottom:4px;">Financing Assumptions:</div>
+          <div id="da-target-financing-breakdown" style="line-height:1.6;"></div>
+        </div>
+        
+        <div style="margin-top:8px;">
+          <div style="font-size:10px; font-weight:600; color:#666; margin-bottom:4px;">Projected Metrics at Target Price:</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <div style="background:#f8f9fa; padding:6px; border-radius:3px;">
+              <div style="font-size:9px; color:#999;">Free Cash Flow</div>
+              <div id="da-target-fcf" style="font-size:12px; font-weight:700; color:#27ae60;">$0</div>
+            </div>
+            <div style="background:#f8f9fa; padding:6px; border-radius:3px;">
+              <div style="font-size:9px; color:#999;">Total Take-Home</div>
+              <div id="da-target-takehome" style="font-size:12px; font-weight:700; color:#2c3e50;">$0</div>
+            </div>
+          </div>
+        </div>
+        
+        <button id="da-use-target-offer-btn" class="da-btn" style="width:100%; margin-top:8px; background:#27ae60; font-size:11px;">✓ Use This as Actual Price</button>
       </div>
     </div>
-    
-    <!-- ACTUAL SCENARIO -->
-    <div style="margin-bottom:10px;">
-      <div id="da-actual-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
-        <span id="da-actual-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
-        <span>Actual Deal Scenario</span>
-      </div>
+  </div>
+  
+  <!-- ACTUAL SCENARIO -->
+  <div style="margin-bottom:10px;">
+    <div id="da-actual-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+      <span id="da-actual-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+      <span>Actual Deal Scenario</span>
+    </div>
       <div id="da-actual-content">
         <div class="da-result-box" style="border-left-color: #e67e22;">
           <div class="da-result-title">Offer Price <span style="font-weight:400; color:#999; font-size:9px;">(Click to Edit)</span></div>
@@ -314,6 +386,72 @@ const settingsModalHTML = `
 </div>
 `;
 
+// Debug/Diagnostics Modal HTML
+const debugModalHTML = `
+<div id="da-debug-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center;">
+  <div style="background:white; border-radius:8px; padding:24px; max-width:650px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <h3 style="margin:0; font-size:18px; color:#2c3e50;">🔍 Scraping Diagnostics</h3>
+      <span id="da-debug-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
+    </div>
+    
+    <div style="margin-bottom:20px;">
+      <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px;">
+        <div style="font-size:12px; color:#666; margin-bottom:8px; font-weight:600;">CURRENT PAGE</div>
+        <div id="da-debug-url" style="font-size:11px; color:#333; word-break:break-all; margin-bottom:6px;"></div>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <div><span style="font-size:11px; color:#666;">Platform:</span> <strong id="da-debug-platform" style="font-size:12px; color:#3498db;">Unknown</strong></div>
+          <div><span style="font-size:11px; color:#666;">Status:</span> <span id="da-debug-status" style="font-size:12px; font-weight:600;">Not scraped</span></div>
+        </div>
+      </div>
+      
+      <div style="background:#fff3cd; border-left:4px solid #f39c12; padding:12px; margin-bottom:12px; border-radius:4px;">
+        <div style="font-size:12px; color:#856404; font-weight:600; margin-bottom:4px;">💡 TIP</div>
+        <div style="font-size:11px; color:#856404;">Open your browser's console (F12) to see detailed scraping logs with all attempts and strategies used.</div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom:20px;">
+      <h4 style="font-size:14px; color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Scraped Data</h4>
+      <div style="display:grid; gap:10px;">
+        <div style="background:#f8f9fa; padding:10px; border-radius:4px;">
+          <div style="font-size:11px; color:#666; margin-bottom:4px;">Asking Price</div>
+          <div id="da-debug-price" style="font-size:14px; font-weight:600; color:#2c3e50;">Not found</div>
+        </div>
+        <div style="background:#f8f9fa; padding:10px; border-radius:4px;">
+          <div style="font-size:11px; color:#666; margin-bottom:4px;">EBITDA / SDE</div>
+          <div id="da-debug-ebitda" style="font-size:14px; font-weight:600; color:#2c3e50;">Not found</div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom:20px;">
+      <h4 style="font-size:14px; color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Actions</h4>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="da-debug-rescrape" class="da-btn" style="background:#3498db; font-size:12px; padding:8px 16px;">🔄 Re-scrape Page</button>
+        <button id="da-debug-console" class="da-btn" style="background:#95a5a6; font-size:12px; padding:8px 16px;">📋 Open Console (F12)</button>
+      </div>
+    </div>
+    
+    <div style="background:#e7f3ff; border-left:4px solid #3498db; padding:12px; border-radius:4px; margin-bottom:12px;">
+      <div style="font-size:12px; color:#1e5a8e; font-weight:600; margin-bottom:6px;">🛠️ Troubleshooting</div>
+      <div style="font-size:11px; color:#1e5a8e; line-height:1.5;">
+        <strong>No data found?</strong> Try these steps:<br>
+        1. Make sure you're on a listing detail page (not search results)<br>
+        2. Wait for the page to fully load before opening Deal Analyzer<br>
+        3. Check if financial data is visible on the page<br>
+        4. Some sites require login to view financial details<br>
+        5. Open console (F12) for detailed scraping logs
+      </div>
+    </div>
+    
+    <div style="text-align:center; margin-top:16px;">
+      <button id="da-debug-done" class="da-btn" style="background:#27ae60; font-size:12px; padding:10px 24px;">✅ Done</button>
+    </div>
+  </div>
+</div>
+`;
+
 // Inject the UI
 try {
   const div = document.createElement('div');
@@ -339,6 +477,15 @@ try {
   document.body.appendChild(settingsDiv);
 } catch (error) {
   console.error('Error injecting settings modal:', error);
+}
+
+// Inject the debug/diagnostics modal
+try {
+  const debugDiv = document.createElement('div');
+  debugDiv.innerHTML = debugModalHTML;
+  document.body.appendChild(debugDiv);
+} catch (error) {
+  console.error('Error injecting debug modal:', error);
 }
 
 // --- 2. DRAGGABLE WINDOW LOGIC ---
@@ -446,9 +593,411 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // --- 3. IMPROVED "SMART" SCRAPING LOGIC ---
 
 // Helper: Converts "$3,000,000" string to 3000000 number
+// --- PLATFORM DETECTION & SCRAPING ---
+
+// Detect which platform we're on
+function detectPlatform() {
+  const url = window.location.href.toLowerCase();
+  const hostname = window.location.hostname.toLowerCase();
+  
+  if (hostname.includes('bizquest.com')) return 'bizquest';
+  if (hostname.includes('bizbuysell.com')) return 'bizbuysell';
+  if (hostname.includes('crexi.com')) return 'crexi';
+  if (hostname.includes('loopnet.com')) return 'loopnet';
+  if (hostname.includes('zillow.com')) return 'zillow';
+  if (hostname.includes('redfin.com')) return 'redfin';
+  if (hostname.includes('realtor.com')) return 'realtor';
+  if (hostname.includes('costar.com')) return 'costar';
+  
+  return 'generic';
+}
+
+// Wait for element to appear (for dynamic content)
+function waitForElement(selector, timeout = 5000) {
+  return new Promise((resolve) => {
+    // Check if already exists
+    const existing = document.querySelector(selector);
+    if (existing) {
+      resolve(existing);
+      return;
+    }
+    
+    // Set up observer
+    const observer = new MutationObserver((mutations, obs) => {
+      const element = document.querySelector(selector);
+      if (element) {
+        obs.disconnect();
+        resolve(element);
+      }
+    });
+    
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    
+    // Timeout fallback
+    setTimeout(() => {
+      observer.disconnect();
+      resolve(null);
+    }, timeout);
+  });
+}
+
+// Platform-specific scrapers
+const platformScrapers = {
+  bizquest: function() {
+    console.log('🏢 Using BizQuest-specific scraper');
+    let data = { askingPrice: 0, ebitda: 0, isSDE: false };
+    
+    // BizQuest uses specific CSS classes and data attributes
+    // Try multiple strategies
+    
+    // Strategy 1: Look for data-qa attributes (common in React apps)
+    const priceEl = document.querySelector('[data-qa*="price"], [data-testid*="price"]');
+    if (priceEl) {
+      data.askingPrice = parseCurrency(priceEl.innerText);
+      console.log('  ✅ Found price via data attribute:', data.askingPrice);
+    }
+    
+    // Strategy 2: Look in detail cards/sections
+    const detailSections = document.querySelectorAll('.details-card, .detail-section, .listing-details, [class*="detail"]');
+    let sdeValue = 0;
+    let ebitdaValue = 0;
+    
+    for (const section of detailSections) {
+      const text = section.innerText || '';
+      
+      // Check for asking price
+      if (!data.askingPrice && /asking price/i.test(text)) {
+        const lines = text.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          if (/asking price/i.test(lines[i]) && lines[i + 1]) {
+            data.askingPrice = parseCurrency(lines[i + 1]);
+            if (data.askingPrice > 0) {
+              console.log('  ✅ Found asking price in details:', data.askingPrice);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Check for EBITDA specifically
+      if (/\bebitda\b/i.test(text)) {
+        const lines = text.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (/\bebitda\b/i.test(line) && lines[i + 1]) {
+            ebitdaValue = parseCurrency(lines[i + 1]);
+            if (ebitdaValue > 0) {
+              console.log('  ✅ Found EBITDA in details:', ebitdaValue);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Check for SDE/Cash Flow
+      if (/cash flow|sde|discretionary earnings/i.test(text)) {
+        const lines = text.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if ((/cash flow|sde|discretionary earnings/i.test(line)) && lines[i + 1]) {
+            sdeValue = parseCurrency(lines[i + 1]);
+            if (sdeValue > 0) {
+              console.log('  ✅ Found SDE/Cash Flow in details:', sdeValue);
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // Prefer EBITDA over SDE when both are present
+    if (ebitdaValue > 0) {
+      data.ebitda = ebitdaValue;
+      data.isSDE = false;
+      console.log('  ℹ️ Using EBITDA (preferred):', ebitdaValue);
+      if (sdeValue > 0) {
+        console.log('  ℹ️ Also found SDE (' + sdeValue + ') but using EBITDA');
+      }
+    } else if (sdeValue > 0) {
+      data.ebitda = sdeValue;
+      data.isSDE = true;
+      console.log('  ℹ️ Using SDE (no EBITDA found):', sdeValue);
+    }
+    
+    // Strategy 3: Try JSON-LD structured data (many listing sites use this)
+    const jsonLd = document.querySelector('script[type="application/ld+json"]');
+    if (jsonLd) {
+      try {
+        const data_ld = JSON.parse(jsonLd.textContent);
+        if (data_ld.offers && data_ld.offers.price) {
+          data.askingPrice = parseCurrency(String(data_ld.offers.price));
+          console.log('  ✅ Found price in JSON-LD:', data.askingPrice);
+        }
+      } catch (e) {
+        console.log('  ⚠️ Could not parse JSON-LD');
+      }
+    }
+    
+    return data;
+  },
+  
+  bizbuysell: function() {
+    console.log('🏢 Using BizBuySell-specific scraper');
+    let data = { askingPrice: 0, ebitda: 0, isSDE: false };
+    
+    // BizBuySell typically has clean labeled fields
+    const labels = document.querySelectorAll('.profile-label, .data-label, dt, th');
+    for (const label of labels) {
+      const text = label.innerText?.trim().toLowerCase();
+      const valueEl = label.nextElementSibling || label.parentElement;
+      
+      if (text && valueEl) {
+        if (text.includes('asking price') || text === 'price') {
+          data.askingPrice = parseCurrency(valueEl.innerText);
+          if (data.askingPrice > 0) {
+            console.log('  ✅ Found asking price:', data.askingPrice);
+          }
+        }
+        
+        if (text.includes('ebitda')) {
+          data.ebitda = parseCurrency(valueEl.innerText);
+          data.isSDE = false;
+          if (data.ebitda > 0) {
+            console.log('  ✅ Found EBITDA:', data.ebitda);
+          }
+        }
+        
+        if (text.includes('cash flow') || text.includes('sde') || text.includes('discretionary')) {
+          data.ebitda = parseCurrency(valueEl.innerText);
+          data.isSDE = true;
+          if (data.ebitda > 0) {
+            console.log('  ✅ Found SDE/Cash Flow:', data.ebitda);
+          }
+        }
+      }
+    }
+    
+    return data;
+  },
+  
+  crexi: function() {
+    console.log('🏢 Using Crexi-specific scraper');
+    let data = { askingPrice: 0, ebitda: 0, isSDE: false };
+    
+    // Crexi is a commercial real estate platform
+    // Look for price in header or summary section
+    const priceSelectors = [
+      '[class*="price"]',
+      '[class*="Price"]',
+      '.listing-price',
+      '.property-price'
+    ];
+    
+    for (const selector of priceSelectors) {
+      const el = document.querySelector(selector);
+      if (el && !data.askingPrice) {
+        const price = parseCurrency(el.innerText);
+        if (price > 10000) { // Sanity check
+          data.askingPrice = price;
+          console.log('  ✅ Found price via selector', selector, ':', price);
+          break;
+        }
+      }
+    }
+    
+    // Look for financials in details/metrics section
+    const metricSections = document.querySelectorAll('[class*="metric"], [class*="financial"], [class*="detail"]');
+    for (const section of metricSections) {
+      const text = section.innerText || '';
+      const lines = text.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].toLowerCase();
+        
+        // NOI (Net Operating Income) is common in commercial real estate
+        if (line.includes('noi') || line.includes('net operating income')) {
+          const value = parseCurrency(lines[i + 1] || lines[i]);
+          if (value > 0 && !data.ebitda) {
+            data.ebitda = value;
+            data.isSDE = false;
+            console.log('  ✅ Found NOI (using as EBITDA):', value);
+          }
+        }
+        
+        if (line.includes('ebitda')) {
+          const value = parseCurrency(lines[i + 1] || lines[i]);
+          if (value > 0) {
+            data.ebitda = value;
+            data.isSDE = false;
+            console.log('  ✅ Found EBITDA:', value);
+          }
+        }
+        
+        if (line.includes('cash flow') || line.includes('sde')) {
+          const value = parseCurrency(lines[i + 1] || lines[i]);
+          if (value > 0 && !data.ebitda) {
+            data.ebitda = value;
+            data.isSDE = true;
+            console.log('  ✅ Found Cash Flow/SDE:', value);
+          }
+        }
+      }
+    }
+    
+    return data;
+  },
+  
+  loopnet: function() {
+    console.log('🏢 Using LoopNet-specific scraper');
+    let data = { askingPrice: 0, ebitda: 0, isSDE: false };
+    
+    // LoopNet is owned by CoStar - commercial real estate
+    // Look for price in prominent display
+    const priceSelectors = [
+      '[data-testid="price"]',
+      '.price-section',
+      '[class*="asking-price"]',
+      '[class*="AskingPrice"]'
+    ];
+    
+    for (const selector of priceSelectors) {
+      const el = document.querySelector(selector);
+      if (el && !data.askingPrice) {
+        const price = parseCurrency(el.innerText);
+        if (price > 10000) {
+          data.askingPrice = price;
+          console.log('  ✅ Found price via selector', selector, ':', price);
+          break;
+        }
+      }
+    }
+    
+    // Look for financial details
+    const detailRows = document.querySelectorAll('.property-detail-row, [class*="detail-row"], tr');
+    for (const row of detailRows) {
+      const text = row.innerText?.toLowerCase() || '';
+      
+      if (text.includes('asking price') && !data.askingPrice) {
+        data.askingPrice = parseCurrency(row.innerText);
+        if (data.askingPrice > 0) {
+          console.log('  ✅ Found asking price:', data.askingPrice);
+        }
+      }
+      
+      if (text.includes('noi') || text.includes('net operating income')) {
+        const value = parseCurrency(row.innerText);
+        if (value > 0 && !data.ebitda) {
+          data.ebitda = value;
+          data.isSDE = false;
+          console.log('  ✅ Found NOI:', value);
+        }
+      }
+      
+      if (text.includes('ebitda')) {
+        const value = parseCurrency(row.innerText);
+        if (value > 0) {
+          data.ebitda = value;
+          data.isSDE = false;
+          console.log('  ✅ Found EBITDA:', value);
+        }
+      }
+    }
+    
+    return data;
+  },
+  
+  zillow: function() {
+    console.log('🏢 Using Zillow-specific scraper');
+    let data = { askingPrice: 0, ebitda: 0, isSDE: false };
+    
+    // Zillow is primarily residential, but has commercial listings
+    // Price is usually prominent in header
+    const priceSelectors = [
+      '[data-testid="price"]',
+      '.ds-summary-row span',
+      '[class*="price"]'
+    ];
+    
+    for (const selector of priceSelectors) {
+      const el = document.querySelector(selector);
+      if (el && !data.askingPrice) {
+        const price = parseCurrency(el.innerText);
+        if (price > 10000) {
+          data.askingPrice = price;
+          console.log('  ✅ Found price via selector', selector, ':', price);
+          break;
+        }
+      }
+    }
+    
+    // Zillow doesn't typically show EBITDA for residential
+    // But may have it for commercial/business properties
+    const facts = document.querySelectorAll('.ds-home-fact-list li, [class*="fact"]');
+    for (const fact of facts) {
+      const text = fact.innerText?.toLowerCase() || '';
+      if (text.includes('annual income') || text.includes('gross income')) {
+        const value = parseCurrency(fact.innerText);
+        if (value > 0) {
+          data.ebitda = value;
+          data.isSDE = false;
+          console.log('  ✅ Found annual income:', value);
+        }
+      }
+    }
+    
+    return data;
+  },
+  
+  redfin: function() {
+    console.log('🏢 Using Redfin-specific scraper');
+    let data = { askingPrice: 0, ebitda: 0, isSDE: false };
+    
+    // Redfin structure - price in header
+    const priceSelectors = [
+      '.home-main-stats .statsValue',
+      '[data-rf-test-name="abp-price"]',
+      '.price'
+    ];
+    
+    for (const selector of priceSelectors) {
+      const el = document.querySelector(selector);
+      if (el && !data.askingPrice) {
+        const price = parseCurrency(el.innerText);
+        if (price > 10000) {
+          data.askingPrice = price;
+          console.log('  ✅ Found price via selector', selector, ':', price);
+          break;
+        }
+      }
+    }
+    
+    return data;
+  }
+};
+
 function parseCurrency(str) {
   if (!str) return 0;
-  // Looks for numbers with commas, e.g. 1,000 or 100,000
+  
+  // Check for "Not Disclosed", "N/A", "Undisclosed", etc.
+  if (/not\s+disclosed|undisclosed|n\/a|not\s+available|confidential/i.test(str)) {
+    console.log('  ⚠️ Value is not disclosed:', str);
+    return 0;
+  }
+  
+  // Handle abbreviated formats like "1.5M", "500K", "2.3B"
+  const abbrevMatch = str.match(/([\d,.]+)\s*([MmKkBb])\b/);
+  if (abbrevMatch) {
+    const num = parseFloat(abbrevMatch[1].replace(/,/g, ''));
+    const multiplier = abbrevMatch[2].toUpperCase();
+    if (multiplier === 'K') return Math.round(num * 1000);
+    if (multiplier === 'M') return Math.round(num * 1000000);
+    if (multiplier === 'B') return Math.round(num * 1000000000);
+  }
+  
+  // Handle standard formats: $1,000 or 100,000 or $1000000
   const match = str.match(/(\d{1,3}(?:,\d{3})*|\d+)/);
   return match ? parseInt(match[0].replace(/,/g, '')) : 0;
 }
@@ -456,7 +1005,7 @@ function parseCurrency(str) {
 // Helper: Finds a value on the page by looking for its label
 function findValueByLabel(keywords) {
   // We look at all common text containers
-  const candidates = document.querySelectorAll('b, strong, span, p, div, td, dt, h4, h5, h3');
+  const candidates = document.querySelectorAll('b, strong, span, p, div, td, dt, h4, h5, h3, h2, label, [class*="label"], [class*="field"]');
 
   console.log(`🔍 Searching for keywords:`, keywords);
   let foundElements = [];
@@ -471,6 +1020,7 @@ function findValueByLabel(keywords) {
       return text === keyword || 
              text.startsWith(keyword + ":") || 
              text.startsWith(keyword + " ") ||
+             text === keyword + ":" ||
              (text.includes(keyword) && text.length < keyword.length + 100);
     });
 
@@ -483,7 +1033,7 @@ function findValueByLabel(keywords) {
       if (sibling) {
         const siblingText = sibling.innerText?.trim();
         console.log(`  → Checking next sibling: "${siblingText}"`);
-        if (siblingText && siblingText.match(/\$/)) {
+        if (siblingText && siblingText.match(/\$|[\d,]+/)) {
           const value = parseCurrency(siblingText);
           console.log(`  → Strategy A (next sibling): "${siblingText}" = ${value}`);
           if (value > 0) return value;
@@ -496,7 +1046,7 @@ function findValueByLabel(keywords) {
         console.log(`  → Parent element text (first 200 chars): "${parentText.substring(0, 200)}..."`);
         // Remove the label itself to isolate the number
         const cleanParent = parentText.replace(el.innerText, "");
-        if (cleanParent.match(/\$/)) {
+        if (cleanParent.match(/\$|[\d,]+/)) {
           const value = parseCurrency(cleanParent);
           console.log(`  → Strategy B (parent text): first $ value found = ${value}`);
           if (value > 0) return value;
@@ -504,10 +1054,31 @@ function findValueByLabel(keywords) {
       }
 
       // STRATEGY C: The value is in the same element? (e.g. <div>Price: $100</div>)
-      if (el.innerText.match(/\$/)) {
+      if (el.innerText.match(/\$|[\d,]+/)) {
         const value = parseCurrency(el.innerText);
         console.log(`  → Strategy C (same element): "${el.innerText}" = ${value}`);
         if (value > 0) return value;
+      }
+      
+      // STRATEGY D: Check for data attributes (React/Vue apps often use these)
+      if (el.dataset) {
+        for (const [key, val] of Object.entries(el.dataset)) {
+          if (val && typeof val === 'string' && val.match(/\d/)) {
+            const value = parseCurrency(val);
+            console.log(`  → Strategy D (data-${key}): "${val}" = ${value}`);
+            if (value > 0) return value;
+          }
+        }
+      }
+      
+      // STRATEGY E: Check next <td> if in a table
+      if (el.tagName === 'TD' || el.tagName === 'TH') {
+        const nextTd = el.nextElementSibling;
+        if (nextTd && (nextTd.tagName === 'TD' || nextTd.tagName === 'TH')) {
+          const value = parseCurrency(nextTd.innerText);
+          console.log(`  → Strategy E (next table cell): "${nextTd.innerText}" = ${value}`);
+          if (value > 0) return value;
+        }
       }
       
       console.log(`  ⚠️ Label found but no dollar value extracted`);
@@ -524,29 +1095,73 @@ function scrapeData() {
     console.log('🔄 Starting scrapeData...');
     console.log('📍 Current URL:', window.location.href);
     
-    // 1. Find Asking Price
-    // We try specific labels used by BizQuest, BizBuySell, Crexi
-    console.log('\n💰 Looking for Asking Price...');
-    let askingPrice = findValueByLabel(["Asking Price", "Price", "Purchase Price"]);
-    console.log('💰 Asking Price found:', askingPrice);
-
-    // 2. Find EBITDA or SDE
-    // Priority 1: Look for explicit "EBITDA" first (cleanest number)
-    console.log('\n📊 Looking for EBITDA...');
-    let ebitdaVal = findValueByLabel(["EBITDA"]);
+    // Detect platform
+    const platform = detectPlatform();
+    console.log('🏢 Platform detected:', platform);
+    
+    let askingPrice = 0;
+    let ebitdaVal = 0;
     let isSDE = false;
-
-    // Priority 2: If no EBITDA, look for Cash Flow / SDE
-    if (ebitdaVal === 0) {
-        console.log('📊 No EBITDA found, looking for Cash Flow/SDE...');
-        ebitdaVal = findValueByLabel(["Cash Flow", "SDE", "Seller Discretionary Earnings", "Discretionary Earnings", "Seller's Discretionary Earnings"]);
-        if (ebitdaVal > 0) {
-            console.log('✅ Found SDE/Cash Flow:', ebitdaVal);
-            isSDE = true;
-        }
-    } else {
-        console.log('✅ Found EBITDA:', ebitdaVal);
+    
+    // Try platform-specific scraper first
+    if (platformScrapers[platform]) {
+      console.log(`🎯 Attempting ${platform}-specific scraper...`);
+      const platformData = platformScrapers[platform]();
+      
+      if (platformData.askingPrice > 0) {
+        askingPrice = platformData.askingPrice;
+        console.log('✅ Platform scraper found asking price:', askingPrice);
+      }
+      
+      if (platformData.ebitda > 0) {
+        ebitdaVal = platformData.ebitda;
+        isSDE = platformData.isSDE;
+        console.log('✅ Platform scraper found EBITDA/SDE:', ebitdaVal, isSDE ? '(SDE)' : '(EBITDA)');
+      }
     }
+    
+    // Fallback to generic scraper if platform scraper didn't find values
+    if (askingPrice === 0) {
+      console.log('\n💰 Platform scraper didn\'t find price, trying generic scraper...');
+      askingPrice = findValueByLabel(["Asking Price", "Price", "Purchase Price", "Sale Price", "List Price"]);
+      console.log('💰 Generic scraper - Asking Price found:', askingPrice);
+    }
+    
+    if (ebitdaVal === 0) {
+      console.log('\n📊 Platform scraper didn\'t find EBITDA, trying generic scraper...');
+      
+      // ALWAYS prefer EBITDA over SDE when both are present
+      // Priority 1: Look for explicit "EBITDA" first (most accurate for M&A)
+      const ebitdaValue = findValueByLabel(["EBITDA"]);
+      
+      // Priority 2: Look for Cash Flow / SDE as backup
+      const sdeValue = findValueByLabel(["Cash Flow", "SDE", "Seller Discretionary Earnings", "Discretionary Earnings", "Seller's Discretionary Earnings", "Net Operating Income", "NOI"]);
+      
+      // Prefer EBITDA if found, otherwise use SDE
+      if (ebitdaValue > 0) {
+        ebitdaVal = ebitdaValue;
+        isSDE = false;
+        console.log('✅ Found EBITDA (preferred):', ebitdaVal);
+        if (sdeValue > 0) {
+          console.log('   ℹ️ Also found SDE (' + sdeValue + ') but using EBITDA instead');
+        }
+      } else if (sdeValue > 0) {
+        ebitdaVal = sdeValue;
+        isSDE = true;
+        console.log('✅ Found SDE/Cash Flow (no EBITDA available):', ebitdaVal);
+      } else {
+        console.log('⚠️ No EBITDA or SDE found');
+      }
+    }
+    
+    // Store results for diagnostics
+    lastScrapeData = {
+      platform: platform,
+      askingPrice: askingPrice,
+      ebitda: ebitdaVal,
+      isSDE: isSDE,
+      timestamp: new Date().toISOString()
+    };
 
     // 3. Update Inputs with formatted numbers (with $ for currency fields)
     const askingField = document.getElementById('da-asking');
@@ -578,6 +1193,12 @@ function scrapeData() {
         // If we found nothing, clear the warning so it doesn't confuse user
         if (sdeWarning) sdeWarning.classList.remove('visible');
     }
+    
+    // Log scraping summary
+    console.log('\n📋 SCRAPING SUMMARY:');
+    console.log('   Platform:', platform);
+    console.log('   Asking Price:', askingPrice > 0 ? '$' + formatNumber(askingPrice) : 'Not found');
+    console.log('   EBITDA/SDE:', ebitdaVal > 0 ? '$' + formatNumber(ebitdaVal) + (isSDE ? ' (SDE)' : ' (EBITDA)') : 'Not found');
 
     console.log('🏁 Scraping complete, triggering calculation...\n');
     calculate();
@@ -730,8 +1351,107 @@ const overrides = {
   actualPrice: false
 };
 
+// --- UPDATE FINANCING SUMMARIES ---
+function updateFinancingSummaries() {
+  // Update SBA summary
+  const sbaPercent = parseFloat(document.getElementById('da-sba-percent').value) || 0;
+  const bankRate = parseFloat(document.getElementById('da-bank-rate').value) || 0;
+  const bankTerm = parseFloat(document.getElementById('da-bank-term').value) || 0;
+  const dscr = parseFloat(document.getElementById('da-dscr').value) || 0;
+  document.getElementById('da-sba-summary').innerText = `${sbaPercent}% • ${bankRate}% • ${bankTerm}yr • ${dscr}x DSCR`;
+  
+  // Update Buyer Equity summary with salary validation
+  const downPercent = parseFloat(document.getElementById('da-down-percent').value) || 0;
+  const downPayment = parseNumber(document.getElementById('da-down').value) || 0;
+  const targetSalary = parseNumber(document.getElementById('da-target-salary').value) || 0;
+  const salaryFormatted = targetSalary >= 1000 ? '$' + Math.round(targetSalary / 1000) + 'k' : '$' + targetSalary;
+  const downFormatted = downPayment >= 1000 ? '$' + Math.round(downPayment / 1000) + 'k' : '$' + downPayment;
+  
+  // Check if salary is feasible (only if we have enough data to calculate)
+  const ebitda = parseNumber(document.getElementById('da-ebitda').value) || 0;
+  const summaryEl = document.getElementById('da-buyer-equity-summary');
+  
+  if (ebitda > 0 && targetSalary > 0) {
+    // Quick calculation of available cash flow
+    const bankRateDecimal = (parseFloat(document.getElementById('da-bank-rate').value) || 0) / 100;
+    const bankYears = parseFloat(document.getElementById('da-bank-term').value) || 10;
+    const actualPrice = parseNumber(document.getElementById('da-actual-price').value) || 0;
+    
+    if (actualPrice > 0 && bankRateDecimal > 0 && bankYears > 0) {
+      const sbaLoanSize = (sbaPercent / 100) * actualPrice;
+      const r = bankRateDecimal / 12;
+      const n = bankYears * 12;
+      const monthlyPayment = sbaLoanSize * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+      const sbaAnnualDebtService = monthlyPayment * 12;
+      
+      // Add seller note debt service if applicable
+      const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+      let sellerAnnualDebtService = 0;
+      if (sellerNoteEnabled) {
+        const sellerPercent = parseFloat(document.getElementById('da-seller-percent').value) || 0;
+        const sellerNoteAmt = (sellerPercent / 100) * actualPrice;
+        const sellerRate = (parseFloat(document.getElementById('da-seller-rate').value) || 0) / 100;
+        const sellerPaymentType = document.getElementById('da-seller-payment-type').value;
+        const sellerStandby = document.getElementById('da-seller-standby').value;
+        
+        if (sellerNoteAmt > 0 && sellerStandby === 'no') {
+          if (sellerPaymentType === 'interest-only') {
+            sellerAnnualDebtService = sellerNoteAmt * sellerRate;
+          } else {
+            const sellerYears = 5;
+            const rSeller = sellerRate / 12;
+            const nSeller = sellerYears * 12;
+            if (rSeller > 0) {
+              const monthlySeller = sellerNoteAmt * (rSeller * Math.pow(1 + rSeller, nSeller)) / (Math.pow(1 + rSeller, nSeller) - 1);
+              sellerAnnualDebtService = monthlySeller * 12;
+            } else {
+              sellerAnnualDebtService = sellerNoteAmt / sellerYears;
+            }
+          }
+        }
+      }
+      
+      const totalDebtService = sbaAnnualDebtService + sellerAnnualDebtService;
+      const availableCashFlow = ebitda - totalDebtService;
+      
+      // If salary exceeds available cash flow, make it red and bold
+      if (targetSalary > availableCashFlow) {
+        summaryEl.innerHTML = `${downPercent}% (${downFormatted}) • <span style="color:#e74c3c; font-weight:700;">${salaryFormatted} salary ⚠️</span>`;
+      } else {
+        summaryEl.innerText = `${downPercent}% (${downFormatted}) • ${salaryFormatted} salary`;
+      }
+    } else {
+      summaryEl.innerText = `${downPercent}% (${downFormatted}) • ${salaryFormatted} salary`;
+    }
+  } else {
+    summaryEl.innerText = `${downPercent}% (${downFormatted}) • ${salaryFormatted} salary`;
+  }
+  
+  // Update Seller Note summary
+  const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+  const sellerPercent = parseFloat(document.getElementById('da-seller-percent').value) || 0;
+  const sellerRate = parseFloat(document.getElementById('da-seller-rate').value) || 0;
+  const sellerPaymentType = document.getElementById('da-seller-payment-type').value;
+  const sellerStandby = document.getElementById('da-seller-standby').value;
+  
+  if (sellerNoteEnabled) {
+    let summary = `${sellerPercent}% • ${sellerRate}% • ${sellerPaymentType === 'interest-only' ? 'Interest Only' : 'Amortizing'}`;
+    if (sellerStandby === 'yes') {
+      summary += ' • Standby';
+    }
+    document.getElementById('da-seller-note-summary').innerText = summary;
+    document.getElementById('da-seller-note-summary').style.opacity = '1';
+  } else {
+    document.getElementById('da-seller-note-summary').innerText = 'Not enabled';
+    document.getElementById('da-seller-note-summary').style.opacity = '0.4';
+  }
+}
+
 // --- 4. FINANCIAL MATH ---
 function calculate() {
+  // Update financing summaries first
+  updateFinancingSummaries();
+  
   // Get Inputs
   const ebitda = parseNumber(document.getElementById('da-ebitda').value) || 0;
   const targetDSCR = parseFloat(document.getElementById('da-dscr').value) || 1.25;
@@ -1087,6 +1807,319 @@ function unformatInputOnFocus(e) {
   e.target.value = e.target.value.replace(/[,$]/g, '');
 }
 
+// --- TARGET OFFER CALCULATOR ---
+function calculateTargetOffer() {
+  console.log('=== TARGET OFFER CALCULATOR ===');
+  
+  // Get all inputs
+  const ebitda = parseNumber(document.getElementById('da-ebitda').value) || 0;
+  const targetSalary = parseNumber(document.getElementById('da-target-salary').value) || 0;
+  const askingPrice = parseNumber(document.getElementById('da-asking').value) || 0;
+  
+  // Get target metrics from user preferences
+  const targetCOC = userPreferences.targetCOC || 25; // %
+  const targetPaybackYears = userPreferences.targetPayback || 4; // years
+  
+  // Get financing structure
+  const sbaPercent = parseFloat(document.getElementById('da-sba-percent').value) || 0;
+  const downPercent = parseFloat(document.getElementById('da-down-percent').value) || 0;
+  const sellerNoteEnabled = document.getElementById('da-seller-note-enabled').checked;
+  const sellerPercent = sellerNoteEnabled ? (parseFloat(document.getElementById('da-seller-percent').value) || 0) : 0;
+  
+  const bankRate = (parseFloat(document.getElementById('da-bank-rate').value) || 0) / 100;
+  const bankYears = parseFloat(document.getElementById('da-bank-term').value) || 10;
+  const targetDSCR = parseFloat(document.getElementById('da-dscr').value) || 1.25;
+  
+  const sellerRate = (parseFloat(document.getElementById('da-seller-rate').value) || 0) / 100;
+  const sellerPaymentType = document.getElementById('da-seller-payment-type').value;
+  const sellerStandby = document.getElementById('da-seller-standby').value;
+  
+  // Validate inputs
+  if (ebitda <= 0) {
+    alert('Please enter a valid EBITDA value first.');
+    return;
+  }
+  
+  if (Math.abs((sbaPercent + downPercent + sellerPercent) - 100) > 0.01) {
+    alert('Total financing percentages must equal 100% before calculating target offer.');
+    return;
+  }
+  
+  // Update display with current targets (these are shown in the collapsed description)
+  // Note: The actual display elements are updated in the subtitle after calculation
+  console.log('Target COC:', targetCOC + '%');
+  console.log('Target Payback:', targetPaybackYears + ' years');
+  
+  // CALCULATION STRATEGY (Constraint-Based Approach):
+  // 
+  // The buyer has THREE hard constraints:
+  // 1. LENDER CONSTRAINT: DSCR must be met (EBITDA / Debt Service >= Target DSCR)
+  // 2. SALARY CONSTRAINT: Owner must be able to pay themselves (EBITDA - Debt Service >= Salary)
+  // 3. EQUITY CONSTRAINT: Buyer puts down X% equity
+  //
+  // We solve for the MAXIMUM price that satisfies ALL three constraints.
+  // Then we calculate what COC return this achieves (it may be higher or lower than target).
+  //
+  // Math:
+  // Let P = Purchase Price
+  // Constraint 1 (DSCR): EBITDA / (P * ds) >= targetDSCR
+  //                     P <= EBITDA / (targetDSCR * ds)
+  //
+  // Constraint 2 (Salary): EBITDA - (P * ds) >= Salary
+  //                        P * ds <= EBITDA - Salary
+  //                        P <= (EBITDA - Salary) / ds
+  //
+  // Maximum price = MIN(DSCR constraint, Salary constraint)
+  // Then calculate: Actual COC = (EBITDA - P*ds) / (P*d) * 100%
+  
+  // Calculate debt service coefficients (DS per $1 of price)
+  let sbaDebtServicePer1 = 0;
+  if (bankRate > 0 && bankYears > 0) {
+    const r = bankRate / 12;
+    const n = bankYears * 12;
+    const monthlyPer1 = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+    sbaDebtServicePer1 = monthlyPer1 * 12;
+  } else if (bankYears > 0) {
+    sbaDebtServicePer1 = 1 / bankYears;
+  }
+  
+  let sellerDebtServicePer1 = 0;
+  if (sellerNoteEnabled && sellerPercent > 0) {
+    if (sellerPaymentType === 'interest-only') {
+      sellerDebtServicePer1 = sellerRate;
+    } else {
+      const sellerYears = 5;
+      const r = sellerRate / 12;
+      const n = sellerYears * 12;
+      if (r === 0) {
+        sellerDebtServicePer1 = 1 / sellerYears;
+      } else {
+        const monthlyPer1 = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+        sellerDebtServicePer1 = monthlyPer1 * 12;
+      }
+    }
+  }
+  
+  // Adjust for standby
+  const sellerDebtServiceForCalc = (sellerStandby === 'yes') ? 0 : sellerDebtServicePer1;
+  
+  // Total debt service per $1 of price
+  const totalDebtServicePer1 = 
+    (sbaPercent / 100) * sbaDebtServicePer1 + 
+    (sellerPercent / 100) * sellerDebtServiceForCalc;
+  
+  console.log('SBA DS per $1:', sbaDebtServicePer1);
+  console.log('Seller DS per $1:', sellerDebtServicePer1);
+  console.log('Total DS per $1:', totalDebtServicePer1);
+  
+  // === CONSTRAINT-BASED CALCULATION ===
+  const E = ebitda;
+  const S = targetSalary;
+  const d = downPercent / 100;
+  const ds = totalDebtServicePer1;
+  
+  if (E <= 0) {
+    alert('EBITDA must be greater than 0 to calculate target offer.');
+    return;
+  }
+  
+  if (d <= 0) {
+    alert('Equity percentage must be greater than 0 to calculate target offer.');
+    return;
+  }
+  
+  if (ds <= 0) {
+    alert('Cannot calculate with zero debt service. Please check your financing structure.');
+    return;
+  }
+  
+  console.log('\n=== CONSTRAINT-BASED CALCULATION ===');
+  console.log('EBITDA:', fmt(E));
+  console.log('Target Salary:', fmt(S));
+  console.log('Equity %:', (d * 100).toFixed(1) + '%');
+  console.log('Debt Service per $1:', ds.toFixed(6));
+  console.log('Target DSCR:', targetDSCR);
+  
+  // CONSTRAINT 1: DSCR Requirement (Lender)
+  // EBITDA / Debt Service >= Target DSCR
+  // EBITDA / (P * ds) >= targetDSCR
+  // P <= EBITDA / (targetDSCR * ds)
+  const maxPriceFromDSCR = E / (targetDSCR * ds);
+  console.log('\n📊 CONSTRAINT 1 (DSCR):');
+  console.log('   Max price (DSCR-based):', fmt(maxPriceFromDSCR));
+  
+  // CONSTRAINT 2: Salary Coverage (Owner needs to live)
+  // EBITDA - Debt Service >= Salary
+  // EBITDA - (P * ds) >= Salary
+  // P <= (EBITDA - Salary) / ds
+  let maxPriceFromSalary = Infinity;
+  if (S > 0) {
+    if (E <= S) {
+      alert('❌ Cannot Calculate Target Offer\n\nEBITDA ($' + formatNumber(E) + ') is less than or equal to your target salary ($' + formatNumber(S) + ').\n\nThere is no room for debt service.\n\nOptions:\n• Lower target salary\n• Find a business with higher EBITDA');
+      return;
+    }
+    maxPriceFromSalary = (E - S) / ds;
+    console.log('\n💰 CONSTRAINT 2 (Salary):');
+    console.log('   Cash available for debt service:', fmt(E - S));
+    console.log('   Max price (Salary-based):', fmt(maxPriceFromSalary));
+  } else {
+    console.log('\n💰 CONSTRAINT 2 (Salary): No salary requirement');
+  }
+  
+  // Take the MINIMUM of both constraints (most restrictive wins)
+  const targetOfferPrice = Math.min(maxPriceFromDSCR, maxPriceFromSalary);
+  const bindingConstraint = targetOfferPrice === maxPriceFromDSCR ? 'DSCR' : 'Salary';
+  
+  console.log('\n🎯 BINDING CONSTRAINT:', bindingConstraint);
+  console.log('🎯 RECOMMENDED OFFER PRICE:', fmt(targetOfferPrice));
+  
+  // Validate result
+  if (targetOfferPrice <= 0 || !isFinite(targetOfferPrice)) {
+    alert('Unable to calculate a valid target offer price. Please check your inputs and financing structure.');
+    return;
+  }
+  
+  // === CALCULATE ACTUAL METRICS AT THIS PRICE ===
+  const equity = targetOfferPrice * d;
+  const sbaLoan = targetOfferPrice * (sbaPercent / 100);
+  const sellerNote = targetOfferPrice * (sellerPercent / 100);
+  const totalDebtService = targetOfferPrice * totalDebtServicePer1;
+  const availableCash = E - totalDebtService;
+  const freeCashFlow = availableCash - S;
+  const totalTakeHome = availableCash; // Salary + FCF = Total available
+  const actualCOC = (totalTakeHome / equity) * 100;
+  const actualPayback = equity / totalTakeHome;
+  const actualDSCR = E / totalDebtService;
+  
+  console.log('\n📈 ACTUAL METRICS AT TARGET PRICE:');
+  console.log('   Equity Investment:', fmt(equity));
+  console.log('   SBA Loan:', fmt(sbaLoan));
+  console.log('   Seller Note:', fmt(sellerNote));
+  console.log('   Total Debt Service:', fmt(totalDebtService));
+  console.log('   Available Cash (EBITDA - DS):', fmt(availableCash));
+  console.log('   Target Salary:', fmt(S));
+  console.log('   Free Cash Flow:', fmt(freeCashFlow));
+  console.log('   Total Take-Home:', fmt(totalTakeHome));
+  console.log('   Actual COC:', actualCOC.toFixed(1) + '%');
+  console.log('   Actual Payback:', actualPayback.toFixed(1) + ' years');
+  console.log('   Actual DSCR:', actualDSCR.toFixed(2) + 'x');
+  
+  // Validation checks
+  if (freeCashFlow < 0) {
+    console.error('⚠️ WARNING: Negative FCF detected! This should not happen.');
+  }
+  if (actualDSCR < targetDSCR - 0.01) {
+    console.error('⚠️ WARNING: DSCR below target! This should not happen.');
+  }
+  
+  // Show informative message about what constraint limited the price
+  if (bindingConstraint === 'Salary' && S > 0) {
+    console.log('\n💡 NOTE: Salary requirement ($' + formatNumber(S) + ') was the limiting factor.');
+    console.log('   If salary were lower, you could offer up to $' + formatNumber(maxPriceFromDSCR) + ' (DSCR limit)');
+  } else {
+    console.log('\n💡 NOTE: DSCR requirement (' + targetDSCR + 'x) was the limiting factor.');
+    if (S > 0) {
+      console.log('   Salary is comfortably covered with $' + formatNumber(freeCashFlow) + ' FCF remaining');
+    }
+  }
+  
+  // Display results
+  document.getElementById('da-target-offer-price').innerText = fmt(targetOfferPrice);
+  document.getElementById('da-target-fcf').innerText = fmt(freeCashFlow);
+  document.getElementById('da-target-takehome').innerText = fmt(totalTakeHome);
+  
+  // Update subtitle to show actual achieved metrics
+  const subtitleEl = document.getElementById('da-target-offer-subtitle');
+  if (subtitleEl) {
+    subtitleEl.innerHTML = `Achieves <strong>${actualCOC.toFixed(0)}% COC</strong> return with <strong>${actualPayback.toFixed(1)} year</strong> payback • DSCR: ${actualDSCR.toFixed(2)}x`;
+  }
+  
+  // Compare to asking price
+  if (askingPrice > 0) {
+    const diff = targetOfferPrice - askingPrice;
+    const diffPercent = (diff / askingPrice) * 100;
+    
+    document.getElementById('da-target-diff-amount').innerText = fmt(Math.abs(diff));
+    document.getElementById('da-target-diff-percent').innerText = Math.abs(diffPercent).toFixed(1) + '%';
+    
+    const comparisonDiv = document.getElementById('da-target-comparison');
+    if (diff < 0) {
+      // Target is below asking - good!
+      comparisonDiv.style.background = '#d4edda';
+      comparisonDiv.style.border = '1px solid #28a745';
+      document.getElementById('da-target-diff-amount').style.color = '#e74c3c';
+      document.getElementById('da-target-diff-amount').innerText = '-' + fmt(Math.abs(diff)) + ' (below asking)';
+    } else {
+      // Target is above asking - acceptable
+      comparisonDiv.style.background = '#fff3cd';
+      comparisonDiv.style.border = '1px solid #ffc107';
+      document.getElementById('da-target-diff-amount').style.color = '#27ae60';
+      document.getElementById('da-target-diff-amount').innerText = '+' + fmt(diff) + ' (above asking)';
+    }
+  } else {
+    document.getElementById('da-target-diff-amount').innerText = 'N/A (no asking price)';
+    document.getElementById('da-target-diff-percent').innerText = 'N/A';
+  }
+  
+  // Display financing breakdown
+  let breakdownHTML = `
+    • SBA Loan (${sbaPercent}%): ${fmt(sbaLoan)}<br>
+    • Buyer Equity (${downPercent}%): ${fmt(equity)}<br>
+  `;
+  if (sellerNoteEnabled) {
+    breakdownHTML += `• Seller Note (${sellerPercent}%): ${fmt(sellerNote)} `;
+    breakdownHTML += `[${sellerPaymentType}, ${(sellerRate * 100).toFixed(1)}%${sellerStandby === 'yes' ? ', standby' : ''}]<br>`;
+  }
+  breakdownHTML += `• Target DSCR: ${targetDSCR}x<br>`;
+  breakdownHTML += `• Target Owner Salary: ${fmt(targetSalary)}`;
+  
+  document.getElementById('da-target-financing-breakdown').innerHTML = breakdownHTML;
+  
+  // Show results section
+  document.getElementById('da-target-offer-results').style.display = 'block';
+  
+  // Store the calculated target offer price for use later
+  window.calculatedTargetOffer = targetOfferPrice;
+}
+
+// Event listener for Calculate Target Offer button
+const calculateTargetOfferBtn = document.getElementById('da-calculate-target-offer-btn');
+console.log('🎯 Target Offer Button found:', calculateTargetOfferBtn);
+if (calculateTargetOfferBtn) {
+  calculateTargetOfferBtn.addEventListener('click', () => {
+    console.log('🎯 Calculate Target Offer button clicked!');
+    calculateTargetOffer();
+  });
+  console.log('✅ Target Offer button event listener attached');
+} else {
+  console.error('❌ Target Offer button NOT found in DOM!');
+}
+
+// Event listener for Use Target Offer button
+const useTargetOfferBtn = document.getElementById('da-use-target-offer-btn');
+if (useTargetOfferBtn) {
+  useTargetOfferBtn.addEventListener('click', () => {
+    if (window.calculatedTargetOffer) {
+      // Set the actual price field to the calculated target offer
+      const actualPriceField = document.getElementById('da-actual-price');
+      actualPriceField.value = fmt(window.calculatedTargetOffer);
+      
+      // Mark as overridden so it doesn't auto-recalculate
+      overrides.actualPrice = true;
+      actualPriceField.removeAttribute('readonly');
+      
+      // Recalculate everything with this new price
+      calculate();
+      
+      // Visual feedback
+      useTargetOfferBtn.innerHTML = '✓ Applied!';
+      setTimeout(() => {
+        useTargetOfferBtn.innerHTML = '✓ Use This as Actual Price';
+      }, 2000);
+    }
+  });
+}
+
 // --- 5. SAVE SETTINGS ---
 function saveState() {
     const state = {
@@ -1388,6 +2421,7 @@ function setupCollapsible(headerId, contentId, arrowId, storageKey) {
 // Setup all collapsible sections
 setupCollapsible('da-max-header', 'da-max-content', 'da-max-arrow', 'maxCollapsed');
 setupCollapsible('da-roi-header', 'da-roi-content', 'da-roi-arrow', 'roiCollapsed');
+setupCollapsible('da-target-offer-header', 'da-target-offer-content', 'da-target-offer-arrow', 'targetOfferCollapsed');
 setupCollapsible('da-actual-header', 'da-actual-content', 'da-actual-arrow', 'actualCollapsed');
 setupCollapsible('da-sba-header', 'da-sba-section', 'da-sba-arrow', 'sbaCollapsed');
 setupCollapsible('da-buyer-equity-header', 'da-buyer-equity-section', 'da-buyer-equity-arrow', 'buyerEquityCollapsed');
@@ -1498,6 +2532,9 @@ if (settingsSave && settingsModal) {
     // Recalculate with new targets immediately
     calculate();
     
+    // Update Target Offer Calculator display
+    updateTargetOfferDisplay();
+    
     // Close modal with success feedback
     const saveBtn = document.getElementById('da-settings-save');
     if (saveBtn) {
@@ -1541,6 +2578,114 @@ function loadUserPreferences() {
       // This ensures the UI is updated with saved preferences
       calculate(); // Recalculate with loaded preferences
     }
+  });
+}
+
+// --- DEBUG/DIAGNOSTICS MODAL HANDLERS ---
+
+// Global variable to store last scrape results for diagnostics
+let lastScrapeData = {
+  platform: 'unknown',
+  askingPrice: 0,
+  ebitda: 0,
+  isSDE: false,
+  timestamp: null
+};
+
+const debugModal = document.getElementById('da-debug-modal');
+const debugBtn = document.getElementById('da-debug-btn');
+const debugClose = document.getElementById('da-debug-close');
+const debugDone = document.getElementById('da-debug-done');
+const debugRescrape = document.getElementById('da-debug-rescrape');
+const debugConsole = document.getElementById('da-debug-console');
+
+// Update debug modal with scrape data
+function updateDebugModal() {
+  const debugUrl = document.getElementById('da-debug-url');
+  const debugPlatform = document.getElementById('da-debug-platform');
+  const debugStatus = document.getElementById('da-debug-status');
+  const debugPrice = document.getElementById('da-debug-price');
+  const debugEbitda = document.getElementById('da-debug-ebitda');
+  
+  if (debugUrl) debugUrl.innerText = window.location.href;
+  if (debugPlatform) {
+    debugPlatform.innerText = lastScrapeData.platform || 'generic';
+    debugPlatform.style.color = lastScrapeData.platform !== 'generic' ? '#27ae60' : '#3498db';
+  }
+  
+  const hasData = lastScrapeData.askingPrice > 0 || lastScrapeData.ebitda > 0;
+  if (debugStatus) {
+    debugStatus.innerText = hasData ? '✅ Data Found' : '⚠️ No Data Found';
+    debugStatus.style.color = hasData ? '#27ae60' : '#e67e22';
+  }
+  
+  if (debugPrice) {
+    if (lastScrapeData.askingPrice > 0) {
+      debugPrice.innerText = '$' + formatNumber(lastScrapeData.askingPrice);
+      debugPrice.style.color = '#27ae60';
+    } else {
+      debugPrice.innerText = '❌ Not found';
+      debugPrice.style.color = '#e74c3c';
+    }
+  }
+  
+  if (debugEbitda) {
+    if (lastScrapeData.ebitda > 0) {
+      const type = lastScrapeData.isSDE ? 'SDE' : 'EBITDA';
+      debugEbitda.innerText = '$' + formatNumber(lastScrapeData.ebitda) + ' (' + type + ')';
+      debugEbitda.style.color = '#27ae60';
+    } else {
+      debugEbitda.innerText = '❌ Not found';
+      debugEbitda.style.color = '#e74c3c';
+    }
+  }
+}
+
+// Open debug modal
+if (debugBtn && debugModal) {
+  debugBtn.addEventListener('click', () => {
+    updateDebugModal();
+    debugModal.style.display = 'flex';
+  });
+}
+
+// Close debug modal
+if (debugClose && debugModal) {
+  debugClose.addEventListener('click', () => {
+    debugModal.style.display = 'none';
+  });
+}
+
+if (debugDone && debugModal) {
+  debugDone.addEventListener('click', () => {
+    debugModal.style.display = 'none';
+  });
+}
+
+// Close modal when clicking outside
+if (debugModal) {
+  debugModal.addEventListener('click', (e) => {
+    if (e.target === debugModal) {
+      debugModal.style.display = 'none';
+    }
+  });
+}
+
+// Re-scrape button
+if (debugRescrape) {
+  debugRescrape.addEventListener('click', () => {
+    console.log('🔄 Manual re-scrape triggered from diagnostics panel');
+    scrapeData();
+    setTimeout(() => {
+      updateDebugModal();
+    }, 500);
+  });
+}
+
+// Open console button (info only - can't programmatically open devtools)
+if (debugConsole) {
+  debugConsole.addEventListener('click', () => {
+    alert('Press F12 (or Cmd+Option+I on Mac) to open the browser console and view detailed scraping logs.');
   });
 }
 
@@ -2305,6 +3450,31 @@ if (shareCopyBtn) {
 
 loadUserPreferences();
 loadState();
+
+// Update Target Offer Calculator display with user's actual settings
+function updateTargetOfferDisplay() {
+  // Update salary and DSCR displays in the description
+  const salaryDisplay = document.getElementById('da-target-salary-display');
+  const dscrDisplay = document.getElementById('da-target-dscr-display');
+  
+  // Update salary display
+  if (salaryDisplay) {
+    const targetSalary = parseNumber(document.getElementById('da-target-salary')?.value) || 150000;
+    const salaryK = Math.round(targetSalary / 1000);
+    salaryDisplay.innerText = salaryK + 'k';
+  }
+  
+  // Update DSCR display
+  if (dscrDisplay) {
+    const targetDSCR = parseFloat(document.getElementById('da-dscr')?.value) || 1.25;
+    dscrDisplay.innerText = targetDSCR;
+  }
+  
+  console.log('✅ Target Offer display updated');
+}
+
+// Call after preferences are loaded
+setTimeout(updateTargetOfferDisplay, 100);
 
 // Debug: Log current preferences after 1 second to verify persistence
 setTimeout(() => {

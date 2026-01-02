@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.6.2';
+const VERSION = 'v1.7.0';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -3691,3 +3691,59 @@ if (dealOpportunityClose && dealOpportunityDiv) {
     dealOpportunityClose.style.opacity = '0.7';
   });
 }
+
+// --- AUTO-REFRESH ON URL CHANGE ---
+// Detects when user navigates to a new listing and automatically re-scrapes data
+let lastUrl = window.location.href;
+
+// Monitor URL changes (for single-page apps and navigation)
+const urlObserver = new MutationObserver(() => {
+  const currentUrl = window.location.href;
+  if (currentUrl !== lastUrl) {
+    console.log('🔄 URL changed, auto-refreshing data...');
+    console.log('   From:', lastUrl);
+    console.log('   To:', currentUrl);
+    lastUrl = currentUrl;
+    
+    // Wait a moment for the page to load new content
+    setTimeout(() => {
+      scrapeData();
+      console.log('✅ Auto-refresh complete');
+    }, 1000); // 1 second delay to let dynamic content load
+  }
+});
+
+// Start observing the document for changes
+urlObserver.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+// Also listen for popstate events (back/forward navigation)
+window.addEventListener('popstate', () => {
+  console.log('🔄 Navigation detected (back/forward), auto-refreshing data...');
+  setTimeout(() => {
+    scrapeData();
+    console.log('✅ Auto-refresh complete');
+  }, 1000);
+});
+
+// Listen for pushState/replaceState (used by single-page apps)
+const originalPushState = history.pushState;
+const originalReplaceState = history.replaceState;
+
+history.pushState = function() {
+  originalPushState.apply(this, arguments);
+  console.log('🔄 Page navigation detected (pushState), auto-refreshing data...');
+  setTimeout(() => {
+    scrapeData();
+    console.log('✅ Auto-refresh complete');
+  }, 1000);
+};
+
+history.replaceState = function() {
+  originalReplaceState.apply(this, arguments);
+  // Don't log or refresh for replaceState as it's often used for minor updates
+};
+
+console.log('✅ Auto-refresh functionality initialized');

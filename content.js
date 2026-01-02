@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.5.3';
+const VERSION = 'v1.5.4';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -101,7 +101,7 @@ const uiHTML = `
           <span id="da-buyer-equity-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
           <span>B. Buyer Equity</span>
         </div>
-        <span id="da-buyer-equity-summary" style="font-size:11px; color:#666; font-weight:400;">10% • $150k salary</span>
+        <span id="da-buyer-equity-summary" style="font-size:11px; color:#666; font-weight:400;">10% ($0) • $150k salary</span>
       </div>
       <div id="da-buyer-equity-section" style="margin-top:8px;">
         <div class="da-flex-row">
@@ -1358,8 +1358,10 @@ function updateFinancingSummaries() {
   
   // Update Buyer Equity summary with salary validation
   const downPercent = parseFloat(document.getElementById('da-down-percent').value) || 0;
+  const downPayment = parseNumber(document.getElementById('da-down').value) || 0;
   const targetSalary = parseNumber(document.getElementById('da-target-salary').value) || 0;
   const salaryFormatted = targetSalary >= 1000 ? '$' + Math.round(targetSalary / 1000) + 'k' : '$' + targetSalary;
+  const downFormatted = downPayment >= 1000 ? '$' + Math.round(downPayment / 1000) + 'k' : '$' + downPayment;
   
   // Check if salary is feasible (only if we have enough data to calculate)
   const ebitda = parseNumber(document.getElementById('da-ebitda').value) || 0;
@@ -1410,15 +1412,15 @@ function updateFinancingSummaries() {
       
       // If salary exceeds available cash flow, make it red and bold
       if (targetSalary > availableCashFlow) {
-        summaryEl.innerHTML = `${downPercent}% • <span style="color:#e74c3c; font-weight:700;">${salaryFormatted} salary ⚠️</span>`;
+        summaryEl.innerHTML = `${downPercent}% (${downFormatted}) • <span style="color:#e74c3c; font-weight:700;">${salaryFormatted} salary ⚠️</span>`;
       } else {
-        summaryEl.innerText = `${downPercent}% • ${salaryFormatted} salary`;
+        summaryEl.innerText = `${downPercent}% (${downFormatted}) • ${salaryFormatted} salary`;
       }
     } else {
-      summaryEl.innerText = `${downPercent}% • ${salaryFormatted} salary`;
+      summaryEl.innerText = `${downPercent}% (${downFormatted}) • ${salaryFormatted} salary`;
     }
   } else {
-    summaryEl.innerText = `${downPercent}% • ${salaryFormatted} salary`;
+    summaryEl.innerText = `${downPercent}% (${downFormatted}) • ${salaryFormatted} salary`;
   }
   
   // Update Seller Note summary

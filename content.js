@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.7.3';
+const VERSION = 'v1.8.0';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -22,6 +22,7 @@ const uiHTML = `
     Deal Analyzer <span style="font-size:11px; opacity:0.8; font-weight:400;">${VERSION}</span>
     <div style="display:flex; gap:8px; align-items:center;">
       <span id="da-save-deal-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Save current deal (Cmd/Ctrl+S)">💾</span>
+      <span id="da-dashboard-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Open Deals Dashboard">📊</span>
       <span id="da-coffee-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Buy me a coffee ☕ ($10)">☕</span>
       <span id="da-debug-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Scraping Diagnostics">🔍</span>
       <span id="da-settings-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Settings">⚙️</span>
@@ -581,6 +582,23 @@ if (coffeeBtn) {
       window.open('https://venmo.com/u/amco-digital', '_blank');
     }
   };
+}
+
+// Dashboard button - opens deals dashboard in new tab
+const dashboardBtn = document.getElementById('da-dashboard-btn');
+if (dashboardBtn) {
+  dashboardBtn.onclick = () => {
+    const dashboardUrl = chrome.runtime.getURL('deals-dashboard.html');
+    window.open(dashboardUrl, '_blank');
+  };
+  
+  // Add hover effect
+  dashboardBtn.addEventListener('mouseenter', () => {
+    dashboardBtn.style.opacity = '1';
+  });
+  dashboardBtn.addEventListener('mouseleave', () => {
+    dashboardBtn.style.opacity = '0.7';
+  });
 }
 
 // Listen for messages from background script to toggle window

@@ -5,6 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Deals Dashboard - Deal Analyzer</title>
     <style>
+        :root {
+            --bg-primary: #f5f7fa;
+            --bg-secondary: white;
+            --bg-tertiary: #f0f3ff;
+            --text-primary: #2c3e50;
+            --text-secondary: #95a5a6;
+            --border-color: #e0e6ed;
+            --shadow: rgba(0,0,0,0.05);
+            --shadow-hover: rgba(0,0,0,0.1);
+        }
+        
+        body.dark-mode {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #252525;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #404040;
+            --shadow: rgba(0,0,0,0.3);
+            --shadow-hover: rgba(0,0,0,0.5);
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -13,9 +35,10 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f7fa;
-            color: #2c3e50;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             padding: 20px;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         .header {
@@ -25,6 +48,7 @@
             border-radius: 12px;
             margin-bottom: 24px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            position: relative;
         }
 
         .header h1 {
@@ -40,12 +64,23 @@
             font-size: 14px;
         }
 
+        .header-version {
+            position: absolute;
+            bottom: 12px;
+            right: 24px;
+            font-size: 11px;
+            opacity: 0.7;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
         .controls {
-            background: white;
+            background: var(--bg-secondary);
             padding: 20px;
             border-radius: 12px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         .controls-row {
@@ -64,10 +99,12 @@
         .search-box input {
             width: 100%;
             padding: 10px 12px 10px 40px;
-            border: 2px solid #e0e6ed;
+            border: 2px solid var(--border-color);
             border-radius: 8px;
             font-size: 14px;
             transition: all 0.2s;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
         }
 
         .search-box input:focus {
@@ -81,7 +118,7 @@
             left: 12px;
             top: 50%;
             transform: translateY(-50%);
-            color: #95a5a6;
+            color: var(--text-secondary);
             font-size: 18px;
         }
 
@@ -93,10 +130,11 @@
 
         select, button {
             padding: 10px 16px;
-            border: 2px solid #e0e6ed;
+            border: 2px solid var(--border-color);
             border-radius: 8px;
             font-size: 14px;
-            background: white;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             cursor: pointer;
             transition: all 0.2s;
             font-family: inherit;
@@ -148,7 +186,7 @@
 
         .bulk-actions {
             display: none;
-            background: #fff3cd;
+            background: var(--bg-tertiary);
             border: 2px solid #ffc107;
             padding: 12px 16px;
             border-radius: 8px;
@@ -164,7 +202,7 @@
         .bulk-actions-text {
             flex: 1;
             font-size: 14px;
-            color: #856404;
+            color: var(--text-primary);
             font-weight: 600;
         }
 
@@ -176,11 +214,12 @@
         }
 
         .stat-card {
-            background: white;
+            background: var(--bg-secondary);
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px var(--shadow);
             border-left: 4px solid #667eea;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         .stat-card.hot { border-left-color: #e74c3c; }
@@ -189,7 +228,7 @@
 
         .stat-label {
             font-size: 12px;
-            color: #95a5a6;
+            color: var(--text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 8px;
@@ -198,14 +237,15 @@
         .stat-value {
             font-size: 32px;
             font-weight: 700;
-            color: #2c3e50;
+            color: var(--text-primary);
         }
 
         .deals-container {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 8px var(--shadow);
             overflow: hidden;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         .deals-table {
@@ -214,8 +254,8 @@
         }
 
         .deals-table thead {
-            background: #f8f9fa;
-            border-bottom: 2px solid #e0e6ed;
+            background: var(--bg-tertiary);
+            border-bottom: 2px solid var(--border-color);
         }
 
         .deals-table th {
@@ -223,7 +263,7 @@
             text-align: left;
             font-size: 12px;
             font-weight: 700;
-            color: #95a5a6;
+            color: var(--text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             cursor: pointer;
@@ -231,7 +271,7 @@
         }
 
         .deals-table th:hover {
-            background: #e9ecef;
+            background: var(--bg-secondary);
         }
 
         .deals-table th.sortable::after {
@@ -252,16 +292,17 @@
         }
 
         .deals-table tbody tr {
-            border-bottom: 1px solid #f0f3f5;
+            border-bottom: 1px solid var(--border-color);
             transition: all 0.2s;
         }
 
         .deals-table tbody tr:hover {
-            background: #f8f9fa;
+            background: var(--bg-tertiary);
         }
 
         .deals-table tbody tr.selected {
-            background: #e8f0fe;
+            background: var(--bg-tertiary);
+            border-left: 3px solid #667eea;
         }
 
         .deals-table td {
@@ -271,7 +312,7 @@
 
         .deal-name {
             font-weight: 600;
-            color: #2c3e50;
+            color: var(--text-primary);
             display: flex;
             flex-direction: column;
             gap: 4px;
@@ -279,7 +320,7 @@
 
         .deal-url {
             font-size: 11px;
-            color: #95a5a6;
+            color: var(--text-secondary);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -287,7 +328,7 @@
         }
 
         .deal-date {
-            color: #95a5a6;
+            color: var(--text-secondary);
             font-size: 13px;
         }
 
@@ -317,13 +358,30 @@
         }
 
         .status-badge.pass {
-            background: #f0f0f0;
-            color: #95a5a6;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
         }
 
         .status-badge.none {
-            background: #f8f9fa;
-            color: #95a5a6;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        /* Dark mode adjustments for status badges */
+        body.dark-mode .status-badge.hot {
+            background: rgba(231, 76, 60, 0.2);
+        }
+
+        body.dark-mode .status-badge.warm {
+            background: rgba(243, 156, 18, 0.2);
+        }
+
+        body.dark-mode .status-badge.cold {
+            background: rgba(52, 152, 219, 0.2);
+        }
+
+        body.dark-mode .status-badge.pass {
+            background: rgba(149, 165, 166, 0.2);
         }
 
         .quality-score {
@@ -350,16 +408,17 @@
 
         .action-btn {
             padding: 6px 12px;
-            border: 1px solid #e0e6ed;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
             font-size: 12px;
-            background: white;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             cursor: pointer;
             transition: all 0.2s;
         }
 
         .action-btn:hover {
-            background: #f8f9fa;
+            background: var(--bg-tertiary);
             border-color: #667eea;
             color: #667eea;
         }
@@ -367,7 +426,7 @@
         .empty-state {
             text-align: center;
             padding: 60px 20px;
-            color: #95a5a6;
+            color: var(--text-secondary);
         }
 
         .empty-state-icon {
@@ -379,11 +438,12 @@
         .empty-state h3 {
             font-size: 20px;
             margin-bottom: 8px;
-            color: #2c3e50;
+            color: var(--text-primary);
         }
 
         .empty-state p {
             font-size: 14px;
+            color: var(--text-secondary);
         }
 
         .checkbox {
@@ -395,11 +455,11 @@
         .loading {
             text-align: center;
             padding: 40px;
-            color: #95a5a6;
+            color: var(--text-secondary);
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
+            border: 3px solid var(--bg-tertiary);
             border-top: 3px solid #667eea;
             border-radius: 50%;
             width: 40px;
@@ -416,11 +476,801 @@
         /* Status dropdown in table */
         .status-select {
             padding: 4px 8px;
-            border: 1px solid #e0e6ed;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
             font-size: 11px;
-            background: white;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             cursor: pointer;
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .toast {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid #667eea;
+            border-radius: 8px;
+            padding: 12px 16px;
+            box-shadow: 0 4px 12px var(--shadow);
+            min-width: 300px;
+            max-width: 400px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+            transition: all 0.3s ease;
+        }
+
+        .toast.success {
+            border-left-color: #27ae60;
+        }
+
+        .toast.error {
+            border-left-color: #e74c3c;
+        }
+
+        .toast.warning {
+            border-left-color: #f39c12;
+        }
+
+        .toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .toast-content {
+            flex: 1;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .toast-close:hover {
+            color: var(--text-primary);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .toast.hiding {
+            animation: slideOut 0.3s ease-in forwards;
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+
+        /* Loading button state */
+        button.loading {
+            position: relative;
+            color: transparent;
+            pointer-events: none;
+        }
+
+        button.loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        /* Modal styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+            transition: max-width 0.3s ease, width 0.3s ease;
+        }
+
+        .modal-content.wide {
+            max-width: 1400px;
+            width: 95%;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            font-size: 28px;
+            cursor: pointer;
+            line-height: 1;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .modal-close:hover {
+            opacity: 1;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .modal-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .modal-field {
+            background: var(--bg-tertiary);
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+
+        .modal-field label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .modal-field div {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .modal-url {
+            display: block;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            color: #667eea;
+            text-decoration: none;
+            word-break: break-all;
+            transition: background 0.2s;
+        }
+
+        .modal-url:hover {
+            background: var(--bg-primary);
+        }
+
+        .modal-notes {
+            width: 100%;
+            min-height: 120px;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            resize: vertical;
+            transition: border-color 0.2s;
+        }
+
+        .modal-notes:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #667eea;
+            color: white;
+            margin-top: 12px;
+        }
+
+        .modal-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .modal-btn.secondary {
+            background: #95a5a6;
+        }
+
+        .modal-btn.secondary:hover {
+            background: #7f8c8d;
+            box-shadow: 0 4px 12px rgba(149, 165, 166, 0.3);
+        }
+
+        .modal-btn.danger {
+            background: #e74c3c;
+        }
+
+        .modal-btn.danger:hover {
+            background: #c0392b;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 2px solid var(--border-color);
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        /* Make deal names clickable */
+        .deal-name > div:first-child {
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .deal-name > div:first-child:hover {
+            color: #667eea;
+            text-decoration: underline;
+        }
+
+        /* Calculator styles */
+        .section-header-with-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .scenario-controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .scenario-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .scenario-tab {
+            padding: 6px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .scenario-tab:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .scenario-tab.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .compare-btn {
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            background: transparent;
+            color: #667eea;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .compare-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .compare-btn.secondary {
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .compare-btn.secondary:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--text-primary);
+        }
+
+        .calculator-section {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-group label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .calc-input {
+            padding: 8px 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: border-color 0.2s;
+        }
+
+        .calc-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .percentage-warning {
+            padding: 8px 12px;
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid #e74c3c;
+            border-radius: 6px;
+            color: #e74c3c;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .calc-results {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 2px solid var(--border-color);
+        }
+
+        .calc-results h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        /* Comparison view styles - Card Layout */
+        .comparison-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .comparison-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .comparison-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .scenario-card {
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s;
+            min-width: 0;
+        }
+
+        .scenario-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+        }
+
+        .scenario-card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .scenario-card-header h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .best-badge {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .scenario-section {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .scenario-section:last-child {
+            border-bottom: none;
+        }
+
+        .scenario-section.results {
+            background: var(--bg-secondary);
+        }
+
+        .section-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .scenario-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .scenario-row:last-child {
+            border-bottom: none;
+        }
+
+        .scenario-row.highlight {
+            background: rgba(102, 126, 234, 0.05);
+            padding: 8px 6px;
+            margin: 3px -6px;
+            border-radius: 6px;
+            border-bottom: none;
+        }
+
+        .scenario-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .scenario-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .scenario-value.metric {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .scenario-row.highlight .scenario-value {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .scenario-card.best-overall {
+            border: 3px solid #27ae60;
+            box-shadow: 0 4px 20px rgba(39, 174, 96, 0.3);
+        }
+
+        .scenario-card.best-overall .scenario-card-header {
+            background: linear-gradient(135deg, #27ae60 0%, #219653 100%);
+        }
+
+        .comparison-summary {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+        }
+
+        .comparison-summary h4 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+
+        .comparison-summary p {
+            margin: 5px 0;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .comparison-summary strong {
+            color: #667eea;
+        }
+
+        /* Progress Tracking Styles */
+        .progress-tracking {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+        }
+
+        .progress-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        .progress-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: var(--bg-tertiary);
+            border-left: 3px solid #667eea;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .progress-item:hover {
+            background: var(--bg-secondary);
+            transform: translateX(2px);
+        }
+
+        .progress-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .progress-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .progress-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .progress-status {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .progress-date {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .progress-delete {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            opacity: 0.6;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .progress-delete:hover {
+            opacity: 1;
+            color: #e74c3c;
+        }
+
+        /* Scrollbar styling */
+        .progress-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .progress-list::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+        }
+
+        .progress-list::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        .progress-list::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        /* Share Modal Styles */
+        .share-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .share-option-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 20px;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .share-option-btn:hover {
+            background: var(--bg-secondary);
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .share-icon {
+            font-size: 32px;
+        }
+
+        .share-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .share-preview {
+            margin-top: 20px;
+        }
+
+        /* SMS Phone Section */
+        .sms-phone-section {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+            margin-bottom: 16px;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
     </style>
 </head>
@@ -428,6 +1278,7 @@
     <div class="header">
         <h1>📊 Deals Dashboard</h1>
         <p>Manage and track all your saved business deals</p>
+        <span class="header-version" id="header-version">v1.9.20</span>
     </div>
 
     <div class="stats" id="stats">
@@ -473,8 +1324,12 @@
                     <option value="name-desc">Name (Z-A)</option>
                     <option value="price-desc">Highest Price</option>
                     <option value="price-asc">Lowest Price</option>
+                    <option value="ebitda-desc">Highest EBITDA</option>
+                    <option value="ebitda-asc">Lowest EBITDA</option>
                     <option value="score-desc">Best Quality</option>
                     <option value="score-asc">Worst Quality</option>
+                    <option value="coc-desc">Highest COC Return</option>
+                    <option value="coc-asc">Lowest COC Return</option>
                 </select>
 
                 <button id="export-btn" class="secondary">📤 Export</button>
@@ -487,6 +1342,570 @@
             <button id="bulk-export" class="secondary">📤 Export Selected</button>
             <button id="bulk-delete" class="danger">🗑️ Delete Selected</button>
             <button id="bulk-deselect" class="secondary">✕ Deselect All</button>
+        </div>
+    </div>
+
+    <!-- Toast notification container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Deal Details Modal -->
+    <div id="deal-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-deal-name">Deal Details</h2>
+                <span class="modal-close" id="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section">
+                    <h3>📊 Overview</h3>
+                    <div class="modal-grid">
+                        <div class="modal-field">
+                            <label>Status</label>
+                            <div id="modal-status">-</div>
+                        </div>
+                        <div class="modal-field">
+                            <label>Saved Date</label>
+                            <div id="modal-saved-date">-</div>
+                        </div>
+                        <div class="modal-field">
+                            <label>Asking Price</label>
+                            <div id="modal-asking-price">-</div>
+                        </div>
+                        <div class="modal-field">
+                            <label>EBITDA</label>
+                            <div id="modal-ebitda">-</div>
+                        </div>
+                        <div class="modal-field">
+                            <label>Quality Score</label>
+                            <div id="modal-quality">-</div>
+                        </div>
+                        <div class="modal-field">
+                            <label>COC Return</label>
+                            <div id="modal-coc">-</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <h3>🔗 URL</h3>
+                    <a id="modal-url" href="#" target="_blank" class="modal-url">-</a>
+                </div>
+                
+                <div class="modal-section">
+                    <h3>💰 Financial Details</h3>
+                    <div class="modal-grid">
+                        <div class="modal-field">
+                            <label>Max Price</label>
+                            <div id="modal-max-price">-</div>
+                        </div>
+                        <div class="modal-field">
+                            <label>Total Debt</label>
+                            <div id="modal-total-debt">-</div>
+                        </div>
+                        <div class="modal-field">
+                            <label>FCF Annual</label>
+                            <div id="modal-fcf">-</div>
+                        </div>
+                        <div class="modal-field">
+                            <label>Owner Take-Home</label>
+                            <div id="modal-takehome">-</div>
+                        </div>
+                        <div class="modal-field">
+                            <label>Payback Period</label>
+                            <div id="modal-payback">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <div class="section-header-with-actions">
+                        <h3>🎯 Deal Structure Calculator</h3>
+                        <div class="scenario-controls">
+                            <div class="scenario-tabs">
+                                <button class="scenario-tab active" data-scenario="0">Scenario 1</button>
+                                <button class="scenario-tab" data-scenario="1">Scenario 2</button>
+                                <button class="scenario-tab" data-scenario="2">Scenario 3</button>
+                            </div>
+                            <button id="compare-scenarios-btn" class="compare-btn">📊 Compare All</button>
+                        </div>
+                    </div>
+                    
+                    <div class="calculator-section">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label for="calc-purchase-price">Purchase Price</label>
+                                <input type="text" id="calc-purchase-price" class="calc-input" placeholder="$3,000,000">
+                            </div>
+                            <div class="input-group">
+                                <label for="calc-ebitda">EBITDA/SDE</label>
+                                <input type="text" id="calc-ebitda" class="calc-input" placeholder="$400,000">
+                            </div>
+                        </div>
+
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label for="calc-sba-pct">SBA Loan %</label>
+                                <input type="number" id="calc-sba-pct" class="calc-input" min="0" max="100" value="75">
+                            </div>
+                            <div class="input-group">
+                                <label for="calc-buyer-equity-pct">Buyer Equity %</label>
+                                <input type="number" id="calc-buyer-equity-pct" class="calc-input" min="0" max="100" value="15">
+                            </div>
+                            <div class="input-group">
+                                <label for="calc-seller-note-pct">Seller Note %</label>
+                                <input type="number" id="calc-seller-note-pct" class="calc-input" min="0" max="100" value="10">
+                            </div>
+                        </div>
+
+                        <div class="percentage-warning" id="percentage-warning" style="display: none;">
+                            ⚠️ Percentages must total 100%
+                        </div>
+
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label for="calc-sba-rate">SBA Rate %</label>
+                                <input type="number" id="calc-sba-rate" class="calc-input" step="0.1" value="11.5">
+                            </div>
+                            <div class="input-group">
+                                <label for="calc-sba-term">SBA Term (yrs)</label>
+                                <input type="number" id="calc-sba-term" class="calc-input" value="10">
+                            </div>
+                            <div class="input-group">
+                                <label for="calc-seller-rate">Seller Note Rate %</label>
+                                <input type="number" id="calc-seller-rate" class="calc-input" step="0.1" value="6.0">
+                            </div>
+                            <div class="input-group">
+                                <label for="calc-seller-term">Seller Term (yrs)</label>
+                                <input type="number" id="calc-seller-term" class="calc-input" value="5">
+                            </div>
+                        </div>
+
+                        <button id="calc-recalculate-btn" class="modal-btn">🔄 Recalculate</button>
+
+                        <div class="calc-results">
+                            <h4>📊 Results</h4>
+                            <div class="modal-grid">
+                                <div class="modal-field">
+                                    <label>SBA Loan Amount</label>
+                                    <div id="calc-sba-amount">-</div>
+                                </div>
+                                <div class="modal-field">
+                                    <label>Buyer Equity</label>
+                                    <div id="calc-buyer-equity">-</div>
+                                </div>
+                                <div class="modal-field">
+                                    <label>Seller Note</label>
+                                    <div id="calc-seller-note">-</div>
+                                </div>
+                                <div class="modal-field">
+                                    <label>Total Debt Service</label>
+                                    <div id="calc-total-debt-service">-</div>
+                                </div>
+                                <div class="modal-field">
+                                    <label>Annual Cash Flow</label>
+                                    <div id="calc-annual-cashflow">-</div>
+                                </div>
+                                <div class="modal-field">
+                                    <label>COC Return</label>
+                                    <div id="calc-coc-return">-</div>
+                                </div>
+                                <div class="modal-field">
+                                    <label>DSCR</label>
+                                    <div id="calc-dscr">-</div>
+                                </div>
+                                <div class="modal-field">
+                                    <label>Payback Period</label>
+                                    <div id="calc-payback">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scenario Comparison View -->
+                <div id="scenario-comparison" class="modal-section" style="display: none;">
+                    <div class="comparison-header">
+                        <h3>📊 Scenario Comparison</h3>
+                        <button id="close-comparison-btn" class="compare-btn secondary">← Back to Calculator</button>
+                    </div>
+                    
+                    <div class="comparison-container">
+                        <!-- Scenario 1 -->
+                        <div class="scenario-card" id="scenario-card-1">
+                            <div class="scenario-card-header">
+                                <h4>Scenario 1</h4>
+                                <span class="best-badge" style="display: none;">🏆 Best</span>
+                            </div>
+                            
+                            <div class="scenario-section">
+                                <div class="section-title">Deal Structure</div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Purchase Price</span>
+                                    <span class="scenario-value" data-field="purchasePrice">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">EBITDA/SDE</span>
+                                    <span class="scenario-value" data-field="ebitda">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">SBA Loan</span>
+                                    <span class="scenario-value" data-field="sbaPct">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Buyer Equity</span>
+                                    <span class="scenario-value" data-field="buyerEquityPct">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Seller Note</span>
+                                    <span class="scenario-value" data-field="sellerNotePct">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">SBA Rate</span>
+                                    <span class="scenario-value" data-field="sbaRate">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Seller Rate</span>
+                                    <span class="scenario-value" data-field="sellerRate">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="scenario-section results">
+                                <div class="section-title">💰 Financial Breakdown</div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">SBA Loan Amount</span>
+                                    <span class="scenario-value" data-field="sbaAmount">-</span>
+                                </div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">Buyer Equity</span>
+                                    <span class="scenario-value" data-field="buyerEquity">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Seller Note</span>
+                                    <span class="scenario-value" data-field="sellerNote">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Total Debt Service</span>
+                                    <span class="scenario-value" data-field="totalDebtService">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="scenario-section results">
+                                <div class="section-title">📊 Key Metrics</div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">Annual Cash Flow</span>
+                                    <span class="scenario-value metric" data-field="annualCashFlow">-</span>
+                                </div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">COC Return</span>
+                                    <span class="scenario-value metric" data-field="cocReturn">-</span>
+                                </div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">DSCR</span>
+                                    <span class="scenario-value metric" data-field="dscr">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Payback Period</span>
+                                    <span class="scenario-value" data-field="payback">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Scenario 2 -->
+                        <div class="scenario-card" id="scenario-card-2">
+                            <div class="scenario-card-header">
+                                <h4>Scenario 2</h4>
+                                <span class="best-badge" style="display: none;">🏆 Best</span>
+                            </div>
+                            
+                            <div class="scenario-section">
+                                <div class="section-title">Deal Structure</div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Purchase Price</span>
+                                    <span class="scenario-value" data-field="purchasePrice">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">EBITDA/SDE</span>
+                                    <span class="scenario-value" data-field="ebitda">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">SBA Loan</span>
+                                    <span class="scenario-value" data-field="sbaPct">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Buyer Equity</span>
+                                    <span class="scenario-value" data-field="buyerEquityPct">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Seller Note</span>
+                                    <span class="scenario-value" data-field="sellerNotePct">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">SBA Rate</span>
+                                    <span class="scenario-value" data-field="sbaRate">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Seller Rate</span>
+                                    <span class="scenario-value" data-field="sellerRate">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="scenario-section results">
+                                <div class="section-title">💰 Financial Breakdown</div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">SBA Loan Amount</span>
+                                    <span class="scenario-value" data-field="sbaAmount">-</span>
+                                </div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">Buyer Equity</span>
+                                    <span class="scenario-value" data-field="buyerEquity">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Seller Note</span>
+                                    <span class="scenario-value" data-field="sellerNote">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Total Debt Service</span>
+                                    <span class="scenario-value" data-field="totalDebtService">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="scenario-section results">
+                                <div class="section-title">📊 Key Metrics</div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">Annual Cash Flow</span>
+                                    <span class="scenario-value metric" data-field="annualCashFlow">-</span>
+                                </div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">COC Return</span>
+                                    <span class="scenario-value metric" data-field="cocReturn">-</span>
+                                </div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">DSCR</span>
+                                    <span class="scenario-value metric" data-field="dscr">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Payback Period</span>
+                                    <span class="scenario-value" data-field="payback">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Scenario 3 -->
+                        <div class="scenario-card" id="scenario-card-3">
+                            <div class="scenario-card-header">
+                                <h4>Scenario 3</h4>
+                                <span class="best-badge" style="display: none;">🏆 Best</span>
+                            </div>
+                            
+                            <div class="scenario-section">
+                                <div class="section-title">Deal Structure</div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Purchase Price</span>
+                                    <span class="scenario-value" data-field="purchasePrice">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">EBITDA/SDE</span>
+                                    <span class="scenario-value" data-field="ebitda">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">SBA Loan</span>
+                                    <span class="scenario-value" data-field="sbaPct">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Buyer Equity</span>
+                                    <span class="scenario-value" data-field="buyerEquityPct">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Seller Note</span>
+                                    <span class="scenario-value" data-field="sellerNotePct">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">SBA Rate</span>
+                                    <span class="scenario-value" data-field="sbaRate">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Seller Rate</span>
+                                    <span class="scenario-value" data-field="sellerRate">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="scenario-section results">
+                                <div class="section-title">💰 Financial Breakdown</div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">SBA Loan Amount</span>
+                                    <span class="scenario-value" data-field="sbaAmount">-</span>
+                                </div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">Buyer Equity</span>
+                                    <span class="scenario-value" data-field="buyerEquity">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Seller Note</span>
+                                    <span class="scenario-value" data-field="sellerNote">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Total Debt Service</span>
+                                    <span class="scenario-value" data-field="totalDebtService">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="scenario-section results">
+                                <div class="section-title">📊 Key Metrics</div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">Annual Cash Flow</span>
+                                    <span class="scenario-value metric" data-field="annualCashFlow">-</span>
+                                </div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">COC Return</span>
+                                    <span class="scenario-value metric" data-field="cocReturn">-</span>
+                                </div>
+                                <div class="scenario-row highlight">
+                                    <span class="scenario-label">DSCR</span>
+                                    <span class="scenario-value metric" data-field="dscr">-</span>
+                                </div>
+                                <div class="scenario-row">
+                                    <span class="scenario-label">Payback Period</span>
+                                    <span class="scenario-value" data-field="payback">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="comparison-summary">
+                        <h4>🏆 Best Scenario</h4>
+                        <div id="best-scenario-summary">
+                            <p>Calculate scenarios to see recommendations</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <h3>👔 Broker Information</h3>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label for="broker-name">Broker Name</label>
+                            <input type="text" id="broker-name" class="calc-input" placeholder="John Smith">
+                        </div>
+                        <div class="input-group">
+                            <label for="broker-company">Company</label>
+                            <input type="text" id="broker-company" class="calc-input" placeholder="ABC Brokers Inc.">
+                        </div>
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label for="broker-phone">Phone Number</label>
+                            <input type="tel" id="broker-phone" class="calc-input" placeholder="(555) 123-4567">
+                        </div>
+                        <div class="input-group">
+                            <label for="broker-email">Email</label>
+                            <input type="email" id="broker-email" class="calc-input" placeholder="broker@example.com">
+                        </div>
+                    </div>
+                    <button id="modal-save-broker" class="modal-btn">💾 Save Broker Info</button>
+                </div>
+
+                <div class="modal-section">
+                    <h3>📋 Deal Progress Tracking</h3>
+                    <div class="progress-tracking">
+                        <div class="input-group" style="margin-bottom: 12px;">
+                            <label for="deal-progress-status">Current Progress Status</label>
+                            <select id="deal-progress-status" class="calc-input">
+                                <option value="">Select Progress Status</option>
+                                <option value="Requested NDA">Requested NDA</option>
+                                <option value="Signed NDA">Signed NDA</option>
+                                <option value="Deal Room Access">Deal Room Access</option>
+                                <option value="Underwriting Began">Underwriting Began</option>
+                                <option value="Underwriting Complete">Underwriting Complete</option>
+                                <option value="Bank Pre-Approval">Bank Pre-Approval</option>
+                                <option value="IOI Sent">IOI Sent</option>
+                                <option value="IOI Accepted">IOI Accepted</option>
+                                <option value="IOI Declined">IOI Declined</option>
+                                <option value="LOI Sent">LOI Sent</option>
+                                <option value="LOI Accepted">LOI Accepted</option>
+                                <option value="LOI Declined">LOI Declined</option>
+                                <option value="Awaiting Seller Response">Awaiting Seller Response</option>
+                            </select>
+                        </div>
+                        
+                        <div class="progress-history" id="progress-history">
+                            <div class="section-title" style="margin-bottom: 8px;">Progress History</div>
+                            <div id="progress-history-list" class="progress-list">
+                                <p style="color: var(--text-secondary); font-size: 12px; text-align: center; padding: 20px;">No progress updates yet</p>
+                            </div>
+                        </div>
+                        
+                        <div class="input-group" style="margin-top: 12px;">
+                            <label for="custom-progress-status">Add Custom Status</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="custom-progress-status" class="calc-input" placeholder="Enter custom status...">
+                                <button id="add-custom-status-btn" class="modal-btn" style="width: auto; padding: 8px 16px; margin: 0;">+ Add</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h3>📝 Notes</h3>
+                    <textarea id="modal-notes" class="modal-notes" placeholder="Add notes about this deal..."></textarea>
+                    <button id="modal-save-notes" class="modal-btn">💾 Save Notes</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-share-btn" class="modal-btn secondary">📤 Share</button>
+                <button id="modal-export-btn" class="modal-btn secondary">📊 Export CSV</button>
+                <button id="modal-delete-btn" class="modal-btn danger">🗑️ Delete</button>
+                <button id="modal-close-btn" class="modal-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Modal -->
+    <div id="share-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>📤 Share Deal</h2>
+                <span class="modal-close" id="share-modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="share-options">
+                    <button class="share-option-btn" id="share-email">
+                        <span class="share-icon">📧</span>
+                        <span class="share-label">Email</span>
+                    </button>
+                    <button class="share-option-btn" id="share-sms">
+                        <span class="share-icon">💬</span>
+                        <span class="share-label">SMS/Text</span>
+                    </button>
+                    <button class="share-option-btn" id="share-copy">
+                        <span class="share-icon">📋</span>
+                        <span class="share-label">Copy Link</span>
+                    </button>
+                    <button class="share-option-btn" id="share-native">
+                        <span class="share-icon">📲</span>
+                        <span class="share-label">Share (AirDrop)</span>
+                    </button>
+                </div>
+                
+                <!-- SMS Phone Number Input (hidden by default) -->
+                <div class="sms-phone-section" id="sms-phone-section" style="display: none;">
+                    <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Phone Number</label>
+                    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+                        <input 
+                            type="tel" 
+                            id="sms-phone-number" 
+                            class="calc-input" 
+                            placeholder="555-123-4567" 
+                            style="flex: 1;"
+                        >
+                        <button id="sms-send-btn" class="modal-btn" style="width: auto; padding: 8px 16px; margin: 0;">Send</button>
+                    </div>
+                </div>
+                
+                <div class="share-preview" id="share-preview">
+                    <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: block;">Preview</label>
+                    <div id="share-preview-text" style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px; font-size: 12px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;"></div>
+                </div>
+            </div>
         </div>
     </div>
 

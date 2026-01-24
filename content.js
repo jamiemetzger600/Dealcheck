@@ -1,5 +1,5 @@
 // --- VERSION ---
-const VERSION = 'v1.8.0';
+const VERSION = 'v1.9.21';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {
@@ -31,15 +31,15 @@ const uiHTML = `
   </div>
 
   <!-- Deal Quality Score Banner -->
-  <div id="da-quality-banner" style="background:#f8f9fa; border-bottom:2px solid #ddd; padding:8px 15px; display:flex; justify-content:space-between; align-items:center;">
+  <div id="da-quality-banner" style="background:var(--bg-secondary); border-bottom:2px solid var(--border-light); padding:8px 15px; display:flex; justify-content:space-between; align-items:center;">
     <div style="display:flex; align-items:center; gap:10px;">
       <div id="da-quality-badge" style="font-size:20px;">📊</div>
       <div>
-        <div style="font-size:11px; color:#666; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Deal Quality</div>
-        <div id="da-quality-text" style="font-size:14px; font-weight:700; color:#333;">Analyzing...</div>
+        <div style="font-size:11px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Deal Quality</div>
+        <div id="da-quality-text" style="font-size:14px; font-weight:700; color:var(--text-primary);">Analyzing...</div>
       </div>
     </div>
-    <div id="da-quality-score" style="font-size:28px; font-weight:700; color:#666;">--</div>
+    <div id="da-quality-score" style="font-size:28px; font-weight:700; color:var(--text-secondary);">--</div>
   </div>
 
   <div class="da-section">
@@ -57,16 +57,16 @@ const uiHTML = `
   </div>
 
   <div class="da-section">
-    <div class="da-label" style="font-weight:700; color:#333; margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:5px;">Financing Inputs</div>
-    <div id="da-percent-error" class="da-warning" style="background:#fee; border-left-color:#e74c3c; display:none;">⚠️ Total percentages must equal 100%</div>
+    <div class="da-label" style="font-weight:700; color:var(--text-primary); margin-bottom:10px; border-bottom:1px solid var(--border-light); padding-bottom:5px;">Financing Inputs</div>
+    <div id="da-percent-error" class="da-warning" style="display:none;">⚠️ Total percentages must equal 100%</div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-sba-header">
+      <div class="da-label" style="font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-sba-header">
         <div style="display:flex; align-items:center; gap:8px;">
           <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
           <span>A. SBA</span>
         </div>
-        <span id="da-sba-summary" style="font-size:11px; color:#666; font-weight:400;">80% • 11.5% • 10yr • 1.25x DSCR</span>
+        <span id="da-sba-summary" style="font-size:11px; color:var(--text-secondary); font-weight:400;">80% • 11.5% • 10yr • 1.25x DSCR</span>
       </div>
       <div id="da-sba-section" style="margin-top:8px;">
         <div class="da-flex-row">
@@ -97,12 +97,12 @@ const uiHTML = `
     </div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-buyer-equity-header">
+      <div class="da-label" style="font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-buyer-equity-header">
         <div style="display:flex; align-items:center; gap:8px;">
           <span id="da-buyer-equity-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
           <span>B. Buyer Equity</span>
         </div>
-        <span id="da-buyer-equity-summary" style="font-size:11px; color:#666; font-weight:400;">10% ($0) • $150k salary</span>
+        <span id="da-buyer-equity-summary" style="font-size:11px; color:var(--text-secondary); font-weight:400;">10% ($0) • $150k salary</span>
       </div>
       <div id="da-buyer-equity-section" style="margin-top:8px;">
         <div class="da-flex-row">
@@ -116,23 +116,23 @@ const uiHTML = `
           </div>
         </div>
         <div class="da-row">
-          <label class="da-label">Target Owner Salary (Annual) <span style="font-weight:400; color:#999; font-size:11px;">(Required for SBA)</span></label>
+          <label class="da-label">Target Owner Salary (Annual) <span style="font-weight:400; color:var(--text-tertiary); font-size:11px;">(Required for SBA)</span></label>
           <input type="text" id="da-target-salary" class="da-input" placeholder="150000" value="150000">
-          <div id="da-salary-warning" class="da-warning" style="background:#fee; border-left:3px solid #e74c3c; padding:6px 8px; margin-top:4px;">⚠️ Warning: Target salary exceeds available cash flow!</div>
+          <div id="da-salary-warning" class="da-warning" style="display:none; padding:6px 8px; margin-top:4px;">⚠️ Warning: Target salary exceeds available cash flow!</div>
         </div>
       </div>
     </div>
 
     <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between;">
+      <div class="da-label" style="font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between;">
         <div style="display:flex; align-items:center; gap:8px;">
           <input type="checkbox" id="da-seller-note-enabled" style="width:auto; cursor:pointer;">
           <span id="da-seller-note-arrow" style="transition:transform 0.2s; display:inline-block; cursor:pointer; user-select:none;">▼</span>
           <label for="da-seller-note-enabled" style="cursor:pointer;">
-            <span>C. Seller Note <span style="font-weight:400; color:#999;">(Optional)</span></span>
+            <span>C. Seller Note <span style="font-weight:400; color:var(--text-tertiary);">(Optional)</span></span>
           </label>
         </div>
-        <span id="da-seller-note-summary" style="font-size:11px; color:#666; font-weight:400;">10% • 6.0% • Amortizing</span>
+        <span id="da-seller-note-summary" style="font-size:11px; color:var(--text-secondary); font-weight:400;">10% • 6.0% • Amortizing</span>
       </div>
       <div id="da-seller-note-section" style="display:none; margin-top:8px;">
         <div class="da-row">
@@ -140,7 +140,7 @@ const uiHTML = `
           <input type="number" id="da-seller-percent" class="da-input" value="10" step="0.1" min="0" max="100">
         </div>
         <div class="da-row">
-          <label class="da-label">Amount ($) <span style="font-weight:400; color:#999; font-size:11px;">(Auto-calculated, override to edit)</span></label>
+          <label class="da-label">Amount ($) <span style="font-weight:400; color:var(--text-tertiary); font-size:11px;">(Auto-calculated, override to edit)</span></label>
           <input type="text" id="da-seller-amt" class="da-input" value="" placeholder="0" readonly>
         </div>
         <div class="da-flex-row">
@@ -167,16 +167,16 @@ const uiHTML = `
     </div>
   </div>
 
-  <div class="da-section" style="background:#f4f6f9; flex-grow:1;">
-    <div id="da-deal-opportunity" class="da-warning" style="background:#d4edda; border-left-color:#28a745; color:#155724; display:none; margin-bottom:12px; position:relative; padding-right:30px;">
+  <div class="da-section" style="background:var(--bg-tertiary); flex-grow:1;">
+    <div id="da-deal-opportunity" class="da-warning" style="display:none; margin-bottom:12px; position:relative; padding-right:30px;">
       <span id="da-deal-opportunity-close" style="position:absolute; top:8px; right:8px; cursor:pointer; font-size:16px; opacity:0.7; line-height:1; transition:opacity 0.2s;" title="Dismiss">✕</span>
       💰 <strong>DEAL OPPORTUNITY!</strong><br>
       <span id="da-deal-savings"></span>
     </div>
     
     <!-- MAX SCENARIO -->
-    <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #ddd;">
-      <div id="da-max-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+    <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-light);">
+      <div id="da-max-header" style="font-size:10px; font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
         <span id="da-max-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
         <span>Maximum Allowable (DSCR-Based)</span>
       </div>
@@ -193,8 +193,8 @@ const uiHTML = `
     </div>
     
     <!-- ROI METRICS -->
-    <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #ddd;">
-      <div id="da-roi-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+    <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-light);">
+      <div id="da-roi-header" style="font-size:10px; font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
         <span id="da-roi-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
         <span>Return on Investment (Year 1)</span>
       </div>
@@ -203,46 +203,46 @@ const uiHTML = `
           <div class="da-result-box" style="border-left-color: #e67e22; margin-top:0;">
             <div class="da-result-title">Cash-on-Cash Return</div>
             <div class="da-result-value" id="da-coc-return" style="font-size:18px;">0%</div>
-            <div style="font-size:9px; color:#999; margin-top:1px;">Annual return on equity</div>
+            <div style="font-size:9px; color:var(--text-tertiary); margin-top:1px;">Annual return on equity</div>
           </div>
           <div class="da-result-box" style="border-left-color: #9b59b6; margin-top:0;">
             <div class="da-result-title">Payback Period</div>
             <div class="da-result-value" id="da-payback" style="font-size:18px;">0 yrs</div>
-            <div style="font-size:9px; color:#999; margin-top:1px;">Time to recover equity</div>
+            <div style="font-size:9px; color:var(--text-tertiary); margin-top:1px;">Time to recover equity</div>
           </div>
         </div>
     </div>
   </div>
   
   <!-- TARGET OFFER CALCULATOR -->
-  <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #ddd;">
-    <div id="da-target-offer-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+  <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-light);">
+    <div id="da-target-offer-header" style="font-size:10px; font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
       <span id="da-target-offer-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
       <span>🎯 Target Offer Calculator</span>
     </div>
     <div id="da-target-offer-content">
-      <div style="background:#f0f8ff; border:1px solid #3498db; border-radius:4px; padding:10px; margin-bottom:8px;">
-        <div style="font-size:11px; color:#2c3e50; margin-bottom:8px;">
+      <div style="background:var(--bg-tertiary); border:1px solid #3498db; border-radius:4px; padding:10px; margin-bottom:8px;">
+        <div style="font-size:11px; color:var(--text-primary); margin-bottom:8px;">
           <strong>Calculate the maximum offer price</strong> that meets ALL requirements:<br>
           ✓ Achieves your target <span id="da-target-coc-display">25</span>% COC return<br>
           ✓ Your salary is covered ($<span id="da-target-salary-display">150k</span>)<br>
           ✓ DSCR requirement is met (<span id="da-target-dscr-display">1.25</span>x)<br>
           ✓ Never exceeds the asking price<br>
-          <em style="font-size:10px; color:#666;">Shows which constraint limits your offer</em>
+          <em style="font-size:10px; color:var(--text-secondary);">Shows which constraint limits your offer</em>
         </div>
         <button id="da-calculate-target-offer-btn" class="da-btn" style="width:100%; background:#3498db; font-weight:600;">🎯 Calculate Target Offer Price</button>
       </div>
       
       <div id="da-target-offer-results" style="display:none;">
-        <div class="da-result-box" style="border-left-color:#3498db; background:#f0f8ff;">
-          <div class="da-result-title" style="font-weight:700; color:#2c3e50;">🎯 Recommended Offer Price</div>
+        <div class="da-result-box" style="border-left-color:#3498db; background:var(--bg-tertiary);">
+          <div class="da-result-title" style="font-weight:700; color:var(--text-primary);">🎯 Recommended Offer Price</div>
           <div class="da-result-value" id="da-target-offer-price" style="font-size:20px; font-weight:700; color:#3498db;">$0</div>
-          <div style="font-size:10px; color:#666; margin-top:4px; line-height:1.4;" id="da-target-offer-subtitle">
+          <div style="font-size:10px; color:var(--text-secondary); margin-top:4px; line-height:1.4;" id="da-target-offer-subtitle">
             To achieve your <span id="da-target-coc-result">25</span>% COC return in <span id="da-target-payback-result">4</span> years
           </div>
         </div>
         
-        <div id="da-target-comparison" style="margin-top:8px; padding:8px; border-radius:4px; font-size:11px;">
+        <div id="da-target-comparison" style="margin-top:8px; padding:8px; border-radius:4px; font-size:11px; background:var(--bg-secondary); color:var(--text-primary);">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <span style="font-weight:600;">vs. Asking Price:</span>
             <span id="da-target-diff-amount" style="font-weight:700;">$0</span>
@@ -253,21 +253,21 @@ const uiHTML = `
           </div>
         </div>
         
-        <div style="margin-top:8px; padding:8px; background:#f8f9fa; border-radius:4px; font-size:10px; color:#666;">
+        <div style="margin-top:8px; padding:8px; background:var(--bg-secondary); border-radius:4px; font-size:10px; color:var(--text-secondary);">
           <div style="font-weight:600; margin-bottom:4px;">Financing Assumptions:</div>
           <div id="da-target-financing-breakdown" style="line-height:1.6;"></div>
         </div>
         
         <div style="margin-top:8px;">
-          <div style="font-size:10px; font-weight:600; color:#666; margin-bottom:4px;">Projected Metrics at Target Price:</div>
+          <div style="font-size:10px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">Projected Metrics at Target Price:</div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-            <div style="background:#f8f9fa; padding:6px; border-radius:3px;">
-              <div style="font-size:9px; color:#999;">Free Cash Flow</div>
+            <div style="background:var(--bg-secondary); padding:6px; border-radius:3px;">
+              <div style="font-size:9px; color:var(--text-tertiary);">Free Cash Flow</div>
               <div id="da-target-fcf" style="font-size:12px; font-weight:700; color:#27ae60;">$0</div>
             </div>
-            <div style="background:#f8f9fa; padding:6px; border-radius:3px;">
-              <div style="font-size:9px; color:#999;">Total Take-Home</div>
-              <div id="da-target-takehome" style="font-size:12px; font-weight:700; color:#2c3e50;">$0</div>
+            <div style="background:var(--bg-secondary); padding:6px; border-radius:3px;">
+              <div style="font-size:9px; color:var(--text-tertiary);">Total Take-Home</div>
+              <div id="da-target-takehome" style="font-size:12px; font-weight:700; color:var(--text-primary);">$0</div>
             </div>
           </div>
         </div>
@@ -279,14 +279,14 @@ const uiHTML = `
   
   <!-- ACTUAL SCENARIO -->
   <div style="margin-bottom:10px;">
-    <div id="da-actual-header" style="font-size:10px; font-weight:700; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+    <div id="da-actual-header" style="font-size:10px; font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
       <span id="da-actual-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
       <span>Actual Deal Scenario</span>
     </div>
       <div id="da-actual-content">
         <div class="da-result-box" style="border-left-color: #e67e22;">
-          <div class="da-result-title">Offer Price <span style="font-weight:400; color:#999; font-size:9px;">(Click to Edit)</span></div>
-          <input type="text" id="da-actual-price" class="da-input" value="$0" readonly style="font-size:16px; font-weight:700; color:#2c3e50; border:none; background:transparent; padding:3px 0; cursor:pointer;">
+          <div class="da-result-title">Offer Price <span style="font-weight:400; color:var(--text-tertiary); font-size:9px;">(Click to Edit)</span></div>
+          <input type="text" id="da-actual-price" class="da-input" value="$0" readonly style="font-size:16px; font-weight:700; color:var(--text-primary); border:none; background:transparent; padding:3px 0; cursor:pointer;">
         </div>
         <div class="da-result-box" style="border-left-color: #9b59b6;">
           <div class="da-result-title">Total Debt Service</div>
@@ -295,12 +295,12 @@ const uiHTML = `
         <div class="da-result-box" style="border-left-color: #27ae60;">
           <div class="da-result-title">Free Cash Flow (Annual)</div>
           <div class="da-result-value" id="da-fcf-annual" style="font-size:16px;">$0</div>
-          <div style="font-size:10px; color:#666; margin-top:3px;">Monthly: <span id="da-fcf-monthly">$0</span></div>
+          <div style="font-size:10px; color:var(--text-secondary); margin-top:3px;">Monthly: <span id="da-fcf-monthly">$0</span></div>
         </div>
         <div class="da-result-box" style="border-left-color: #3498db;">
           <div class="da-result-title">Total Owner Take-Home</div>
           <div class="da-result-value" id="da-owner-salary" style="font-size:16px;">$0</div>
-          <div style="font-size:9px; color:#999; margin-top:3px;" id="da-owner-subtitle">Salary + FCF (max available: <span id="da-max-available">$0</span>)</div>
+          <div style="font-size:9px; color:var(--text-tertiary); margin-top:3px;" id="da-owner-subtitle">Salary + FCF (max available: <span id="da-max-available">$0</span>)</div>
         </div>
       </div>
     </div>
@@ -312,13 +312,13 @@ const uiHTML = `
   </div>
   
   <!-- Deal Notes Section (Bottom) -->
-  <div class="da-section" style="background:#fafbfc; border-top:2px solid #ddd;">
-    <div class="da-label" style="font-weight:600; color:#444; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+  <div class="da-section" style="background:var(--bg-secondary); border-top:2px solid var(--border-light);">
+    <div class="da-label" style="font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:6px;">
       📝 Deal Notes
-      <span style="font-size:10px; color:#999; font-weight:400;">(Included in all exports)</span>
+      <span style="font-size:10px; color:var(--text-tertiary); font-weight:400;">(Included in all exports)</span>
     </div>
-    <textarea id="da-deal-notes" class="da-input" placeholder="Add notes: questions for seller, red flags, follow-ups, pros/cons..." style="width:100%; min-height:60px; font-size:11px; padding:8px; resize:vertical; font-family:inherit; border:1px solid #ddd;"></textarea>
-    <div id="da-deal-url-link" style="display:none; margin-top:6px; padding:6px 8px; background:#e8f4f8; border:1px solid #b3d9e6; border-radius:4px; font-size:11px;">
+    <textarea id="da-deal-notes" class="da-input" placeholder="Add notes: questions for seller, red flags, follow-ups, pros/cons..." style="width:100%; min-height:60px; font-size:11px; padding:8px; resize:vertical; font-family:inherit; border:1px solid var(--border-light);"></textarea>
+    <div id="da-deal-url-link" style="display:none; margin-top:6px; padding:6px 8px; background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:4px; font-size:11px;">
       🔗 <a id="da-deal-url-anchor" href="#" target="_blank" style="color:#0066cc; text-decoration:none; font-weight:500;">View Original Listing</a>
     </div>
     <div style="display:flex; gap:6px; margin-top:6px;">
@@ -380,6 +380,41 @@ const settingsModalHTML = `
           <input type="checkbox" id="da-format-compact" style="cursor:pointer;">
           <span style="font-size:12px; color:#666; font-weight:600;">Use compact number format (1.2M instead of 1,200,000)</span>
         </label>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:flex; align-items:center; cursor:pointer; gap:8px;">
+          <input type="checkbox" id="da-dark-mode" style="cursor:pointer;">
+          <span style="font-size:12px; color:#666; font-weight:600;">Dark Mode</span>
+        </label>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:flex; align-items:center; cursor:pointer; gap:8px;">
+          <input type="checkbox" id="da-auto-open" style="cursor:pointer;">
+          <span style="font-size:12px; color:#666; font-weight:600;">Auto-open on business listing sites</span>
+        </label>
+        <div style="font-size:10px; color:#999; margin-top:2px; margin-left:28px;">Automatically show the extension when visiting business listing pages (BizBuySell, BizQuest, etc.)</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">Language</label>
+        <select id="da-language" class="da-select" style="width:100%;">
+          <option value="en">English</option>
+          <option value="es">Español</option>
+          <option value="fr">Français</option>
+          <option value="de">Deutsch</option>
+        </select>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">Currency</label>
+        <select id="da-currency" class="da-select" style="width:100%;">
+          <option value="USD">USD - US Dollar ($)</option>
+          <option value="EUR">EUR - Euro (€)</option>
+          <option value="GBP">GBP - British Pound (£)</option>
+          <option value="CAD">CAD - Canadian Dollar (C$)</option>
+          <option value="AUD">AUD - Australian Dollar (A$)</option>
+          <option value="JPY">JPY - Japanese Yen (¥)</option>
+          <option value="MXN">MXN - Mexican Peso (MX$)</option>
+          <option value="CHF">CHF - Swiss Franc (CHF)</option>
+        </select>
       </div>
     </div>
     
@@ -512,6 +547,10 @@ let userPreferences = {
   targetCOC: 25, // 25% Cash-on-Cash return
   targetPayback: 4, // 4 years payback period
   compactFormat: false,
+  darkMode: false, // Dark mode preference
+  autoOpenOnBusinessSites: false, // Auto-open extension on business listing sites
+  language: 'en', // Language code
+  currency: 'USD', // Currency code
   // Persistent financing settings across tabs
   sbaPercent: 80,
   bankRate: 11.5,
@@ -527,10 +566,94 @@ let userPreferences = {
 };
 let isDragging = false, currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
 
+// Update max-height dynamically based on container position to allow vertical expansion
+function updateMaxHeight() {
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  // Calculate available height from current top position to bottom of viewport
+  const availableHeight = window.innerHeight - rect.top - 10; // 10px margin from bottom
+  container.style.maxHeight = Math.max(200, availableHeight) + 'px';
+}
+
+// Window geometry persistence
+function saveWindowGeometry() {
+  if (!container) return;
+  
+  const rect = container.getBoundingClientRect();
+  const geometry = {
+    xOffset: xOffset,
+    yOffset: yOffset,
+    width: Math.round(rect.width),
+    height: Math.round(rect.height)
+  };
+  
+  chrome.storage.local.set({ windowGeometry: geometry }, () => {
+    console.log('💾 Window geometry saved:', geometry);
+  });
+}
+
+function restoreWindowGeometry() {
+  if (!container) return;
+  
+  chrome.storage.local.get(['windowGeometry'], (result) => {
+    if (result.windowGeometry) {
+      const geometry = result.windowGeometry;
+      
+      // Restore position
+      if (typeof geometry.xOffset === 'number') xOffset = geometry.xOffset;
+      if (typeof geometry.yOffset === 'number') yOffset = geometry.yOffset;
+      
+      // Apply transform to restore position
+      if (typeof xOffset === 'number' && typeof yOffset === 'number') {
+        container.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0)`;
+      }
+      
+      // Restore size (with reasonable min/max constraints)
+      if (geometry.width && geometry.width >= 200 && geometry.width <= 2000) {
+        container.style.width = geometry.width + 'px';
+      }
+      if (geometry.height && geometry.height >= 200 && geometry.height <= 2000) {
+        container.style.height = geometry.height + 'px';
+      }
+      
+      // Update max-height after restoring position
+      setTimeout(() => {
+        updateMaxHeight();
+      }, 100);
+      
+      console.log('✅ Window geometry restored:', geometry);
+    } else {
+      // Even if no saved geometry, update max-height for initial position
+      setTimeout(() => {
+        updateMaxHeight();
+      }, 100);
+    }
+  });
+}
+
 if (header && container) {
   header.addEventListener("mousedown", dragStart);
   document.addEventListener("mouseup", dragEnd);
   document.addEventListener("mousemove", drag);
+  
+  // Update max-height on window resize
+  window.addEventListener('resize', updateMaxHeight);
+  
+  // Initial max-height update
+  setTimeout(updateMaxHeight, 100); // Small delay to ensure container is rendered
+  
+  // Monitor resize events to save window geometry and update max-height
+  let resizeTimeout;
+  const resizeObserver = new ResizeObserver(() => {
+    updateMaxHeight();
+    // Debounce resize saves to avoid too many storage writes
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      saveWindowGeometry();
+    }, 500); // Save 500ms after resize ends
+  });
+  
+  resizeObserver.observe(container);
 }
 
 function dragStart(e) {
@@ -538,7 +661,11 @@ function dragStart(e) {
   initialY = e.clientY - yOffset;
   if (e.target === header) isDragging = true;
 }
-function dragEnd() { isDragging = false; }
+function dragEnd() { 
+  isDragging = false;
+  // Save position when dragging ends
+  saveWindowGeometry();
+}
 function drag(e) {
   if (isDragging && container) {
     e.preventDefault();
@@ -566,6 +693,10 @@ function drag(e) {
     }
     
     container.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+    
+    // Update max-height dynamically to allow vertical expansion
+    const availableHeight = window.innerHeight - (120 + currentY) - 10; // 10px margin from bottom
+    container.style.maxHeight = Math.max(200, availableHeight) + 'px';
   }
 }
 
@@ -644,6 +775,33 @@ function detectPlatform() {
   if (hostname.includes('costar.com')) return 'costar';
   
   return 'generic';
+}
+
+// Check if current site is a business listing site
+function isBusinessListingSite() {
+  const platform = detectPlatform();
+  // Consider known business listing platforms as business sites
+  const businessPlatforms = ['bizquest', 'bizbuysell', 'crexi', 'loopnet'];
+  return businessPlatforms.includes(platform);
+}
+
+// Auto-open extension if setting is enabled and we're on a business site
+function checkAutoOpen() {
+  if (!container) return;
+  
+  chrome.storage.local.get(['userPreferences'], (result) => {
+    const prefs = result.userPreferences || userPreferences;
+    const shouldAutoOpen = prefs.autoOpenOnBusinessSites && isBusinessListingSite();
+    
+    if (shouldAutoOpen && container.style.display === 'none') {
+      console.log('🚀 Auto-opening extension on business listing site');
+      container.style.display = 'flex';
+      // Also scrape data when auto-opening
+      setTimeout(() => {
+        scrapeData();
+      }, 500); // Small delay to ensure page content is loaded
+    }
+  });
 }
 
 // Wait for element to appear (for dynamic content)
@@ -779,41 +937,93 @@ const platformScrapers = {
   },
   
   bizbuysell: function() {
-    console.log('🏢 Using BizBuySell-specific scraper');
+    console.log('🏢 Using BizBuySell-specific scraper (REWRITTEN)');
     let data = { askingPrice: 0, ebitda: 0, isSDE: false };
     
-    // BizBuySell typically has clean labeled fields
-    const labels = document.querySelectorAll('.profile-label, .data-label, dt, th');
-    for (const label of labels) {
-      const text = label.innerText?.trim().toLowerCase();
-      const valueEl = label.nextElementSibling || label.parentElement;
+    // BizBuySell uses a consistent pattern: rows with labels and values
+    // The page text contains lines like:
+    // "Asking Price:"
+    // "$1,895,000"
+    // "Cash Flow (SDE):"
+    // "$424,413"
+    // "EBITDA:"
+    // "$403,000"
+    
+    const pageText = document.body.innerText || document.body.textContent || '';
+    const lines = pageText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    
+    console.log('  📄 Scanning ' + lines.length + ' lines of text...');
+    
+    // Scan line by line for patterns
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lowerLine = line.toLowerCase();
+      const nextLine = i + 1 < lines.length ? lines[i + 1] : '';
       
-      if (text && valueEl) {
-        if (text.includes('asking price') || text === 'price') {
-          data.askingPrice = parseCurrency(valueEl.innerText);
-          if (data.askingPrice > 0) {
-            console.log('  ✅ Found asking price:', data.askingPrice);
-          }
+      // Look for "Asking Price:" followed by dollar amount on next line
+      if ((lowerLine === 'asking price:' || lowerLine === 'asking price') && nextLine) {
+        const price = parseCurrency(nextLine);
+        if (price > data.askingPrice) {
+          data.askingPrice = price;
+          console.log('  ✅ Found Asking Price:', data.askingPrice, '(line', i + ')');
         }
-        
-        if (text.includes('ebitda')) {
-          data.ebitda = parseCurrency(valueEl.innerText);
-          data.isSDE = false;
-          if (data.ebitda > 0) {
-            console.log('  ✅ Found EBITDA:', data.ebitda);
+      }
+      
+      // Look for "EBITDA:" followed by value on next line
+      if ((lowerLine === 'ebitda:' || lowerLine === 'ebitda') && nextLine) {
+        // Check if next line says "Not Disclosed"
+        if (!nextLine.toLowerCase().includes('not disclosed') && !nextLine.toLowerCase().includes('n/a')) {
+          const ebitdaVal = parseCurrency(nextLine);
+          if (ebitdaVal > data.ebitda) {
+            data.ebitda = ebitdaVal;
+            data.isSDE = false;
+            console.log('  ✅ Found EBITDA:', data.ebitda, '(line', i + ')');
           }
+        } else {
+          console.log('  ⚠️ EBITDA is "Not Disclosed" (line', i + ')');
         }
-        
-        if (text.includes('cash flow') || text.includes('sde') || text.includes('discretionary')) {
-          data.ebitda = parseCurrency(valueEl.innerText);
-          data.isSDE = true;
-          if (data.ebitda > 0) {
-            console.log('  ✅ Found SDE/Cash Flow:', data.ebitda);
+      }
+      
+      // Look for "Cash Flow (SDE):" or similar patterns
+      if ((lowerLine.includes('cash flow') && (lowerLine.includes('sde') || lowerLine.includes(':'))) && nextLine) {
+        // Check if next line says "Not Disclosed"
+        if (!nextLine.toLowerCase().includes('not disclosed') && !nextLine.toLowerCase().includes('n/a')) {
+          const sdeVal = parseCurrency(nextLine);
+          // Only use SDE if EBITDA wasn't found
+          if (sdeVal > 0 && data.ebitda === 0) {
+            data.ebitda = sdeVal;
+            data.isSDE = true;
+            console.log('  ✅ Found Cash Flow (SDE):', data.ebitda, '(line', i + ')');
+          } else if (sdeVal > 0 && data.ebitda > 0) {
+            console.log('  ℹ️ Found Cash Flow (SDE):', sdeVal, 'but already have EBITDA, skipping');
+          }
+        } else {
+          console.log('  ⚠️ Cash Flow (SDE) is "Not Disclosed" (line', i + ')');
+        }
+      }
+      
+      // Also check for inline patterns like "Asking Price: $1,000,000" on same line
+      if (lowerLine.includes('asking price') && lowerLine.includes('$')) {
+        const price = parseCurrency(line);
+        if (price > data.askingPrice) {
+          data.askingPrice = price;
+          console.log('  ✅ Found Asking Price (inline):', data.askingPrice);
+        }
+      }
+      
+      if (lowerLine.includes('ebitda') && lowerLine.includes('$')) {
+        if (!lowerLine.includes('not disclosed')) {
+          const ebitdaVal = parseCurrency(line);
+          if (ebitdaVal > data.ebitda) {
+            data.ebitda = ebitdaVal;
+            data.isSDE = false;
+            console.log('  ✅ Found EBITDA (inline):', data.ebitda);
           }
         }
       }
     }
     
+    console.log('  📊 Scrape results: Asking=' + (data.askingPrice || 'NOT FOUND') + ', EBITDA/SDE=' + (data.ebitda || 'NOT FOUND') + (data.isSDE ? ' (SDE)' : ' (EBITDA)'));
     return data;
   },
   
@@ -1031,9 +1241,43 @@ function parseCurrency(str) {
     if (multiplier === 'B') return Math.round(num * 1000000000);
   }
   
+  // Find all potential currency values in the string
+  // Prioritize formatted numbers with commas (e.g., $400,000)
+  const formattedNumbers = str.match(/\$?\s*(\d{1,3}(?:,\d{3})+)/g);
+  if (formattedNumbers && formattedNumbers.length > 0) {
+    // Extract the largest formatted number (most likely the main value)
+    let maxValue = 0;
+    for (const formatted of formattedNumbers) {
+      const numStr = formatted.replace(/[$,]/g, '');
+      const num = parseInt(numStr);
+      if (num > maxValue) maxValue = num;
+    }
+    if (maxValue > 0) return maxValue;
+  }
+  
   // Handle standard formats: $1,000 or 100,000 or $1000000
-  const match = str.match(/(\d{1,3}(?:,\d{3})*|\d+)/);
-  return match ? parseInt(match[0].replace(/,/g, '')) : 0;
+  // Find all numbers and take the largest one (to avoid matching small numbers like years)
+  const allNumbers = str.match(/\$?\s*(\d{1,3}(?:,\d{3})*|\d+)/g);
+  if (allNumbers && allNumbers.length > 0) {
+    let maxValue = 0;
+    for (const numStr of allNumbers) {
+      const cleanNum = numStr.replace(/[$,]/g, '');
+      const num = parseInt(cleanNum);
+      // Prefer numbers >= 1000 (to filter out years, IDs, etc.)
+      if (num >= 1000 && num > maxValue) {
+        maxValue = num;
+      }
+    }
+    // If we found a large number, return it
+    if (maxValue > 0) return maxValue;
+    // Otherwise, return the largest number found (even if < 1000)
+    if (allNumbers.length > 0) {
+      const largest = Math.max(...allNumbers.map(n => parseInt(n.replace(/[$,]/g, ''))));
+      return largest;
+    }
+  }
+  
+  return 0;
 }
 
 // Helper: Finds a value on the page by looking for its label
@@ -1124,6 +1368,139 @@ function findValueByLabel(keywords) {
   return 0; // Not found
 }
 
+// Helper: Scrape broker information from the page
+function scrapeBrokerInfo() {
+  console.log('👔 Starting scrapeBrokerInfo...');
+  
+  const brokerInfo = {
+    name: '',
+    company: '',
+    phone: '',
+    email: ''
+  };
+  
+  // Common broker keywords and patterns
+  const brokerKeywords = [
+    'broker', 'agent', 'listing agent', 'representative', 'advisor',
+    'contact', 'intermediary', 'business broker', 'representing'
+  ];
+  
+  // Try to find broker information in various ways
+  try {
+    // Method 1: Look for structured contact information
+    const allText = document.body.innerText || document.body.textContent || '';
+    
+    // Extract email addresses
+    const emailPattern = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+    const emails = allText.match(emailPattern) || [];
+    
+    // Extract phone numbers (various formats)
+    const phonePattern = /(\+?1?\s*\(?[0-9]{3}\)?[\s.-]?[0-9]{3}[\s.-]?[0-9]{4})/g;
+    const phones = allText.match(phonePattern) || [];
+    
+    // Method 2: Look for specific selectors by platform
+    const platform = detectPlatform();
+    
+    // BizBuySell specific selectors
+    if (platform === 'bizbuysell') {
+      const brokerNameEl = document.querySelector('.broker-name, .agent-name, [class*="broker"] [class*="name"]');
+      if (brokerNameEl) brokerInfo.name = brokerNameEl.innerText.trim();
+      
+      const brokerCompanyEl = document.querySelector('.broker-company, .brokerage-name, [class*="broker"] [class*="company"]');
+      if (brokerCompanyEl) brokerInfo.company = brokerCompanyEl.innerText.trim();
+    }
+    
+    // BizQuest specific selectors
+    if (platform === 'bizquest') {
+      const brokerNameEl = document.querySelector('[class*="broker-name"], [class*="agent-name"]');
+      if (brokerNameEl) brokerInfo.name = brokerNameEl.innerText.trim();
+      
+      const brokerCompanyEl = document.querySelector('[class*="broker-company"], [class*="firm-name"]');
+      if (brokerCompanyEl) brokerInfo.company = brokerCompanyEl.innerText.trim();
+    }
+    
+    // Method 3: Generic search - look for elements containing broker keywords
+    if (!brokerInfo.name) {
+      const allElements = document.querySelectorAll('div, span, p, td, th');
+      
+      for (const el of allElements) {
+        const text = el.innerText?.trim() || '';
+        const textLower = text.toLowerCase();
+        
+        // Skip if too long (likely not a name/company)
+        if (text.length > 100) continue;
+        
+        // Look for broker/agent labels
+        if (brokerKeywords.some(keyword => textLower.includes(keyword))) {
+          // Check if next sibling or nearby element has the actual name/company
+          const nextSibling = el.nextElementSibling;
+          if (nextSibling && nextSibling.innerText) {
+            const potentialInfo = nextSibling.innerText.trim();
+            
+            if (!brokerInfo.name && potentialInfo.length < 50 && potentialInfo.length > 2) {
+              // Likely a name (check if it has typical name characteristics)
+              if (/^[A-Z][a-z]+(\s[A-Z][a-z]+)+$/.test(potentialInfo)) {
+                brokerInfo.name = potentialInfo;
+                console.log('  Found broker name via generic search:', potentialInfo);
+              }
+            }
+            
+            if (!brokerInfo.company && /\b(LLC|Inc|Corp|Company|Group|Realty|Brokers)\b/i.test(potentialInfo)) {
+              brokerInfo.company = potentialInfo;
+              console.log('  Found broker company via generic search:', potentialInfo);
+            }
+          }
+          
+          // Also check the element itself for company names
+          if (!brokerInfo.company && /\b(LLC|Inc|Corp|Company|Group|Realty|Brokers)\b/i.test(text)) {
+            brokerInfo.company = text;
+            console.log('  Found broker company in element:', text);
+          }
+        }
+      }
+    }
+    
+    // Method 4: Extract from meta tags or structured data
+    const metaTags = document.querySelectorAll('meta[property], meta[name]');
+    for (const meta of metaTags) {
+      const property = meta.getAttribute('property') || meta.getAttribute('name') || '';
+      const content = meta.getAttribute('content') || '';
+      
+      if (property.includes('author') || property.includes('broker') || property.includes('agent')) {
+        if (!brokerInfo.name && content.length < 50) {
+          brokerInfo.name = content;
+        }
+      }
+    }
+    
+    // Populate email and phone from first valid matches
+    if (emails.length > 0 && !brokerInfo.email) {
+      // Filter out generic emails
+      const validEmail = emails.find(email => 
+        !email.includes('noreply') && 
+        !email.includes('support@') &&
+        !email.includes('info@') &&
+        !email.includes('admin@')
+      );
+      if (validEmail) {
+        brokerInfo.email = validEmail;
+        console.log('  Found broker email:', validEmail);
+      }
+    }
+    
+    if (phones.length > 0 && !brokerInfo.phone) {
+      brokerInfo.phone = phones[0].trim();
+      console.log('  Found broker phone:', phones[0]);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error in scrapeBrokerInfo:', error);
+  }
+  
+  console.log('👔 Broker info scraping complete:', brokerInfo);
+  return brokerInfo;
+}
+
 function scrapeData() {
   try {
     console.log('🔄 Starting scrapeData...');
@@ -1136,6 +1513,11 @@ function scrapeData() {
     let askingPrice = 0;
     let ebitdaVal = 0;
     let isSDE = false;
+    let ebitdaFoundByPlatform = false; // Track if EBITDA was found by platform scraper
+    
+    // Scrape broker information
+    const brokerInfo = scrapeBrokerInfo();
+    console.log('👔 Broker info scraped:', brokerInfo);
     
     // Try platform-specific scraper first
     if (platformScrapers[platform]) {
@@ -1150,7 +1532,19 @@ function scrapeData() {
       if (platformData.ebitda > 0) {
         ebitdaVal = platformData.ebitda;
         isSDE = platformData.isSDE;
+        ebitdaFoundByPlatform = !platformData.isSDE; // True if EBITDA was found (not SDE)
         console.log('✅ Platform scraper found EBITDA/SDE:', ebitdaVal, isSDE ? '(SDE)' : '(EBITDA)');
+        
+        // CRITICAL SAFETY CHECK: If platform scraper found a value and marked it as SDE,
+        // but EBITDA actually exists on the page, override isSDE to false
+        if (isSDE) {
+          const ebitdaVerification = findValueByLabel(["EBITDA"]);
+          if (ebitdaVerification > 0) {
+            console.log('  🔒 Override: EBITDA found on page, correcting platform scraper isSDE flag');
+            isSDE = false;
+            ebitdaFoundByPlatform = true;
+          }
+        }
       }
     }
     
@@ -1169,22 +1563,40 @@ function scrapeData() {
       const ebitdaValue = findValueByLabel(["EBITDA"]);
       
       // Priority 2: Look for Cash Flow / SDE as backup
-      const sdeValue = findValueByLabel(["Cash Flow", "SDE", "Seller Discretionary Earnings", "Discretionary Earnings", "Seller's Discretionary Earnings", "Net Operating Income", "NOI"]);
+      const sdeValue = findValueByLabel(["Cash Flow", "Cash Flow (SDE)", "SDE", "Seller Discretionary Earnings", "Discretionary Earnings", "Seller's Discretionary Earnings", "Net Operating Income", "NOI"]);
       
       // Prefer EBITDA if found, otherwise use SDE
       if (ebitdaValue > 0) {
         ebitdaVal = ebitdaValue;
-        isSDE = false;
+        isSDE = false; // EBITDA found - never treat as SDE
+        ebitdaFoundByPlatform = true; // Mark that we found EBITDA
         console.log('✅ Found EBITDA (preferred):', ebitdaVal);
         if (sdeValue > 0) {
           console.log('   ℹ️ Also found SDE (' + sdeValue + ') but using EBITDA instead');
         }
       } else if (sdeValue > 0) {
         ebitdaVal = sdeValue;
-        isSDE = true;
+        isSDE = true; // Only set to true if EBITDA was NOT found
         console.log('✅ Found SDE/Cash Flow (no EBITDA available):', ebitdaVal);
       } else {
         console.log('⚠️ No EBITDA or SDE found');
+      }
+    }
+    
+    // FINAL SAFETY CHECK: If EBITDA was found (by platform or generic scraper), ensure isSDE is false
+    // This is the ultimate safeguard - if EBITDA exists on the page, never show SDE warning
+    if (ebitdaVal > 0) {
+      const ebitdaFinalCheck = findValueByLabel(["EBITDA"]);
+      if (ebitdaFinalCheck > 0) {
+        // EBITDA definitely exists - force isSDE to false
+        if (isSDE) {
+          console.log('🔒 FINAL OVERRIDE: EBITDA confirmed on page, forcing isSDE = false');
+        }
+        isSDE = false;
+        ebitdaFoundByPlatform = true;
+      } else if (ebitdaFoundByPlatform) {
+        // Platform scraper said it found EBITDA, trust it
+        isSDE = false;
       }
     }
     
@@ -1194,6 +1606,7 @@ function scrapeData() {
       askingPrice: askingPrice,
       ebitda: ebitdaVal,
       isSDE: isSDE,
+      brokerInfo: brokerInfo,
       timestamp: new Date().toISOString()
     };
 
@@ -1209,18 +1622,39 @@ function scrapeData() {
     const ebitdaField = document.getElementById('da-ebitda');
     const sdeWarning = document.getElementById('da-sde-warning');
     if (ebitdaVal > 0 && ebitdaField) {
-        if (isSDE) {
-            console.log('⚠️ SDE detected, subtracting $200k for owner salary');
+        // CRITICAL FIRST CHECK: Verify EBITDA actually exists on the page
+        // Search the entire page text for "EBITDA" to be absolutely sure
+        const pageText = document.body.innerText || document.body.textContent || '';
+        const hasEbitdaLabel = /\bEBITDA\b/i.test(pageText);
+        
+        console.log('🔍 Checking for EBITDA on page:', hasEbitdaLabel);
+        
+        // If EBITDA exists on page (label found), NEVER show SDE warning
+        if (hasEbitdaLabel) {
+            // EBITDA label exists on page - Force isSDE to false and hide warning
+            console.log('🔒 EBITDA label found on page, forcing isSDE = false');
+            isSDE = false;
+            lastScrapeData.isSDE = false;
+            if (sdeWarning) sdeWarning.classList.remove('visible');
+            // Use the EBITDA value directly without any SDE deduction
+            ebitdaField.value = '$' + formatNumber(ebitdaVal);
+            console.log('✅ Using EBITDA (no SDE deduction applied)');
+        } else if (isSDE) {
+            // Only show warning if EBITDA label is NOT found AND we're using SDE
+            console.log('⚠️ SDE detected (EBITDA label not found), subtracting $200k for owner salary');
             if (sdeWarning) sdeWarning.classList.add('visible');
             // Apply $200k subtraction rule for SDE
             const originalVal = ebitdaVal;
             ebitdaVal = Math.max(0, ebitdaVal - 200000);
             console.log(`   Original SDE: $${formatNumber(originalVal)}`);
             console.log(`   After -$200k: $${formatNumber(ebitdaVal)}`);
+            ebitdaField.value = '$' + formatNumber(ebitdaVal);
         } else {
+            // EBITDA found - hide warning and don't subtract
             if (sdeWarning) sdeWarning.classList.remove('visible');
+            ebitdaField.value = '$' + formatNumber(ebitdaVal);
+            console.log('✅ Using EBITDA (no SDE deduction applied)');
         }
-        ebitdaField.value = '$' + formatNumber(ebitdaVal);
         console.log('✅ Updated EBITDA field:', ebitdaField.value);
     } else {
         console.log('⚠️ No EBITDA/SDE value to update');
@@ -1265,6 +1699,16 @@ function formatNumber(n) {
   if (userPreferences.compactFormat) {
     return formatCompact(n);
   }
+  
+  // Use i18n currency formatting if available
+  if (window.i18n && userPreferences.currency) {
+    const locale = window.i18n.getLocaleForCurrency(userPreferences.currency);
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
+  }
+  
   return n.toLocaleString(undefined, {maximumFractionDigits:0});
 }
 
@@ -1281,8 +1725,18 @@ function formatCompact(n) {
 // Helper: Format currency with commas (handles negative numbers)
 function fmt(n) {
   if (n < 0) {
+    // Use i18n for negative numbers
+    if (window.i18n && userPreferences.currency) {
+      return "-" + window.i18n.formatCurrency(Math.abs(n));
+    }
     return "-$" + formatNumber(Math.abs(n));
   }
+  
+  // Use i18n for positive numbers
+  if (window.i18n && userPreferences.currency) {
+    return window.i18n.formatCurrency(n);
+  }
+  
   return "$" + formatNumber(n);
 }
 
@@ -1753,17 +2207,17 @@ function calculate() {
   // Free Cash Flow - color red if negative
   if (fcfAnnualEl) {
     fcfAnnualEl.innerText = fmt(freeCashFlowAnnual);
-    fcfAnnualEl.style.color = freeCashFlowAnnual < 0 ? '#e74c3c' : '#2c3e50';
+    fcfAnnualEl.style.color = freeCashFlowAnnual < 0 ? '#e74c3c' : 'var(--result-value)';
   }
   if (fcfMonthlyEl) {
     fcfMonthlyEl.innerText = fmt(freeCashFlowMonthly);
-    fcfMonthlyEl.style.color = freeCashFlowMonthly < 0 ? '#e74c3c' : '#666';
+    fcfMonthlyEl.style.color = freeCashFlowMonthly < 0 ? '#e74c3c' : 'var(--text-secondary)';
   }
   
   // Total Owner Take-Home - color red if negative
   if (ownerSalaryEl) {
     ownerSalaryEl.innerText = fmt(totalOwnerTakeHome);
-    ownerSalaryEl.style.color = totalOwnerTakeHome < 0 ? '#e74c3c' : '#2c3e50';
+    ownerSalaryEl.style.color = totalOwnerTakeHome < 0 ? '#e74c3c' : 'var(--result-value)';
   }
   
   if (maxAvailableEl) maxAvailableEl.innerText = fmt(availableCashFlow);
@@ -1776,19 +2230,36 @@ function calculate() {
     if (cashOnCashReturn >= 100) {
       cocElement.style.color = '#27ae60'; // Green for excellent (100%+)
     } else if (cashOnCashReturn >= 50) {
-      cocElement.style.color = '#16a085'; // Teal for good (50%+)
+      cocElement.style.color = '#2ecc71'; // Light green for very good (50%+)
     } else if (cashOnCashReturn >= 25) {
-      cocElement.style.color = '#f39c12'; // Orange for okay (25%+)
+      cocElement.style.color = '#f39c12'; // Orange for good (25%+)
+    } else if (cashOnCashReturn >= 0) {
+      cocElement.style.color = '#e67e22'; // Dark orange for fair (0%+)
     } else {
-      cocElement.style.color = '#e74c3c'; // Red for poor (<25%)
+      cocElement.style.color = '#e74c3c'; // Red for negative
     }
   }
   
   const paybackEl = document.getElementById('da-payback');
   if (paybackEl) {
-    paybackEl.innerText = paybackPeriod > 0 && paybackPeriod < 100 
-      ? paybackPeriod.toFixed(1) + ' yrs' 
-      : (paybackPeriod >= 100 ? '∞' : 'N/A');
+    if (paybackPeriod > 0 && paybackPeriod < 100) {
+      paybackEl.innerText = paybackPeriod.toFixed(1) + ' yrs';
+      // Color code based on payback period
+      if (paybackPeriod <= 2) {
+        paybackEl.style.color = '#27ae60'; // Green for excellent (2yr or less)
+      } else if (paybackPeriod <= 4) {
+        paybackEl.style.color = '#2ecc71'; // Light green for very good (4yr or less)
+      } else if (paybackPeriod <= 6) {
+        paybackEl.style.color = '#f39c12'; // Orange for good (6yr or less)
+      } else if (paybackPeriod <= 10) {
+        paybackEl.style.color = '#e67e22'; // Dark orange for fair (10yr or less)
+      } else {
+        paybackEl.style.color = '#e74c3c'; // Red for poor (10yr+)
+      }
+    } else {
+      paybackEl.innerText = paybackPeriod >= 100 ? '∞' : 'N/A';
+      paybackEl.style.color = 'var(--text-secondary)';
+    }
   }
 
   // Calculate and Update Deal Quality Score
@@ -1829,6 +2300,14 @@ function makeEditable(fieldId, overrideKey) {
 
 // Format input on blur (add commas and $ for currency fields)
 function formatInputOnBlur(e) {
+  // Safety check: only process extension's own inputs
+  const isExtensionInput = (e.target.id && e.target.id.startsWith('da-')) || 
+                          e.target.classList.contains('da-input') || 
+                          e.target.classList.contains('da-select');
+  if (!isExtensionInput) {
+    return; // Don't modify inputs that don't belong to the extension
+  }
+  
   const val = parseNumber(e.target.value);
   if (val > 0) {
     const formatted = formatNumber(val);
@@ -1844,6 +2323,14 @@ function formatInputOnBlur(e) {
 
 // Remove commas and $ on focus for easier editing
 function unformatInputOnFocus(e) {
+  // Safety check: only process extension's own inputs
+  const isExtensionInput = (e.target.id && e.target.id.startsWith('da-')) || 
+                          e.target.classList.contains('da-input') || 
+                          e.target.classList.contains('da-select');
+  if (!isExtensionInput) {
+    return; // Don't modify inputs that don't belong to the extension
+  }
+  
   e.target.value = e.target.value.replace(/[,$]/g, '');
 }
 
@@ -2371,9 +2858,19 @@ function loadState() {
     });
 }
 
-// Set up event listeners
+// Set up event listeners - only for extension's own inputs
 try {
+  // Only select inputs/selects that belong to the extension
+  // Check if element has ID starting with "da-" or has class "da-input"/"da-select"
   document.querySelectorAll('input, select').forEach(el => {
+    const isExtensionInput = (el.id && el.id.startsWith('da-')) || 
+                            el.classList.contains('da-input') || 
+                            el.classList.contains('da-select');
+    
+    if (!isExtensionInput) {
+      return; // Skip inputs that don't belong to the extension
+    }
+    
     // Skip SBA percent - it has its own handler to reset overrides first
     if (el.id !== 'da-sba-percent') {
       el.addEventListener('input', calculate);
@@ -2631,6 +3128,23 @@ if (settingsBtn && settingsModal) {
       if (targetPaybackField) targetPaybackField.value = userPreferences.targetPayback;
       if (formatCompactField) formatCompactField.checked = userPreferences.compactFormat;
       
+      // Set dark mode and language/currency
+      const darkModeField = document.getElementById('da-dark-mode');
+      const autoOpenField = document.getElementById('da-auto-open');
+      const languageField = document.getElementById('da-language');
+      const currencyField = document.getElementById('da-currency');
+      if (darkModeField) darkModeField.checked = userPreferences.darkMode || false;
+      if (autoOpenField) autoOpenField.checked = userPreferences.autoOpenOnBusinessSites || false;
+      if (languageField) languageField.value = userPreferences.language || 'en';
+      if (currencyField) currencyField.value = userPreferences.currency || 'USD';
+      
+      // Apply dark mode styling to modal if dark mode is enabled
+      if (userPreferences.darkMode) {
+        applyDarkModeToSettingsModal(true);
+      } else {
+        applyDarkModeToSettingsModal(false);
+      }
+      
       settingsModal.style.display = 'flex';
     });
   });
@@ -2667,20 +3181,46 @@ if (settingsSave && settingsModal) {
     const targetCocField = document.getElementById('da-target-coc');
     const targetPaybackField = document.getElementById('da-target-payback');
     const formatCompactField = document.getElementById('da-format-compact');
+    const darkModeField = document.getElementById('da-dark-mode');
+    const autoOpenField = document.getElementById('da-auto-open');
+    const languageField = document.getElementById('da-language');
+    const currencyField = document.getElementById('da-currency');
     
     // Validate and parse values
     const newTargetCOC = targetCocField ? (parseFloat(targetCocField.value) || 25) : 25;
     const newTargetPayback = targetPaybackField ? (parseFloat(targetPaybackField.value) || 4) : 4;
     const newCompactFormat = formatCompactField ? formatCompactField.checked : false;
+    const newDarkMode = darkModeField ? darkModeField.checked : false;
+    const newAutoOpen = autoOpenField ? autoOpenField.checked : false;
+    const newLanguage = languageField ? languageField.value : 'en';
+    const newCurrency = currencyField ? currencyField.value : 'USD';
     
     // Update preferences object
     userPreferences.targetCOC = newTargetCOC;
     userPreferences.targetPayback = newTargetPayback;
     userPreferences.compactFormat = newCompactFormat;
+    userPreferences.darkMode = newDarkMode;
+    userPreferences.autoOpenOnBusinessSites = newAutoOpen;
+    userPreferences.language = newLanguage;
+    userPreferences.currency = newCurrency;
+    
+    // Apply dark mode immediately
+    applyDarkMode(newDarkMode);
+    
+    // Apply language and currency
+    if (window.i18n) {
+      window.i18n.setLanguage(newLanguage);
+      window.i18n.setCurrency(newCurrency);
+      // Reload UI with new language (would need to update all text elements)
+      // For now, just save preferences - full i18n update would require more work
+    }
     
     // Save to chrome storage (persistent)
     chrome.storage.local.set({ userPreferences: userPreferences }, () => {
       console.log('✅ Settings saved successfully:', userPreferences);
+      
+      // Check if we should auto-open after saving settings
+      checkAutoOpen();
       
       // Verify save by reading back
       chrome.storage.local.get(['userPreferences'], (result) => {
@@ -2719,11 +3259,146 @@ if (settingsReset) {
     const targetCocField = document.getElementById('da-target-coc');
     const targetPaybackField = document.getElementById('da-target-payback');
     const formatCompactField = document.getElementById('da-format-compact');
+    const darkModeField = document.getElementById('da-dark-mode');
+    const languageField = document.getElementById('da-language');
+    const currencyField = document.getElementById('da-currency');
     
     if (targetCocField) targetCocField.value = 25;
     if (targetPaybackField) targetPaybackField.value = 4;
     if (formatCompactField) formatCompactField.checked = false;
+    if (darkModeField) darkModeField.checked = false;
+    if (languageField) languageField.value = 'en';
+    if (currencyField) currencyField.value = 'USD';
   });
+}
+
+// Apply dark mode styling to settings modal
+function applyDarkModeToSettingsModal(enabled) {
+  const settingsModal = document.getElementById('da-settings-modal');
+  if (!settingsModal) return;
+  
+  const modalContent = settingsModal.querySelector('#da-settings-modal-content');
+  if (!modalContent) return;
+  
+  // Update modal content background and text color
+  modalContent.style.backgroundColor = enabled ? '#2d2d2d' : 'white';
+  modalContent.style.color = enabled ? '#e0e0e0' : '#2c3e50';
+  
+  // Update all headings (h3, h4) - force update regardless of current style
+  const headings = modalContent.querySelectorAll('h3, h4');
+  headings.forEach(heading => {
+    heading.style.color = enabled ? '#e0e0e0' : '#2c3e50';
+  });
+  
+  // Update h4 border colors
+  const h4Elements = modalContent.querySelectorAll('h4');
+  h4Elements.forEach(h4 => {
+    h4.style.borderBottom = enabled ? '1px solid #404040' : '1px solid #eee';
+  });
+  
+  // Update all label spans (label text)
+  const labels = modalContent.querySelectorAll('label');
+  labels.forEach(label => {
+    const spans = label.querySelectorAll('span');
+    spans.forEach(span => {
+      span.style.color = enabled ? '#b0b0b0' : '#666';
+    });
+  });
+  
+  // Update description divs (small gray text)
+  const allDivs = modalContent.querySelectorAll('div');
+  allDivs.forEach(div => {
+    // Check if it's a description div (has 10px font size and contains descriptive text)
+    const fontSize = div.style.fontSize;
+    if (fontSize && (fontSize.includes('10px') || fontSize === '10px')) {
+      div.style.color = enabled ? '#888' : '#999';
+    }
+  });
+  
+  // Update close button
+  const closeBtn = settingsModal.querySelector('#da-settings-close');
+  if (closeBtn) {
+    closeBtn.style.color = enabled ? '#b0b0b0' : '#999';
+  }
+  
+  // Update input fields
+  const numberInputs = modalContent.querySelectorAll('input[type="number"]');
+  numberInputs.forEach(input => {
+    input.style.backgroundColor = enabled ? '#2d2d2d' : 'white';
+    input.style.color = enabled ? '#e0e0e0' : '#2c3e50';
+    input.style.borderColor = enabled ? '#404040' : '#ccc';
+  });
+  
+  // Update select elements
+  const selects = modalContent.querySelectorAll('select');
+  selects.forEach(select => {
+    select.style.backgroundColor = enabled ? '#2d2d2d' : 'white';
+    select.style.color = enabled ? '#e0e0e0' : '#2c3e50';
+    select.style.borderColor = enabled ? '#404040' : '#ccc';
+  });
+  
+  // Walk through all elements and update any remaining color styles
+  const walker = document.createTreeWalker(
+    modalContent,
+    NodeFilter.SHOW_ELEMENT,
+    null,
+    false
+  );
+  
+  let node;
+  while (node = walker.nextNode()) {
+    const style = node.style;
+    if (style.color) {
+      const color = style.color.toLowerCase();
+      // Update #666 colors (label text) - rgb(102, 102, 102)
+      if (color === 'rgb(102, 102, 102)' || color === '#666' || color.includes('102, 102, 102')) {
+        style.color = enabled ? '#b0b0b0' : '#666';
+      }
+      // Update #999 colors (description text) - rgb(153, 153, 153)
+      if (color === 'rgb(153, 153, 153)' || color === '#999' || color.includes('153, 153, 153')) {
+        style.color = enabled ? '#888' : '#999';
+      }
+      // Update #2c3e50 colors (headings) - rgb(44, 62, 80)
+      if (color === 'rgb(44, 62, 80)' || color === '#2c3e50' || color.includes('44, 62, 80')) {
+        style.color = enabled ? '#e0e0e0' : '#2c3e50';
+      }
+    }
+  }
+}
+
+// Apply dark mode to the container
+function applyDarkMode(enabled) {
+  const container = document.getElementById('deal-analyzer-container');
+  if (container) {
+    if (enabled) {
+      container.classList.add('dark-mode');
+    } else {
+      container.classList.remove('dark-mode');
+    }
+  }
+  
+  // Update settings modal
+  applyDarkModeToSettingsModal(enabled);
+  
+  // Also update other modals
+  const debugModal = document.getElementById('da-debug-modal');
+  const shareModal = document.getElementById('da-share-modal');
+  
+  if (debugModal) {
+    const modalContent = debugModal.querySelector('div');
+    if (modalContent) {
+      modalContent.style.backgroundColor = enabled ? '#2d2d2d' : 'white';
+      modalContent.style.color = enabled ? '#e0e0e0' : '#2c3e50';
+    }
+  }
+  
+  if (shareModal) {
+    const modalContent = shareModal.querySelector('div');
+    if (modalContent) {
+      modalContent.style.backgroundColor = enabled ? '#2d2d2d' : 'white';
+      modalContent.style.color = enabled ? '#e0e0e0' : '#333';
+    }
+  }
 }
 
 // Load user preferences on startup
@@ -2733,9 +3408,30 @@ function loadUserPreferences() {
       userPreferences = result.userPreferences;
       console.log('Loaded preferences:', userPreferences);
       
+      // Apply dark mode if enabled
+      if (userPreferences.darkMode) {
+        applyDarkMode(true);
+      }
+      
+      // Initialize i18n if available
+      if (window.i18n) {
+        if (userPreferences.language) {
+          window.i18n.setLanguage(userPreferences.language);
+        }
+        if (userPreferences.currency) {
+          window.i18n.setCurrency(userPreferences.currency);
+        }
+      }
+      
       // Apply preferences immediately after loading
       // This ensures the UI is updated with saved preferences
       calculate(); // Recalculate with loaded preferences
+      
+      // Check if we should auto-open on business sites
+      checkAutoOpen();
+    } else {
+      // Even if no saved preferences, check auto-open with defaults
+      checkAutoOpen();
     }
   });
 }
@@ -3610,6 +4306,9 @@ if (shareCopyBtn) {
 loadUserPreferences();
 loadState();
 
+// Restore window geometry on page load
+restoreWindowGeometry();
+
 // Update Target Offer Calculator display with user's actual settings
 function updateTargetOfferDisplay() {
   // Update COC, salary and DSCR displays in the description
@@ -3684,6 +4383,12 @@ function saveDeal() {
     url: window.location.href,
     savedAt: new Date().toISOString(),
     notes: safeGetValue('da-deal-notes', ''),
+    brokerInfo: lastScrapeData?.brokerInfo || {
+      name: '',
+      company: '',
+      phone: '',
+      email: ''
+    },
     inputs: {
       ebitda: safeGetValue('da-ebitda', ''),
       asking: safeGetValue('da-asking', ''),
@@ -3853,8 +4558,12 @@ updateSavedDealsList();
 const recalcBtn = document.getElementById('da-recalc-btn');
 if (recalcBtn) {
   recalcBtn.addEventListener('click', () => {
+    console.log('🔄 Refresh Data button clicked');
+    // Force a fresh scrape
     scrapeData();
   });
+} else {
+  console.warn('⚠️ Refresh button not found');
 }
 
 // Deal opportunity close button - dismisses the banner
@@ -3890,6 +4599,8 @@ const urlObserver = new MutationObserver(() => {
     // Wait a moment for the page to load new content
     setTimeout(() => {
       scrapeData();
+      // Check if we should auto-open on business sites after URL change
+      checkAutoOpen();
       console.log('✅ Auto-refresh complete');
     }, 1000); // 1 second delay to let dynamic content load
   }
@@ -3906,6 +4617,7 @@ window.addEventListener('popstate', () => {
   console.log('🔄 Navigation detected (back/forward), auto-refreshing data...');
   setTimeout(() => {
     scrapeData();
+    checkAutoOpen();
     console.log('✅ Auto-refresh complete');
   }, 1000);
 });
@@ -3919,6 +4631,7 @@ history.pushState = function() {
   console.log('🔄 Page navigation detected (pushState), auto-refreshing data...');
   setTimeout(() => {
     scrapeData();
+    checkAutoOpen();
     console.log('✅ Auto-refresh complete');
   }, 1000);
 };

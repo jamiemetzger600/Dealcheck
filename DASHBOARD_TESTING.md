@@ -30,16 +30,16 @@
 - [ ] Statistics update when status changes
 
 ### ✅ Selection & Bulk Actions
-- [ ] Select individual deals
-- [ ] Select all checkbox works
+- [ x] Select individual deals
+- [x ] Select all checkbox works
 - [ ] Select all shows indeterminate state when partial
-- [ ] Bulk actions bar appears when deals selected
-- [ ] Deselect all works
+- [ x] Bulk actions bar appears when deals selected
+- [ x] Deselect all works
 - [ ] Selection persists during filtering
 
 ### ✅ Delete Operations
-- [ ] Delete single deal (with confirmation)
-- [ ] Delete shows toast notification
+- [x ] Delete single deal (with confirmation)
+- [ x] Delete shows toast notification
 - [ ] Bulk delete works (with confirmation)
 - [ ] Bulk delete shows toast notification
 - [ ] Deleted deals don't reappear after refresh

@@ -1259,11 +1259,203 @@ function exportDealsToCSV(deals) {
     showToast(`Exported ${deals.length} deals to CSV`, 'success');
 }
 
-// Open deal modal (placeholder for now)
+// Open deal modal with full details
 function openDealModal(deal) {
-    showToast('Deal modal coming soon!', 'info');
-    console.log('Opening deal:', deal);
+    console.log('Opening deal modal for:', deal.name);
+    
+    const modal = document.getElementById('deal-modal');
+    if (!modal) {
+        console.error('Deal modal not found');
+        showToast('Modal not found', 'error');
+        return;
+    }
+    
+    // Store current deal for updates
+    window.currentDeal = deal;
+    
+    // Populate modal with deal data
+    document.getElementById('modal-deal-name').textContent = deal.name || 'Unnamed Deal';
+    
+    // Status with edit capability
+    const statusEl = document.getElementById('modal-status');
+    if (statusEl) {
+        const statusBadges = {
+            hot: '🔥 Hot',
+            warm: '🌡️ Warm',
+            cold: '❄️ Cold',
+            pass: '❌ Pass',
+            none: 'No Status'
+        };
+        statusEl.innerHTML = `
+            <select id="modal-status-select" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
+                <option value="none" ${deal.status === 'none' ? 'selected' : ''}>No Status</option>
+                <option value="hot" ${deal.status === 'hot' ? 'selected' : ''}>🔥 Hot</option>
+                <option value="warm" ${deal.status === 'warm' ? 'selected' : ''}>🌡️ Warm</option>
+                <option value="cold" ${deal.status === 'cold' ? 'selected' : ''}>❄️ Cold</option>
+                <option value="pass" ${deal.status === 'pass' ? 'selected' : ''}>❌ Pass</option>
+            </select>
+        `;
+        
+        // Add change listener
+        const statusSelect = document.getElementById('modal-status-select');
+        if (statusSelect) {
+            statusSelect.addEventListener('change', async (e) => {
+                await updateDealStatus(deal, e.target.value);
+            });
+        }
+    }
+    
+    // Date
+    document.getElementById('modal-saved-date').textContent = formatDate(deal.savedAt);
+    
+    // Financial overview
+    document.getElementById('modal-asking-price').textContent = formatCurrency(deal.inputs?.askingPrice || 0);
+    document.getElementById('modal-ebitda').textContent = formatCurrency(deal.inputs?.ebitdaSDE || 0);
+    document.getElementById('modal-quality').textContent = deal.qualityScore !== undefined ? deal.qualityScore : 'N/A';
+    document.getElementById('modal-coc').textContent = deal.results?.cocReturn ? `${deal.results.cocReturn.toFixed(1)}%` : 'N/A';
+    
+    // URL
+    const urlEl = document.getElementById('modal-url');
+    if (urlEl) {
+        if (deal.url) {
+            urlEl.href = deal.url;
+            urlEl.textContent = deal.url;
+            urlEl.style.display = 'block';
+        } else {
+            urlEl.textContent = 'No URL (Off-market deal)';
+            urlEl.href = '#';
+            urlEl.style.pointerEvents = 'none';
+        }
+    }
+    
+    // Financial details
+    document.getElementById('modal-max-price').textContent = formatCurrency(deal.results?.maxPrice || 0);
+    document.getElementById('modal-total-debt').textContent = formatCurrency(deal.results?.totalDebt || 0);
+    document.getElementById('modal-fcf').textContent = formatCurrency(deal.results?.cashFlowAnnual || 0);
+    document.getElementById('modal-takehome').textContent = formatCurrency(deal.results?.ownerTakeHome || 0);
+    document.getElementById('modal-payback').textContent = deal.results?.paybackPeriod ? `${deal.results.paybackPeriod.toFixed(1)} years` : 'N/A';
+    
+    // Notes section
+    const notesTextarea = document.getElementById('modal-notes');
+    if (notesTextarea) {
+        notesTextarea.value = deal.notes || '';
+        
+        // Auto-save notes
+        notesTextarea.addEventListener('input', () => {
+            clearTimeout(notesTextarea.saveTimeout);
+            notesTextarea.saveTimeout = setTimeout(async () => {
+                await updateDealNotes(deal, notesTextarea.value);
+            }, 1000);
+        });
+    }
+    
+    // Show modal
+    modal.style.display = 'flex';
 }
+
+// Close deal modal
+function closeDealModal() {
+    const modal = document.getElementById('deal-modal');
+    if (modal) modal.style.display = 'none';
+    window.currentDeal = null;
+}
+
+// Update deal status
+async function updateDealStatus(deal, newStatus) {
+    try {
+        // Update deal object
+        deal.status = newStatus;
+        
+        // Save to storage
+        const existingDeals = await new Promise((resolve) => {
+            chrome.storage.local.get(['savedDeals'], (result) => {
+                resolve(result.savedDeals || []);
+            });
+        });
+        
+        const dealIndex = existingDeals.findIndex(d => d.savedAt === deal.savedAt);
+        if (dealIndex !== -1) {
+            existingDeals[dealIndex].status = newStatus;
+            
+            await new Promise((resolve, reject) => {
+                chrome.storage.local.set({ savedDeals: existingDeals }, () => {
+                    if (chrome.runtime.lastError) {
+                        reject(chrome.runtime.lastError);
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+            
+            showToast('Status updated', 'success');
+            
+            // Refresh My Deals if visible
+            if (currentTab === 'my-deals') {
+                await loadMyDeals();
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error updating status:', error);
+        showToast('Error updating status', 'error');
+    }
+}
+
+// Update deal notes
+async function updateDealNotes(deal, newNotes) {
+    try {
+        // Update deal object
+        deal.notes = newNotes;
+        
+        // Save to storage
+        const existingDeals = await new Promise((resolve) => {
+            chrome.storage.local.get(['savedDeals'], (result) => {
+                resolve(result.savedDeals || []);
+            });
+        });
+        
+        const dealIndex = existingDeals.findIndex(d => d.savedAt === deal.savedAt);
+        if (dealIndex !== -1) {
+            existingDeals[dealIndex].notes = newNotes;
+            
+            await new Promise((resolve, reject) => {
+                chrome.storage.local.set({ savedDeals: existingDeals }, () => {
+                    if (chrome.runtime.lastError) {
+                        reject(chrome.runtime.lastError);
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+            
+            console.log('✅ Notes auto-saved');
+        }
+        
+    } catch (error) {
+        console.error('Error updating notes:', error);
+        showToast('Error saving notes', 'error');
+    }
+}
+
+// Initialize deal modal handlers
+document.addEventListener('DOMContentLoaded', () => {
+    // Close button
+    const closeBtn = document.getElementById('modal-close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeDealModal);
+    }
+    
+    // Click outside to close
+    const modal = document.getElementById('deal-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeDealModal();
+            }
+        });
+    }
+});
+
 
 
 // View deal details (placeholder - will open modal in future)

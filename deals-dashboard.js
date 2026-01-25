@@ -116,6 +116,8 @@ function switchTab(tabName) {
         updateJourneyStage('data');
     } else if (tabName === 'my-deals') {
         updateJourneyStage('wisdom');
+        // Load My Deals data when switching to My Deals tab
+        loadMyDeals();
     }
 }
 
@@ -378,6 +380,78 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    
+    // ====== MY DEALS TAB EVENT LISTENERS ======
+    
+    // Search
+    const myDealsSearch = document.getElementById('search');
+    if (myDealsSearch) {
+        let searchTimeout;
+        myDealsSearch.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                searchMyDeals(e.target.value);
+            }, 300);
+        });
+    }
+    
+    // Status filter
+    const statusFilter = document.getElementById('filter-status');
+    if (statusFilter) {
+        statusFilter.addEventListener('change', (e) => {
+            filterMyDealsByStatus(e.target.value);
+        });
+    }
+    
+    // Sort
+    const sortSelect = document.getElementById('sort-by');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', (e) => {
+            const [field, direction] = e.target.value.split('-');
+            currentMyDealsSort = { field, direction };
+            renderMyDealsTable();
+        });
+    }
+    
+    // Export all button
+    const exportAllBtn = document.getElementById('export-btn');
+    if (exportAllBtn) {
+        exportAllBtn.addEventListener('click', () => {
+            exportDealsToCSV(filteredMyDeals);
+        });
+    }
+    
+    // Refresh button
+    const refreshBtn = document.getElementById('refresh-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            loadMyDeals();
+        });
+    }
+    
+    // Bulk export button
+    const bulkExportBtn = document.getElementById('bulk-export');
+    if (bulkExportBtn) {
+        bulkExportBtn.addEventListener('click', bulkExportDeals);
+    }
+    
+    // Bulk delete button
+    const bulkDeleteBtn = document.getElementById('bulk-delete');
+    if (bulkDeleteBtn) {
+        bulkDeleteBtn.addEventListener('click', bulkDeleteDeals);
+    }
+    
+    // Bulk deselect button
+    const bulkDeselectBtn = document.getElementById('bulk-deselect');
+    if (bulkDeselectBtn) {
+        bulkDeselectBtn.addEventListener('click', () => {
+            selectedMyDeals.clear();
+            document.querySelectorAll('.deal-checkbox').forEach(cb => cb.checked = false);
+            updateBulkActionsBar();
+        });
+    }
+    
+    console.log('✅ My Deals event listeners initialized');
     
     // Initialize with Deal Aggregator tab
     switchTab('aggregator');
@@ -731,6 +805,461 @@ function convertAggregatorDealToSaved(deal) {
         notes: ''
     };
 }
+
+// ====== MY DEALS TAB FUNCTIONALITY ======
+
+// Variables for My Deals tab
+let myDeals = [];
+let filteredMyDeals = [];
+let selectedMyDeals = new Set();
+let currentMyDealsSort = { field: 'date', direction: 'desc' };
+
+// Load My Deals from storage
+async function loadMyDeals() {
+    console.log('💼 Loading My Deals...');
+    
+    try {
+        const result = await new Promise((resolve) => {
+            chrome.storage.local.get(['savedDeals'], (result) => {
+                resolve(result.savedDeals || []);
+            });
+        });
+        
+        myDeals = result;
+        filteredMyDeals = [...myDeals];
+        
+        console.log(`✅ Loaded ${myDeals.length} deals`);
+        
+        // Update UI
+        updateMyDealsStats();
+        renderMyDealsTable();
+        
+    } catch (error) {
+        console.error('Error loading My Deals:', error);
+        showToast('Error loading deals: ' + error.message, 'error');
+    }
+}
+
+// Update stats cards
+function updateMyDealsStats() {
+    const stats = {
+        total: myDeals.length,
+        hot: myDeals.filter(d => d.status === 'hot').length,
+        warm: myDeals.filter(d => d.status === 'warm').length,
+        cold: myDeals.filter(d => d.status === 'cold').length
+    };
+    
+    document.getElementById('stat-total').textContent = stats.total;
+    document.getElementById('stat-hot').textContent = stats.hot;
+    document.getElementById('stat-warm').textContent = stats.warm;
+    document.getElementById('stat-cold').textContent = stats.cold;
+    document.getElementById('my-deals-count').textContent = stats.total;
+}
+
+// Render My Deals table
+function renderMyDealsTable() {
+    const tbody = document.getElementById('deals-tbody');
+    if (!tbody) {
+        console.error('Table body not found');
+        return;
+    }
+    
+    tbody.innerHTML = '';
+    
+    // Apply sort
+    sortMyDeals();
+    
+    // Check if we have deals
+    if (filteredMyDeals.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 40px; color: #999;">
+                    ${myDeals.length === 0 
+                        ? '📭 No deals saved yet. Save deals from the Deal Aggregator!' 
+                        : '🔍 No deals match your filters'}
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Render each deal
+    filteredMyDeals.forEach(deal => {
+        const row = createMyDealRow(deal);
+        tbody.appendChild(row);
+    });
+    
+    console.log(`✅ Rendered ${filteredMyDeals.length} deals`);
+}
+
+// Create a table row for a deal
+function createMyDealRow(deal) {
+    const row = document.createElement('tr');
+    
+    // Checkbox
+    const checkboxCell = document.createElement('td');
+    checkboxCell.innerHTML = `<input type="checkbox" class="deal-checkbox" data-deal-id="${deal.savedAt}">`;
+    if (selectedMyDeals.has(deal.savedAt)) {
+        checkboxCell.querySelector('input').checked = true;
+    }
+    row.appendChild(checkboxCell);
+    
+    // Status
+    const statusCell = document.createElement('td');
+    statusCell.innerHTML = getStatusBadge(deal.status);
+    row.appendChild(statusCell);
+    
+    // Deal Name
+    const nameCell = document.createElement('td');
+    nameCell.innerHTML = `<strong>${escapeHtml(deal.name || 'Unnamed Deal')}</strong>`;
+    nameCell.style.cursor = 'pointer';
+    nameCell.title = 'Click to view details';
+    row.appendChild(nameCell);
+    
+    // Date
+    const dateCell = document.createElement('td');
+    dateCell.textContent = formatDate(deal.savedAt);
+    row.appendChild(dateCell);
+    
+    // Asking Price
+    const priceCell = document.createElement('td');
+    priceCell.textContent = formatCurrency(deal.inputs?.askingPrice || 0);
+    row.appendChild(priceCell);
+    
+    // EBITDA
+    const ebitdaCell = document.createElement('td');
+    ebitdaCell.textContent = formatCurrency(deal.inputs?.ebitdaSDE || 0);
+    row.appendChild(ebitdaCell);
+    
+    // Quality Score (if available)
+    const scoreCell = document.createElement('td');
+    if (deal.qualityScore !== undefined) {
+        scoreCell.innerHTML = `<span class="score-badge score-${getScoreClass(deal.qualityScore)}">${deal.qualityScore}</span>`;
+    } else {
+        scoreCell.textContent = '-';
+    }
+    row.appendChild(scoreCell);
+    
+    // COC Return
+    const cocCell = document.createElement('td');
+    const coc = deal.results?.cocReturn || 0;
+    cocCell.textContent = coc > 0 ? `${coc.toFixed(1)}%` : '-';
+    if (coc < 0) {
+        cocCell.style.color = '#ff4444';
+    }
+    row.appendChild(cocCell);
+    
+    // Actions
+    const actionsCell = document.createElement('td');
+    actionsCell.innerHTML = `
+        <div class="actions">
+            <button class="action-btn" title="View Details">👁️</button>
+            <button class="action-btn" title="Export">📤</button>
+            <button class="action-btn danger" title="Delete">🗑️</button>
+        </div>
+    `;
+    row.appendChild(actionsCell);
+    
+    // Event listeners
+    const checkbox = checkboxCell.querySelector('input');
+    checkbox.addEventListener('change', (e) => {
+        e.stopPropagation();
+        toggleDealSelection(deal.savedAt, checkbox.checked);
+    });
+    
+    nameCell.addEventListener('click', () => openDealModal(deal));
+    
+    const [viewBtn, exportBtn, deleteBtn] = actionsCell.querySelectorAll('.action-btn');
+    viewBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDealModal(deal);
+    });
+    exportBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        exportSingleDeal(deal);
+    });
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteSingleDeal(deal);
+    });
+    
+    return row;
+}
+
+// Get status badge HTML
+function getStatusBadge(status) {
+    const badges = {
+        hot: '<span class="status-badge hot">🔥 Hot</span>',
+        warm: '<span class="status-badge warm">🌡️ Warm</span>',
+        cold: '<span class="status-badge cold">❄️ Cold</span>',
+        pass: '<span class="status-badge pass">❌ Pass</span>',
+        none: '<span class="status-badge none">-</span>'
+    };
+    return badges[status] || badges.none;
+}
+
+// Get score class for coloring
+function getScoreClass(score) {
+    if (score >= 80) return 'excellent';
+    if (score >= 60) return 'good';
+    if (score >= 40) return 'fair';
+    return 'weak';
+}
+
+// Format date
+function formatDate(timestamp) {
+    if (!timestamp) return '-';
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+    });
+}
+
+// Format currency
+function formatCurrency(value) {
+    if (!value || value === 0) return '$0';
+    if (value >= 1000000) {
+        return '$' + (value / 1000000).toFixed(2) + 'M';
+    }
+    if (value >= 1000) {
+        return '$' + (value / 1000).toFixed(0) + 'K';
+    }
+    return '$' + value.toLocaleString();
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Sort My Deals
+function sortMyDeals() {
+    const { field, direction } = currentMyDealsSort;
+    
+    filteredMyDeals.sort((a, b) => {
+        let valA, valB;
+        
+        switch (field) {
+            case 'date':
+                valA = a.savedAt || 0;
+                valB = b.savedAt || 0;
+                break;
+            case 'name':
+                valA = (a.name || '').toLowerCase();
+                valB = (b.name || '').toLowerCase();
+                break;
+            case 'price':
+                valA = a.inputs?.askingPrice || 0;
+                valB = b.inputs?.askingPrice || 0;
+                break;
+            case 'ebitda':
+                valA = a.inputs?.ebitdaSDE || 0;
+                valB = b.inputs?.ebitdaSDE || 0;
+                break;
+            case 'score':
+                valA = a.qualityScore || 0;
+                valB = b.qualityScore || 0;
+                break;
+            case 'coc':
+                valA = a.results?.cocReturn || 0;
+                valB = b.results?.cocReturn || 0;
+                break;
+            default:
+                return 0;
+        }
+        
+        if (valA < valB) return direction === 'asc' ? -1 : 1;
+        if (valA > valB) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// Search My Deals
+function searchMyDeals(query) {
+    const lowerQuery = query.toLowerCase();
+    
+    if (!query.trim()) {
+        filteredMyDeals = [...myDeals];
+    } else {
+        filteredMyDeals = myDeals.filter(deal => {
+            return (
+                (deal.name || '').toLowerCase().includes(lowerQuery) ||
+                (deal.url || '').toLowerCase().includes(lowerQuery) ||
+                (deal.notes || '').toLowerCase().includes(lowerQuery) ||
+                (deal.location || '').toLowerCase().includes(lowerQuery) ||
+                (deal.industry || '').toLowerCase().includes(lowerQuery)
+            );
+        });
+    }
+    
+    renderMyDealsTable();
+}
+
+// Filter My Deals by status
+function filterMyDealsByStatus(status) {
+    if (!status) {
+        filteredMyDeals = [...myDeals];
+    } else {
+        filteredMyDeals = myDeals.filter(deal => deal.status === status);
+    }
+    
+    renderMyDealsTable();
+}
+
+// Toggle deal selection
+function toggleDealSelection(dealId, selected) {
+    if (selected) {
+        selectedMyDeals.add(dealId);
+    } else {
+        selectedMyDeals.delete(dealId);
+    }
+    
+    updateBulkActionsBar();
+}
+
+// Update bulk actions bar
+function updateBulkActionsBar() {
+    const bulkActions = document.getElementById('bulk-actions');
+    const bulkText = document.getElementById('bulk-text');
+    
+    if (selectedMyDeals.size > 0) {
+        bulkActions.style.display = 'flex';
+        bulkText.textContent = `${selectedMyDeals.size} deal${selectedMyDeals.size > 1 ? 's' : ''} selected`;
+    } else {
+        bulkActions.style.display = 'none';
+    }
+}
+
+// Delete single deal
+async function deleteSingleDeal(deal) {
+    if (!confirm(`Delete "${deal.name}"?`)) return;
+    
+    try {
+        myDeals = myDeals.filter(d => d.savedAt !== deal.savedAt);
+        
+        await new Promise((resolve, reject) => {
+            chrome.storage.local.set({ savedDeals: myDeals }, () => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        showToast('Deal deleted', 'success');
+        await loadMyDeals();
+        
+    } catch (error) {
+        console.error('Error deleting deal:', error);
+        showToast('Error deleting deal', 'error');
+    }
+}
+
+// Export single deal
+function exportSingleDeal(deal) {
+    exportDealsToCSV([deal]);
+}
+
+// Bulk delete deals
+async function bulkDeleteDeals() {
+    if (selectedMyDeals.size === 0) return;
+    
+    if (!confirm(`Delete ${selectedMyDeals.size} selected deals?`)) return;
+    
+    try {
+        myDeals = myDeals.filter(d => !selectedMyDeals.has(d.savedAt));
+        
+        await new Promise((resolve, reject) => {
+            chrome.storage.local.set({ savedDeals: myDeals }, () => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        showToast(`${selectedMyDeals.size} deals deleted`, 'success');
+        selectedMyDeals.clear();
+        await loadMyDeals();
+        
+    } catch (error) {
+        console.error('Error deleting deals:', error);
+        showToast('Error deleting deals', 'error');
+    }
+}
+
+// Bulk export deals
+function bulkExportDeals() {
+    if (selectedMyDeals.size === 0) return;
+    
+    const dealsToExport = myDeals.filter(d => selectedMyDeals.has(d.savedAt));
+    exportDealsToCSV(dealsToExport);
+}
+
+// Export deals to CSV
+function exportDealsToCSV(deals) {
+    const headers = [
+        'Deal Name',
+        'Status',
+        'Saved Date',
+        'URL',
+        'Asking Price',
+        'EBITDA',
+        'Quality Score',
+        'COC Return',
+        'Payback Period',
+        'Max Price',
+        'Total Debt',
+        'FCF Annual',
+        'Owner Take-Home',
+        'Notes'
+    ];
+    
+    const rows = deals.map(deal => [
+        deal.name || '',
+        deal.status || '',
+        formatDate(deal.savedAt),
+        deal.url || '',
+        deal.inputs?.askingPrice || 0,
+        deal.inputs?.ebitdaSDE || 0,
+        deal.qualityScore || '',
+        deal.results?.cocReturn || '',
+        deal.results?.paybackPeriod || '',
+        deal.results?.maxPrice || '',
+        deal.results?.totalDebt || '',
+        deal.results?.cashFlowAnnual || '',
+        deal.results?.ownerTakeHome || '',
+        (deal.notes || '').replace(/"/g, '""')
+    ]);
+    
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `my-deals-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showToast(`Exported ${deals.length} deals to CSV`, 'success');
+}
+
+// Open deal modal (placeholder for now)
+function openDealModal(deal) {
+    showToast('Deal modal coming soon!', 'info');
+    console.log('Opening deal:', deal);
+}
+
 
 // View deal details (placeholder - will open modal in future)
 function viewDealDetails(deal) {

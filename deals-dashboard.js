@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             e.stopPropagation();
             console.log('⚙️ Configure Buy Box button clicked');
-            alert('Buy Box configuration coming in Phase 3!');
+            openBuyBoxModal();
         });
     }
     
@@ -513,8 +513,9 @@ async function loadAggregatorDeals() {
         const sources = new Set(deals.map(d => d.source));
         document.getElementById('sources-active').textContent = sources.size;
         
-        // TODO: Calculate buy box matches (when buy box implemented)
-        document.getElementById('matches-buybox').textContent = '0';
+        // Calculate buy box matches
+        const buyBoxMatches = deals.filter(d => dealMatchesBuyBox(d)).length;
+        document.getElementById('matches-buybox').textContent = buyBoxMatches;
         
         // If we have deals, show table and hide empty state
         const emptyState = document.getElementById('aggregator-empty');
@@ -568,8 +569,12 @@ function createAggregatorDealRow(deal) {
     
     // Name
     const nameCell = document.createElement('td');
+    const matchesBuyBox = dealMatchesBuyBox(deal);
     nameCell.innerHTML = `
-        <div class="aggregator-deal-name">${escapeHtml(deal.name || 'Unnamed Deal')}</div>
+        <div class="aggregator-deal-name">
+            ${escapeHtml(deal.name || 'Unnamed Deal')}
+            ${matchesBuyBox ? '<span class="buybox-badge" title="Matches Your Buy Box">🎯</span>' : ''}
+        </div>
         <div class="aggregator-deal-source">${escapeHtml(deal.source || 'Unknown')}</div>
     `;
     row.appendChild(nameCell);
@@ -1663,6 +1668,363 @@ async function saveManualDeal() {
         showToast('Error saving deal: ' + error.message, 'error');
     }
 }
+
+// ===== BUY BOX CONFIGURATION =====
+
+// Default buy box configuration
+const DEFAULT_BUYBOX = {
+    minPrice: null,
+    maxPrice: null,
+    minEbitda: null,
+    maxEbitda: null,
+    minRevenue: null,
+    revenueMultiple: null,
+    targetStates: [],
+    excludeStates: [],
+    targetIndustries: [],
+    minQuality: null
+};
+
+let currentBuyBox = { ...DEFAULT_BUYBOX };
+
+// Open buy box configuration modal
+function openBuyBoxModal() {
+    console.log('⚙️ Opening Buy Box configuration modal');
+    const modal = document.getElementById('buybox-modal');
+    if (!modal) {
+        console.error('❌ buybox-modal not found');
+        showToast('Buy Box modal not found', 'error');
+        return;
+    }
+    
+    modal.style.display = 'flex';
+    
+    // Load existing buy box settings
+    loadBuyBoxSettings();
+}
+
+// Close buy box modal
+function closeBuyBoxModal() {
+    const modal = document.getElementById('buybox-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+// Load buy box settings from storage
+async function loadBuyBoxSettings() {
+    try {
+        const result = await new Promise((resolve) => {
+            chrome.storage.local.get(['buyBoxConfig'], (result) => {
+                resolve(result.buyBoxConfig || DEFAULT_BUYBOX);
+            });
+        });
+        
+        currentBuyBox = result;
+        
+        // Populate form fields
+        document.getElementById('buybox-min-price').value = currentBuyBox.minPrice || '';
+        document.getElementById('buybox-max-price').value = currentBuyBox.maxPrice || '';
+        document.getElementById('buybox-min-ebitda').value = currentBuyBox.minEbitda || '';
+        document.getElementById('buybox-max-ebitda').value = currentBuyBox.maxEbitda || '';
+        document.getElementById('buybox-min-revenue').value = currentBuyBox.minRevenue || '';
+        document.getElementById('buybox-revenue-multiple').value = currentBuyBox.revenueMultiple || '';
+        document.getElementById('buybox-states').value = currentBuyBox.targetStates?.join(', ') || '';
+        document.getElementById('buybox-exclude-states').value = currentBuyBox.excludeStates?.join(', ') || '';
+        document.getElementById('buybox-min-quality').value = currentBuyBox.minQuality || '';
+        
+        // Set industry checkboxes
+        const industries = currentBuyBox.targetIndustries || [];
+        const checkboxes = {
+            'Healthcare': 'buybox-ind-healthcare',
+            'SaaS': 'buybox-ind-saas',
+            'Manufacturing': 'buybox-ind-manufacturing',
+            'Restaurant': 'buybox-ind-restaurant',
+            'Retail': 'buybox-ind-retail',
+            'E-commerce': 'buybox-ind-ecommerce',
+            'Services': 'buybox-ind-services',
+            'Real Estate': 'buybox-ind-realestate'
+        };
+        
+        Object.entries(checkboxes).forEach(([industry, id]) => {
+            const checkbox = document.getElementById(id);
+            if (checkbox) {
+                checkbox.checked = industries.includes(industry);
+            }
+        });
+        
+        updateBuyBoxPreview();
+        
+    } catch (error) {
+        console.error('Error loading buy box settings:', error);
+        showToast('Error loading settings', 'error');
+    }
+}
+
+// Save buy box configuration
+async function saveBuyBoxConfig() {
+    try {
+        // Collect form data
+        const minPrice = parseFloat(document.getElementById('buybox-min-price')?.value) || null;
+        const maxPrice = parseFloat(document.getElementById('buybox-max-price')?.value) || null;
+        const minEbitda = parseFloat(document.getElementById('buybox-min-ebitda')?.value) || null;
+        const maxEbitda = parseFloat(document.getElementById('buybox-max-ebitda')?.value) || null;
+        const minRevenue = parseFloat(document.getElementById('buybox-min-revenue')?.value) || null;
+        const revenueMultiple = parseFloat(document.getElementById('buybox-revenue-multiple')?.value) || null;
+        
+        // Parse states (comma-separated)
+        const statesInput = document.getElementById('buybox-states')?.value || '';
+        const targetStates = statesInput
+            .split(',')
+            .map(s => s.trim().toUpperCase())
+            .filter(s => s.length === 2);
+        
+        const excludeStatesInput = document.getElementById('buybox-exclude-states')?.value || '';
+        const excludeStates = excludeStatesInput
+            .split(',')
+            .map(s => s.trim().toUpperCase())
+            .filter(s => s.length === 2);
+        
+        // Get selected industries
+        const targetIndustries = [];
+        const checkboxes = {
+            'Healthcare': 'buybox-ind-healthcare',
+            'SaaS': 'buybox-ind-saas',
+            'Manufacturing': 'buybox-ind-manufacturing',
+            'Restaurant': 'buybox-ind-restaurant',
+            'Retail': 'buybox-ind-retail',
+            'E-commerce': 'buybox-ind-ecommerce',
+            'Services': 'buybox-ind-services',
+            'Real Estate': 'buybox-ind-realestate'
+        };
+        
+        Object.entries(checkboxes).forEach(([industry, id]) => {
+            const checkbox = document.getElementById(id);
+            if (checkbox?.checked) {
+                targetIndustries.push(industry);
+            }
+        });
+        
+        const minQuality = parseFloat(document.getElementById('buybox-min-quality')?.value) || null;
+        
+        // Validate
+        if (minPrice && maxPrice && minPrice > maxPrice) {
+            showToast('Min price cannot be greater than max price', 'warning');
+            return;
+        }
+        
+        if (minEbitda && maxEbitda && minEbitda > maxEbitda) {
+            showToast('Min EBITDA cannot be greater than max EBITDA', 'warning');
+            return;
+        }
+        
+        // Build config object
+        const buyBoxConfig = {
+            minPrice,
+            maxPrice,
+            minEbitda,
+            maxEbitda,
+            minRevenue,
+            revenueMultiple,
+            targetStates,
+            excludeStates,
+            targetIndustries,
+            minQuality
+        };
+        
+        // Save to storage
+        await new Promise((resolve, reject) => {
+            chrome.storage.local.set({ buyBoxConfig }, () => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        currentBuyBox = buyBoxConfig;
+        
+        showToast('✅ Buy Box configuration saved!', 'success');
+        closeBuyBoxModal();
+        
+        // Re-render aggregator table with new filters
+        if (currentTab === 'aggregator') {
+            renderAggregatorTable();
+        }
+        
+    } catch (error) {
+        console.error('Error saving buy box:', error);
+        showToast('Error saving configuration', 'error');
+    }
+}
+
+// Reset buy box to defaults
+async function resetBuyBox() {
+    if (!confirm('Reset Buy Box to default settings?')) return;
+    
+    try {
+        await new Promise((resolve, reject) => {
+            chrome.storage.local.set({ buyBoxConfig: DEFAULT_BUYBOX }, () => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        currentBuyBox = { ...DEFAULT_BUYBOX };
+        loadBuyBoxSettings();
+        showToast('Buy Box reset to defaults', 'success');
+        
+    } catch (error) {
+        console.error('Error resetting buy box:', error);
+        showToast('Error resetting configuration', 'error');
+    }
+}
+
+// Check if deal matches buy box criteria
+function dealMatchesBuyBox(deal) {
+    // If no criteria set, all deals match
+    const hasAnyCriteria = 
+        currentBuyBox.minPrice || currentBuyBox.maxPrice ||
+        currentBuyBox.minEbitda || currentBuyBox.maxEbitda ||
+        currentBuyBox.minRevenue || currentBuyBox.revenueMultiple ||
+        (currentBuyBox.targetStates && currentBuyBox.targetStates.length > 0) ||
+        (currentBuyBox.excludeStates && currentBuyBox.excludeStates.length > 0) ||
+        (currentBuyBox.targetIndustries && currentBuyBox.targetIndustries.length > 0) ||
+        currentBuyBox.minQuality;
+    
+    if (!hasAnyCriteria) return true;
+    
+    // Price checks
+    if (currentBuyBox.minPrice && deal.askingPrice < currentBuyBox.minPrice) return false;
+    if (currentBuyBox.maxPrice && deal.askingPrice > currentBuyBox.maxPrice) return false;
+    
+    // EBITDA checks
+    if (currentBuyBox.minEbitda && deal.ebitda < currentBuyBox.minEbitda) return false;
+    if (currentBuyBox.maxEbitda && deal.ebitda > currentBuyBox.maxEbitda) return false;
+    
+    // Revenue checks
+    if (currentBuyBox.minRevenue && deal.revenue && deal.revenue < currentBuyBox.minRevenue) return false;
+    if (currentBuyBox.revenueMultiple && deal.revenue) {
+        const actualMultiple = deal.askingPrice / deal.revenue;
+        if (actualMultiple > currentBuyBox.revenueMultiple) return false;
+    }
+    
+    // State checks
+    if (currentBuyBox.targetStates && currentBuyBox.targetStates.length > 0) {
+        const dealState = deal.state?.toUpperCase();
+        if (!dealState || !currentBuyBox.targetStates.includes(dealState)) return false;
+    }
+    
+    if (currentBuyBox.excludeStates && currentBuyBox.excludeStates.length > 0) {
+        const dealState = deal.state?.toUpperCase();
+        if (dealState && currentBuyBox.excludeStates.includes(dealState)) return false;
+    }
+    
+    // Industry checks
+    if (currentBuyBox.targetIndustries && currentBuyBox.targetIndustries.length > 0) {
+        if (!deal.industry || !currentBuyBox.targetIndustries.includes(deal.industry)) return false;
+    }
+    
+    // Quality score check
+    if (currentBuyBox.minQuality && deal.qualityScore && deal.qualityScore < currentBuyBox.minQuality) return false;
+    
+    return true;
+}
+
+// Update buy box preview
+function updateBuyBoxPreview() {
+    const previewEl = document.getElementById('buybox-preview');
+    if (!previewEl) return;
+    
+    const criteria = [];
+    
+    if (currentBuyBox.minPrice || currentBuyBox.maxPrice) {
+        const min = currentBuyBox.minPrice ? formatCurrency(currentBuyBox.minPrice) : 'any';
+        const max = currentBuyBox.maxPrice ? formatCurrency(currentBuyBox.maxPrice) : 'any';
+        criteria.push(`💰 Price: ${min} - ${max}`);
+    }
+    
+    if (currentBuyBox.minEbitda || currentBuyBox.maxEbitda) {
+        const min = currentBuyBox.minEbitda ? formatCurrency(currentBuyBox.minEbitda) : 'any';
+        const max = currentBuyBox.maxEbitda ? formatCurrency(currentBuyBox.maxEbitda) : 'any';
+        criteria.push(`📊 EBITDA: ${min} - ${max}`);
+    }
+    
+    if (currentBuyBox.targetStates && currentBuyBox.targetStates.length > 0) {
+        criteria.push(`📍 States: ${currentBuyBox.targetStates.join(', ')}`);
+    }
+    
+    if (currentBuyBox.targetIndustries && currentBuyBox.targetIndustries.length > 0) {
+        criteria.push(`🏭 Industries: ${currentBuyBox.targetIndustries.join(', ')}`);
+    }
+    
+    if (currentBuyBox.minQuality) {
+        criteria.push(`⭐ Min Quality: ${currentBuyBox.minQuality}`);
+    }
+    
+    if (criteria.length === 0) {
+        previewEl.textContent = 'No criteria set - all deals will be shown';
+    } else {
+        previewEl.innerHTML = criteria.join('<br>');
+    }
+}
+
+// Initialize buy box modal handlers
+document.addEventListener('DOMContentLoaded', () => {
+    // Save button
+    const saveBtn = document.getElementById('buybox-save');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveBuyBoxConfig);
+    }
+    
+    // Reset button
+    const resetBtn = document.getElementById('buybox-reset');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetBuyBox);
+    }
+    
+    // Cancel button
+    const cancelBtn = document.getElementById('buybox-cancel');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeBuyBoxModal);
+    }
+    
+    // Close button
+    const closeBtn = document.getElementById('buybox-close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeBuyBoxModal);
+    }
+    
+    // Update preview on field changes
+    const formFields = [
+        'buybox-min-price', 'buybox-max-price', 'buybox-min-ebitda', 'buybox-max-ebitda',
+        'buybox-min-revenue', 'buybox-revenue-multiple', 'buybox-states', 'buybox-exclude-states',
+        'buybox-min-quality'
+    ];
+    
+    formFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            field.addEventListener('input', updateBuyBoxPreview);
+        }
+    });
+    
+    // Update preview on checkbox changes
+    const checkboxIds = [
+        'buybox-ind-healthcare', 'buybox-ind-saas', 'buybox-ind-manufacturing',
+        'buybox-ind-restaurant', 'buybox-ind-retail', 'buybox-ind-ecommerce',
+        'buybox-ind-services', 'buybox-ind-realestate'
+    ];
+    
+    checkboxIds.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) {
+            checkbox.addEventListener('change', updateBuyBoxPreview);
+        }
+    });
+});
 
 // Initialize manual deal modal handlers
 document.addEventListener('DOMContentLoaded', () => {

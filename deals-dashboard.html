@@ -74,6 +74,171 @@
             letter-spacing: 0.5px;
         }
 
+        /* Journey Progress Indicator */
+        .journey-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 16px 24px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: all 0.3s ease;
+        }
+
+        .journey-stage {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .journey-stage.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .journey-stage.completed {
+            background: var(--bg-tertiary);
+            color: #27ae60;
+        }
+
+        .journey-arrow {
+            color: var(--text-secondary);
+            font-size: 16px;
+            opacity: 0.5;
+        }
+
+        /* Tab Navigation */
+        .tab-navigation {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            background: var(--bg-secondary);
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .tab-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .tab-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Deal Aggregator Specific Styles */
+        .aggregator-welcome {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 24px 32px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .aggregator-welcome h2 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .aggregator-welcome p {
+            opacity: 0.9;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .aggregator-stats {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .aggregator-stat {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .aggregator-empty {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-secondary);
+        }
+
+        .aggregator-empty-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .aggregator-empty h3 {
+            font-size: 24px;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .aggregator-empty p {
+            font-size: 14px;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .aggregator-empty button {
+            padding: 12px 24px;
+            font-size: 14px;
+        }
+
         .controls {
             background: var(--bg-secondary);
             padding: 20px;
@@ -1276,29 +1441,99 @@
 </head>
 <body>
     <div class="header">
-        <h1>📊 Deals Dashboard</h1>
-        <p>Manage and track all your saved business deals</p>
+        <h1>📊 Deal Acquisition Platform</h1>
+        <p>From discovery to closing: Data → Information → Knowledge → Insight → Wisdom</p>
         <span class="header-version" id="header-version">v2.0.0</span>
     </div>
 
-    <div class="stats" id="stats">
-        <div class="stat-card">
-            <div class="stat-label">Total Deals</div>
-            <div class="stat-value" id="stat-total">0</div>
+    <!-- Journey Progress Indicator -->
+    <div class="journey-indicator" id="journey-indicator">
+        <div class="journey-stage active" data-stage="data">
+            <span>📊</span>
+            <span>DATA</span>
         </div>
-        <div class="stat-card hot">
-            <div class="stat-label">🔥 Hot Leads</div>
-            <div class="stat-value" id="stat-hot">0</div>
+        <div class="journey-arrow">→</div>
+        <div class="journey-stage" data-stage="information">
+            <span>🎯</span>
+            <span>INFORMATION</span>
         </div>
-        <div class="stat-card warm">
-            <div class="stat-label">🌡️ Warm</div>
-            <div class="stat-value" id="stat-warm">0</div>
+        <div class="journey-arrow">→</div>
+        <div class="journey-stage" data-stage="knowledge">
+            <span>🧠</span>
+            <span>KNOWLEDGE</span>
         </div>
-        <div class="stat-card cold">
-            <div class="stat-label">❄️ Cold</div>
-            <div class="stat-value" id="stat-cold">0</div>
+        <div class="journey-arrow">→</div>
+        <div class="journey-stage" data-stage="insight">
+            <span>💡</span>
+            <span>INSIGHT</span>
+        </div>
+        <div class="journey-arrow">→</div>
+        <div class="journey-stage" data-stage="wisdom">
+            <span>🎓</span>
+            <span>WISDOM</span>
         </div>
     </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-navigation">
+        <button class="tab-btn active" data-tab="aggregator">
+            <span>🔍</span>
+            <span>Deal Aggregator</span>
+            <span class="tab-badge" id="aggregator-count">0</span>
+        </button>
+        <button class="tab-btn" data-tab="my-deals">
+            <span>💼</span>
+            <span>My Deals</span>
+            <span class="tab-badge" id="my-deals-count">0</span>
+        </button>
+    </div>
+
+    <!-- Deal Aggregator Tab -->
+    <div class="tab-content active" id="tab-aggregator">
+        <div class="aggregator-welcome">
+            <h2>🔍 Discover Business Deals</h2>
+            <p>Explore 100+ active deals aggregated from 200+ sources</p>
+            <div class="aggregator-stats">
+                <div class="aggregator-stat">📊 <span id="total-aggregated">0</span> Total Deals</div>
+                <div class="aggregator-stat">🔥 <span id="new-today">0</span> Added Today</div>
+                <div class="aggregator-stat">🎯 <span id="matches-buybox">0</span> Match Your Buy Box</div>
+                <div class="aggregator-stat">⚡ <span id="sources-active">0</span> Active Sources</div>
+            </div>
+        </div>
+
+        <!-- Aggregator will be loaded here -->
+        <div class="aggregator-empty">
+            <div class="aggregator-empty-icon">🚀</div>
+            <h3>Getting Started with Deal Aggregator</h3>
+            <p>
+                We're setting up your deal aggregation engine.<br>
+                RSS feeds and scrapers will populate deals automatically.<br>
+                Check back in a few moments!
+            </p>
+            <button class="modal-btn" id="start-aggregation">Start Aggregating Deals</button>
+        </div>
+    </div>
+
+    <!-- My Deals Tab (Existing Dashboard) -->
+    <div class="tab-content" id="tab-my-deals">
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-label">Total Deals</div>
+                <div class="stat-value" id="stat-total">0</div>
+            </div>
+            <div class="stat-card hot">
+                <div class="stat-label">🔥 Hot Leads</div>
+                <div class="stat-value" id="stat-hot">0</div>
+            </div>
+            <div class="stat-card warm">
+                <div class="stat-label">🌡️ Warm</div>
+                <div class="stat-value" id="stat-warm">0</div>
+            </div>
+            <div class="stat-card cold">
+                <div class="stat-label">❄️ Cold</div>
+                <div class="stat-value" id="stat-cold">0</div>
+            </div>
+        </div>
 
     <div class="controls">
         <div class="controls-row">
@@ -1942,6 +2177,8 @@
             <p>Start analyzing deals and save them to see them here!</p>
         </div>
     </div>
+    </div>
+    <!-- End My Deals Tab -->
 
     <script src="deals-dashboard.js"></script>
 </body>

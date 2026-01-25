@@ -57,6 +57,99 @@
     }, 500);
 })();
 
+// ===== TAB NAVIGATION & JOURNEY INDICATOR =====
+let currentJourneyStage = 'data'; // data, information, knowledge, insight, wisdom
+let currentTab = 'aggregator'; // aggregator, my-deals
+
+// Update journey indicator
+function updateJourneyStage(stage) {
+    console.log('🎯 Updating journey stage to:', stage);
+    currentJourneyStage = stage;
+    
+    const stages = document.querySelectorAll('.journey-stage');
+    stages.forEach(stageEl => {
+        const stageData = stageEl.getAttribute('data-stage');
+        stageEl.classList.remove('active', 'completed');
+        
+        if (stageData === stage) {
+            stageEl.classList.add('active');
+        } else {
+            // Mark previous stages as completed
+            const stageOrder = ['data', 'information', 'knowledge', 'insight', 'wisdom'];
+            const currentIndex = stageOrder.indexOf(stage);
+            const stageIndex = stageOrder.indexOf(stageData);
+            if (stageIndex < currentIndex) {
+                stageEl.classList.add('completed');
+            }
+        }
+    });
+}
+
+// Switch between tabs
+function switchTab(tabName) {
+    console.log('📑 Switching to tab:', tabName);
+    currentTab = tabName;
+    
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('data-tab') === tabName) {
+            btn.classList.add('active');
+        }
+    });
+    
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    const targetTab = document.getElementById(`tab-${tabName}`);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
+    
+    // Update journey stage based on tab
+    if (tabName === 'aggregator') {
+        updateJourneyStage('data');
+    } else if (tabName === 'my-deals') {
+        updateJourneyStage('wisdom');
+    }
+}
+
+// Initialize tabs on load
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Initializing Deal Aggregator v2.0.0');
+    
+    // Set up tab navigation
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabName = btn.getAttribute('data-tab');
+            switchTab(tabName);
+        });
+    });
+    
+    // Set up journey stage clickability (for navigation hints)
+    document.querySelectorAll('.journey-stage').forEach(stage => {
+        stage.addEventListener('click', () => {
+            const stageName = stage.getAttribute('data-stage');
+            console.log('Journey stage clicked:', stageName);
+            // Future: Navigate to appropriate view based on stage
+        });
+    });
+    
+    // Start aggregation button
+    const startBtn = document.getElementById('start-aggregation');
+    if (startBtn) {
+        startBtn.addEventListener('click', () => {
+            showToast('Starting deal aggregation...', 'info');
+            // Future: Trigger RSS feed fetch
+        });
+    }
+    
+    // Initialize with Deal Aggregator tab
+    switchTab('aggregator');
+});
+
 // ===== MAIN DASHBOARD CODE =====
 let allDeals = [];
 let filteredDeals = [];

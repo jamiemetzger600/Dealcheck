@@ -1,12 +1,75 @@
+/* CSS Variables for Light/Dark Mode */
+#deal-analyzer-container {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f4f6f9;
+  --bg-header: #0d2e4e;
+  --text-primary: #333;
+  --text-secondary: #666;
+  --text-tertiary: #999;
+  --border-color: #cdd1d5;
+  --border-light: #eee;
+  --input-bg: #ffffff;
+  --input-bg-readonly: #f5f5f5;
+  --input-bg-readonly-hover: #e8e8e8;
+  --input-border: #ccc;
+  --result-bg: #f8f9fa;
+  --result-title: #555;
+  --result-value: #2c3e50;
+  --warning-bg: #fae5d3;
+  --warning-text: #d35400;
+  --success-bg: #d4edda;
+  --success-text: #155724;
+  --success-border: #28a745;
+  --btn-primary: #0066cc;
+  --btn-primary-hover: #0052a3;
+  --btn-success: #27ae60;
+  --btn-secondary: #95a5a6;
+  --shadow: rgba(0,0,0,0.2);
+  --modal-overlay: rgba(0,0,0,0.5);
+  --modal-bg: white;
+}
+
+#deal-analyzer-container.dark-mode {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #252525;
+  --bg-header: #0a1929;
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-tertiary: #888;
+  --border-color: #404040;
+  --border-light: #333;
+  --input-bg: #2d2d2d;
+  --input-bg-readonly: #252525;
+  --input-bg-readonly-hover: #333;
+  --input-border: #404040;
+  --result-bg: #252525;
+  --result-title: #b0b0b0;
+  --result-value: #e0e0e0;
+  --warning-bg: #4a2c1a;
+  --warning-text: #ff8c42;
+  --success-bg: #1a3a1a;
+  --success-text: #6fcf97;
+  --success-border: #27ae60;
+  --btn-primary: #0066cc;
+  --btn-primary-hover: #0080ff;
+  --btn-success: #27ae60;
+  --btn-secondary: #6c757d;
+  --shadow: rgba(0,0,0,0.5);
+  --modal-overlay: rgba(0,0,0,0.7);
+  --modal-bg: #2d2d2d;
+}
+
 /* Container for the floating app */
 #deal-analyzer-container {
   position: fixed;
   top: 120px;
   right: 50px;
   width: 380px;
-  background-color: #ffffff;
-  border: 1px solid #cdd1d5;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 24px var(--shadow);
   z-index: 2147483647; /* Stays on top of everything */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   border-radius: 8px;
@@ -14,14 +77,16 @@
   flex-direction: column;
   resize: both;
   overflow: auto;
-  max-height: calc(100vh - 140px);
-  color: #333;
+  max-height: calc(100vh - 20px); /* Allow expansion almost to bottom of viewport */
+  min-height: 200px; /* Minimum height constraint */
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 /* Header */
 #deal-analyzer-header {
   padding: 8px 12px;
-  background-color: #0d2e4e; /* Professional Navy */
+  background-color: var(--bg-header);
   color: white;
   cursor: move;
   border-top-left-radius: 8px;
@@ -31,6 +96,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: background-color 0.3s ease;
 }
 
 #da-close { cursor: pointer; font-weight: bold; opacity: 0.8; }
@@ -39,47 +105,172 @@
 #da-coffee-btn:hover { opacity: 1 !important; transform: scale(1.1); }
 
 /* Sections */
-.da-section { padding: 8px; border-bottom: 1px solid #eee; }
+.da-section { 
+  padding: 8px; 
+  border-bottom: 1px solid var(--border-light);
+  background-color: var(--bg-primary);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
 .da-row { margin-bottom: 6px; }
 .da-flex-row { display: flex; gap: 6px; align-items: stretch; margin-bottom: 6px; }
 .da-flex-row > div { display: flex; flex-direction: column; }
 
 /* Inputs */
-.da-label { display: block; font-size: 10px; color: #666; margin-bottom: 2px; font-weight: 500;}
+.da-label { 
+  display: block; 
+  font-size: 10px; 
+  color: var(--text-secondary); 
+  margin-bottom: 2px; 
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
 .da-input {
   width: 100%;
   padding: 5px 6px;
   box-sizing: border-box;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 3px;
   font-size: 12px;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 .da-input[readonly] {
-  background-color: #f5f5f5;
+  background-color: var(--input-bg-readonly);
   cursor: pointer;
 }
 .da-input[readonly]:hover {
-  background-color: #e8e8e8;
-  border-color: #999;
+  background-color: var(--input-bg-readonly-hover);
+  border-color: var(--text-tertiary);
 }
-.da-select { width: 100%; padding: 5px 6px; border-radius: 3px; border: 1px solid #ccc; font-size: 12px; }
+.da-select { 
+  width: 100%; 
+  padding: 5px 6px; 
+  border-radius: 3px; 
+  border: 1px solid var(--input-border); 
+  font-size: 12px;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
 
 /* Results */
 .da-result-box {
-  background-color: #f8f9fa;
-  border-left: 3px solid #27ae60;
+  background-color: var(--result-bg);
+  border-left: 3px solid var(--btn-success);
   padding: 6px 8px;
   margin-top: 6px;
   border-radius: 0 3px 3px 0;
+  transition: background-color 0.3s ease;
 }
-.da-result-title { font-size: 9px; text-transform: uppercase; color: #555; letter-spacing: 0.3px; }
-.da-result-value { font-size: 14px; font-weight: 700; color: #2c3e50; margin-top: 1px;}
+.da-result-title { 
+  font-size: 9px; 
+  text-transform: uppercase; 
+  color: var(--result-title); 
+  letter-spacing: 0.3px;
+  transition: color 0.3s ease;
+}
+.da-result-value { 
+  font-size: 14px; 
+  font-weight: 700; 
+  color: var(--result-value); 
+  margin-top: 1px;
+  transition: color 0.3s ease;
+}
 
 /* Buttons & Warnings */
 .da-btn {
-  background: #0066cc; color: white; border: none; padding: 8px;
-  width: 100%; border-radius: 3px; cursor: pointer; margin-top: 6px; font-weight: 600; font-size: 12px;
+  background: var(--btn-primary); 
+  color: white; 
+  border: none; 
+  padding: 8px;
+  width: 100%; 
+  border-radius: 3px; 
+  cursor: pointer; 
+  margin-top: 6px; 
+  font-weight: 600; 
+  font-size: 12px;
+  transition: background-color 0.3s ease;
 }
-.da-btn:hover { background: #0052a3; }
-.da-warning { font-size: 10px; color: #d35400; background: #fae5d3; padding: 3px 5px; border-radius: 2px; margin-top: 3px; display: none; }
-.da-warning.visible { display: block; }
+.da-btn:hover { background: var(--btn-primary-hover); }
+/* Deal Quality Banner */
+#da-quality-banner {
+  background: var(--bg-secondary) !important;
+  border-bottom: 2px solid var(--border-light) !important;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Deal Opportunity (success message) */
+#da-deal-opportunity {
+  background: var(--success-bg) !important;
+  border-left-color: var(--success-border) !important;
+  color: var(--success-text) !important;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Result boxes - ensure consistent background */
+.da-result-box {
+  background-color: var(--result-bg) !important;
+  transition: background-color 0.3s ease;
+}
+
+/* Input fields in dark mode */
+.dark-mode .da-input,
+.dark-mode .da-select {
+  color: var(--text-primary);
+}
+
+/* Links */
+.dark-mode a {
+  color: #4a9eff;
+}
+
+.dark-mode a:hover {
+  color: #6bb0ff;
+}
+
+/* Ensure all text uses CSS variables */
+.dark-mode {
+  color: var(--text-primary);
+}
+
+/* Override any inline styles that might conflict */
+#deal-analyzer-container.dark-mode * {
+  color: inherit;
+}
+
+/* Deal Quality Banner */
+#da-quality-banner {
+  background: var(--bg-secondary) !important;
+  border-bottom: 2px solid var(--border-light) !important;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Deal Opportunity (success message) */
+#da-deal-opportunity {
+  background: var(--success-bg) !important;
+  border-left-color: var(--success-border) !important;
+  color: var(--success-text) !important;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Result boxes - ensure consistent background */
+.da-result-box {
+  background-color: var(--result-bg) !important;
+  transition: background-color 0.3s ease;
+}
+
+/* Input fields in dark mode */
+.dark-mode .da-input,
+.dark-mode .da-select {
+  color: var(--text-primary);
+}
+
+/* Links */
+.dark-mode a {
+  color: #4a9eff;
+}
+
+.dark-mode a:hover {
+  color: #6bb0ff;
+}

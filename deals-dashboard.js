@@ -140,15 +140,73 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start aggregation button
     const startBtn = document.getElementById('start-aggregation');
     if (startBtn) {
-        startBtn.addEventListener('click', () => {
+        startBtn.addEventListener('click', async () => {
             showToast('Starting deal aggregation...', 'info');
-            // Future: Trigger RSS feed fetch
+            startBtn.disabled = true;
+            startBtn.classList.add('loading');
+            
+            try {
+                // Fetch RSS feeds
+                const results = await fetchAllRSSFeeds();
+                
+                // Flatten all deals
+                const allDeals = results.flatMap(r => r.deals);
+                
+                // Add to storage
+                const stats = await addDealsToPool(allDeals);
+                
+                showToast(`✅ Added ${stats.added} new deals (${stats.duplicates} duplicates)`, 'success', 5000);
+                
+                // Update UI
+                await loadAggregatorDeals();
+                
+            } catch (error) {
+                console.error('Error aggregating deals:', error);
+                showToast('❌ Error aggregating deals: ' + error.message, 'error');
+            } finally {
+                startBtn.disabled = false;
+                startBtn.classList.remove('loading');
+            }
         });
     }
+    
+    // Load aggregated deals on tab switch
+    loadAggregatorDeals();
     
     // Initialize with Deal Aggregator tab
     switchTab('aggregator');
 });
+
+// Load and display aggregated deals
+async function loadAggregatorDeals() {
+    try {
+        const deals = await loadAggregatedDeals();
+        console.log(`📊 Loaded ${deals.length} aggregated deals`);
+        
+        // Update stats
+        document.getElementById('total-aggregated').textContent = deals.length;
+        document.getElementById('aggregator-count').textContent = deals.length;
+        
+        // Calculate today's new deals
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        const newToday = deals.filter(d => d.discoveredAt > oneDayAgo).length;
+        document.getElementById('new-today').textContent = newToday;
+        
+        // Update sources count
+        const sources = new Set(deals.map(d => d.source));
+        document.getElementById('sources-active').textContent = sources.size;
+        
+        // If we have deals, hide empty state and show table
+        if (deals.length > 0) {
+            document.querySelector('.aggregator-empty').style.display = 'none';
+            // TODO: Display deals in table (next step)
+        }
+        
+    } catch (error) {
+        console.error('Error loading aggregated deals:', error);
+        showToast('Error loading deals: ' + error.message, 'error');
+    }
+}
 
 // ===== MAIN DASHBOARD CODE =====
 let allDeals = [];

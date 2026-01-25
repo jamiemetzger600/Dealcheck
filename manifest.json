@@ -32,7 +32,12 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["deals-dashboard.html", "deals-dashboard.js"],
+      "resources": [
+        "deals-dashboard.html",
+        "deals-dashboard.js",
+        "scrapers/rss-parser.js",
+        "utils/storage-manager.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ]

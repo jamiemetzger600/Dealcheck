@@ -173,15 +173,93 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load aggregated deals on tab switch
     loadAggregatorDeals();
     
+    // Set up aggregator table sorting
+    document.querySelectorAll('.aggregator-table th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const sortField = th.getAttribute('data-sort');
+            
+            // Toggle direction if same field, otherwise default to desc
+            if (currentAggregatorSort.field === sortField) {
+                currentAggregatorSort.direction = currentAggregatorSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentAggregatorSort.field = sortField;
+                currentAggregatorSort.direction = 'desc';
+            }
+            
+            // Update UI
+            document.querySelectorAll('.aggregator-table th').forEach(h => {
+                h.classList.remove('sorted-asc', 'sorted-desc');
+            });
+            th.classList.add(`sorted-${currentAggregatorSort.direction}`);
+            
+            // Re-render
+            renderAggregatorTable();
+        });
+    });
+    
+    // Set up aggregator search
+    const searchInput = document.getElementById('aggregator-search');
+    if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                searchAggregatorDeals(e.target.value);
+            }, 300);
+        });
+    }
+    
+    // Set up pagination buttons
+    const prevBtn = document.getElementById('page-prev');
+    const nextBtn = document.getElementById('page-next');
+    
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderAggregatorTable();
+            }
+        });
+    }
+    
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredAggregatedDeals.length / DEALS_PER_PAGE);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderAggregatorTable();
+            }
+        });
+    }
+    
+    // Set up Configure Buy Box button
+    const buyBoxBtn = document.getElementById('show-filters-btn');
+    if (buyBoxBtn) {
+        buyBoxBtn.addEventListener('click', () => {
+            showToast('Buy Box configuration coming in Phase 3!', 'info');
+            updateJourneyStage('information');
+            // TODO: Open buy box modal
+        });
+    }
+    
     // Initialize with Deal Aggregator tab
     switchTab('aggregator');
 });
 
 // Load and display aggregated deals
+let aggregatedDeals = [];
+let filteredAggregatedDeals = [];
+let currentPage = 1;
+const DEALS_PER_PAGE = 50;
+let currentAggregatorSort = { field: 'date', direction: 'desc' };
+
 async function loadAggregatorDeals() {
     try {
         const deals = await loadAggregatedDeals();
         console.log(`📊 Loaded ${deals.length} aggregated deals`);
+        
+        aggregatedDeals = deals;
+        filteredAggregatedDeals = deals;
         
         // Update stats
         document.getElementById('total-aggregated').textContent = deals.length;
@@ -196,16 +274,340 @@ async function loadAggregatorDeals() {
         const sources = new Set(deals.map(d => d.source));
         document.getElementById('sources-active').textContent = sources.size;
         
-        // If we have deals, hide empty state and show table
+        // TODO: Calculate buy box matches (when buy box implemented)
+        document.getElementById('matches-buybox').textContent = '0';
+        
+        // If we have deals, show table and hide empty state
+        const emptyState = document.getElementById('aggregator-empty');
+        const tableContainer = document.getElementById('aggregator-table-container');
+        
         if (deals.length > 0) {
-            document.querySelector('.aggregator-empty').style.display = 'none';
-            // TODO: Display deals in table (next step)
+            if (emptyState) emptyState.style.display = 'none';
+            if (tableContainer) tableContainer.classList.add('active');
+            renderAggregatorTable();
+        } else {
+            if (emptyState) emptyState.style.display = 'block';
+            if (tableContainer) tableContainer.classList.remove('active');
         }
         
     } catch (error) {
         console.error('Error loading aggregated deals:', error);
         showToast('Error loading deals: ' + error.message, 'error');
     }
+}
+
+// Render aggregator table
+function renderAggregatorTable() {
+    const tbody = document.getElementById('aggregator-tbody');
+    if (!tbody) return;
+    
+    // Sort deals
+    const sortedDeals = sortAggregatorDeals(filteredAggregatedDeals, currentAggregatorSort);
+    
+    // Paginate
+    const startIdx = (currentPage - 1) * DEALS_PER_PAGE;
+    const endIdx = startIdx + DEALS_PER_PAGE;
+    const pageDeals = sortedDeals.slice(startIdx, endIdx);
+    
+    // Clear table
+    tbody.innerHTML = '';
+    
+    // Render rows
+    pageDeals.forEach(deal => {
+        const row = createAggregatorDealRow(deal);
+        tbody.appendChild(row);
+    });
+    
+    // Update pagination
+    updateAggregatorPagination(sortedDeals.length);
+}
+
+// Create table row for a deal
+function createAggregatorDealRow(deal) {
+    const row = document.createElement('tr');
+    row.dataset.dealId = deal.id;
+    
+    // Name
+    const nameCell = document.createElement('td');
+    nameCell.innerHTML = `
+        <div class="aggregator-deal-name">${escapeHtml(deal.name || 'Unnamed Deal')}</div>
+        <div class="aggregator-deal-source">${escapeHtml(deal.source || 'Unknown')}</div>
+    `;
+    row.appendChild(nameCell);
+    
+    // Asking Price
+    const priceCell = document.createElement('td');
+    priceCell.innerHTML = `<span class="aggregator-price">${formatPrice(deal.askingPrice)}</span>`;
+    row.appendChild(priceCell);
+    
+    // EBITDA
+    const ebitdaCell = document.createElement('td');
+    ebitdaCell.innerHTML = `<span class="aggregator-price positive">${formatPrice(deal.ebitda)}</span>`;
+    row.appendChild(ebitdaCell);
+    
+    // Location
+    const locationCell = document.createElement('td');
+    locationCell.textContent = deal.location || deal.city || '-';
+    row.appendChild(locationCell);
+    
+    // Industry
+    const industryCell = document.createElement('td');
+    industryCell.innerHTML = deal.industry ? 
+        `<span class="aggregator-industry-tag">${escapeHtml(deal.industry)}</span>` : 
+        '-';
+    row.appendChild(industryCell);
+    
+    // Source
+    const sourceCell = document.createElement('td');
+    sourceCell.textContent = deal.sourceType || 'RSS';
+    row.appendChild(sourceCell);
+    
+    // Date
+    const dateCell = document.createElement('td');
+    dateCell.textContent = formatRelativeTime(deal.discoveredAt);
+    row.appendChild(dateCell);
+    
+    // Actions
+    const actionsCell = document.createElement('td');
+    actionsCell.innerHTML = `
+        <div class="aggregator-actions">
+            <button class="aggregator-action-btn save" title="Save Deal">💾</button>
+            <button class="aggregator-action-btn" title="View Details">👁️</button>
+        </div>
+    `;
+    row.appendChild(actionsCell);
+    
+    // Click handlers
+    const saveBtn = actionsCell.querySelector('.save');
+    const viewBtn = actionsCell.querySelector('.aggregator-action-btn:not(.save)');
+    
+    saveBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        saveDealFromAggregator(deal);
+    });
+    
+    viewBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        viewDealDetails(deal);
+    });
+    
+    // Row click to view details
+    row.addEventListener('click', () => {
+        viewDealDetails(deal);
+    });
+    
+    return row;
+}
+
+// Sort aggregator deals
+function sortAggregatorDeals(deals, sortConfig) {
+    const sorted = [...deals];
+    
+    sorted.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch (sortConfig.field) {
+            case 'name':
+                aVal = (a.name || '').toLowerCase();
+                bVal = (b.name || '').toLowerCase();
+                break;
+            case 'price':
+                aVal = a.askingPrice || 0;
+                bVal = b.askingPrice || 0;
+                break;
+            case 'ebitda':
+                aVal = a.ebitda || 0;
+                bVal = b.ebitda || 0;
+                break;
+            case 'location':
+                aVal = (a.location || a.city || '').toLowerCase();
+                bVal = (b.location || b.city || '').toLowerCase();
+                break;
+            case 'industry':
+                aVal = (a.industry || '').toLowerCase();
+                bVal = (b.industry || '').toLowerCase();
+                break;
+            case 'source':
+                aVal = (a.source || '').toLowerCase();
+                bVal = (b.source || '').toLowerCase();
+                break;
+            case 'date':
+                aVal = a.discoveredAt || 0;
+                bVal = b.discoveredAt || 0;
+                break;
+            default:
+                return 0;
+        }
+        
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+    
+    return sorted;
+}
+
+// Update pagination controls
+function updateAggregatorPagination(totalDeals) {
+    const totalPages = Math.ceil(totalDeals / DEALS_PER_PAGE);
+    const startIdx = (currentPage - 1) * DEALS_PER_PAGE + 1;
+    const endIdx = Math.min(currentPage * DEALS_PER_PAGE, totalDeals);
+    
+    // Update info text
+    const infoEl = document.getElementById('pagination-info');
+    if (infoEl) {
+        infoEl.textContent = `Showing ${startIdx}-${endIdx} of ${totalDeals} deals`;
+    }
+    
+    // Update buttons
+    const prevBtn = document.getElementById('page-prev');
+    const nextBtn = document.getElementById('page-next');
+    
+    if (prevBtn) prevBtn.disabled = currentPage === 1;
+    if (nextBtn) nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+    
+    // TODO: Update page number buttons dynamically
+}
+
+// Search aggregator deals
+function searchAggregatorDeals(query) {
+    if (!query.trim()) {
+        filteredAggregatedDeals = aggregatedDeals;
+    } else {
+        const lowerQuery = query.toLowerCase();
+        filteredAggregatedDeals = aggregatedDeals.filter(deal => {
+            return (
+                (deal.name || '').toLowerCase().includes(lowerQuery) ||
+                (deal.description || '').toLowerCase().includes(lowerQuery) ||
+                (deal.location || '').toLowerCase().includes(lowerQuery) ||
+                (deal.city || '').toLowerCase().includes(lowerQuery) ||
+                (deal.state || '').toLowerCase().includes(lowerQuery) ||
+                (deal.industry || '').toLowerCase().includes(lowerQuery)
+            );
+        });
+    }
+    
+    currentPage = 1;
+    renderAggregatorTable();
+}
+
+// Save deal from aggregator to My Deals
+async function saveDealFromAggregator(deal) {
+    try {
+        showToast('Saving deal...', 'info');
+        
+        // Convert aggregator deal to saved deal format
+        const savedDeal = convertAggregatorDealToSaved(deal);
+        
+        // Load existing saved deals
+        const existingDeals = await new Promise((resolve) => {
+            chrome.storage.local.get(['savedDeals'], (result) => {
+                resolve(result.savedDeals || []);
+            });
+        });
+        
+        // Check for duplicates
+        const exists = existingDeals.some(d => d.url === deal.url);
+        if (exists) {
+            showToast('Deal already saved!', 'warning');
+            return;
+        }
+        
+        // Add new deal
+        existingDeals.unshift(savedDeal);
+        
+        // Save
+        await new Promise((resolve, reject) => {
+            chrome.storage.local.set({ savedDeals: existingDeals }, () => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        showToast('✅ Deal saved to My Deals!', 'success');
+        
+        // Update My Deals count
+        document.getElementById('my-deals-count').textContent = existingDeals.length;
+        
+    } catch (error) {
+        console.error('Error saving deal:', error);
+        showToast('Error saving deal: ' + error.message, 'error');
+    }
+}
+
+// Convert aggregator deal to saved deal format
+function convertAggregatorDealToSaved(deal) {
+    return {
+        name: deal.name || 'Unnamed Deal',
+        url: deal.url || '',
+        savedAt: Date.now(),
+        status: 'none',
+        inputs: {
+            businessName: deal.name || '',
+            askingPrice: deal.askingPrice || 0,
+            ebitdaSDE: deal.ebitda || 0,
+            targetOwnerSalary: 0,
+            targetDSCR: 1.25
+        },
+        results: {
+            maxPrice: 0,
+            debtPayment: 0,
+            cashFlowAnnual: 0,
+            ownerTakeHome: 0,
+            cocReturn: 0,
+            paybackPeriod: 0
+        },
+        location: deal.location || deal.city || '',
+        industry: deal.industry || '',
+        source: deal.source || 'Deal Aggregator',
+        notes: ''
+    };
+}
+
+// View deal details (placeholder - will open modal in future)
+function viewDealDetails(deal) {
+    console.log('View deal details:', deal);
+    showToast('Deal details modal coming soon! Click 💾 to save deal.', 'info');
+    // TODO: Open deal details modal with KNOWLEDGE stage
+}
+
+// Format relative time
+function formatRelativeTime(timestamp) {
+    if (!timestamp) return '-';
+    
+    const now = Date.now();
+    const diff = now - timestamp;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return 'Just now';
+}
+
+// Format price
+function formatPrice(price) {
+    if (!price || price === 0) return '-';
+    
+    if (price >= 1000000) {
+        return `$${(price / 1000000).toFixed(1)}M`;
+    } else if (price >= 1000) {
+        return `$${(price / 1000).toFixed(0)}K`;
+    }
+    return `$${price.toLocaleString()}`;
+}
+
+// Escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // ===== MAIN DASHBOARD CODE =====

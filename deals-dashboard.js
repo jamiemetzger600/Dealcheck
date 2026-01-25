@@ -106,6 +106,9 @@ function switchTab(tabName) {
     const targetTab = document.getElementById(`tab-${tabName}`);
     if (targetTab) {
         targetTab.classList.add('active');
+        console.log('✅ Tab switched to:', tabName);
+    } else {
+        console.error('❌ Tab not found:', `tab-${tabName}`);
     }
     
     // Update journey stage based on tab
@@ -118,7 +121,119 @@ function switchTab(tabName) {
 
 // Initialize tabs on load
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 Initializing Deal Aggregator v2.1.0');
+    console.log('🚀 Initializing Deal Aggregator v2.1.4');
+    
+    // Add global test functions for debugging
+    window.testSourceModal = function() {
+        console.log('🧪 Testing source modal...');
+        const modal = document.getElementById('source-management-modal');
+        if (modal) {
+            console.log('✅ Modal found');
+            console.log('   Current styles:', {
+                display: modal.style.display,
+                visibility: modal.style.visibility,
+                zIndex: modal.style.zIndex,
+                computed: window.getComputedStyle(modal).display
+            });
+            modal.style.display = 'flex';
+            modal.style.visibility = 'visible';
+            modal.style.zIndex = '99999';
+            console.log('   After setting:', {
+                display: modal.style.display,
+                visibility: modal.style.visibility,
+                zIndex: modal.style.zIndex
+            });
+        } else {
+            console.error('❌ Modal not found');
+        }
+    };
+    
+    window.testManualModal = function() {
+        console.log('🧪 Testing manual deal modal...');
+        const modal = document.getElementById('manual-deal-modal');
+        if (modal) {
+            console.log('✅ Modal found');
+            modal.style.display = 'flex';
+            modal.style.visibility = 'visible';
+            modal.style.zIndex = '99999';
+        } else {
+            console.error('❌ Modal not found');
+        }
+    };
+    
+    console.log('🧪 Test functions available: window.testSourceModal() and window.testManualModal()');
+    
+    // Verify required functions are available
+    console.log('📦 Checking dependencies...');
+    console.log('  fetchAllRSSFeeds:', typeof fetchAllRSSFeeds !== 'undefined' ? '✅' : '❌');
+    console.log('  addDealsToPool:', typeof addDealsToPool !== 'undefined' ? '✅' : '❌');
+    console.log('  loadAggregatedDeals:', typeof loadAggregatedDeals !== 'undefined' ? '✅' : '❌');
+    console.log('  getCustomSources:', typeof getCustomSources !== 'undefined' ? '✅' : '❌');
+    console.log('  addCustomSource:', typeof addCustomSource !== 'undefined' ? '✅' : '❌');
+    console.log('  fetchAllCustomSources:', typeof fetchAllCustomSources !== 'undefined' ? '✅' : '❌');
+    console.log('  openSourceManagementModal:', typeof openSourceManagementModal !== 'undefined' ? '✅' : '❌');
+    console.log('  openManualDealModal:', typeof openManualDealModal !== 'undefined' ? '✅' : '❌');
+    
+    // ====== GLOBAL ACTION BUTTONS (Header) ======
+    // These buttons are always visible and accessible regardless of tab
+    
+    // Fetch Deals button
+    const fetchDealsBtn = document.getElementById('fetch-deals-btn');
+    if (fetchDealsBtn) {
+        console.log('✅ Setting up Fetch Deals button');
+        fetchDealsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('🔄 Fetch Deals button clicked');
+            startAggregation(fetchDealsBtn);
+        });
+    }
+    
+    // Manage Sources button
+    const manageSourcesBtn = document.getElementById('manage-sources-btn');
+    if (manageSourcesBtn) {
+        console.log('✅ Setting up Manage Sources button');
+        manageSourcesBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('📥 Manage Sources button clicked');
+            if (typeof openSourceManagementModal === 'function') {
+                openSourceManagementModal();
+            } else {
+                alert('Source management coming soon!');
+            }
+        });
+    }
+    
+    // Add Deal button
+    const addDealBtn = document.getElementById('add-deal-btn');
+    if (addDealBtn) {
+        console.log('✅ Setting up Add Deal button');
+        addDealBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('➕ Add Deal button clicked');
+            if (typeof openManualDealModal === 'function') {
+                openManualDealModal();
+            } else {
+                alert('Add deal coming soon!');
+            }
+        });
+    }
+    
+    // Configure Buy Box button
+    const configureBuyBoxBtn = document.getElementById('configure-buybox-btn');
+    if (configureBuyBoxBtn) {
+        console.log('✅ Setting up Configure Buy Box button');
+        configureBuyBoxBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('⚙️ Configure Buy Box button clicked');
+            alert('Buy Box configuration coming in Phase 3!');
+        });
+    }
+    
+    console.log('✅ Global action buttons initialized');
     
     // Set up tab navigation
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -137,37 +252,69 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // Start aggregation button
+    // Start aggregation button function (make it accessible globally)
+    window.startAggregation = async function(btn) {
+        showToast('Starting deal aggregation...', 'info');
+        btn.disabled = true;
+        btn.classList.add('loading');
+        
+        try {
+            const allDeals = [];
+            let rssCount = 0;
+            let customCount = 0;
+            
+            // Fetch RSS feeds
+            try {
+                const rssResults = await fetchAllRSSFeeds();
+                const rssDeals = rssResults.flatMap(r => r.deals);
+                allDeals.push(...rssDeals);
+                rssCount = rssDeals.length;
+                console.log(`📡 Fetched ${rssCount} deals from RSS feeds`);
+            } catch (error) {
+                console.error('Error fetching RSS feeds:', error);
+                showToast('⚠️ Some RSS feeds failed: ' + error.message, 'warning');
+            }
+            
+            // Fetch custom sources (Google Sheets, CSV, etc.)
+            try {
+                if (typeof fetchAllCustomSources !== 'undefined') {
+                    const customResults = await fetchAllCustomSources();
+                    const customDeals = customResults.flatMap(r => r.deals);
+                    allDeals.push(...customDeals);
+                    customCount = customDeals.length;
+                    console.log(`📥 Fetched ${customCount} deals from custom sources`);
+                }
+            } catch (error) {
+                console.error('Error fetching custom sources:', error);
+                showToast('⚠️ Some custom sources failed: ' + error.message, 'warning');
+            }
+            
+            // Add all deals to storage
+            if (allDeals.length > 0) {
+                const stats = await addDealsToPool(allDeals);
+                const summary = `✅ Added ${stats.added} new deals (${stats.duplicates} duplicates)`;
+                const breakdown = `RSS: ${rssCount} | Custom: ${customCount}`;
+                showToast(`${summary}\n${breakdown}`, 'success', 5000);
+            } else {
+                showToast('ℹ️ No deals found. Add sources in "Manage Sources"', 'info', 5000);
+            }
+            
+            // Update UI
+            await loadAggregatorDeals();
+            
+        } catch (error) {
+            console.error('Error aggregating deals:', error);
+            showToast('❌ Error aggregating deals: ' + error.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.classList.remove('loading');
+        }
+    };
+    
+    // Start aggregation button (bottom - in empty state)
     const startBtn = document.getElementById('start-aggregation');
     if (startBtn) {
-        startBtn.addEventListener('click', async () => {
-            showToast('Starting deal aggregation...', 'info');
-            startBtn.disabled = true;
-            startBtn.classList.add('loading');
-            
-            try {
-                // Fetch RSS feeds
-                const results = await fetchAllRSSFeeds();
-                
-                // Flatten all deals
-                const allDeals = results.flatMap(r => r.deals);
-                
-                // Add to storage
-                const stats = await addDealsToPool(allDeals);
-                
-                showToast(`✅ Added ${stats.added} new deals (${stats.duplicates} duplicates)`, 'success', 5000);
-                
-                // Update UI
-                await loadAggregatorDeals();
-                
-            } catch (error) {
-                console.error('Error aggregating deals:', error);
-                showToast('❌ Error aggregating deals: ' + error.message, 'error');
-            } finally {
-                startBtn.disabled = false;
-                startBtn.classList.remove('loading');
-            }
-        });
+        startBtn.addEventListener('click', () => startAggregation(startBtn));
     }
     
     // Load aggregated deals on tab switch
@@ -232,34 +379,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Set up Configure Buy Box button
-    const buyBoxBtn = document.getElementById('show-filters-btn');
-    if (buyBoxBtn) {
-        buyBoxBtn.addEventListener('click', () => {
-            showToast('Buy Box configuration coming in Phase 3!', 'info');
-            updateJourneyStage('information');
-            // TODO: Open buy box modal
-        });
-    }
-    
-    // Set up Manage Sources button
-    const manageSourcesBtn = document.getElementById('manage-sources-btn');
-    if (manageSourcesBtn) {
-        manageSourcesBtn.addEventListener('click', () => {
-            openSourceManagementModal();
-        });
-    }
-    
-    // Set up Add Manual Deal button
-    const addManualDealBtn = document.getElementById('add-manual-deal-btn');
-    if (addManualDealBtn) {
-        addManualDealBtn.addEventListener('click', () => {
-            openManualDealModal();
-        });
-    }
-    
     // Initialize with Deal Aggregator tab
     switchTab('aggregator');
+    
+    // Verify global buttons are set up (for debugging)
+    setTimeout(() => {
+        console.log('🔍 Verifying global button setup...');
+        const buttons = {
+            'fetch-deals-btn': 'Fetch Deals',
+            'manage-sources-btn': 'Manage Sources',
+            'add-deal-btn': 'Add Deal',
+            'configure-buybox-btn': 'Configure Buy Box'
+        };
+        
+        let allFound = true;
+        for (const [id, name] of Object.entries(buttons)) {
+            const btn = document.getElementById(id);
+            if (btn) {
+                console.log(`  ✅ ${name} button found (${id})`);
+            } else {
+                console.error(`  ❌ ${name} button NOT found (${id})`);
+                allFound = false;
+            }
+        }
+        
+        if (allFound) {
+            console.log('✅ All global action buttons found and handlers attached');
+        } else {
+            console.error('❌ Some buttons are missing!');
+        }
+    }, 100);
 });
 
 // Load and display aggregated deals
@@ -594,19 +743,46 @@ function viewDealDetails(deal) {
 let selectedSourceType = null;
 
 function openSourceManagementModal() {
+    console.log('📥 openSourceManagementModal called');
     const modal = document.getElementById('source-management-modal');
-    if (!modal) return;
+    if (!modal) {
+        console.error('❌ source-management-modal not found in DOM');
+        alert('Source management modal not found. Please refresh the page.');
+        return;
+    }
     
+    console.log('✅ Found modal element, setting display...');
+    console.log('   Current display:', modal.style.display);
+    console.log('   Current visibility:', window.getComputedStyle(modal).display);
+    
+    // Force show the modal with multiple approaches
     modal.style.display = 'flex';
-    loadCustomSourcesList();
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    modal.style.zIndex = '10000';
+    
+    console.log('   New display:', modal.style.display);
+    console.log('✅ Modal should now be visible');
+    
+    // Load sources list
+    if (typeof loadCustomSourcesList === 'function') {
+        console.log('📋 Loading custom sources list...');
+        loadCustomSourcesList();
+    } else {
+        console.warn('⚠️ loadCustomSourcesList function not found');
+    }
     
     // Reset form
     selectedSourceType = null;
     const formEl = document.getElementById('source-config-form');
-    if (formEl) formEl.style.display = 'none';
+    if (formEl) {
+        formEl.style.display = 'none';
+    }
     document.querySelectorAll('.source-type-card').forEach(card => {
         card.classList.remove('selected');
     });
+    
+    console.log('✅ Source management modal fully initialized');
 }
 
 function closeSourceManagementModal() {
@@ -811,11 +987,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ===== MANUAL DEAL ENTRY MODAL =====
 function openManualDealModal() {
+    console.log('➕ openManualDealModal called');
     const modal = document.getElementById('manual-deal-modal');
-    if (!modal) return;
+    if (!modal) {
+        console.error('❌ manual-deal-modal not found in DOM');
+        alert('Manual deal modal not found. Please refresh the page.');
+        return;
+    }
     
+    console.log('✅ Found modal element, setting display...');
+    console.log('   Current display:', modal.style.display);
+    
+    // Force show the modal with multiple approaches
     modal.style.display = 'flex';
-    clearManualDealForm();
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    modal.style.zIndex = '10000';
+    
+    console.log('   New display:', modal.style.display);
+    console.log('✅ Modal should now be visible');
+    
+    // Clear form
+    if (typeof clearManualDealForm === 'function') {
+        console.log('📋 Clearing manual deal form...');
+        clearManualDealForm();
+    } else {
+        console.warn('⚠️ clearManualDealForm function not found');
+    }
+    
+    console.log('✅ Manual deal modal fully initialized');
 }
 
 function closeManualDealModal() {
@@ -2491,7 +2691,7 @@ function generateShareText() {
     
     // Footer
     text += `${'='.repeat(50)}\n`;
-    text += `Generated by Deal Analyzer Extension v1.9.21\n`;
+    text += `Generated by Deal Analyzer Extension v2.1.2\n`;
     text += `${new Date().toLocaleString()}\n`;
     
     return text;

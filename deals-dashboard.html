@@ -1912,7 +1912,29 @@
     <div class="header">
         <h1>📊 Deal Acquisition Platform</h1>
         <p>From discovery to closing: Data → Information → Knowledge → Insight → Wisdom</p>
-        <span class="header-version" id="header-version">v2.1.0</span>
+        <span class="header-version" id="header-version">v2.1.5</span>
+    </div>
+
+    <!-- Global Action Buttons (always accessible) -->
+    <div style="margin-bottom: 20px;">
+        <div class="aggregator-controls" style="border-radius: 12px; background: var(--bg-secondary); box-shadow: 0 2px 8px var(--shadow);">
+            <button type="button" class="aggregator-filter-btn active" id="fetch-deals-btn">
+                <span>🔄</span>
+                <span>Fetch Deals</span>
+            </button>
+            <button type="button" class="aggregator-filter-btn" id="manage-sources-btn">
+                <span>📥</span>
+                <span>Manage Sources</span>
+            </button>
+            <button type="button" class="aggregator-filter-btn" id="add-deal-btn">
+                <span>➕</span>
+                <span>Add Deal</span>
+            </button>
+            <button type="button" class="aggregator-filter-btn" id="configure-buybox-btn">
+                <span>⚙️</span>
+                <span>Configure Buy Box</span>
+            </button>
+        </div>
     </div>
 
     <!-- Journey Progress Indicator -->
@@ -1970,7 +1992,7 @@
             </div>
         </div>
 
-        <!-- Aggregator will be loaded here -->
+        <!-- Aggregator Empty State -->
         <div class="aggregator-empty" id="aggregator-empty">
             <div class="aggregator-empty-icon">🚀</div>
             <h3>Getting Started with Deal Aggregator</h3>
@@ -1989,18 +2011,6 @@
                     <span class="aggregator-search-icon">🔍</span>
                     <input type="text" id="aggregator-search" placeholder="Search deals by name, location, or industry...">
                 </div>
-                <button class="aggregator-filter-btn" id="manage-sources-btn">
-                    <span>📥</span>
-                    <span>Manage Sources</span>
-                </button>
-                <button class="aggregator-filter-btn" id="add-manual-deal-btn">
-                    <span>➕</span>
-                    <span>Add Deal</span>
-                </button>
-                <button class="aggregator-filter-btn" id="show-filters-btn">
-                    <span>⚙️</span>
-                    <span>Configure Buy Box</span>
-                </button>
             </div>
 
             <table class="aggregator-table">

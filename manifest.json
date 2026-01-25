@@ -36,7 +36,8 @@
         "deals-dashboard.html",
         "deals-dashboard.js",
         "scrapers/rss-parser.js",
-        "utils/storage-manager.js"
+        "utils/storage-manager.js",
+        "utils/custom-source-manager.js"
       ],
       "matches": ["<all_urls>"]
     }

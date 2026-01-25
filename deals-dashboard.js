@@ -242,6 +242,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // Set up Manage Sources button
+    const manageSourcesBtn = document.getElementById('manage-sources-btn');
+    if (manageSourcesBtn) {
+        manageSourcesBtn.addEventListener('click', () => {
+            openSourceManagementModal();
+        });
+    }
+    
+    // Set up Add Manual Deal button
+    const addManualDealBtn = document.getElementById('add-manual-deal-btn');
+    if (addManualDealBtn) {
+        addManualDealBtn.addEventListener('click', () => {
+            openManualDealModal();
+        });
+    }
+    
     // Initialize with Deal Aggregator tab
     switchTab('aggregator');
 });
@@ -573,6 +589,382 @@ function viewDealDetails(deal) {
     showToast('Deal details modal coming soon! Click 💾 to save deal.', 'info');
     // TODO: Open deal details modal with KNOWLEDGE stage
 }
+
+// ===== SOURCE MANAGEMENT MODAL =====
+let selectedSourceType = null;
+
+function openSourceManagementModal() {
+    const modal = document.getElementById('source-management-modal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    loadCustomSourcesList();
+    
+    // Reset form
+    selectedSourceType = null;
+    const formEl = document.getElementById('source-config-form');
+    if (formEl) formEl.style.display = 'none';
+    document.querySelectorAll('.source-type-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+}
+
+function closeSourceManagementModal() {
+    const modal = document.getElementById('source-management-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+// Load and display custom sources
+async function loadCustomSourcesList() {
+    const listEl = document.getElementById('custom-sources-list');
+    if (!listEl) return;
+    
+    try {
+        const sources = await getCustomSources();
+        
+        if (sources.length === 0) {
+            listEl.innerHTML = `
+                <p style="text-align: center; color: var(--text-secondary); font-size: 12px; padding: 20px;">
+                    No custom sources added yet. Select a source type below to get started.
+                </p>
+            `;
+            return;
+        }
+        
+        listEl.innerHTML = '';
+        sources.forEach(source => {
+            const sourceEl = createSourceListItem(source);
+            listEl.appendChild(sourceEl);
+        });
+        
+    } catch (error) {
+        console.error('Error loading sources:', error);
+        showToast('Error loading sources: ' + error.message, 'error');
+    }
+}
+
+// Create source list item
+function createSourceListItem(source) {
+    const div = document.createElement('div');
+    div.className = 'source-item' + (source.enabled ? '' : ' disabled');
+    div.innerHTML = `
+        <div class="source-item-info">
+            <div class="source-item-name">${escapeHtml(source.name)}</div>
+            <div class="source-item-meta">
+                Type: ${source.type} | 
+                Deals: ${source.dealCount || 0} | 
+                ${source.lastFetch ? 'Last: ' + formatRelativeTime(source.lastFetch) : 'Never fetched'}
+            </div>
+        </div>
+        <div class="source-item-actions">
+            <button class="source-item-btn toggle-btn">${source.enabled ? '✓ Enabled' : 'Disabled'}</button>
+            <button class="source-item-btn fetch-btn">🔄 Fetch</button>
+            <button class="source-item-btn delete">🗑️</button>
+        </div>
+    `;
+    
+    // Event handlers
+    const toggleBtn = div.querySelector('.toggle-btn');
+    const fetchBtn = div.querySelector('.fetch-btn');
+    const deleteBtn = div.querySelector('.delete');
+    
+    toggleBtn.addEventListener('click', async () => {
+        await toggleCustomSource(source.id, !source.enabled);
+        await loadCustomSourcesList();
+        showToast(`Source ${source.enabled ? 'disabled' : 'enabled'}`, 'success');
+    });
+    
+    fetchBtn.addEventListener('click', async () => {
+        fetchBtn.disabled = true;
+        fetchBtn.textContent = '⏳ Fetching...';
+        try {
+            const deals = await fetchCustomSource(source);
+            const stats = await addDealsToPool(deals);
+            await loadAggregatorDeals();
+            await loadCustomSourcesList();
+            showToast(`✅ Added ${stats.added} deals from ${source.name}`, 'success');
+        } catch (error) {
+            showToast(`Error fetching ${source.name}: ${error.message}`, 'error');
+        } finally {
+            fetchBtn.disabled = false;
+            fetchBtn.textContent = '🔄 Fetch';
+        }
+    });
+    
+    deleteBtn.addEventListener('click', async () => {
+        if (confirm(`Delete source "${source.name}"? This will not remove already aggregated deals.`)) {
+            await removeCustomSource(source.id);
+            await loadCustomSourcesList();
+            showToast('Source deleted', 'success');
+        }
+    });
+    
+    return div;
+}
+
+// Initialize source modal handlers
+document.addEventListener('DOMContentLoaded', () => {
+    // Source type cards
+    document.querySelectorAll('.source-type-card').forEach(card => {
+        card.addEventListener('click', () => {
+            selectedSourceType = card.getAttribute('data-type');
+            
+            // Update UI
+            document.querySelectorAll('.source-type-card').forEach(c => {
+                c.classList.remove('selected');
+            });
+            card.classList.add('selected');
+            
+            // Show form
+            const formEl = document.getElementById('source-config-form');
+            if (formEl) formEl.style.display = 'block';
+            
+            // Update hint
+            const hint = document.getElementById('source-url-hint');
+            if (hint) {
+                if (selectedSourceType === 'google_sheets') {
+                    hint.textContent = 'Enter Google Sheets URL (must be shared with "Anyone with link can view")';
+                } else if (selectedSourceType === 'csv_url') {
+                    hint.textContent = 'Enter direct URL to CSV file';
+                }
+            }
+        });
+    });
+    
+    // Add source button
+    const addSourceBtn = document.getElementById('add-source-btn');
+    if (addSourceBtn) {
+        addSourceBtn.addEventListener('click', async () => {
+            const name = document.getElementById('source-name').value.trim();
+            const url = document.getElementById('source-url').value.trim();
+            
+            if (!name || !url || !selectedSourceType) {
+                showToast('Please fill in all fields', 'warning');
+                return;
+            }
+            
+            try {
+                addSourceBtn.disabled = true;
+                addSourceBtn.classList.add('loading');
+                
+                const source = {
+                    name: name,
+                    type: selectedSourceType,
+                    url: url
+                };
+                
+                await addCustomSource(source);
+                await loadCustomSourcesList();
+                
+                // Clear form
+                document.getElementById('source-name').value = '';
+                document.getElementById('source-url').value = '';
+                const formEl = document.getElementById('source-config-form');
+                if (formEl) formEl.style.display = 'none';
+                document.querySelectorAll('.source-type-card').forEach(c => {
+                    c.classList.remove('selected');
+                });
+                selectedSourceType = null;
+                
+                showToast('✅ Source added successfully!', 'success');
+                
+            } catch (error) {
+                showToast('Error adding source: ' + error.message, 'error');
+            } finally {
+                addSourceBtn.disabled = false;
+                addSourceBtn.classList.remove('loading');
+            }
+        });
+    }
+    
+    // Cancel source button
+    const cancelSourceBtn = document.getElementById('cancel-source-btn');
+    if (cancelSourceBtn) {
+        cancelSourceBtn.addEventListener('click', () => {
+            const formEl = document.getElementById('source-config-form');
+            if (formEl) formEl.style.display = 'none';
+            document.getElementById('source-name').value = '';
+            document.getElementById('source-url').value = '';
+            document.querySelectorAll('.source-type-card').forEach(c => {
+                c.classList.remove('selected');
+            });
+            selectedSourceType = null;
+        });
+    }
+    
+    // Close source modal
+    const sourceModalClose = document.getElementById('source-modal-close');
+    if (sourceModalClose) {
+        sourceModalClose.addEventListener('click', closeSourceManagementModal);
+    }
+    
+    // Click outside to close
+    const sourceModal = document.getElementById('source-management-modal');
+    if (sourceModal) {
+        sourceModal.addEventListener('click', (e) => {
+            if (e.target === sourceModal) {
+                closeSourceManagementModal();
+            }
+        });
+    }
+});
+
+// ===== MANUAL DEAL ENTRY MODAL =====
+function openManualDealModal() {
+    const modal = document.getElementById('manual-deal-modal');
+    if (!modal) return;
+    
+    modal.style.display = 'flex';
+    clearManualDealForm();
+}
+
+function closeManualDealModal() {
+    const modal = document.getElementById('manual-deal-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function clearManualDealForm() {
+    const fields = [
+        'manual-business-name', 'manual-description', 'manual-city', 'manual-state',
+        'manual-industry', 'manual-price', 'manual-revenue', 'manual-ebitda',
+        'manual-cashflow', 'manual-contact-name', 'manual-contact-phone',
+        'manual-contact-email', 'manual-source-notes', 'manual-notes'
+    ];
+    
+    fields.forEach(fieldId => {
+        const el = document.getElementById(fieldId);
+        if (el) el.value = '';
+    });
+}
+
+// Save manual deal
+async function saveManualDeal() {
+    try {
+        // Collect form data
+        const businessName = document.getElementById('manual-business-name')?.value.trim();
+        const description = document.getElementById('manual-description')?.value.trim();
+        const city = document.getElementById('manual-city')?.value.trim();
+        const state = document.getElementById('manual-state')?.value.trim().toUpperCase();
+        const industry = document.getElementById('manual-industry')?.value;
+        const price = parseFloat(document.getElementById('manual-price')?.value) || 0;
+        const revenue = parseFloat(document.getElementById('manual-revenue')?.value) || 0;
+        const ebitda = parseFloat(document.getElementById('manual-ebitda')?.value) || 0;
+        const cashflow = parseFloat(document.getElementById('manual-cashflow')?.value) || 0;
+        const contactName = document.getElementById('manual-contact-name')?.value.trim();
+        const contactPhone = document.getElementById('manual-contact-phone')?.value.trim();
+        const contactEmail = document.getElementById('manual-contact-email')?.value.trim();
+        const sourceNotes = document.getElementById('manual-source-notes')?.value.trim();
+        const notes = document.getElementById('manual-notes')?.value.trim();
+        
+        // Validate required fields
+        if (!businessName) {
+            showToast('Business name is required', 'warning');
+            return;
+        }
+        
+        // Create deal object
+        const manualDeal = {
+            id: 'manual_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            name: businessName,
+            url: '', // No URL for off-market deals
+            description: description,
+            source: 'Manual Entry (Off-Market)',
+            sourceType: 'manual',
+            discoveredAt: Date.now(),
+            askingPrice: price,
+            revenue: revenue,
+            ebitda: ebitda || cashflow,
+            location: city && state ? `${city}, ${state}` : '',
+            city: city,
+            state: state,
+            industry: industry,
+            contactName: contactName,
+            contactPhone: contactPhone,
+            contactEmail: contactEmail,
+            sourceNotes: sourceNotes,
+            notes: notes,
+            manualEntry: true
+        };
+        
+        // Add to aggregated pool
+        await addDealsToPool([manualDeal]);
+        
+        // Also save to My Deals immediately (off-market deals are typically high-value)
+        const savedDealFormat = convertAggregatorDealToSaved(manualDeal);
+        savedDealFormat.inputs.ebitdaSDE = manualDeal.ebitda;
+        savedDealFormat.inputs.askingPrice = manualDeal.askingPrice;
+        savedDealFormat.notes = notes;
+        
+        if (contactName || contactPhone || contactEmail) {
+            savedDealFormat.broker = {
+                name: contactName,
+                phone: contactPhone,
+                email: contactEmail,
+                company: 'Direct Contact'
+            };
+        }
+        
+        const existingDeals = await new Promise((resolve) => {
+            chrome.storage.local.get(['savedDeals'], (result) => {
+                resolve(result.savedDeals || []);
+            });
+        });
+        
+        existingDeals.unshift(savedDealFormat);
+        
+        await new Promise((resolve, reject) => {
+            chrome.storage.local.set({ savedDeals: existingDeals }, () => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        // Update UI
+        await loadAggregatorDeals();
+        document.getElementById('my-deals-count').textContent = existingDeals.length;
+        
+        showToast('✅ Off-market deal added successfully!', 'success');
+        closeManualDealModal();
+        
+    } catch (error) {
+        console.error('Error saving manual deal:', error);
+        showToast('Error saving deal: ' + error.message, 'error');
+    }
+}
+
+// Initialize manual deal modal handlers
+document.addEventListener('DOMContentLoaded', () => {
+    // Save manual deal button
+    const saveBtn = document.getElementById('manual-deal-save');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveManualDeal);
+    }
+    
+    // Cancel manual deal button
+    const cancelBtn = document.getElementById('manual-deal-cancel');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeManualDealModal);
+    }
+    
+    // Close manual deal modal
+    const manualDealClose = document.getElementById('manual-deal-close');
+    if (manualDealClose) {
+        manualDealClose.addEventListener('click', closeManualDealModal);
+    }
+    
+    // Click outside to close
+    const manualModal = document.getElementById('manual-deal-modal');
+    if (manualModal) {
+        manualModal.addEventListener('click', (e) => {
+            if (e.target === manualModal) {
+                closeManualDealModal();
+            }
+        });
+    }
+});
 
 // Format relative time
 function formatRelativeTime(timestamp) {

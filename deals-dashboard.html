@@ -502,6 +502,212 @@
             border-color: #667eea;
         }
 
+        /* Source Management Modal */
+        .source-modal-grid {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .source-type-selector {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .source-type-card {
+            padding: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .source-type-card:hover {
+            border-color: #667eea;
+            background: var(--bg-secondary);
+        }
+
+        .source-type-card.selected {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .source-type-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .source-type-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .source-type-desc {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .source-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        .source-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border-left: 3px solid #667eea;
+        }
+
+        .source-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .source-item.disabled {
+            opacity: 0.5;
+            border-left-color: var(--text-secondary);
+        }
+
+        .source-item-info {
+            flex: 1;
+        }
+
+        .source-item-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .source-item-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .source-item-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .source-item-btn {
+            padding: 4px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .source-item-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .source-item-btn.delete {
+            color: #e74c3c;
+            border-color: #e74c3c;
+        }
+
+        .source-item-btn.delete:hover {
+            background: rgba(231, 76, 60, 0.1);
+        }
+
+        /* Manual Deal Entry Form */
+        .manual-deal-form {
+            display: grid;
+            gap: 16px;
+        }
+
+        .form-section {
+            background: var(--bg-tertiary);
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+        }
+
+        .form-section h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .form-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            padding: 8px 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-hint {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            font-style: italic;
+        }
+
         .controls {
             background: var(--bg-secondary);
             padding: 20px;
@@ -1783,6 +1989,14 @@
                     <span class="aggregator-search-icon">🔍</span>
                     <input type="text" id="aggregator-search" placeholder="Search deals by name, location, or industry...">
                 </div>
+                <button class="aggregator-filter-btn" id="manage-sources-btn">
+                    <span>📥</span>
+                    <span>Manage Sources</span>
+                </button>
+                <button class="aggregator-filter-btn" id="add-manual-deal-btn">
+                    <span>➕</span>
+                    <span>Add Deal</span>
+                </button>
                 <button class="aggregator-filter-btn" id="show-filters-btn">
                     <span>⚙️</span>
                     <span>Configure Buy Box</span>
@@ -2402,6 +2616,185 @@
         </div>
     </div>
 
+    <!-- Source Management Modal -->
+    <div id="source-management-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2>📥 Manage Deal Sources</h2>
+                <span class="modal-close" id="source-modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section">
+                    <h3>Your Custom Sources</h3>
+                    <div class="source-list" id="custom-sources-list">
+                        <p style="text-align: center; color: var(--text-secondary); font-size: 12px; padding: 20px;">
+                            No custom sources added yet. Click "Add New Source" below.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h3>Add New Source</h3>
+                    <div class="source-type-selector">
+                        <div class="source-type-card" data-type="google_sheets">
+                            <div class="source-type-icon">📊</div>
+                            <div class="source-type-title">Google Sheets</div>
+                            <div class="source-type-desc">Import from spreadsheet</div>
+                        </div>
+                        <div class="source-type-card" data-type="csv_url">
+                            <div class="source-type-icon">📄</div>
+                            <div class="source-type-title">CSV File/URL</div>
+                            <div class="source-type-desc">Import from CSV</div>
+                        </div>
+                    </div>
+
+                    <div id="source-config-form" style="display: none;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Source Name</label>
+                                <input type="text" id="source-name" placeholder="My Deal List" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>URL</label>
+                                <input type="url" id="source-url" placeholder="https://docs.google.com/spreadsheets/d/..." />
+                                <div class="form-hint" id="source-url-hint">Enter Google Sheets sharing URL or CSV file URL</div>
+                            </div>
+                        </div>
+                        <button class="modal-btn" id="add-source-btn">➕ Add Source</button>
+                        <button class="modal-btn secondary" id="cancel-source-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Deal Entry Modal -->
+    <div id="manual-deal-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2>➕ Add Off-Market Deal</h2>
+                <span class="modal-close" id="manual-deal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="manual-deal-form">
+                    <div class="form-section">
+                        <h4>📋 Basic Information</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Business Name *</label>
+                                <input type="text" id="manual-business-name" placeholder="Acme Manufacturing Co." required />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Description</label>
+                                <textarea id="manual-description" placeholder="Brief description of the business..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>📍 Location & Industry</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>City</label>
+                                <input type="text" id="manual-city" placeholder="Dallas" />
+                            </div>
+                            <div class="form-group">
+                                <label>State</label>
+                                <input type="text" id="manual-state" placeholder="TX" maxlength="2" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Industry</label>
+                                <select id="manual-industry">
+                                    <option value="">Select Industry</option>
+                                    <option value="Healthcare">Healthcare</option>
+                                    <option value="SaaS">SaaS</option>
+                                    <option value="Manufacturing">Manufacturing</option>
+                                    <option value="Restaurant">Restaurant</option>
+                                    <option value="Retail">Retail</option>
+                                    <option value="E-commerce">E-commerce</option>
+                                    <option value="Services">Services</option>
+                                    <option value="Real Estate">Real Estate</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>💰 Financial Information</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Asking Price</label>
+                                <input type="number" id="manual-price" placeholder="2500000" step="1000" />
+                                <div class="form-hint">Enter as number (e.g., 2500000 for $2.5M)</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Annual Revenue</label>
+                                <input type="number" id="manual-revenue" placeholder="1500000" step="1000" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>EBITDA/SDE</label>
+                                <input type="number" id="manual-ebitda" placeholder="500000" step="1000" />
+                            </div>
+                            <div class="form-group">
+                                <label>Cash Flow</label>
+                                <input type="number" id="manual-cashflow" placeholder="450000" step="1000" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>📞 Contact Information</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Contact Name</label>
+                                <input type="text" id="manual-contact-name" placeholder="John Smith" />
+                            </div>
+                            <div class="form-group">
+                                <label>Contact Phone</label>
+                                <input type="tel" id="manual-contact-phone" placeholder="(555) 123-4567" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Contact Email</label>
+                                <input type="email" id="manual-contact-email" placeholder="contact@example.com" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>📝 Additional Notes</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>How Did You Hear About This Deal?</label>
+                                <textarea id="manual-source-notes" placeholder="Friend referral, networking event, direct outreach, etc."></textarea>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Private Notes</label>
+                                <textarea id="manual-notes" placeholder="Any additional notes or observations..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="manual-deal-save" class="modal-btn">💾 Save Deal</button>
+                <button id="manual-deal-cancel" class="modal-btn secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Share Modal -->
     <div id="share-modal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 500px;">
@@ -2489,6 +2882,7 @@
     <!-- End My Deals Tab -->
 
     <script src="utils/storage-manager.js"></script>
+    <script src="utils/custom-source-manager.js"></script>
     <script src="scrapers/rss-parser.js"></script>
     <script src="deals-dashboard.js"></script>
 </body>

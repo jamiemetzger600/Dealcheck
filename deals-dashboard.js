@@ -118,7 +118,7 @@ function switchTab(tabName) {
 
 // Initialize tabs on load
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 Initializing Deal Aggregator v2.0.0');
+    console.log('🚀 Initializing Deal Aggregator v2.1.0');
     
     // Set up tab navigation
     document.querySelectorAll('.tab-btn').forEach(btn => {

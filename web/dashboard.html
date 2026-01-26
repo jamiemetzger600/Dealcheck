@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deals Dashboard - Deal Analyzer</title>
+    <title>Deals Dashboard - Deal Analyzer (Web Beta)</title>
+    <link rel="icon" type="image/png" href="./icon.png">
+    
+    <!-- Chrome API Shim - Must load BEFORE any extension code -->
+    <script src="./chrome-api-shim.js"></script>
+    
     <style>
         /* Dark mode is DEFAULT - no class needed */
         :root {
@@ -2448,7 +2453,7 @@
     <div class="header">
         <h1>📊 Deal Acquisition Platform</h1>
         <p>From discovery to closing: Data → Information → Knowledge → Insight → Wisdom</p>
-        <span class="header-version" id="header-version">v2.2.5</span>
+        <span class="header-version" id="header-version">v2.2.4 (Web Beta)</span>
     </div>
 
     <!-- Global Action Buttons (always accessible) -->
@@ -3608,10 +3613,12 @@
         </div>
     </div>
 
-    <script src="utils/storage-manager.js"></script>
-    <script src="utils/custom-source-manager.js"></script>
-    <script src="scrapers/rss-parser.js"></script>
-    <script src="deals-dashboard.js"></script>
+    <script src="./utils/storage-manager.js"></script>
+    <script src="./utils/custom-source-manager.js"></script>
+    <script src="./scrapers/rss-parser.js"></script>
+    <script src="./i18n.js"></script>
+    <script src="./jspdf.min.js"></script>
+    <script src="./dashboard.js"></script>
 </body>
 </html>
 

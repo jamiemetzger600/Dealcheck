@@ -2,6 +2,134 @@
 
 All notable changes to the Max Price Deal Analyzer extension will be documented in this file.
 
+## [2.2.5] - 2026-01-25 - Filter Views Persistence Fix
+
+### 🐛 Bug Fix
+- **Fixed: Filter views not persisting after page refresh** - Saved filter views now properly load on page initialization
+- Moved dropdown rendering to after filter views are loaded from storage
+- Added comprehensive logging to track filter view save/load operations
+- Filter views dropdown now populates correctly with saved views
+
+### 🔧 Technical
+- `renderFilterViewsDropdown()` now called after `loadFilterViews()` completes
+- Removed premature dropdown rendering from `setupFilterViewsUI()`
+- Added detailed console logging for debugging filter view operations
+- Filter views are loaded before applying filters
+
+## [2.2.4] - 2026-01-25 - State Filtering Fix
+
+### 🐛 Critical Bug Fix
+- **Fixed: State filtering not working** - Deals from states outside buy box were still showing
+- Added `extractStateFromDeal()` function to properly extract state from location strings
+- Now handles multiple formats: "Tampa, FL", "FL", "Florida", "Newark, NJ"
+- Extracts state from `location`, `city`, `state`, or `rawFields`
+- Updated CSV parser to extract and store state separately
+- State filtering now works correctly with target and exclude states
+
+### 🔧 Technical
+- New `extractStateFromDeal()` function with comprehensive state extraction logic
+- Supports state codes (FL, NY, CA) and full state names (Florida, New York)
+- Checks multiple fields: `deal.state`, `deal.location`, `deal.city`, `deal.rawFields.State`
+- CSV parser now extracts state and stores in `deal.state` field
+- Regex patterns for various location formats
+
+## [2.2.3] - 2026-01-25 - Filter Views & Bug Fixes
+
+### 🐛 Critical Bug Fix
+- **Fixed: No deals showing in table** - Buy box filtering was rejecting deals with missing price/EBITDA data
+- Now only filters deals that HAVE the relevant data (e.g., if deal has no price, price filters don't apply)
+- Deals with incomplete data are now shown unless they fail other criteria
+
+### ✨ New Feature: Filter Views
+- **Save Filter Views**: Save your current filter configuration (buy box + NOT filters) with a custom name
+- **Load Filter Views**: Quickly switch between saved filter configurations
+- **Update Views**: Modify and update existing filter views
+- **Delete Views**: Remove filter views you no longer need
+- **Clear All**: Reset all filters to defaults with one click
+- Filter views persist across sessions
+- Dropdown shows all saved views for quick access
+
+### 🎨 UI Improvements
+- New "Filter Views" section above the deals table
+- Dropdown to select saved views
+- Save/Update/Delete/Clear buttons for filter management
+- Visual indication of which view is currently active
+- Update button appears when viewing a saved filter
+
+### 🔧 Technical
+- Filter views stored in `chrome.storage.local.filterViews`
+- Each view contains: id, name, config (buyBox + notFilterTags), timestamps
+- `currentFilterViewId` tracks active view
+- Auto-marks view as modified when filters change
+
+## [Planning] - 2026-01-25
+### Documentation
+- Added `WEB_APP_MIGRATION_PLAN.md` - Comprehensive plan for transitioning to web application
+- Documented hybrid architecture (Chrome extension + Next.js web app)
+- Outlined 5 implementation phases with Phase 0 (beta testing) as current focus
+- Defined database schema, technology stack, and scaling strategy
+
+## [2.2.2] - 2026-01-25 - Buy Box Filtering & NOT Filters
+
+### 🐛 Bug Fixes
+- **Fixed Buy Box Filtering**: Buy box criteria now properly filters the aggregator table (was only showing badge, not filtering deals)
+- Buy box filters are now loaded on page load and applied automatically
+- All filters (buy box, NOT filters, search) are now applied together correctly
+
+### ✨ New Features
+- **NOT Filter Tags**: Exclude deals matching specific keywords (e.g., "FedEx", "Cannabis", "Pharmacy")
+- Add multiple NOT filter tags to exclude unwanted deals
+- Tags are persistent across sessions
+- Real-time filtering as tags are added/removed
+- Visual red badges show active NOT filters
+- Click "+" to add new exclusion keywords
+- Click "×" on any tag to remove it
+
+### 🔧 Technical
+- Comprehensive `applyAllFilters()` function applies buy box, NOT filters, and search together
+- `dealMatchesNotFilters()` checks all deal fields including raw data
+- NOT filters stored in `chrome.storage.local.notFilterTags`
+- Filters are re-applied when buy box is saved or reset
+- Case-insensitive matching for NOT filters
+
+## [2.2.1] - 2026-01-25 - Deal Details View System
+
+### ✨ New Features
+- **Clickable Deal Rows**: Click any deal in aggregator table to view full details
+- **Dual View Modes**: Choose between sidebar (slide from right) or popup modal (center overlay)
+- **User Preference Setting**: Configure view mode in Buy Box settings under "Display Preferences"
+- **Comprehensive Details Display**: View all deal information including financials, location, industry, description, and raw fields
+- **Buy Box Match Indicator**: Instantly see if deal matches your criteria (🎯)
+- **Quick Actions**: Save to My Deals or open original link directly from detail view
+- **Multiple Close Options**: Close button, overlay click, ESC key, or footer button
+- **Journey Stage Integration**: Automatically advances to KNOWLEDGE stage when viewing details
+
+### 🎨 UI/UX Improvements
+- Smooth slide-in/out animations for sidebar
+- Dimmed overlay background for better focus
+- Gradient headers matching app theme
+- Responsive design works in light and dark modes
+- Hover effects on action buttons
+
+### 🔧 Technical
+- Deal view preference stored in `userPreferences.dealViewPreference`
+- Modular deal details generation with reusable templates
+- Centralized event handling for both view modes
+- New CSS components: `.deal-sidebar`, `.deal-popup-modal`, `.deal-detail-section`
+
+## [2.2.0] - 2026-01-25 - Full Google Sheets Parsing & Dynamic Columns
+
+### ✨ New Features
+- **Parse all columns** from Google Sheets / CSV; header row auto-detection for "Daily Deal Update" style sheets
+- **Dynamic aggregator table**: built-in columns plus all `rawFields` from imported data
+- **Columns** button: show/hide any column; **moveable headers**: drag to reorder (persisted)
+- Sort and search work on all columns including raw fields
+
+### 🔧 Technical
+- `custom-source-manager`: full column import, `rawFields`, Date Added → discoveredAt, City+State → location, Annual Revenue → revenue
+- Column prefs (`order`, `visibility`) in `userPreferences.aggregatorColumns`
+- See `RELEASE_NOTES_v2.2.0.md` for details
+
 ## [1.5.0] - 2025-01-01 - Enhanced Multi-Platform Scraping
 
 ### ✨ New Features

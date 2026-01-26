@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deal Analyzer - Beta Web Version</title>
+    <meta name="description" content="Complete deal acquisition platform: Aggregate deals, filter with AI-powered buy box, analyze with scenario calculator">
+    <link rel="icon" type="image/png" href="./icon.png">
+    <style>
+        /* Landing page styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .landing-container {
+            max-width: 800px;
+            background: white;
+            border-radius: 20px;
+            padding: 48px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 42px;
+            color: #2c3e50;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 18px;
+            color: #7f8c8d;
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+
+        .beta-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            letter-spacing: 0.5px;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            margin: 40px 0;
+            text-align: left;
+        }
+
+        .feature {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+        }
+
+        .feature-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .feature-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .feature-desc {
+            font-size: 14px;
+            color: #7f8c8d;
+            line-height: 1.5;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 48px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            border: none;
+            margin-top: 24px;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 32px;
+            text-align: left;
+        }
+
+        .info-box h3 {
+            color: #856404;
+            font-size: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-box ul {
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.8;
+            margin-left: 20px;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 24px;
+            border-top: 2px solid #e9ecef;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .landing-container {
+                padding: 32px 24px;
+            }
+
+            h1 {
+                font-size: 32px;
+            }
+
+            .subtitle {
+                font-size: 16px;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="landing-container">
+        <div class="logo">🎯</div>
+        <h1>Deal Analyzer</h1>
+        <div class="beta-badge">🧪 BETA WEB VERSION</div>
+        <p class="subtitle">
+            Complete deal acquisition platform: Aggregate deals from multiple sources, 
+            filter with AI-powered buy box, and analyze with advanced calculators.
+        </p>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">Deal Dashboard</div>
+                <div class="feature-desc">View and manage all your deals in one place</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎯</div>
+                <div class="feature-title">Buy Box Filtering</div>
+                <div class="feature-desc">Set criteria and filter deals automatically</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🚫</div>
+                <div class="feature-title">NOT Filters</div>
+                <div class="feature-desc">Exclude deals by keyword</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">💰</div>
+                <div class="feature-title">ROI Calculators</div>
+                <div class="feature-desc">DSCR, COC, payback analysis</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📱</div>
+                <div class="feature-title">Mobile Friendly</div>
+                <div class="feature-desc">Works on phone, tablet, desktop</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📄</div>
+                <div class="feature-title">PDF Export</div>
+                <div class="feature-desc">Export deal analysis reports</div>
+            </div>
+        </div>
+
+        <button class="cta-button" onclick="window.location.href='./dashboard.html'">
+            Launch Dashboard →
+        </button>
+
+        <div class="info-box">
+            <h3>⚠️ Beta Testing Notes</h3>
+            <ul>
+                <li><strong>Data Storage:</strong> Uses browser localStorage (data stays on your device)</li>
+                <li><strong>No Auto-Scraping:</strong> Manually add deals or import CSV</li>
+                <li><strong>No Sync:</strong> Data doesn't sync across devices (yet)</li>
+                <li><strong>Best For:</strong> Testing UI/UX and core analysis features</li>
+                <li><strong>Mobile:</strong> Works great on phones and tablets!</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <strong>Version 2.2.4 (Web Beta)</strong><br>
+            For the full Chrome extension with auto-scraping, visit the Chrome Web Store
+        </div>
+    </div>
+</body>
+</html>

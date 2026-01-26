@@ -1,0 +1,17 @@
+{
+  "name": "deal-analyzer-web",
+  "version": "2.2.4",
+  "description": "Deal Analyzer - Web Beta Version",
+  "scripts": {
+    "dev": "python3 -m http.server 8000",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "deal-analyzer",
+    "business-acquisition",
+    "roi-calculator",
+    "sba-loans"
+  ],
+  "author": "Jamie",
+  "license": "MIT"
+}

@@ -778,10 +778,6 @@ async function loadAggregatorDeals() {
         // Load filter views
         await loadFilterViews();
         
-        // Render filter views dropdown after loading
-        renderFilterViewsDropdown();
-        updateFilterViewUI();
-        
         // Apply all filters
         applyAllFilters();
         
@@ -1019,13 +1015,9 @@ async function loadFilterViews() {
             });
         });
         filterViews = result;
-        console.log('📋 Loaded filter views from storage:', filterViews);
-        console.log('   Number of views:', filterViews.length);
-        if (filterViews.length > 0) {
-            console.log('   View names:', filterViews.map(v => v.name).join(', '));
-        }
+        console.log('📋 Loaded filter views:', filterViews);
     } catch (error) {
-        console.error('❌ Error loading filter views:', error);
+        console.error('Error loading filter views:', error);
         filterViews = [];
     }
 }
@@ -1042,13 +1034,9 @@ async function saveFilterViewsToStorage() {
                 }
             });
         });
-        console.log('💾 Saved filter views to storage:', filterViews);
-        console.log('   Number of views saved:', filterViews.length);
-        if (filterViews.length > 0) {
-            console.log('   View names:', filterViews.map(v => v.name).join(', '));
-        }
+        console.log('💾 Saved filter views:', filterViews);
     } catch (error) {
-        console.error('❌ Error saving filter views:', error);
+        console.error('Error saving filter views:', error);
         throw error;
     }
 }
@@ -1163,12 +1151,7 @@ async function clearAllFilters() {
 // Render filter views dropdown
 function renderFilterViewsDropdown() {
     const dropdown = document.getElementById('filter-views-dropdown');
-    if (!dropdown) {
-        console.warn('⚠️ Filter views dropdown not found in DOM');
-        return;
-    }
-    
-    console.log('🎨 Rendering filter views dropdown with', filterViews.length, 'views');
+    if (!dropdown) return;
     
     dropdown.innerHTML = '<option value="">-- Select a Filter View --</option>';
     
@@ -1180,7 +1163,6 @@ function renderFilterViewsDropdown() {
             option.selected = true;
         }
         dropdown.appendChild(option);
-        console.log('   Added view:', view.name);
     });
 }
 
@@ -1243,8 +1225,8 @@ function setupFilterViewsUI() {
         clearBtn.addEventListener('click', clearAllFilters);
     }
     
-    // Don't render dropdown here - it will be rendered after filter views are loaded
-    // renderFilterViewsDropdown() is called in loadAggregatorDeals() after loadFilterViews()
+    renderFilterViewsDropdown();
+    updateFilterViewUI();
 }
 
 // Render aggregator table (async for column prefs)

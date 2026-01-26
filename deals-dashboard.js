@@ -1693,11 +1693,16 @@ function createMyDealRow(deal) {
         toggleDealSelection(deal.savedAt, checkbox.checked);
     });
     
-    nameCell.addEventListener('click', () => openDealModal(deal));
+    // Click on name to open deal modal (for My Deals - detailed scenario comparison)
+    nameCell.addEventListener('click', () => {
+        console.log('📋 Opening deal modal for:', deal.name);
+        openDealModal(deal);
+    });
     
     const [viewBtn, exportBtn, deleteBtn] = actionsCell.querySelectorAll('.action-btn');
     viewBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        console.log('👁️ Opening deal modal for:', deal.name);
         openDealModal(deal);
     });
     exportBtn.addEventListener('click', (e) => {
@@ -1982,96 +1987,106 @@ function exportDealsToCSV(deals) {
 
 // Open deal modal with full details
 function openDealModal(deal) {
-    console.log('Opening deal modal for:', deal.name);
-    
-    const modal = document.getElementById('deal-modal');
-    if (!modal) {
-        console.error('Deal modal not found');
-        showToast('Modal not found', 'error');
-        return;
-    }
-    
-    // Store current deal for updates
-    window.currentDeal = deal;
-    
-    // Populate modal with deal data
-    document.getElementById('modal-deal-name').textContent = deal.name || 'Unnamed Deal';
-    
-    // Status with edit capability
-    const statusEl = document.getElementById('modal-status');
-    if (statusEl) {
-        const statusBadges = {
-            hot: '🔥 Hot',
-            warm: '🌡️ Warm',
-            cold: '❄️ Cold',
-            pass: '❌ Pass',
-            none: 'No Status'
-        };
-        statusEl.innerHTML = `
-            <select id="modal-status-select" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
-                <option value="none" ${deal.status === 'none' ? 'selected' : ''}>No Status</option>
-                <option value="hot" ${deal.status === 'hot' ? 'selected' : ''}>🔥 Hot</option>
-                <option value="warm" ${deal.status === 'warm' ? 'selected' : ''}>🌡️ Warm</option>
-                <option value="cold" ${deal.status === 'cold' ? 'selected' : ''}>❄️ Cold</option>
-                <option value="pass" ${deal.status === 'pass' ? 'selected' : ''}>❌ Pass</option>
-            </select>
-        `;
+    try {
+        console.log('📋 Opening deal modal for:', deal.name);
+        console.log('Deal data:', deal);
         
-        // Add change listener
-        const statusSelect = document.getElementById('modal-status-select');
-        if (statusSelect) {
-            statusSelect.addEventListener('change', async (e) => {
-                await updateDealStatus(deal, e.target.value);
+        const modal = document.getElementById('deal-modal');
+        if (!modal) {
+            console.error('❌ Deal modal element not found in DOM');
+            showToast('Modal not found', 'error');
+            return;
+        }
+        
+        console.log('✅ Modal element found');
+        
+        // Store current deal for updates
+        window.currentDeal = deal;
+        
+        // Populate modal with deal data
+        document.getElementById('modal-deal-name').textContent = deal.name || 'Unnamed Deal';
+    
+        // Status with edit capability
+        const statusEl = document.getElementById('modal-status');
+        if (statusEl) {
+            const statusBadges = {
+                hot: '🔥 Hot',
+                warm: '🌡️ Warm',
+                cold: '❄️ Cold',
+                pass: '❌ Pass',
+                none: 'No Status'
+            };
+            statusEl.innerHTML = `
+                <select id="modal-status-select" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary);">
+                    <option value="none" ${deal.status === 'none' ? 'selected' : ''}>No Status</option>
+                    <option value="hot" ${deal.status === 'hot' ? 'selected' : ''}>🔥 Hot</option>
+                    <option value="warm" ${deal.status === 'warm' ? 'selected' : ''}>🌡️ Warm</option>
+                    <option value="cold" ${deal.status === 'cold' ? 'selected' : ''}>❄️ Cold</option>
+                    <option value="pass" ${deal.status === 'pass' ? 'selected' : ''}>❌ Pass</option>
+                </select>
+            `;
+            
+            // Add change listener
+            const statusSelect = document.getElementById('modal-status-select');
+            if (statusSelect) {
+                statusSelect.addEventListener('change', async (e) => {
+                    await updateDealStatus(deal, e.target.value);
+                });
+            }
+        }
+        
+        // Date
+        document.getElementById('modal-saved-date').textContent = formatDate(deal.savedAt);
+        
+        // Financial overview
+        document.getElementById('modal-asking-price').textContent = formatCurrency(deal.inputs?.askingPrice || 0);
+        document.getElementById('modal-ebitda').textContent = formatCurrency(deal.inputs?.ebitdaSDE || 0);
+        document.getElementById('modal-quality').textContent = deal.qualityScore !== undefined ? deal.qualityScore : 'N/A';
+        document.getElementById('modal-coc').textContent = deal.results?.cocReturn ? `${deal.results.cocReturn.toFixed(1)}%` : 'N/A';
+        
+        // URL
+        const urlEl = document.getElementById('modal-url');
+        if (urlEl) {
+            if (deal.url) {
+                urlEl.href = deal.url;
+                urlEl.textContent = deal.url;
+                urlEl.style.display = 'block';
+            } else {
+                urlEl.textContent = 'No URL (Off-market deal)';
+                urlEl.href = '#';
+                urlEl.style.pointerEvents = 'none';
+            }
+        }
+        
+        // Financial details
+        document.getElementById('modal-max-price').textContent = formatCurrency(deal.results?.maxPrice || 0);
+        document.getElementById('modal-total-debt').textContent = formatCurrency(deal.results?.totalDebt || 0);
+        document.getElementById('modal-fcf').textContent = formatCurrency(deal.results?.cashFlowAnnual || 0);
+        document.getElementById('modal-takehome').textContent = formatCurrency(deal.results?.ownerTakeHome || 0);
+        document.getElementById('modal-payback').textContent = deal.results?.paybackPeriod ? `${deal.results.paybackPeriod.toFixed(1)} years` : 'N/A';
+        
+        // Notes section
+        const notesTextarea = document.getElementById('modal-notes');
+        if (notesTextarea) {
+            notesTextarea.value = deal.notes || '';
+            
+            // Auto-save notes
+            notesTextarea.addEventListener('input', () => {
+                clearTimeout(notesTextarea.saveTimeout);
+                notesTextarea.saveTimeout = setTimeout(async () => {
+                    await updateDealNotes(deal, notesTextarea.value);
+                }, 1000);
             });
         }
+    
+        // Show modal
+        modal.style.display = 'flex';
+        console.log('✅ Deal modal displayed');
+    } catch (error) {
+        console.error('❌ Error opening deal modal:', error);
+        console.error('Stack:', error.stack);
+        showToast('Error opening deal details', 'error');
     }
-    
-    // Date
-    document.getElementById('modal-saved-date').textContent = formatDate(deal.savedAt);
-    
-    // Financial overview
-    document.getElementById('modal-asking-price').textContent = formatCurrency(deal.inputs?.askingPrice || 0);
-    document.getElementById('modal-ebitda').textContent = formatCurrency(deal.inputs?.ebitdaSDE || 0);
-    document.getElementById('modal-quality').textContent = deal.qualityScore !== undefined ? deal.qualityScore : 'N/A';
-    document.getElementById('modal-coc').textContent = deal.results?.cocReturn ? `${deal.results.cocReturn.toFixed(1)}%` : 'N/A';
-    
-    // URL
-    const urlEl = document.getElementById('modal-url');
-    if (urlEl) {
-        if (deal.url) {
-            urlEl.href = deal.url;
-            urlEl.textContent = deal.url;
-            urlEl.style.display = 'block';
-        } else {
-            urlEl.textContent = 'No URL (Off-market deal)';
-            urlEl.href = '#';
-            urlEl.style.pointerEvents = 'none';
-        }
-    }
-    
-    // Financial details
-    document.getElementById('modal-max-price').textContent = formatCurrency(deal.results?.maxPrice || 0);
-    document.getElementById('modal-total-debt').textContent = formatCurrency(deal.results?.totalDebt || 0);
-    document.getElementById('modal-fcf').textContent = formatCurrency(deal.results?.cashFlowAnnual || 0);
-    document.getElementById('modal-takehome').textContent = formatCurrency(deal.results?.ownerTakeHome || 0);
-    document.getElementById('modal-payback').textContent = deal.results?.paybackPeriod ? `${deal.results.paybackPeriod.toFixed(1)} years` : 'N/A';
-    
-    // Notes section
-    const notesTextarea = document.getElementById('modal-notes');
-    if (notesTextarea) {
-        notesTextarea.value = deal.notes || '';
-        
-        // Auto-save notes
-        notesTextarea.addEventListener('input', () => {
-            clearTimeout(notesTextarea.saveTimeout);
-            notesTextarea.saveTimeout = setTimeout(async () => {
-                await updateDealNotes(deal, notesTextarea.value);
-            }, 1000);
-        });
-    }
-    
-    // Show modal
-    modal.style.display = 'flex';
 }
 
 // Close deal modal
@@ -2489,20 +2504,29 @@ function generateDealDetailsHTML(deal) {
 
 // View deal details - opens sidebar or popup based on user preference
 async function viewDealDetails(deal) {
-    console.log('👁️ View deal details:', deal);
-    currentViewedDeal = deal;
-    
-    const preference = await getDealViewPreference();
-    const detailsHTML = generateDealDetailsHTML(deal);
-    
-    if (preference === 'sidebar') {
-        openDealSidebar(deal, detailsHTML);
-    } else {
-        openDealPopup(deal, detailsHTML);
+    try {
+        console.log('👁️ View deal details:', deal);
+        currentViewedDeal = deal;
+        
+        const preference = await getDealViewPreference();
+        console.log('📋 Preference:', preference);
+        
+        const detailsHTML = generateDealDetailsHTML(deal);
+        console.log('✅ Generated HTML, length:', detailsHTML.length);
+        
+        if (preference === 'sidebar') {
+            openDealSidebar(deal, detailsHTML);
+        } else {
+            openDealPopup(deal, detailsHTML);
+        }
+        
+        // Update journey stage to KNOWLEDGE
+        updateJourneyStage('knowledge');
+    } catch (error) {
+        console.error('❌ Error in viewDealDetails:', error);
+        console.error('Stack:', error.stack);
+        alert('Error displaying deal details. Check console for details.');
     }
-    
-    // Update journey stage to KNOWLEDGE
-    updateJourneyStage('knowledge');
 }
 
 // Open deal details in sidebar
@@ -2761,18 +2785,23 @@ function getCalculatorScenario() {
 
 // Setup deal calculator interactions
 function setupDealCalculator(deal) {
-    // Toggle deal analysis section
-    const analysisToggle = document.getElementById('deal-analysis-toggle');
-    const analysisContent = document.getElementById('deal-analysis-content');
-    const analysisArrow = document.getElementById('deal-analysis-arrow');
-    
-    if (analysisToggle && analysisContent && analysisArrow) {
-        analysisToggle.addEventListener('click', () => {
-            const isVisible = analysisContent.style.display !== 'none';
-            analysisContent.style.display = isVisible ? 'none' : 'block';
-            analysisArrow.style.transform = isVisible ? 'rotate(-90deg)' : 'rotate(0deg)';
-        });
-    }
+    try {
+        console.log('🧮 Setting up deal calculator for:', deal.name);
+        
+        // Toggle deal analysis section
+        const analysisToggle = document.getElementById('deal-analysis-toggle');
+        const analysisContent = document.getElementById('deal-analysis-content');
+        const analysisArrow = document.getElementById('deal-analysis-arrow');
+        
+        if (analysisToggle && analysisContent && analysisArrow) {
+            analysisToggle.addEventListener('click', () => {
+                const isVisible = analysisContent.style.display !== 'none';
+                analysisContent.style.display = isVisible ? 'none' : 'block';
+                analysisArrow.style.transform = isVisible ? 'rotate(-90deg)' : 'rotate(0deg)';
+            });
+        } else {
+            console.warn('⚠️ Calculator toggle elements not found');
+        }
     
     // Toggle SBA section
     const sbaToggle = document.getElementById('deal-sba-toggle');
@@ -2847,30 +2876,37 @@ function setupDealCalculator(deal) {
         sellerNoteType.addEventListener('change', calculateDealMetrics);
     }
     
-    // Initial calculation
-    calculateDealMetrics();
+        // Initial calculation
+        calculateDealMetrics();
+        
+        console.log('✅ Deal calculator setup complete');
+    } catch (error) {
+        console.error('❌ Error setting up deal calculator:', error);
+        console.error('Stack:', error.stack);
+    }
 }
 
 // Calculate deal metrics based on inputs
 function calculateDealMetrics() {
-    const parseNumber = (val) => {
-        if (!val) return 0;
-        return parseFloat(String(val).replace(/[$,]/g, '')) || 0;
-    };
-    
-    const formatCurrency = (num) => {
-        if (isNaN(num) || num === null || num === undefined) return '$0';
-        return '$' + Math.round(num).toLocaleString();
-    };
-    
-    const formatPercent = (num) => {
-        if (isNaN(num) || num === null || num === undefined) return '0%';
-        return num.toFixed(1) + '%';
-    };
-    
-    // Get input values
-    const ebitda = parseNumber(document.getElementById('deal-calc-ebitda')?.value);
-    const askingPrice = parseNumber(document.getElementById('deal-calc-asking')?.value);
+    try {
+        const parseNumber = (val) => {
+            if (!val) return 0;
+            return parseFloat(String(val).replace(/[$,]/g, '')) || 0;
+        };
+        
+        const formatCurrency = (num) => {
+            if (isNaN(num) || num === null || num === undefined) return '$0';
+            return '$' + Math.round(num).toLocaleString();
+        };
+        
+        const formatPercent = (num) => {
+            if (isNaN(num) || num === null || num === undefined) return '0%';
+            return num.toFixed(1) + '%';
+        };
+        
+        // Get input values
+        const ebitda = parseNumber(document.getElementById('deal-calc-ebitda')?.value);
+        const askingPrice = parseNumber(document.getElementById('deal-calc-asking')?.value);
     const sbaPercent = parseFloat(document.getElementById('deal-sba-percent')?.value || 80);
     const sbaRate = parseFloat(document.getElementById('deal-sba-rate')?.value || 11.5) / 100;
     const sbaTerm = parseInt(document.getElementById('deal-sba-term')?.value || 10);
@@ -2949,9 +2985,13 @@ function calculateDealMetrics() {
         equitySummary.textContent = `${equityPercent}% • ${formatCurrency(salary)} salary`;
     }
     
-    const sellerNoteSummary = document.getElementById('deal-seller-note-summary');
-    if (sellerNoteSummary && sellerNoteEnabled) {
-        sellerNoteSummary.textContent = `${sellerNotePercent}% • ${(sellerNoteRate * 100).toFixed(1)}%`;
+        const sellerNoteSummary = document.getElementById('deal-seller-note-summary');
+        if (sellerNoteSummary && sellerNoteEnabled) {
+            sellerNoteSummary.textContent = `${sellerNotePercent}% • ${(sellerNoteRate * 100).toFixed(1)}%`;
+        }
+    } catch (error) {
+        console.error('❌ Error calculating deal metrics:', error);
+        console.error('Stack:', error.stack);
     }
 }
 
@@ -4604,954 +4644,7 @@ document.querySelectorAll('.deals-table th.sortable').forEach(header => {
     });
 });
 
-// ===== DEAL MODAL FUNCTIONALITY =====
-let currentModalDeal = null;
-let currentScenario = 0;
-let scenarios = [{}, {}, {}]; // Store 3 scenarios
-
-function openDealModal(dealName) {
-    const deal = allDeals.find(d => d.name === dealName);
-    if (!deal) return;
-    
-    currentModalDeal = deal;
-    currentScenario = 0;
-    
-    // Load scenarios from deal or initialize
-    scenarios = deal.scenarios || [{}, {}, {}];
-    
-    // Populate modal
-    document.getElementById('modal-deal-name').textContent = deal.name;
-    document.getElementById('modal-status').textContent = getStatusText(deal.status || 'none');
-    document.getElementById('modal-saved-date').textContent = new Date(deal.savedAt).toLocaleDateString();
-    document.getElementById('modal-asking-price').textContent = deal.inputs?.asking ? '$' + formatNumber(parseNumber(deal.inputs.asking)) : 'N/A';
-    document.getElementById('modal-ebitda').textContent = deal.inputs?.ebitda ? '$' + formatNumber(parseNumber(deal.inputs.ebitda)) : 'N/A';
-    document.getElementById('modal-quality').textContent = deal.results?.qualityScore || '-';
-    document.getElementById('modal-coc').textContent = deal.results?.cocReturn || 'N/A';
-    document.getElementById('modal-max-price').textContent = deal.results?.maxPrice || 'N/A';
-    document.getElementById('modal-total-debt').textContent = deal.results?.totalDebt || 'N/A';
-    document.getElementById('modal-fcf').textContent = deal.results?.fcfAnnual || 'N/A';
-    document.getElementById('modal-takehome').textContent = deal.results?.ownerTakeHome || 'N/A';
-    document.getElementById('modal-payback').textContent = deal.results?.payback || 'N/A';
-    document.getElementById('modal-notes').value = deal.notes || '';
-    
-    const urlLink = document.getElementById('modal-url');
-    urlLink.href = deal.url;
-    urlLink.textContent = deal.url;
-    
-    // Load broker information
-    const brokerInfo = deal.brokerInfo || {};
-    document.getElementById('broker-name').value = brokerInfo.name || '';
-    document.getElementById('broker-company').value = brokerInfo.company || '';
-    document.getElementById('broker-phone').value = brokerInfo.phone || '';
-    document.getElementById('broker-email').value = brokerInfo.email || '';
-    
-    // Load progress tracking
-    loadProgressHistory(deal);
-    
-    // Load custom statuses into dropdown
-    loadCustomStatuses(deal);
-    
-    // Reset scenario tabs
-    document.querySelectorAll('.scenario-tab').forEach((tab, idx) => {
-        tab.classList.toggle('active', idx === 0);
-    });
-    
-    // Load scenario 0
-    loadScenario(0);
-    
-    // Show modal
-    document.getElementById('deal-modal').style.display = 'flex';
-}
-
-function loadScenario(scenarioIndex) {
-    currentScenario = scenarioIndex;
-    const scenario = scenarios[scenarioIndex];
-    
-    // Update tab UI
-    document.querySelectorAll('.scenario-tab').forEach((tab, idx) => {
-        tab.classList.toggle('active', idx === scenarioIndex);
-    });
-    
-    // If scenario exists, populate fields
-    if (scenario.purchasePrice) {
-        document.getElementById('calc-purchase-price').value = formatCurrency(scenario.purchasePrice);
-        document.getElementById('calc-ebitda').value = formatCurrency(scenario.ebitda);
-        document.getElementById('calc-sba-pct').value = scenario.sbaPct || 75;
-        document.getElementById('calc-buyer-equity-pct').value = scenario.buyerEquityPct || 15;
-        document.getElementById('calc-seller-note-pct').value = scenario.sellerNotePct || 10;
-        document.getElementById('calc-sba-rate').value = scenario.sbaRate || 11.5;
-        document.getElementById('calc-sba-term').value = scenario.sbaTerm || 10;
-        document.getElementById('calc-seller-rate').value = scenario.sellerRate || 6.0;
-        document.getElementById('calc-seller-term').value = scenario.sellerTerm || 5;
-        
-        // Display results if they exist
-        displayCalculatorResults(scenario.results);
-    } else {
-        // Load default values from deal
-        const askingPrice = currentModalDeal.inputs?.asking ? parseNumber(currentModalDeal.inputs.asking) : 0;
-        const ebitda = currentModalDeal.inputs?.ebitda ? parseNumber(currentModalDeal.inputs.ebitda) : 0;
-        
-        document.getElementById('calc-purchase-price').value = askingPrice > 0 ? formatCurrency(askingPrice) : '';
-        document.getElementById('calc-ebitda').value = ebitda > 0 ? formatCurrency(ebitda) : '';
-        document.getElementById('calc-sba-pct').value = 75;
-        document.getElementById('calc-buyer-equity-pct').value = 15;
-        document.getElementById('calc-seller-note-pct').value = 10;
-        document.getElementById('calc-sba-rate').value = 11.5;
-        document.getElementById('calc-sba-term').value = 10;
-        document.getElementById('calc-seller-rate').value = 6.0;
-        document.getElementById('calc-seller-term').value = 5;
-        
-        // Clear results
-        displayCalculatorResults(null);
-    }
-}
-
-function saveCurrentScenario() {
-    const purchasePrice = parseNumber(document.getElementById('calc-purchase-price').value);
-    const ebitda = parseNumber(document.getElementById('calc-ebitda').value);
-    const sbaPct = parseFloat(document.getElementById('calc-sba-pct').value) || 0;
-    const buyerEquityPct = parseFloat(document.getElementById('calc-buyer-equity-pct').value) || 0;
-    const sellerNotePct = parseFloat(document.getElementById('calc-seller-note-pct').value) || 0;
-    const sbaRate = parseFloat(document.getElementById('calc-sba-rate').value) || 0;
-    const sbaTerm = parseFloat(document.getElementById('calc-sba-term').value) || 0;
-    const sellerRate = parseFloat(document.getElementById('calc-seller-rate').value) || 0;
-    const sellerTerm = parseFloat(document.getElementById('calc-seller-term').value) || 0;
-    
-    // Validate percentages
-    const totalPct = sbaPct + buyerEquityPct + sellerNotePct;
-    if (Math.abs(totalPct - 100) > 0.01) {
-        document.getElementById('percentage-warning').style.display = 'block';
-        return null;
-    }
-    document.getElementById('percentage-warning').style.display = 'none';
-    
-    // Calculate
-    const results = calculateDealStructure(
-        purchasePrice,
-        ebitda,
-        sbaPct,
-        buyerEquityPct,
-        sellerNotePct,
-        sbaRate,
-        sbaTerm,
-        sellerRate,
-        sellerTerm
-    );
-    
-    // Save to scenario
-    scenarios[currentScenario] = {
-        purchasePrice,
-        ebitda,
-        sbaPct,
-        buyerEquityPct,
-        sellerNotePct,
-        sbaRate,
-        sbaTerm,
-        sellerRate,
-        sellerTerm,
-        results
-    };
-    
-    // Save to deal
-    currentModalDeal.scenarios = scenarios;
-    
-    // Update in allDeals
-    const deal = allDeals.find(d => d.name === currentModalDeal.name);
-    if (deal) {
-        deal.scenarios = scenarios;
-    }
-    
-    // Save to storage
-    saveDeals(allDeals, (success) => {
-        if (success) {
-            showToast(`Scenario ${currentScenario + 1} saved`, 'success', 2000);
-        }
-    });
-    
-    return results;
-}
-
-function calculateDealStructure(purchasePrice, ebitda, sbaPct, buyerEquityPct, sellerNotePct, sbaRate, sbaTerm, sellerRate, sellerTerm) {
-    const sbaAmount = purchasePrice * (sbaPct / 100);
-    const buyerEquity = purchasePrice * (buyerEquityPct / 100);
-    const sellerNote = purchasePrice * (sellerNotePct / 100);
-    
-    // Monthly payment calculation
-    const sbaMonthlyRate = (sbaRate / 100) / 12;
-    const sbaMonths = sbaTerm * 12;
-    const sbaPayment = sbaAmount > 0 ? 
-        (sbaAmount * sbaMonthlyRate * Math.pow(1 + sbaMonthlyRate, sbaMonths)) / 
-        (Math.pow(1 + sbaMonthlyRate, sbaMonths) - 1) : 0;
-    
-    const sellerMonthlyRate = (sellerRate / 100) / 12;
-    const sellerMonths = sellerTerm * 12;
-    const sellerPayment = sellerNote > 0 ? 
-        (sellerNote * sellerMonthlyRate * Math.pow(1 + sellerMonthlyRate, sellerMonths)) / 
-        (Math.pow(1 + sellerMonthlyRate, sellerMonths) - 1) : 0;
-    
-    const totalDebtService = (sbaPayment + sellerPayment) * 12;
-    const annualCashFlow = ebitda - totalDebtService;
-    const cocReturn = buyerEquity > 0 ? (annualCashFlow / buyerEquity) * 100 : 0;
-    const dscr = totalDebtService > 0 ? ebitda / totalDebtService : 0;
-    const payback = buyerEquity > 0 && annualCashFlow > 0 ? buyerEquity / annualCashFlow : 0;
-    
-    return {
-        sbaAmount,
-        buyerEquity,
-        sellerNote,
-        totalDebtService,
-        annualCashFlow,
-        cocReturn,
-        dscr,
-        payback
-    };
-}
-
-function displayCalculatorResults(results) {
-    if (!results) {
-        document.getElementById('calc-sba-amount').textContent = '-';
-        document.getElementById('calc-buyer-equity').textContent = '-';
-        document.getElementById('calc-seller-note').textContent = '-';
-        document.getElementById('calc-total-debt-service').textContent = '-';
-        document.getElementById('calc-annual-cashflow').textContent = '-';
-        document.getElementById('calc-coc-return').textContent = '-';
-        document.getElementById('calc-dscr').textContent = '-';
-        document.getElementById('calc-payback').textContent = '-';
-        return;
-    }
-    
-    document.getElementById('calc-sba-amount').textContent = formatCurrency(results.sbaAmount);
-    document.getElementById('calc-buyer-equity').textContent = formatCurrency(results.buyerEquity);
-    document.getElementById('calc-seller-note').textContent = formatCurrency(results.sellerNote);
-    document.getElementById('calc-total-debt-service').textContent = formatCurrency(results.totalDebtService);
-    
-    const cashflowEl = document.getElementById('calc-annual-cashflow');
-    cashflowEl.textContent = formatCurrency(results.annualCashFlow);
-    cashflowEl.style.color = results.annualCashFlow >= 0 ? '#27ae60' : '#e74c3c';
-    
-    const cocEl = document.getElementById('calc-coc-return');
-    cocEl.textContent = results.cocReturn.toFixed(1) + '%';
-    cocEl.style.color = results.cocReturn >= 0 ? '#27ae60' : '#e74c3c';
-    
-    const dscrEl = document.getElementById('calc-dscr');
-    dscrEl.textContent = results.dscr.toFixed(2);
-    dscrEl.style.color = results.dscr >= 1.25 ? '#27ae60' : '#e74c3c';
-    
-    document.getElementById('calc-payback').textContent = 
-        results.payback > 0 ? results.payback.toFixed(1) + ' years' : 'N/A';
-}
-
-function formatCurrency(value) {
-    if (!value || isNaN(value)) return '$0';
-    return '$' + formatNumber(Math.round(value));
-}
-
-function getStatusText(status) {
-    const statusMap = {
-        hot: '🔥 Hot',
-        warm: '🌡️ Warm',
-        cold: '❄️ Cold',
-        pass: '❌ Pass',
-        none: 'No Status'
-    };
-    return statusMap[status] || 'No Status';
-}
-
-function closeDealModal() {
-    document.getElementById('deal-modal').style.display = 'none';
-    currentModalDeal = null;
-}
-
-// Modal event listeners
-document.getElementById('modal-close').addEventListener('click', closeDealModal);
-document.getElementById('modal-close-btn').addEventListener('click', closeDealModal);
-
-// Close modal when clicking outside
-document.getElementById('deal-modal').addEventListener('click', (e) => {
-    if (e.target.id === 'deal-modal') {
-        closeDealModal();
-    }
-});
-
-// Close modal on Escape key
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && document.getElementById('deal-modal').style.display === 'flex') {
-        closeDealModal();
-    }
-});
-
-// Save notes button
-document.getElementById('modal-save-notes').addEventListener('click', () => {
-    if (!currentModalDeal) return;
-    
-    const notes = document.getElementById('modal-notes').value;
-    currentModalDeal.notes = notes;
-    
-    // Update in allDeals
-    const deal = allDeals.find(d => d.name === currentModalDeal.name);
-    if (deal) {
-        deal.notes = notes;
-    }
-    
-    // Save to storage
-    saveDeals(allDeals, (success) => {
-        if (success) {
-            showToast('Notes saved successfully', 'success');
-        }
-    });
-});
-
-// Save broker information
-document.getElementById('modal-save-broker').addEventListener('click', () => {
-    if (!currentModalDeal) return;
-    
-    const brokerInfo = {
-        name: document.getElementById('broker-name').value,
-        company: document.getElementById('broker-company').value,
-        phone: document.getElementById('broker-phone').value,
-        email: document.getElementById('broker-email').value
-    };
-    
-    currentModalDeal.brokerInfo = brokerInfo;
-    
-    // Update in allDeals
-    const deal = allDeals.find(d => d.name === currentModalDeal.name);
-    if (deal) {
-        deal.brokerInfo = brokerInfo;
-    }
-    
-    // Save to storage
-    saveDeals(allDeals, (success) => {
-        if (success) {
-            showToast('Broker information saved successfully', 'success');
-        }
-    });
-});
-
-// Load progress history
-function loadProgressHistory(deal) {
-    const progressList = document.getElementById('progress-history-list');
-    const progressHistory = deal.progressHistory || [];
-    
-    if (progressHistory.length === 0) {
-        progressList.innerHTML = '<p style="color: var(--text-secondary); font-size: 12px; text-align: center; padding: 20px;">No progress updates yet</p>';
-        return;
-    }
-    
-    // Sort by date, most recent first
-    const sortedProgress = [...progressHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
-    
-    progressList.innerHTML = sortedProgress.map((item, index) => `
-        <div class="progress-item">
-            <div class="progress-icon">📌</div>
-            <div class="progress-content">
-                <div class="progress-status">${escapeHtml(item.status)}</div>
-                <div class="progress-date">${new Date(item.date).toLocaleString()}</div>
-            </div>
-            <button class="progress-delete" onclick="deleteProgressItem(${index})" title="Remove">×</button>
-        </div>
-    `).join('');
-}
-
-// Load custom statuses into dropdown
-function loadCustomStatuses(deal) {
-    const customStatuses = deal.customStatuses || [];
-    const dropdown = document.getElementById('deal-progress-status');
-    
-    // Remove any previously added custom options
-    const existingOptions = Array.from(dropdown.options);
-    existingOptions.forEach(option => {
-        if (option.dataset.custom === 'true') {
-            dropdown.removeChild(option);
-        }
-    });
-    
-    // Add custom statuses
-    customStatuses.forEach(status => {
-        const option = document.createElement('option');
-        option.value = status;
-        option.textContent = status;
-        option.dataset.custom = 'true';
-        dropdown.appendChild(option);
-    });
-}
-
-// Add progress status
-document.getElementById('deal-progress-status').addEventListener('change', (e) => {
-    if (!currentModalDeal) return;
-    
-    const status = e.target.value;
-    if (!status) return;
-    
-    // Initialize progress history if needed
-    if (!currentModalDeal.progressHistory) {
-        currentModalDeal.progressHistory = [];
-    }
-    
-    // Add new progress item
-    currentModalDeal.progressHistory.push({
-        status: status,
-        date: new Date().toISOString()
-    });
-    
-    // Update in allDeals
-    const deal = allDeals.find(d => d.name === currentModalDeal.name);
-    if (deal) {
-        deal.progressHistory = currentModalDeal.progressHistory;
-    }
-    
-    // Save to storage
-    saveDeals(allDeals, (success) => {
-        if (success) {
-            showToast(`Progress updated: ${status}`, 'success', 2000);
-            loadProgressHistory(currentModalDeal);
-            // Reset dropdown
-            e.target.value = '';
-        }
-    });
-});
-
-// Add custom status
-document.getElementById('add-custom-status-btn').addEventListener('click', () => {
-    if (!currentModalDeal) return;
-    
-    const customStatus = document.getElementById('custom-progress-status').value.trim();
-    if (!customStatus) {
-        showToast('Please enter a custom status', 'warning');
-        return;
-    }
-    
-    // Initialize custom statuses if needed
-    if (!currentModalDeal.customStatuses) {
-        currentModalDeal.customStatuses = [];
-    }
-    
-    // Check if already exists
-    if (currentModalDeal.customStatuses.includes(customStatus)) {
-        showToast('This custom status already exists', 'warning');
-        return;
-    }
-    
-    // Add custom status
-    currentModalDeal.customStatuses.push(customStatus);
-    
-    // Update in allDeals
-    const deal = allDeals.find(d => d.name === currentModalDeal.name);
-    if (deal) {
-        deal.customStatuses = currentModalDeal.customStatuses;
-    }
-    
-    // Save to storage
-    saveDeals(allDeals, (success) => {
-        if (success) {
-            showToast(`Custom status "${customStatus}" added`, 'success');
-            loadCustomStatuses(currentModalDeal);
-            document.getElementById('custom-progress-status').value = '';
-        }
-    });
-});
-
-// Delete progress item
-function deleteProgressItem(index) {
-    if (!currentModalDeal) return;
-    
-    const progressHistory = currentModalDeal.progressHistory || [];
-    
-    // Sort to get the same order as displayed
-    const sortedProgress = [...progressHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
-    const itemToDelete = sortedProgress[index];
-    
-    // Find and remove from original array
-    const originalIndex = progressHistory.findIndex(item => 
-        item.status === itemToDelete.status && item.date === itemToDelete.date
-    );
-    
-    if (originalIndex > -1) {
-        progressHistory.splice(originalIndex, 1);
-        currentModalDeal.progressHistory = progressHistory;
-        
-        // Update in allDeals
-        const deal = allDeals.find(d => d.name === currentModalDeal.name);
-        if (deal) {
-            deal.progressHistory = progressHistory;
-        }
-        
-        // Save to storage
-        saveDeals(allDeals, (success) => {
-            if (success) {
-                showToast('Progress item removed', 'success', 2000);
-                loadProgressHistory(currentModalDeal);
-            }
-        });
-    }
-}
-
-// Modal export button
-document.getElementById('modal-export-btn').addEventListener('click', () => {
-    if (currentModalDeal) {
-        exportDeal(currentModalDeal.name);
-    }
-});
-
-// Modal delete button
-document.getElementById('modal-delete-btn').addEventListener('click', () => {
-    if (currentModalDeal) {
-        closeDealModal();
-        deleteDeal(currentModalDeal.name);
-    }
-});
-
-// Scenario tab switching
-document.querySelectorAll('.scenario-tab').forEach(tab => {
-    tab.addEventListener('click', (e) => {
-        const scenarioIndex = parseInt(e.target.dataset.scenario);
-        loadScenario(scenarioIndex);
-    });
-});
-
-// Show comparison view
-document.getElementById('compare-scenarios-btn').addEventListener('click', () => {
-    showComparisonView();
-});
-
-// Close comparison view
-document.getElementById('close-comparison-btn').addEventListener('click', () => {
-    document.getElementById('scenario-comparison').style.display = 'none';
-    document.querySelector('.calculator-section').parentElement.style.display = 'block';
-    document.querySelector('.modal-content').classList.remove('wide');
-});
-
-function showComparisonView() {
-    // Hide calculator
-    document.querySelector('.calculator-section').parentElement.style.display = 'none';
-    
-    // Show comparison
-    document.getElementById('scenario-comparison').style.display = 'block';
-    
-    // Make modal wide
-    document.querySelector('.modal-content').classList.add('wide');
-    
-    // Populate comparison
-    populateComparison();
-}
-
-function populateComparison() {
-    const validScenarios = [];
-    
-    for (let i = 0; i < 3; i++) {
-        const scenario = scenarios[i];
-        const cardId = `scenario-card-${i + 1}`;
-        const card = document.getElementById(cardId);
-        
-        if (scenario.purchasePrice && scenario.results) {
-            // Populate inputs
-            card.querySelector('[data-field="purchasePrice"]').textContent = formatCurrency(scenario.purchasePrice);
-            card.querySelector('[data-field="ebitda"]').textContent = formatCurrency(scenario.ebitda);
-            card.querySelectorAll('[data-field="sbaPct"]')[0].textContent = scenario.sbaPct + '%';
-            card.querySelectorAll('[data-field="buyerEquityPct"]')[0].textContent = scenario.buyerEquityPct + '%';
-            card.querySelectorAll('[data-field="sellerNotePct"]')[0].textContent = scenario.sellerNotePct + '%';
-            card.querySelector('[data-field="sbaRate"]').textContent = scenario.sbaRate + '%';
-            card.querySelector('[data-field="sellerRate"]').textContent = scenario.sellerRate + '%';
-            
-            // Populate results
-            const r = scenario.results;
-            card.querySelector('[data-field="sbaAmount"]').textContent = formatCurrency(r.sbaAmount);
-            card.querySelectorAll('[data-field="buyerEquity"]')[0].textContent = formatCurrency(r.buyerEquity);
-            card.querySelector('[data-field="sellerNote"]').textContent = formatCurrency(r.sellerNote);
-            card.querySelector('[data-field="totalDebtService"]').textContent = formatCurrency(r.totalDebtService);
-            
-            const cashflowCell = card.querySelector('[data-field="annualCashFlow"]');
-            cashflowCell.textContent = formatCurrency(r.annualCashFlow);
-            cashflowCell.style.color = r.annualCashFlow >= 0 ? '#27ae60' : '#e74c3c';
-            
-            const cocCell = card.querySelector('[data-field="cocReturn"]');
-            cocCell.textContent = r.cocReturn.toFixed(1) + '%';
-            cocCell.style.color = r.cocReturn >= 0 ? '#27ae60' : '#e74c3c';
-            
-            const dscrCell = card.querySelector('[data-field="dscr"]');
-            dscrCell.textContent = r.dscr.toFixed(2);
-            dscrCell.style.color = r.dscr >= 1.25 ? '#27ae60' : '#e74c3c';
-            
-            card.querySelector('[data-field="payback"]').textContent = 
-                r.payback > 0 ? r.payback.toFixed(1) + ' yrs' : 'N/A';
-            
-            validScenarios.push({ index: i, scenario, results: r });
-        } else {
-            // Empty scenario - clear all values
-            card.querySelectorAll('.scenario-value').forEach(cell => {
-                cell.textContent = '-';
-                cell.style.color = '';
-            });
-        }
-    }
-    
-    // Find best scenario
-    if (validScenarios.length > 0) {
-        findBestScenario(validScenarios);
-    } else {
-        document.getElementById('best-scenario-summary').innerHTML = 
-            '<p>Calculate scenarios to see recommendations</p>';
-    }
-}
-
-function findBestScenario(validScenarios) {
-    // Clear previous best indicators
-    document.querySelectorAll('.scenario-card').forEach(card => {
-        card.classList.remove('best-overall');
-        card.querySelector('.best-badge').style.display = 'none';
-    });
-    
-    // Find best by different metrics
-    let bestCOC = validScenarios[0];
-    let bestDSCR = validScenarios[0];
-    let bestCashFlow = validScenarios[0];
-    let lowestEquity = validScenarios[0];
-    
-    validScenarios.forEach(s => {
-        if (s.results.cocReturn > bestCOC.results.cocReturn) bestCOC = s;
-        if (s.results.dscr > bestDSCR.results.dscr) bestDSCR = s;
-        if (s.results.annualCashFlow > bestCashFlow.results.annualCashFlow) bestCashFlow = s;
-        if (s.results.buyerEquity < lowestEquity.results.buyerEquity) lowestEquity = s;
-    });
-    
-    // Overall recommendation (weighted scoring)
-    const scores = validScenarios.map(s => {
-        const cocScore = s.results.cocReturn >= 0 ? s.results.cocReturn : 0;
-        const dscrScore = s.results.dscr >= 1.25 ? s.results.dscr * 10 : 0;
-        const cashflowScore = s.results.annualCashFlow >= 0 ? (s.results.annualCashFlow / 10000) : 0;
-        return {
-            index: s.index,
-            total: cocScore * 2 + dscrScore * 1.5 + cashflowScore
-        };
-    });
-    
-    scores.sort((a, b) => b.total - a.total);
-    const bestOverall = scores[0].index;
-    
-    // Highlight best overall card
-    const bestCard = document.getElementById(`scenario-card-${bestOverall + 1}`);
-    bestCard.classList.add('best-overall');
-    bestCard.querySelector('.best-badge').style.display = 'inline-block';
-    
-    // Display summary
-    const summary = document.getElementById('best-scenario-summary');
-    summary.innerHTML = `
-        <p><strong>🏆 Recommended: Scenario ${bestOverall + 1}</strong> - Best overall based on weighted analysis</p>
-        <p>• <strong>Highest COC Return:</strong> Scenario ${bestCOC.index + 1} at ${bestCOC.results.cocReturn.toFixed(1)}%</p>
-        <p>• <strong>Best DSCR:</strong> Scenario ${bestDSCR.index + 1} at ${bestDSCR.results.dscr.toFixed(2)}x</p>
-        <p>• <strong>Highest Cash Flow:</strong> Scenario ${bestCashFlow.index + 1} at ${formatCurrency(bestCashFlow.results.annualCashFlow)}/year</p>
-        <p>• <strong>Lowest Equity Required:</strong> Scenario ${lowestEquity.index + 1} at ${formatCurrency(lowestEquity.results.buyerEquity)}</p>
-    `;
-}
-
-// Calculator recalculate button
-document.getElementById('calc-recalculate-btn').addEventListener('click', () => {
-    const results = saveCurrentScenario();
-    if (results) {
-        displayCalculatorResults(results);
-    }
-});
-
-// Auto-validate percentages
-['calc-sba-pct', 'calc-buyer-equity-pct', 'calc-seller-note-pct'].forEach(id => {
-    document.getElementById(id).addEventListener('input', () => {
-        const sbaPct = parseFloat(document.getElementById('calc-sba-pct').value) || 0;
-        const buyerEquityPct = parseFloat(document.getElementById('calc-buyer-equity-pct').value) || 0;
-        const sellerNotePct = parseFloat(document.getElementById('calc-seller-note-pct').value) || 0;
-        const total = sbaPct + buyerEquityPct + sellerNotePct;
-        
-        const warning = document.getElementById('percentage-warning');
-        if (Math.abs(total - 100) > 0.01) {
-            warning.style.display = 'block';
-            warning.textContent = `⚠️ Percentages total ${total.toFixed(1)}% (must be 100%)`;
-        } else {
-            warning.style.display = 'none';
-        }
-    });
-});
-
-// ===== SHARE FUNCTIONALITY =====
-let shareModalDeal = null;
-let shareText = '';
-
-// Open share modal
-document.getElementById('modal-share-btn').addEventListener('click', () => {
-    if (!currentModalDeal) return;
-    
-    shareModalDeal = currentModalDeal;
-    shareText = generateShareText();
-    
-    // Show preview
-    document.getElementById('share-preview-text').textContent = shareText;
-    
-    // Hide SMS phone section (in case it was visible before)
-    document.getElementById('sms-phone-section').style.display = 'none';
-    
-    // Show share modal
-    document.getElementById('share-modal').style.display = 'flex';
-});
-
-// Close share modal
-document.getElementById('share-modal-close').addEventListener('click', () => {
-    document.getElementById('share-modal').style.display = 'none';
-    document.getElementById('sms-phone-section').style.display = 'none';
-});
-
-// Close share modal when clicking outside
-document.getElementById('share-modal').addEventListener('click', (e) => {
-    if (e.target.id === 'share-modal') {
-        document.getElementById('share-modal').style.display = 'none';
-        document.getElementById('sms-phone-section').style.display = 'none';
-    }
-});
-
-// Generate comprehensive share text
-function generateShareText() {
-    if (!shareModalDeal) return '';
-    
-    const deal = shareModalDeal;
-    let text = '';
-    
-    // Header
-    text += `📊 DEAL ANALYSIS: ${deal.name}\n`;
-    text += `${'='.repeat(50)}\n\n`;
-    
-    // Overview
-    text += `📍 OVERVIEW\n`;
-    text += `Status: ${getStatusText(deal.status || 'none')}\n`;
-    text += `Saved: ${new Date(deal.savedAt).toLocaleDateString()}\n`;
-    text += `Quality Score: ${deal.results?.qualityScore || 'N/A'}/100\n`;
-    text += `Link: ${deal.url}\n\n`;
-    
-    // Financial Highlights
-    text += `💰 FINANCIAL HIGHLIGHTS\n`;
-    text += `Asking Price: ${deal.inputs?.asking || 'N/A'}\n`;
-    text += `EBITDA: ${deal.inputs?.ebitda || 'N/A'}\n`;
-    text += `Max Price: ${deal.results?.maxPrice || 'N/A'}\n`;
-    text += `COC Return: ${deal.results?.cocReturn || 'N/A'}\n`;
-    text += `Total Debt: ${deal.results?.totalDebt || 'N/A'}\n`;
-    text += `FCF Annual: ${deal.results?.fcfAnnual || 'N/A'}\n`;
-    text += `Owner Take-Home: ${deal.results?.ownerTakeHome || 'N/A'}\n`;
-    text += `Payback Period: ${deal.results?.payback || 'N/A'}\n\n`;
-    
-    // Broker Information
-    if (deal.brokerInfo && (deal.brokerInfo.name || deal.brokerInfo.company || deal.brokerInfo.phone || deal.brokerInfo.email)) {
-        text += `👔 BROKER CONTACT\n`;
-        if (deal.brokerInfo.name) text += `Name: ${deal.brokerInfo.name}\n`;
-        if (deal.brokerInfo.company) text += `Company: ${deal.brokerInfo.company}\n`;
-        if (deal.brokerInfo.phone) text += `Phone: ${deal.brokerInfo.phone}\n`;
-        if (deal.brokerInfo.email) text += `Email: ${deal.brokerInfo.email}\n`;
-        text += `\n`;
-    }
-    
-    // Deal Progress
-    if (deal.progressHistory && deal.progressHistory.length > 0) {
-        text += `📋 DEAL PROGRESS\n`;
-        const sortedProgress = [...deal.progressHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
-        sortedProgress.slice(0, 5).forEach(item => {
-            text += `• ${item.status} (${new Date(item.date).toLocaleDateString()})\n`;
-        });
-        text += `\n`;
-    }
-    
-    // Scenarios (if calculated)
-    const validScenarios = scenarios.filter(s => s.purchasePrice && s.results);
-    if (validScenarios.length > 0) {
-        text += `🎯 DEAL STRUCTURE SCENARIOS\n`;
-        text += `${'='.repeat(50)}\n\n`;
-        
-        validScenarios.forEach((scenario, idx) => {
-            text += `SCENARIO ${idx + 1}\n`;
-            text += `${'-'.repeat(30)}\n`;
-            text += `Purchase Price: ${formatCurrency(scenario.purchasePrice)}\n`;
-            text += `EBITDA/SDE: ${formatCurrency(scenario.ebitda)}\n`;
-            text += `\n`;
-            text += `Structure:\n`;
-            text += `  SBA Loan: ${scenario.sbaPct}% (${formatCurrency(scenario.results.sbaAmount)})\n`;
-            text += `  Buyer Equity: ${scenario.buyerEquityPct}% (${formatCurrency(scenario.results.buyerEquity)})\n`;
-            text += `  Seller Note: ${scenario.sellerNotePct}% (${formatCurrency(scenario.results.sellerNote)})\n`;
-            text += `\n`;
-            text += `Terms:\n`;
-            text += `  SBA Rate: ${scenario.sbaRate}% for ${scenario.sbaTerm} years\n`;
-            text += `  Seller Rate: ${scenario.sellerRate}% for ${scenario.sellerTerm} years\n`;
-            text += `\n`;
-            text += `Results:\n`;
-            text += `  Total Debt Service: ${formatCurrency(scenario.results.totalDebtService)}/year\n`;
-            text += `  Annual Cash Flow: ${formatCurrency(scenario.results.annualCashFlow)}\n`;
-            text += `  COC Return: ${scenario.results.cocReturn.toFixed(1)}%\n`;
-            text += `  DSCR: ${scenario.results.dscr.toFixed(2)}x\n`;
-            text += `  Payback Period: ${scenario.results.payback > 0 ? scenario.results.payback.toFixed(1) + ' years' : 'N/A'}\n`;
-            text += `\n`;
-        });
-        
-        // Recommendation
-        if (validScenarios.length > 1) {
-            const scores = validScenarios.map((s, idx) => {
-                const cocScore = s.results.cocReturn >= 0 ? s.results.cocReturn : 0;
-                const dscrScore = s.results.dscr >= 1.25 ? s.results.dscr * 10 : 0;
-                const cashflowScore = s.results.annualCashFlow >= 0 ? (s.results.annualCashFlow / 10000) : 0;
-                return {
-                    index: idx,
-                    total: cocScore * 2 + dscrScore * 1.5 + cashflowScore
-                };
-            });
-            scores.sort((a, b) => b.total - a.total);
-            const bestIdx = scores[0].index;
-            
-            text += `🏆 RECOMMENDED: Scenario ${bestIdx + 1}\n`;
-            text += `Based on weighted analysis of COC return, DSCR, and cash flow.\n\n`;
-        }
-    }
-    
-    // Notes
-    if (deal.notes) {
-        text += `📝 NOTES\n`;
-        text += `${deal.notes}\n\n`;
-    }
-    
-    // Footer
-    text += `${'='.repeat(50)}\n`;
-    text += `Generated by Deal Analyzer Extension v2.1.2\n`;
-    text += `${new Date().toLocaleString()}\n`;
-    
-    return text;
-}
-
-// Email share
-document.getElementById('share-email').addEventListener('click', () => {
-    if (!shareText) return;
-    
-    const subject = encodeURIComponent(`Deal Analysis: ${shareModalDeal.name}`);
-    const body = encodeURIComponent(shareText);
-    const mailtoLink = `mailto:?subject=${subject}&body=${body}`;
-    
-    // Open email client
-    window.location.href = mailtoLink;
-    
-    showToast('Opening email client...', 'success', 2000);
-});
-
-// SMS share
-document.getElementById('share-sms').addEventListener('click', () => {
-    if (!shareText) return;
-    
-    // Show phone number input section
-    const smsSection = document.getElementById('sms-phone-section');
-    smsSection.style.display = 'block';
-    
-    // Load last used phone number
-    chrome.storage.local.get(['lastSMSNumber'], (result) => {
-        if (result.lastSMSNumber) {
-            document.getElementById('sms-phone-number').value = result.lastSMSNumber;
-            console.log('Loaded last SMS number:', result.lastSMSNumber);
-        }
-    });
-    
-    // Focus on phone input
-    document.getElementById('sms-phone-number').focus();
-});
-
-// SMS send button
-document.getElementById('sms-send-btn').addEventListener('click', () => {
-    sendSMS();
-});
-
-// Allow Enter key to send SMS
-document.getElementById('sms-phone-number').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        sendSMS();
-    }
-});
-
-// Send SMS function
-function sendSMS() {
-    if (!shareText || !shareModalDeal) return;
-    
-    const phoneNumber = document.getElementById('sms-phone-number').value.trim();
-    
-    if (!phoneNumber) {
-        showToast('Please enter a phone number', 'warning');
-        return;
-    }
-    
-    // Save phone number for next time
-    chrome.storage.local.set({ lastSMSNumber: phoneNumber }, () => {
-        console.log('Saved SMS number:', phoneNumber);
-    });
-    
-    // SMS has character limits, so create a shorter version
-    const shortText = `Deal: ${shareModalDeal.name}\nAsking: ${shareModalDeal.inputs?.asking || 'N/A'}\nEBITDA: ${shareModalDeal.inputs?.ebitda || 'N/A'}\nQuality: ${shareModalDeal.results?.qualityScore || 'N/A'}/100\nLink: ${shareModalDeal.url}`;
-    
-    const body = encodeURIComponent(shortText);
-    const smsLink = `sms:${phoneNumber}?&body=${body}`;
-    
-    // Open SMS app
-    window.location.href = smsLink;
-    
-    showToast('Opening messages app...', 'success', 2000);
-    
-    // Hide phone section and close modal after a delay
-    setTimeout(() => {
-        document.getElementById('sms-phone-section').style.display = 'none';
-        document.getElementById('share-modal').style.display = 'none';
-    }, 500);
-}
-
-// Copy to clipboard
-document.getElementById('share-copy').addEventListener('click', async () => {
-    if (!shareText) return;
-    
-    try {
-        await navigator.clipboard.writeText(shareText);
-        showToast('Deal analysis copied to clipboard!', 'success');
-    } catch (err) {
-        // Fallback for older browsers
-        const textarea = document.createElement('textarea');
-        textarea.value = shareText;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-            document.execCommand('copy');
-            showToast('Deal analysis copied to clipboard!', 'success');
-        } catch (e) {
-            showToast('Failed to copy to clipboard', 'error');
-        }
-        document.body.removeChild(textarea);
-    }
-});
-
-// Native share (includes AirDrop on iOS/macOS)
-document.getElementById('share-native').addEventListener('click', async () => {
-    if (!shareText) return;
-    
-    // Check if Web Share API is available
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                title: `Deal Analysis: ${shareModalDeal.name}`,
-                text: shareText,
-                url: shareModalDeal.url
-            });
-            showToast('Shared successfully!', 'success');
-        } catch (err) {
-            if (err.name !== 'AbortError') {
-                console.error('Share failed:', err);
-                showToast('Share cancelled or failed', 'warning');
-            }
-        }
-    } else {
-        // Fallback: copy to clipboard if Web Share API not available
-        try {
-            await navigator.clipboard.writeText(shareText);
-            showToast('Web Share not available. Copied to clipboard instead!', 'info');
-        } catch (e) {
-            showToast('Sharing not supported on this device. Try Copy Link instead.', 'warning');
-        }
-    }
-});
+// ===== END OF DASHBOARD CODE =====
 
 // Initialize
 loadDeals();
-

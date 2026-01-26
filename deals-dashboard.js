@@ -2207,6 +2207,15 @@ async function saveDealViewPreference(preference) {
 function generateDealDetailsHTML(deal) {
     const matchesBuyBox = dealMatchesBuyBox(deal);
     
+    // Extract broker info from rawFields or deal.broker
+    const brokerInfo = deal.broker || deal.brokerInfo || {};
+    const brokerEmail = brokerInfo.email || deal.rawFields?.['Broker Email'] || deal.rawFields?.['Contact Email'] || '';
+    const brokerPhone = brokerInfo.phone || deal.rawFields?.['Broker Phone'] || deal.rawFields?.['Contact Phone'] || '';
+    const brokerName = brokerInfo.name || deal.rawFields?.['Broker Name'] || deal.rawFields?.['Contact Name'] || '';
+    
+    // Get description - ensure we only show it once
+    const description = deal.description || deal.rawFields?.Description || '';
+    
     return `
         <div class="deal-detail-section">
             <h3>📊 Overview</h3>
@@ -2266,10 +2275,44 @@ function generateDealDetailsHTML(deal) {
             </div>
         </div>
 
-        ${deal.description ? `
+        ${(brokerName || brokerEmail || brokerPhone) ? `
+        <div class="deal-detail-section">
+            <h3>📞 Broker Contact</h3>
+            <div class="deal-detail-grid">
+                ${brokerName ? `
+                <div class="deal-detail-item">
+                    <div class="deal-detail-label">Name</div>
+                    <div class="deal-detail-value">${escapeHtml(brokerName)}</div>
+                </div>
+                ` : ''}
+                ${brokerEmail ? `
+                <div class="deal-detail-item">
+                    <div class="deal-detail-label">Email</div>
+                    <div class="deal-detail-value">
+                        <a href="mailto:${escapeHtml(brokerEmail)}" style="color: #667eea; text-decoration: none;">
+                            ${escapeHtml(brokerEmail)}
+                        </a>
+                    </div>
+                </div>
+                ` : ''}
+                ${brokerPhone ? `
+                <div class="deal-detail-item">
+                    <div class="deal-detail-label">Phone</div>
+                    <div class="deal-detail-value">
+                        <a href="tel:${escapeHtml(brokerPhone)}" style="color: #667eea; text-decoration: none;">
+                            ${escapeHtml(brokerPhone)}
+                        </a>
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+        ` : ''}
+
+        ${description ? `
         <div class="deal-detail-section">
             <h3>📝 Description</h3>
-            <div class="deal-detail-description">${escapeHtml(deal.description)}</div>
+            <div class="deal-detail-description">${escapeHtml(description)}</div>
         </div>
         ` : ''}
 
@@ -2283,21 +2326,164 @@ function generateDealDetailsHTML(deal) {
         </div>
         ` : ''}
 
-        ${deal.rawFields && Object.keys(deal.rawFields).length > 0 ? `
-        <div class="deal-detail-section">
-            <h3>📋 Additional Information</h3>
-            <div class="deal-detail-tags">
-                ${Object.entries(deal.rawFields)
-                    .filter(([key, value]) => value && String(value).trim() !== '')
-                    .slice(0, 10)
-                    .map(([key, value]) => `
-                        <div class="deal-detail-tag">
-                            <strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(value))}
+        <div class="deal-detail-section" style="border: 2px solid #667eea; border-radius: 8px; background: var(--bg-tertiary);">
+            <h3 style="cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;" id="deal-analysis-toggle">
+                <span id="deal-analysis-arrow" style="transition: transform 0.2s; display: inline-block;">▼</span>
+                <span>🧮 Deal Analysis Calculator</span>
+            </h3>
+            <div id="deal-analysis-content" style="display: none; margin-top: 16px;">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                    <strong>💡 Scenario Analysis:</strong> Adjust the financing inputs below to model different scenarios. 
+                    Your changes will be automatically saved as "Scenario 1" when you save this deal to "My Deals".
+                </div>
+                
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">
+                        Business EBITDA/SDE
+                    </label>
+                    <input type="text" id="deal-calc-ebitda" class="deal-calc-input" placeholder="0" 
+                           value="${deal.ebitda || 0}" 
+                           style="width: 100%; padding: 10px; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); font-size: 14px;">
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">
+                        Asking Price
+                    </label>
+                    <input type="text" id="deal-calc-asking" class="deal-calc-input" placeholder="0" 
+                           value="${deal.askingPrice || 0}"
+                           style="width: 100%; padding: 10px; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); font-size: 14px;">
+                </div>
+
+                <div style="border-top: 2px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
+                    <h4 style="font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">
+                        💰 Financing Structure
+                    </h4>
+                    
+                    <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; cursor: pointer;" id="deal-sba-toggle">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                                <span id="deal-sba-arrow" style="transition: transform 0.2s;">▼</span>
+                                A. SBA Loan
+                            </label>
+                            <span id="deal-sba-summary" style="font-size: 11px; color: var(--text-secondary);">80% • 11.5% • 10yr</span>
                         </div>
-                    `).join('')}
+                        <div id="deal-sba-content" style="display: none;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                                <div>
+                                    <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Percentage (%)</label>
+                                    <input type="number" id="deal-sba-percent" value="80" step="0.1" min="0" max="100"
+                                           style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Interest Rate (%)</label>
+                                    <input type="number" id="deal-sba-rate" value="11.5" step="0.1" min="0"
+                                           style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Term (Years)</label>
+                                    <input type="number" id="deal-sba-term" value="10" min="1" max="30"
+                                           style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Target DSCR</label>
+                                    <input type="number" id="deal-sba-dscr" value="1.25" step="0.05" min="1.0"
+                                           style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; cursor: pointer;" id="deal-equity-toggle">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                                <span id="deal-equity-arrow" style="transition: transform 0.2s;">▼</span>
+                                B. Buyer Equity
+                            </label>
+                            <span id="deal-equity-summary" style="font-size: 11px; color: var(--text-secondary);">10% • $150k salary</span>
+                        </div>
+                        <div id="deal-equity-content" style="display: none;">
+                            <div style="margin-bottom: 12px;">
+                                <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Percentage (%)</label>
+                                <input type="number" id="deal-equity-percent" value="10" step="0.1" min="0" max="100"
+                                       style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Target Owner Salary (Annual)</label>
+                                <input type="text" id="deal-equity-salary" value="150000" placeholder="150000"
+                                       style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 6px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                            <label style="font-size: 12px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="deal-seller-note-enabled" style="width: auto; cursor: pointer;">
+                                <span id="deal-seller-note-arrow" style="transition: transform 0.2s; cursor: pointer;">▼</span>
+                                <span style="cursor: pointer;">C. Seller Note (Optional)</span>
+                            </label>
+                            <span id="deal-seller-note-summary" style="font-size: 11px; color: var(--text-secondary);">10% • 6.0%</span>
+                        </div>
+                        <div id="deal-seller-note-content" style="display: none;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                                <div>
+                                    <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Percentage (%)</label>
+                                    <input type="number" id="deal-seller-note-percent" value="10" step="0.1" min="0" max="100"
+                                           style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Interest Rate (%)</label>
+                                    <input type="number" id="deal-seller-note-rate" value="6.0" step="0.1" min="0"
+                                           style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Term (Years)</label>
+                                    <input type="number" id="deal-seller-note-term" value="5" min="1" max="15"
+                                           style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 4px;">Payment Type</label>
+                                    <select id="deal-seller-note-type" 
+                                            style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px;">
+                                        <option value="amortizing">Amortizing</option>
+                                        <option value="interest-only">Interest Only</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="border-top: 2px solid var(--border-color); padding-top: 16px; margin-top: 16px;">
+                    <h4 style="font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;">
+                        📊 Results
+                    </h4>
+                    <div id="deal-calc-results" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #667eea;">
+                            <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 4px;">Max Allowable Price</div>
+                            <div id="deal-calc-max-price" style="font-size: 16px; font-weight: 700; color: var(--text-primary);">$0</div>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #27ae60;">
+                            <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 4px;">Free Cash Flow</div>
+                            <div id="deal-calc-fcf" style="font-size: 16px; font-weight: 700; color: var(--text-primary);">$0</div>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #e67e22;">
+                            <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 4px;">Cash-on-Cash Return</div>
+                            <div id="deal-calc-coc" style="font-size: 16px; font-weight: 700; color: var(--text-primary);">0%</div>
+                        </div>
+                        <div style="padding: 12px; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid #9b59b6;">
+                            <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 4px;">DSCR</div>
+                            <div id="deal-calc-dscr" style="font-size: 16px; font-weight: 700; color: var(--text-primary);">0x</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        ` : ''}
     `;
 }
 
@@ -2368,10 +2554,11 @@ function setupDealActionButtons(deal) {
     // Sidebar buttons
     const sidebarSaveBtn = document.getElementById('sidebar-save-deal');
     const sidebarOpenBtn = document.getElementById('sidebar-open-link');
+    const sidebarHideBtn = document.getElementById('sidebar-hide-deal');
     
     if (sidebarSaveBtn) {
         sidebarSaveBtn.onclick = () => {
-            saveDealFromAggregator(deal);
+            saveDealFromAggregatorWithScenario(deal);
             closeDealDetailsView();
         };
     }
@@ -2387,13 +2574,21 @@ function setupDealActionButtons(deal) {
         sidebarOpenBtn.disabled = !deal.url;
     }
     
+    if (sidebarHideBtn) {
+        sidebarHideBtn.onclick = () => {
+            hideDealFromAggregator(deal);
+            closeDealDetailsView();
+        };
+    }
+    
     // Popup buttons
     const popupSaveBtn = document.getElementById('popup-save-deal');
     const popupOpenBtn = document.getElementById('popup-open-link');
+    const popupHideBtn = document.getElementById('popup-hide-deal');
     
     if (popupSaveBtn) {
         popupSaveBtn.onclick = () => {
-            saveDealFromAggregator(deal);
+            saveDealFromAggregatorWithScenario(deal);
             closeDealDetailsView();
         };
     }
@@ -2408,6 +2603,16 @@ function setupDealActionButtons(deal) {
         };
         popupOpenBtn.disabled = !deal.url;
     }
+    
+    if (popupHideBtn) {
+        popupHideBtn.onclick = () => {
+            hideDealFromAggregator(deal);
+            closeDealDetailsView();
+        };
+    }
+    
+    // Setup deal calculator
+    setupDealCalculator(deal);
 }
 
 // Close deal details view (both sidebar and popup)
@@ -2423,6 +2628,331 @@ function closeDealDetailsView() {
     if (popup) popup.style.display = 'none';
     
     currentViewedDeal = null;
+}
+
+// Hide deal from aggregator
+async function hideDealFromAggregator(deal) {
+    try {
+        showToast('Hiding deal...', 'info');
+        
+        // Get hidden deals list
+        const result = await new Promise((resolve) => {
+            chrome.storage.local.get(['hiddenDeals'], (result) => {
+                resolve(result.hiddenDeals || []);
+            });
+        });
+        
+        // Add deal ID/URL to hidden list
+        const dealIdentifier = deal.url || deal.id || deal.name;
+        if (!result.includes(dealIdentifier)) {
+            result.push(dealIdentifier);
+        }
+        
+        // Save hidden deals
+        await new Promise((resolve, reject) => {
+            chrome.storage.local.set({ hiddenDeals: result }, () => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        showToast('Deal hidden successfully', 'success');
+        
+        // Refresh the aggregator view
+        if (typeof loadAggregatedDeals === 'function') {
+            loadAggregatedDeals();
+        }
+    } catch (error) {
+        console.error('Error hiding deal:', error);
+        showToast('Failed to hide deal', 'error');
+    }
+}
+
+// Save deal with scenario data
+async function saveDealFromAggregatorWithScenario(deal) {
+    try {
+        // Get calculator values if they exist
+        const calculatorData = getCalculatorScenario();
+        
+        // Call original save function
+        await saveDealFromAggregator(deal);
+        
+        // If calculator data exists and deal was saved, update with scenario
+        if (calculatorData && Object.keys(calculatorData).length > 0) {
+            const savedDeals = await new Promise((resolve) => {
+                chrome.storage.local.get(['savedDeals'], (result) => {
+                    resolve(result.savedDeals || []);
+                });
+            });
+            
+            // Find the deal we just saved (it should be first)
+            if (savedDeals.length > 0) {
+                const savedDeal = savedDeals[0];
+                savedDeal.scenario1 = calculatorData;
+                savedDeal.activeScenario = 'scenario1';
+                
+                // Save updated deal
+                await new Promise((resolve, reject) => {
+                    chrome.storage.local.set({ savedDeals: savedDeals }, () => {
+                        if (chrome.runtime.lastError) {
+                            reject(chrome.runtime.lastError);
+                        } else {
+                            resolve();
+                        }
+                    });
+                });
+                
+                console.log('✅ Saved deal with Scenario 1:', calculatorData);
+            }
+        }
+    } catch (error) {
+        console.error('Error saving deal with scenario:', error);
+    }
+}
+
+// Get calculator scenario data
+function getCalculatorScenario() {
+    const ebitda = document.getElementById('deal-calc-ebitda');
+    const asking = document.getElementById('deal-calc-asking');
+    const sbaPercent = document.getElementById('deal-sba-percent');
+    const sbaRate = document.getElementById('deal-sba-rate');
+    const sbaTerm = document.getElementById('deal-sba-term');
+    const sbaDscr = document.getElementById('deal-sba-dscr');
+    const equityPercent = document.getElementById('deal-equity-percent');
+    const equitySalary = document.getElementById('deal-equity-salary');
+    const sellerNoteEnabled = document.getElementById('deal-seller-note-enabled');
+    const sellerNotePercent = document.getElementById('deal-seller-note-percent');
+    const sellerNoteRate = document.getElementById('deal-seller-note-rate');
+    const sellerNoteTerm = document.getElementById('deal-seller-note-term');
+    const sellerNoteType = document.getElementById('deal-seller-note-type');
+    
+    if (!ebitda || !asking) return null;
+    
+    const parseNumber = (val) => {
+        if (!val) return 0;
+        return parseFloat(String(val).replace(/[$,]/g, '')) || 0;
+    };
+    
+    return {
+        ebitda: parseNumber(ebitda.value),
+        askingPrice: parseNumber(asking.value),
+        sba: {
+            percent: parseFloat(sbaPercent?.value || 80),
+            rate: parseFloat(sbaRate?.value || 11.5),
+            term: parseInt(sbaTerm?.value || 10),
+            dscr: parseFloat(sbaDscr?.value || 1.25)
+        },
+        equity: {
+            percent: parseFloat(equityPercent?.value || 10),
+            salary: parseNumber(equitySalary?.value || 150000)
+        },
+        sellerNote: {
+            enabled: sellerNoteEnabled?.checked || false,
+            percent: parseFloat(sellerNotePercent?.value || 10),
+            rate: parseFloat(sellerNoteRate?.value || 6.0),
+            term: parseInt(sellerNoteTerm?.value || 5),
+            type: sellerNoteType?.value || 'amortizing'
+        }
+    };
+}
+
+// Setup deal calculator interactions
+function setupDealCalculator(deal) {
+    // Toggle deal analysis section
+    const analysisToggle = document.getElementById('deal-analysis-toggle');
+    const analysisContent = document.getElementById('deal-analysis-content');
+    const analysisArrow = document.getElementById('deal-analysis-arrow');
+    
+    if (analysisToggle && analysisContent && analysisArrow) {
+        analysisToggle.addEventListener('click', () => {
+            const isVisible = analysisContent.style.display !== 'none';
+            analysisContent.style.display = isVisible ? 'none' : 'block';
+            analysisArrow.style.transform = isVisible ? 'rotate(-90deg)' : 'rotate(0deg)';
+        });
+    }
+    
+    // Toggle SBA section
+    const sbaToggle = document.getElementById('deal-sba-toggle');
+    const sbaContent = document.getElementById('deal-sba-content');
+    const sbaArrow = document.getElementById('deal-sba-arrow');
+    
+    if (sbaToggle && sbaContent && sbaArrow) {
+        sbaToggle.addEventListener('click', () => {
+            const isVisible = sbaContent.style.display !== 'none';
+            sbaContent.style.display = isVisible ? 'none' : 'block';
+            sbaArrow.style.transform = isVisible ? 'rotate(-90deg)' : 'rotate(0deg)';
+        });
+    }
+    
+    // Toggle Equity section
+    const equityToggle = document.getElementById('deal-equity-toggle');
+    const equityContent = document.getElementById('deal-equity-content');
+    const equityArrow = document.getElementById('deal-equity-arrow');
+    
+    if (equityToggle && equityContent && equityArrow) {
+        equityToggle.addEventListener('click', () => {
+            const isVisible = equityContent.style.display !== 'none';
+            equityContent.style.display = isVisible ? 'none' : 'block';
+            equityArrow.style.transform = isVisible ? 'rotate(-90deg)' : 'rotate(0deg)';
+        });
+    }
+    
+    // Toggle Seller Note section
+    const sellerNoteEnabled = document.getElementById('deal-seller-note-enabled');
+    const sellerNoteContent = document.getElementById('deal-seller-note-content');
+    const sellerNoteArrow = document.getElementById('deal-seller-note-arrow');
+    
+    if (sellerNoteEnabled && sellerNoteContent) {
+        sellerNoteEnabled.addEventListener('change', () => {
+            sellerNoteContent.style.display = sellerNoteEnabled.checked ? 'block' : 'none';
+            if (sellerNoteArrow) {
+                sellerNoteArrow.style.transform = sellerNoteEnabled.checked ? 'rotate(0deg)' : 'rotate(-90deg)';
+            }
+            calculateDealMetrics();
+        });
+    }
+    
+    if (sellerNoteArrow) {
+        sellerNoteArrow.addEventListener('click', () => {
+            if (sellerNoteEnabled && sellerNoteContent) {
+                sellerNoteEnabled.checked = !sellerNoteEnabled.checked;
+                sellerNoteContent.style.display = sellerNoteEnabled.checked ? 'block' : 'none';
+                sellerNoteArrow.style.transform = sellerNoteEnabled.checked ? 'rotate(0deg)' : 'rotate(-90deg)';
+                calculateDealMetrics();
+            }
+        });
+    }
+    
+    // Add input listeners for real-time calculation
+    const inputs = [
+        'deal-calc-ebitda', 'deal-calc-asking',
+        'deal-sba-percent', 'deal-sba-rate', 'deal-sba-term', 'deal-sba-dscr',
+        'deal-equity-percent', 'deal-equity-salary',
+        'deal-seller-note-percent', 'deal-seller-note-rate', 'deal-seller-note-term'
+    ];
+    
+    inputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('input', calculateDealMetrics);
+            input.addEventListener('change', calculateDealMetrics);
+        }
+    });
+    
+    const sellerNoteType = document.getElementById('deal-seller-note-type');
+    if (sellerNoteType) {
+        sellerNoteType.addEventListener('change', calculateDealMetrics);
+    }
+    
+    // Initial calculation
+    calculateDealMetrics();
+}
+
+// Calculate deal metrics based on inputs
+function calculateDealMetrics() {
+    const parseNumber = (val) => {
+        if (!val) return 0;
+        return parseFloat(String(val).replace(/[$,]/g, '')) || 0;
+    };
+    
+    const formatCurrency = (num) => {
+        if (isNaN(num) || num === null || num === undefined) return '$0';
+        return '$' + Math.round(num).toLocaleString();
+    };
+    
+    const formatPercent = (num) => {
+        if (isNaN(num) || num === null || num === undefined) return '0%';
+        return num.toFixed(1) + '%';
+    };
+    
+    // Get input values
+    const ebitda = parseNumber(document.getElementById('deal-calc-ebitda')?.value);
+    const askingPrice = parseNumber(document.getElementById('deal-calc-asking')?.value);
+    const sbaPercent = parseFloat(document.getElementById('deal-sba-percent')?.value || 80);
+    const sbaRate = parseFloat(document.getElementById('deal-sba-rate')?.value || 11.5) / 100;
+    const sbaTerm = parseInt(document.getElementById('deal-sba-term')?.value || 10);
+    const sbaDscr = parseFloat(document.getElementById('deal-sba-dscr')?.value || 1.25);
+    const equityPercent = parseFloat(document.getElementById('deal-equity-percent')?.value || 10);
+    const salary = parseNumber(document.getElementById('deal-equity-salary')?.value || 150000);
+    const sellerNoteEnabled = document.getElementById('deal-seller-note-enabled')?.checked || false;
+    const sellerNotePercent = parseFloat(document.getElementById('deal-seller-note-percent')?.value || 10);
+    const sellerNoteRate = parseFloat(document.getElementById('deal-seller-note-rate')?.value || 6.0) / 100;
+    const sellerNoteTerm = parseInt(document.getElementById('deal-seller-note-term')?.value || 5);
+    const sellerNoteType = document.getElementById('deal-seller-note-type')?.value || 'amortizing';
+    
+    if (!ebitda || !askingPrice) {
+        return;
+    }
+    
+    // Calculate available cash flow after salary
+    const availableCashFlow = ebitda - salary;
+    
+    // Calculate max allowable debt service based on DSCR
+    const maxDebtService = availableCashFlow / sbaDscr;
+    
+    // Calculate SBA loan payment (monthly)
+    const sbaMonthlyRate = sbaRate / 12;
+    const sbaMonths = sbaTerm * 12;
+    const sbaLoanAmount = (askingPrice * sbaPercent) / 100;
+    const sbaMonthlyPayment = sbaLoanAmount * (sbaMonthlyRate * Math.pow(1 + sbaMonthlyRate, sbaMonths)) / (Math.pow(1 + sbaMonthlyRate, sbaMonths) - 1);
+    const sbaAnnualPayment = sbaMonthlyPayment * 12;
+    
+    // Calculate seller note payment if enabled
+    let sellerNoteAnnualPayment = 0;
+    if (sellerNoteEnabled) {
+        const sellerNoteAmount = (askingPrice * sellerNotePercent) / 100;
+        if (sellerNoteType === 'interest-only') {
+            sellerNoteAnnualPayment = sellerNoteAmount * sellerNoteRate;
+        } else {
+            const sellerMonthlyRate = sellerNoteRate / 12;
+            const sellerMonths = sellerNoteTerm * 12;
+            const sellerMonthlyPayment = sellerNoteAmount * (sellerMonthlyRate * Math.pow(1 + sellerMonthlyRate, sellerMonths)) / (Math.pow(1 + sellerMonthlyRate, sellerMonths) - 1);
+            sellerNoteAnnualPayment = sellerMonthlyPayment * 12;
+        }
+    }
+    
+    // Calculate total debt service
+    const totalDebtService = sbaAnnualPayment + sellerNoteAnnualPayment;
+    
+    // Calculate max allowable price
+    const maxAllowablePrice = (maxDebtService / sbaAnnualPayment) * askingPrice;
+    
+    // Calculate free cash flow
+    const freeCashFlow = availableCashFlow - totalDebtService;
+    
+    // Calculate equity investment
+    const equityAmount = (askingPrice * equityPercent) / 100;
+    
+    // Calculate cash-on-cash return
+    const cocReturn = equityAmount > 0 ? (freeCashFlow / equityAmount) * 100 : 0;
+    
+    // Calculate actual DSCR
+    const actualDscr = totalDebtService > 0 ? availableCashFlow / totalDebtService : 0;
+    
+    // Update results
+    document.getElementById('deal-calc-max-price').textContent = formatCurrency(maxAllowablePrice);
+    document.getElementById('deal-calc-fcf').textContent = formatCurrency(freeCashFlow);
+    document.getElementById('deal-calc-coc').textContent = formatPercent(cocReturn);
+    document.getElementById('deal-calc-dscr').textContent = actualDscr.toFixed(2) + 'x';
+    
+    // Update summaries
+    const sbaSummary = document.getElementById('deal-sba-summary');
+    if (sbaSummary) {
+        sbaSummary.textContent = `${sbaPercent}% • ${(sbaRate * 100).toFixed(1)}% • ${sbaTerm}yr`;
+    }
+    
+    const equitySummary = document.getElementById('deal-equity-summary');
+    if (equitySummary) {
+        equitySummary.textContent = `${equityPercent}% • ${formatCurrency(salary)} salary`;
+    }
+    
+    const sellerNoteSummary = document.getElementById('deal-seller-note-summary');
+    if (sellerNoteSummary && sellerNoteEnabled) {
+        sellerNoteSummary.textContent = `${sellerNotePercent}% • ${(sellerNoteRate * 100).toFixed(1)}%`;
+    }
 }
 
 // Initialize deal details view event listeners

@@ -309,6 +309,6 @@ You now have a **fully functional web version** of your Deal Analyzer that:
 **Branch**: `feature/web-deployment`  
 **Commits**: 2 commits ready to push  
 **Status**: Ready for deployment  
-**Version**: 2.2.4 (Web Beta)
+**Version**: 3.0.0 (Web Beta)
 
 **Let's ship it!** 🎉

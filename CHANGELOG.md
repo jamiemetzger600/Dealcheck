@@ -82,9 +82,34 @@ All notable changes to the Max Price Deal Analyzer extension will be documented 
 - `currentFilterViewId` tracks active view
 - Auto-marks view as modified when filters change
 
+## [3.0.0] - 2026-01-26 - Web Version Launch with Default Google Sheets
+### ✨ New Features (Web Version)
+- **Default Google Sheets source** - Automatically loads daily deal updates on first use
+- **Welcome banner** - Guides new users to load deals from default source
+- **Pre-configured column mapping** - Google Sheets columns automatically mapped to deal fields
+- **One-click deal loading** - Click "Fetch Deals" to load from default Google Sheets
+
+### 🌐 Web Deployment
+- **Live at**: https://jackpops.vercel.app
+- **Landing page** - Beautiful intro with feature overview
+- **Mobile responsive** - Works on phone, tablet, desktop
+- **Chrome API shim** - Replaces extension APIs with localStorage
+- **Zero cost hosting** - Deployed on Vercel free tier
+
+### 📊 Default Data Source
+- Google Sheets: "Alesha Metzger - Daily Deal Update"
+- URL: https://docs.google.com/spreadsheets/d/1BRxqznJiNw08Rrq0HF-eGqAg7lREkpsnhhXIkyV9BRw/edit?gid=697021806
+- Auto-configured column mapping for all fields
+- Includes deals from multiple brokers and listing sites
+
+### 📚 Documentation
+- Added `WEB_APP_MIGRATION_PLAN.md` - Comprehensive plan for web app transition
+- Added `DEPLOYMENT_SUCCESS.md` - Deployment details and live URLs
+- Added `QUICK_REFERENCE.md` - Quick reference card for beta testers
+- Added `web/DEPLOY_GUIDE.md` - Step-by-step deployment instructions
+
 ## [Planning] - 2026-01-25
 ### Documentation
-- Added `WEB_APP_MIGRATION_PLAN.md` - Comprehensive plan for transitioning to web application
 - Documented hybrid architecture (Chrome extension + Next.js web app)
 - Outlined 5 implementation phases with Phase 0 (beta testing) as current focus
 - Defined database schema, technology stack, and scaling strategy

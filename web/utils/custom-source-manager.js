@@ -439,6 +439,53 @@ async function fetchAllCustomSources() {
     return results;
 }
 
+// Initialize default Google Sheets source if none exist
+async function initializeDefaultSource() {
+    const sources = await getCustomSources();
+    
+    // If no sources exist, add the default Google Sheets
+    if (sources.length === 0) {
+        console.log('📊 No custom sources found, adding default Google Sheets...');
+        
+        const defaultSource = {
+            name: 'Daily Deal Update (Alesha Metzger)',
+            type: SOURCE_TYPES.GOOGLE_SHEETS,
+            url: 'https://docs.google.com/spreadsheets/d/1BRxqznJiNw08Rrq0HF-eGqAg7lREkpsnhhXIkyV9BRw/edit?gid=697021806#gid=697021806',
+            columnMapping: {
+                name: 'Name',
+                industry: 'Industry',
+                description: 'Description',
+                city: 'City',
+                county: 'County',
+                state: 'State',
+                country: 'Country',
+                yearsEstablished: 'Years Established',
+                annualProfit: 'Annual Profit',
+                annualRevenue: 'Annual Revenue',
+                askingPrice: 'Asking Price',
+                profitMultiple: 'Profit Multiple',
+                revenueMultiple: 'Revenue Multiple',
+                remote: 'Remote/Relocatable/Absentee-Run',
+                franchise: 'Franchise',
+                fiveYearsInBusiness: '5+ Years In Business',
+                brokerName: 'Broker Name',
+                brokerCompany: 'Broker Company',
+                brokerContact: 'Broker Contact',
+                brokerEmail: 'Broker Email',
+                viewListing: 'View Listing',
+                notes: 'Notes'
+            }
+        };
+        
+        await addCustomSource(defaultSource);
+        console.log('✅ Default Google Sheets source added');
+        
+        return [defaultSource];
+    }
+    
+    return sources;
+}
+
 // Export functions
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -449,6 +496,7 @@ if (typeof module !== 'undefined' && module.exports) {
         toggleCustomSource,
         fetchCustomSource,
         fetchAllCustomSources,
-        parseGoogleSheetsUrl
+        parseGoogleSheetsUrl,
+        initializeDefaultSource
     };
 }

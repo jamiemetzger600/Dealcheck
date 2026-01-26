@@ -32,7 +32,7 @@ Or just push to GitHub - auto-deploys!
 
 ## 📊 Key Info
 
-- **Version**: 2.2.6 (Web Beta)
+- **Version**: 3.0.0 (Web Beta)
 - **Cost**: $0/month (Vercel free tier)
 - **Branch**: feature/web-deployment
 - **Project**: jackpops

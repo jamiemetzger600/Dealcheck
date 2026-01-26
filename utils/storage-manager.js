@@ -79,13 +79,21 @@ async function loadAggregatedDeals() {
             return;
         }
         
-        chrome.storage.local.get([STORAGE_KEYS.AGGREGATED_DEALS], (result) => {
+        chrome.storage.local.get([STORAGE_KEYS.AGGREGATED_DEALS, 'hiddenDeals'], (result) => {
             if (chrome.runtime.lastError) {
                 console.error('Storage error:', chrome.runtime.lastError);
                 reject(chrome.runtime.lastError);
             } else {
-                const deals = result[STORAGE_KEYS.AGGREGATED_DEALS] || [];
-                console.log(`📂 Loaded ${deals.length} aggregated deals from storage`);
+                const allDeals = result[STORAGE_KEYS.AGGREGATED_DEALS] || [];
+                const hiddenDeals = result.hiddenDeals || [];
+                
+                // Filter out hidden deals
+                const deals = allDeals.filter(deal => {
+                    const dealIdentifier = deal.url || deal.id || deal.name;
+                    return !hiddenDeals.includes(dealIdentifier);
+                });
+                
+                console.log(`📂 Loaded ${deals.length} aggregated deals from storage (${allDeals.length - deals.length} hidden)`);
                 resolve(deals);
             }
         });

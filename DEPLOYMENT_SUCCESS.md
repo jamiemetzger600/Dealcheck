@@ -24,7 +24,7 @@ All three URLs point to the same site!
 ## ✅ What's Deployed
 
 ### Version
-**v2.2.6 (Web Beta)** - Latest with filter view improvements
+**v3.0.0 (Web Beta)** - Web version launch with default Google Sheets integration
 
 ### Features Live
 - ✅ Beautiful landing page
@@ -241,6 +241,6 @@ Your Deal Analyzer is now live and accessible from any device!
 ---
 
 **Deployed**: January 26, 2026  
-**Version**: 2.2.6 (Web Beta)  
+**Version**: 3.0.0 (Web Beta)  
 **Status**: ✅ LIVE  
 **URL**: https://jackpops.vercel.app

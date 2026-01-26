@@ -1,6 +1,6 @@
 {
   "name": "deal-analyzer-web",
-  "version": "2.2.4",
+  "version": "3.0.0",
   "description": "Deal Analyzer - Web Beta Version",
   "scripts": {
     "dev": "python3 -m http.server 8000",

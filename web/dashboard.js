@@ -335,6 +335,12 @@ function initializeDashboard() {
         startBtn.addEventListener('click', () => startAggregation(startBtn));
     }
     
+    // Show welcome banner on first visit
+    const welcomeBanner = document.getElementById('welcome-banner');
+    if (welcomeBanner && !localStorage.getItem('welcomeBannerDismissed')) {
+        welcomeBanner.style.display = 'block';
+    }
+    
     // Load aggregated deals on tab switch
     loadAggregatorDeals();
     
@@ -764,6 +770,11 @@ function dealMatchesNotFilters(deal) {
 
 async function loadAggregatorDeals() {
     try {
+        // Initialize default Google Sheets source if none exist
+        if (typeof initializeDefaultSource === 'function') {
+            await initializeDefaultSource();
+        }
+        
         const deals = await loadAggregatedDeals();
         console.log(`📊 Loaded ${deals.length} aggregated deals`);
         

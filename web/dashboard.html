@@ -2453,7 +2453,25 @@
     <div class="header">
         <h1>📊 Deal Acquisition Platform</h1>
         <p>From discovery to closing: Data → Information → Knowledge → Insight → Wisdom</p>
-        <span class="header-version" id="header-version">v2.2.4 (Web Beta)</span>
+        <span class="header-version" id="header-version">v3.0.0 (Web Beta)</span>
+    </div>
+
+    <!-- Welcome Banner (First Time Users) -->
+    <div id="welcome-banner" style="display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 24px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+            <div style="flex: 1;">
+                <h3 style="margin: 0 0 8px 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                    👋 Welcome to Deal Analyzer!
+                </h3>
+                <p style="margin: 0; font-size: 14px; opacity: 0.95; line-height: 1.5;">
+                    We've pre-loaded a Google Sheets source with daily deal updates from multiple brokers.
+                    Click "🔄 Fetch Deals" above to load the latest deals, or add your own sources!
+                </p>
+            </div>
+            <button onclick="document.getElementById('welcome-banner').style.display='none'; localStorage.setItem('welcomeBannerDismissed', 'true');" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; white-space: nowrap;">
+                Got it!
+            </button>
+        </div>
     </div>
 
     <!-- Global Action Buttons (always accessible) -->
@@ -2536,13 +2554,13 @@
         <!-- Aggregator Empty State -->
         <div class="aggregator-empty" id="aggregator-empty">
             <div class="aggregator-empty-icon">🚀</div>
-            <h3>Getting Started with Deal Aggregator</h3>
+            <h3>Load Your Daily Deal Updates</h3>
             <p>
-                We're setting up your deal aggregation engine.<br>
-                RSS feeds and scrapers will populate deals automatically.<br>
-                Check back in a few moments!
+                Click below to load deals from the default Google Sheets source.<br>
+                This includes daily updates from multiple brokers and listing sites.<br>
+                You can also add your own custom sources!
             </p>
-            <button class="modal-btn" id="start-aggregation">Start Aggregating Deals</button>
+            <button class="modal-btn" id="start-aggregation">📊 Load Deals from Google Sheets</button>
         </div>
 
         <!-- Aggregator Table -->

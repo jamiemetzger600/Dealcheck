@@ -2,6 +2,26 @@
 
 All notable changes to the Max Price Deal Analyzer extension will be documented in this file.
 
+## [2.2.6] - 2026-01-25 - Filter View Update Improvements
+
+### ✨ New Features
+- **Modified indicator**: Visual indicator (*) shows when a filter view has been modified
+- **Update button highlight**: Update button turns orange when view is modified
+- **Keep view active**: Filter view stays active when you modify filters (buy box or NOT filters)
+- **Easy updates**: Click "🔄 Update View *" to save changes to the current view
+
+### 🎨 UI Improvements
+- Modified views show asterisk (*) in dropdown and update button
+- Update button changes to orange gradient when modifications detected
+- Tooltip updates to indicate modified state
+- Modified flag resets after updating or loading a view
+
+### 🔧 Technical
+- Added `filterViewModified` flag to track changes
+- Modified state tracked when: buy box saved, NOT filters added/removed
+- Modified state reset when: view updated, view loaded, filters cleared
+- Visual feedback in both dropdown and update button
+
 ## [2.2.5] - 2026-01-25 - Filter Views Persistence Fix
 
 ### 🐛 Bug Fix

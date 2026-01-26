@@ -620,6 +620,7 @@ let currentAggregatorSort = { field: 'date', direction: 'desc' };
 let notFilterTags = []; // Tags to exclude deals (e.g., "FedEx", "Cannabis", "Pharmacy")
 let filterViews = []; // Saved filter view configurations
 let currentFilterViewId = null; // Currently active filter view
+let filterViewModified = false; // Track if current view has been modified
 
 // Built-in columns (key, label, sortKey). rawFields columns use header as key/label/sortKey.
 const AGG_BUILTIN = [
@@ -990,6 +991,12 @@ async function addNotFilterTag(tag) {
     renderNotFilterTags();
     applyAllFilters();
     showToast(`Added NOT filter: ${tag}`, 'success');
+    
+    // Mark current view as modified (but keep it active)
+    if (currentFilterViewId) {
+        filterViewModified = true;
+        updateFilterViewUI();
+    }
 }
 
 // Remove a NOT filter tag
@@ -1002,9 +1009,11 @@ async function removeNotFilterTag(tag) {
         applyAllFilters();
         showToast(`Removed NOT filter: ${tag}`, 'success');
         
-        // Mark current view as modified
-        currentFilterViewId = null;
-        updateFilterViewUI();
+        // Mark current view as modified (but keep it active)
+        if (currentFilterViewId) {
+            filterViewModified = true;
+            updateFilterViewUI();
+        }
     }
 }
 
@@ -1091,6 +1100,7 @@ async function saveCurrentFilterView() {
     filterViews.push(newView);
     await saveFilterViewsToStorage();
     currentFilterViewId = newView.id;
+    filterViewModified = false; // Reset modified flag
     
     renderFilterViewsDropdown();
     updateFilterViewUI();
@@ -1106,6 +1116,8 @@ async function updateFilterView(viewId) {
     view.updatedAt = Date.now();
     
     await saveFilterViewsToStorage();
+    filterViewModified = false; // Reset modified flag
+    updateFilterViewUI();
     showToast(`✅ Updated filter view: ${view.name}`, 'success');
 }
 
@@ -1116,6 +1128,7 @@ async function loadFilterView(viewId) {
     
     await applyFilterConfig(view.config);
     currentFilterViewId = viewId;
+    filterViewModified = false; // Reset modified flag
     
     // Update buy box modal if it's open
     const modal = document.getElementById('buybox-modal');
@@ -1151,6 +1164,7 @@ async function clearAllFilters() {
     currentBuyBox = { ...DEFAULT_BUYBOX };
     notFilterTags = [];
     currentFilterViewId = null;
+    filterViewModified = false;
     
     await saveNotFilterTags();
     renderNotFilterTags();
@@ -1188,12 +1202,37 @@ function renderFilterViewsDropdown() {
 function updateFilterViewUI() {
     const saveBtn = document.getElementById('filter-view-save-btn');
     const updateBtn = document.getElementById('filter-view-update-btn');
-    const clearBtn = document.getElementById('filter-view-clear-btn');
+    const dropdown = document.getElementById('filter-views-dropdown');
     
     if (currentFilterViewId) {
         // Viewing a saved filter - show update button
         if (saveBtn) saveBtn.style.display = 'none';
-        if (updateBtn) updateBtn.style.display = '';
+        if (updateBtn) {
+            updateBtn.style.display = '';
+            
+            // Show visual indicator if modified
+            if (filterViewModified) {
+                updateBtn.textContent = '🔄 Update View *';
+                updateBtn.title = 'Save changes to the current view (modified)';
+                updateBtn.style.background = 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)'; // Orange gradient
+            } else {
+                updateBtn.textContent = '🔄 Update View';
+                updateBtn.title = 'Update the current view with current filters';
+                updateBtn.style.background = ''; // Reset to default
+            }
+        }
+        
+        // Add indicator to dropdown if modified
+        if (dropdown && filterViewModified) {
+            const currentView = filterViews.find(v => v.id === currentFilterViewId);
+            if (currentView) {
+                // Find the selected option and add asterisk
+                const selectedOption = dropdown.querySelector(`option[value="${currentFilterViewId}"]`);
+                if (selectedOption && !selectedOption.textContent.includes('*')) {
+                    selectedOption.textContent = currentView.name + ' *';
+                }
+            }
+        }
     } else {
         // Not viewing a saved filter - show save button
         if (saveBtn) saveBtn.style.display = '';
@@ -3022,6 +3061,12 @@ async function saveBuyBoxConfig() {
         
         showToast('✅ Buy Box configuration saved!', 'success');
         closeBuyBoxModal();
+        
+        // Mark current view as modified (but keep it active)
+        if (currentFilterViewId) {
+            filterViewModified = true;
+            updateFilterViewUI();
+        }
         
         // Re-apply all filters with new buy box criteria
         if (currentTab === 'aggregator') {

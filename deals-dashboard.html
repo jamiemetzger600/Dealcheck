@@ -5,18 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Deals Dashboard - Deal Analyzer</title>
     <style>
+        /* Dark mode is DEFAULT - no class needed */
         :root {
-            --bg-primary: #f5f7fa;
-            --bg-secondary: white;
-            --bg-tertiary: #f0f3ff;
-            --text-primary: #2c3e50;
-            --text-secondary: #95a5a6;
-            --border-color: #e0e6ed;
-            --shadow: rgba(0,0,0,0.05);
-            --shadow-hover: rgba(0,0,0,0.1);
-        }
-        
-        body.dark-mode {
             --bg-primary: #1e1e1e;
             --bg-secondary: #2d2d2d;
             --bg-tertiary: #252525;
@@ -25,6 +15,18 @@
             --border-color: #404040;
             --shadow: rgba(0,0,0,0.3);
             --shadow-hover: rgba(0,0,0,0.5);
+        }
+        
+        /* Light mode - only when explicitly requested */
+        body.light-mode {
+            --bg-primary: #f5f7fa;
+            --bg-secondary: white;
+            --bg-tertiary: #f0f3ff;
+            --text-primary: #2c3e50;
+            --text-secondary: #95a5a6;
+            --border-color: #e0e6ed;
+            --shadow: rgba(0,0,0,0.05);
+            --shadow-hover: rgba(0,0,0,0.1);
         }
         
         * {
@@ -1040,21 +1042,38 @@
             color: var(--text-secondary);
         }
 
-        /* Dark mode adjustments for status badges */
-        body.dark-mode .status-badge.hot {
+        /* Status badge colors for dark mode (default) */
+        .status-badge.hot {
             background: rgba(231, 76, 60, 0.2);
         }
 
-        body.dark-mode .status-badge.warm {
+        .status-badge.warm {
             background: rgba(243, 156, 18, 0.2);
         }
 
-        body.dark-mode .status-badge.cold {
+        .status-badge.cold {
             background: rgba(52, 152, 219, 0.2);
         }
 
-        body.dark-mode .status-badge.pass {
+        .status-badge.pass {
             background: rgba(149, 165, 166, 0.2);
+        }
+        
+        /* Light mode status badge adjustments */
+        body.light-mode .status-badge.hot {
+            background: rgba(231, 76, 60, 0.15);
+        }
+
+        body.light-mode .status-badge.warm {
+            background: rgba(243, 156, 18, 0.15);
+        }
+
+        body.light-mode .status-badge.cold {
+            background: rgba(52, 152, 219, 0.15);
+        }
+
+        body.light-mode .status-badge.pass {
+            background: rgba(149, 165, 166, 0.15);
         }
 
         .quality-score {
@@ -1951,7 +1970,7 @@
     <div class="header">
         <h1>📊 Deal Acquisition Platform</h1>
         <p>From discovery to closing: Data → Information → Knowledge → Insight → Wisdom</p>
-        <span class="header-version" id="header-version">v2.1.8</span>
+        <span class="header-version" id="header-version">v2.1.9</span>
     </div>
 
     <!-- Global Action Buttons (always accessible) -->
@@ -2664,8 +2683,47 @@
             </div>
         </div>
     </div>
+    <!-- End Deal Modal -->
 
-    <!-- Source Management Modal -->
+    <div class="deals-container">
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading deals...</p>
+        </div>
+
+        <table class="deals-table" id="deals-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th style="width: 40px;">
+                        <input type="checkbox" class="checkbox" id="select-all">
+                    </th>
+                    <th class="sortable" data-sort="name">Deal Name</th>
+                    <th class="sortable" data-sort="date">Saved Date</th>
+                    <th class="sortable" data-sort="status">Status</th>
+                    <th class="sortable" data-sort="price">Asking Price</th>
+                    <th class="sortable" data-sort="ebitda">EBITDA</th>
+                    <th class="sortable" data-sort="score">Quality</th>
+                    <th class="sortable" data-sort="coc">COC Return</th>
+                    <th style="width: 200px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="deals-tbody">
+                <!-- Deals will be inserted here -->
+            </tbody>
+        </table>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">📭</div>
+            <h3>No deals saved yet</h3>
+            <p>Start analyzing deals and save them to see them here!</p>
+        </div>
+    </div>
+    </div>
+    <!-- End My Deals Tab -->
+
+    <!-- ========== GLOBAL MODALS (Outside Tab Content) ==========-->
+    
+    
     <div id="source-management-modal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
@@ -3003,42 +3061,6 @@
             </div>
         </div>
     </div>
-
-    <div class="deals-container">
-        <div id="loading" class="loading">
-            <div class="spinner"></div>
-            <p>Loading deals...</p>
-        </div>
-
-        <table class="deals-table" id="deals-table" style="display: none;">
-            <thead>
-                <tr>
-                    <th style="width: 40px;">
-                        <input type="checkbox" class="checkbox" id="select-all">
-                    </th>
-                    <th class="sortable" data-sort="name">Deal Name</th>
-                    <th class="sortable" data-sort="date">Saved Date</th>
-                    <th class="sortable" data-sort="status">Status</th>
-                    <th class="sortable" data-sort="price">Asking Price</th>
-                    <th class="sortable" data-sort="ebitda">EBITDA</th>
-                    <th class="sortable" data-sort="score">Quality</th>
-                    <th class="sortable" data-sort="coc">COC Return</th>
-                    <th style="width: 200px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="deals-tbody">
-                <!-- Deals will be inserted here -->
-            </tbody>
-        </table>
-
-        <div id="empty-state" class="empty-state" style="display: none;">
-            <div class="empty-state-icon">📭</div>
-            <h3>No deals saved yet</h3>
-            <p>Start analyzing deals and save them to see them here!</p>
-        </div>
-    </div>
-    </div>
-    <!-- End My Deals Tab -->
 
     <script src="utils/storage-manager.js"></script>
     <script src="utils/custom-source-manager.js"></script>

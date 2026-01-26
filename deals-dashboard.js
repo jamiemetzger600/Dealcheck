@@ -122,8 +122,8 @@ function switchTab(tabName) {
 }
 
 // Initialize tabs on load
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 Initializing Deal Aggregator v2.1.4');
+function initializeDashboard() {
+    console.log('🚀 Initializing Deal Aggregator v2.1.9');
     
     // Add global test functions for debugging
     window.testSourceModal = function() {
@@ -199,12 +199,16 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             e.stopPropagation();
             console.log('📥 Manage Sources button clicked');
-            if (typeof openSourceManagementModal === 'function') {
-                openSourceManagementModal();
+            console.log('📥 window.openSourceManagementModal type:', typeof window.openSourceManagementModal);
+            if (window.openSourceManagementModal) {
+                window.openSourceManagementModal();
             } else {
-                alert('Source management coming soon!');
+                console.error('❌ openSourceManagementModal not found on window');
+                alert('Source management modal not available. Please refresh.');
             }
         });
+    } else {
+        console.error('❌ manage-sources-btn not found in DOM');
     }
     
     // Add Deal button
@@ -215,12 +219,16 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             e.stopPropagation();
             console.log('➕ Add Deal button clicked');
-            if (typeof openManualDealModal === 'function') {
-                openManualDealModal();
+            console.log('➕ window.openManualDealModal type:', typeof window.openManualDealModal);
+            if (window.openManualDealModal) {
+                window.openManualDealModal();
             } else {
-                alert('Add deal coming soon!');
+                console.error('❌ openManualDealModal not found on window');
+                alert('Manual deal modal not available. Please refresh.');
             }
         });
+    } else {
+        console.error('❌ add-deal-btn not found in DOM');
     }
     
     // Configure Buy Box button
@@ -231,8 +239,16 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             e.stopPropagation();
             console.log('⚙️ Configure Buy Box button clicked');
-            openBuyBoxModal();
+            console.log('⚙️ window.openBuyBoxModal type:', typeof window.openBuyBoxModal);
+            if (window.openBuyBoxModal) {
+                window.openBuyBoxModal();
+            } else {
+                console.error('❌ openBuyBoxModal not found on window');
+                alert('Buy Box modal not available. Please refresh.');
+            }
         });
+    } else {
+        console.error('❌ configure-buybox-btn not found in DOM');
     }
     
     console.log('✅ Global action buttons initialized');
@@ -483,7 +499,16 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('❌ Some buttons are missing!');
         }
     }, 100);
-});
+}
+
+// Run initialization - handle case where DOMContentLoaded already fired
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeDashboard);
+} else {
+    // DOM already loaded, run immediately
+    console.log('🚀 DOM already ready, initializing immediately...');
+    initializeDashboard();
+}
 
 // Load and display aggregated deals
 let aggregatedDeals = [];
@@ -1468,7 +1493,8 @@ function viewDealDetails(deal) {
 // ===== SOURCE MANAGEMENT MODAL =====
 let selectedSourceType = null;
 
-function openSourceManagementModal() {
+// Make function globally accessible via window
+window.openSourceManagementModal = function openSourceManagementModal() {
     console.log('📥 openSourceManagementModal called');
     const modal = document.getElementById('source-management-modal');
     if (!modal) {
@@ -1712,7 +1738,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ===== MANUAL DEAL ENTRY MODAL =====
-function openManualDealModal() {
+// Make function globally accessible via window
+window.openManualDealModal = function openManualDealModal() {
     console.log('➕ openManualDealModal called');
     const modal = document.getElementById('manual-deal-modal');
     if (!modal) {
@@ -1880,7 +1907,8 @@ const DEFAULT_BUYBOX = {
 let currentBuyBox = { ...DEFAULT_BUYBOX };
 
 // Open buy box configuration modal
-function openBuyBoxModal() {
+// Make function globally accessible via window
+window.openBuyBoxModal = function openBuyBoxModal() {
     console.log('⚙️ Opening Buy Box configuration modal');
     const modal = document.getElementById('buybox-modal');
     if (!modal) {

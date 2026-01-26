@@ -1,36 +1,6 @@
 /* CSS Variables for Light/Dark Mode */
+/* Dark mode is now default */
 #deal-analyzer-container {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --bg-tertiary: #f4f6f9;
-  --bg-header: #0d2e4e;
-  --text-primary: #333;
-  --text-secondary: #666;
-  --text-tertiary: #999;
-  --border-color: #cdd1d5;
-  --border-light: #eee;
-  --input-bg: #ffffff;
-  --input-bg-readonly: #f5f5f5;
-  --input-bg-readonly-hover: #e8e8e8;
-  --input-border: #ccc;
-  --result-bg: #f8f9fa;
-  --result-title: #555;
-  --result-value: #2c3e50;
-  --warning-bg: #fae5d3;
-  --warning-text: #d35400;
-  --success-bg: #d4edda;
-  --success-text: #155724;
-  --success-border: #28a745;
-  --btn-primary: #0066cc;
-  --btn-primary-hover: #0052a3;
-  --btn-success: #27ae60;
-  --btn-secondary: #95a5a6;
-  --shadow: rgba(0,0,0,0.2);
-  --modal-overlay: rgba(0,0,0,0.5);
-  --modal-bg: white;
-}
-
-#deal-analyzer-container.dark-mode {
   --bg-primary: #1e1e1e;
   --bg-secondary: #2d2d2d;
   --bg-tertiary: #252525;
@@ -59,6 +29,37 @@
   --shadow: rgba(0,0,0,0.5);
   --modal-overlay: rgba(0,0,0,0.7);
   --modal-bg: #2d2d2d;
+}
+
+#deal-analyzer-container.light-mode {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f4f6f9;
+  --bg-header: #0d2e4e;
+  --text-primary: #333;
+  --text-secondary: #666;
+  --text-tertiary: #999;
+  --border-color: #cdd1d5;
+  --border-light: #eee;
+  --input-bg: #ffffff;
+  --input-bg-readonly: #f5f5f5;
+  --input-bg-readonly-hover: #e8e8e8;
+  --input-border: #ccc;
+  --result-bg: #f8f9fa;
+  --result-title: #555;
+  --result-value: #2c3e50;
+  --warning-bg: #fae5d3;
+  --warning-text: #d35400;
+  --success-bg: #d4edda;
+  --success-text: #155724;
+  --success-border: #28a745;
+  --btn-primary: #0066cc;
+  --btn-primary-hover: #0052a3;
+  --btn-success: #27ae60;
+  --btn-secondary: #95a5a6;
+  --shadow: rgba(0,0,0,0.2);
+  --modal-overlay: rgba(0,0,0,0.5);
+  --modal-bg: white;
 }
 
 /* Container for the floating app */
@@ -214,29 +215,28 @@
   transition: background-color 0.3s ease;
 }
 
-/* Input fields in dark mode */
-.dark-mode .da-input,
-.dark-mode .da-select {
+/* Input fields - ensure proper text color */
+.da-input,
+.da-select {
   color: var(--text-primary);
 }
 
-/* Links */
-.dark-mode a {
+/* Links in dark mode (default) */
+a {
   color: #4a9eff;
 }
 
-.dark-mode a:hover {
+a:hover {
   color: #6bb0ff;
 }
 
-/* Ensure all text uses CSS variables */
-.dark-mode {
-  color: var(--text-primary);
+/* Links in light mode */
+.light-mode a {
+  color: #0066cc;
 }
 
-/* Override any inline styles that might conflict */
-#deal-analyzer-container.dark-mode * {
-  color: inherit;
+.light-mode a:hover {
+  color: #0052a3;
 }
 
 /* Deal Quality Banner */
@@ -260,17 +260,3 @@
   transition: background-color 0.3s ease;
 }
 
-/* Input fields in dark mode */
-.dark-mode .da-input,
-.dark-mode .da-select {
-  color: var(--text-primary);
-}
-
-/* Links */
-.dark-mode a {
-  color: #4a9eff;
-}
-
-.dark-mode a:hover {
-  color: #6bb0ff;
-}

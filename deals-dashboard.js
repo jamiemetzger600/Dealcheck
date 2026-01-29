@@ -123,7 +123,7 @@ function switchTab(tabName) {
 
 // Initialize tabs on load
 function initializeDashboard() {
-    console.log('🚀 Initializing Deal Aggregator v2.1.9');
+    console.log('🚀 Initializing Deal Aggregator v2.1.10');
     
     // Add global test functions for debugging
     window.testSourceModal = function() {

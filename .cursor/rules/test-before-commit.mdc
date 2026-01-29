@@ -1,0 +1,61 @@
+---
+description: Test all code changes before creating documentation or git commits
+alwaysApply: true
+---
+
+# Test-First Development Protocol
+
+**CRITICAL**: All code changes MUST be tested by the user before creating any documentation, changelogs, or git commits.
+
+## Workflow
+
+1. **Make code changes** - Edit files as needed
+2. **Request user testing** - Explicitly ask user to test the changes
+3. **Wait for confirmation** - Do NOT proceed until user confirms it works
+4. **Only after user approval**:
+   - Create testing documentation
+   - Create changelogs or release notes
+   - Make git commits
+
+## Example Flow
+
+```
+✅ CORRECT:
+1. Fix code issue
+2. "Please test this by reloading the extension and checking..."
+3. User: "ok that works!"
+4. Now proceed with commits/docs
+
+❌ INCORRECT:
+1. Fix code issue
+2. Immediately create TESTING.md
+3. Immediately create git commit
+4. User: "This doesn't work"
+5. Wasted effort on docs/commits for broken code
+```
+
+## Why This Matters
+
+- **Prevents waste**: Avoid creating documentation for non-working code
+- **Saves time**: No need to redo commits and docs after fixes
+- **User verification**: Only user can truly validate if solution works
+- **Iterative fixes**: May need 2-3 attempts before code works correctly
+
+## When to Commit
+
+**Only commit when**:
+- User explicitly says "that works" or "looks good"
+- User requests a commit
+- Code has been verified working by user testing
+
+**Never commit when**:
+- User hasn't tested yet
+- Making speculative fixes
+- Uncertain if changes work
+- User hasn't given explicit approval
+
+## Version Increments
+
+- Increment version number in manifest.json
+- Update version in all display files (HTML, JS console logs)
+- Only do this AFTER user confirms code works

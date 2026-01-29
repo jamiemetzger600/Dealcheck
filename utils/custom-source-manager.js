@@ -202,26 +202,54 @@ function generateDealName(values, colIndices, rowNumber) {
     return `Deal ${rowNumber}`;
 }
 
+// Find the actual header row (some sheets have title rows before headers)
+function findHeaderRow(lines) {
+    const headerKeywords = ['name', 'industry', 'asking price', 'annual profit', 'city', 'state'];
+    
+    for (let i = 0; i < Math.min(lines.length, 10); i++) {
+        const parsed = parseCSVLine(lines[i]);
+        const lowerCells = parsed.map(cell => (cell || '').toLowerCase().trim());
+        
+        // Check if this row contains multiple header keywords
+        let matches = 0;
+        for (const keyword of headerKeywords) {
+            if (lowerCells.some(cell => cell.includes(keyword))) {
+                matches++;
+            }
+        }
+        
+        // If we find 3+ header keywords, this is likely the header row
+        if (matches >= 3) {
+            console.log('Found header row at line', i, ':', parsed.slice(0, 5));
+            return i;
+        }
+    }
+    
+    // Default to first row if no header found
+    return 0;
+}
+
 // Parse CSV text to deals
 function parseCSV(csvText, columnMapping) {
     const lines = csvText.split('\n').filter(line => line.trim());
     if (lines.length === 0) return [];
     
-    // Parse header row
-    const headers = parseCSVLine(lines[0]);
-    console.log('CSV Headers found:', headers);
+    // Find the actual header row (may not be row 0)
+    const headerRowIndex = findHeaderRow(lines);
+    const headers = parseCSVLine(lines[headerRowIndex]);
+    console.log('CSV Headers found at row', headerRowIndex, ':', headers);
     
     // Get column indices - matching your Google Sheet structure
     const colIndices = {
-        name: findColumnIndex(headers, columnMapping.name || ['name', 'business name', 'deal name', 'title', 'business']),
+        name: findColumnIndex(headers, columnMapping.name || ['name', 'business name', 'deal name', 'title']),
         url: findColumnIndex(headers, columnMapping.url || ['view listing', 'url', 'link', 'listing url', 'website']),
         price: findColumnIndex(headers, columnMapping.price || ['asking price', 'asking', 'price', 'sale price']),
-        ebitda: findColumnIndex(headers, columnMapping.ebitda || ['annual profit', 'ebitda', 'sde', 'cash flow', 'earnings', 'profit']),
-        revenue: findColumnIndex(headers, columnMapping.revenue || ['annual revenue', 'revenue', 'sales', 'annual sales']),
-        location: findColumnIndex(headers, columnMapping.location || ['location', 'city', 'state', 'county', 'address', 'region']),
+        ebitda: findColumnIndex(headers, columnMapping.ebitda || ['annual profit', 'ebitda', 'sde', 'cash flow', 'earnings']),
+        revenue: findColumnIndex(headers, columnMapping.revenue || ['annual revenue', 'revenue', 'sales']),
+        location: findColumnIndex(headers, columnMapping.location || ['city', 'state', 'location', 'county', 'address', 'region']),
         industry: findColumnIndex(headers, columnMapping.industry || ['industry', 'sector', 'category', 'type']),
         description: findColumnIndex(headers, columnMapping.description || ['description', 'details', 'summary', 'about']),
-        source: findColumnIndex(headers, columnMapping.source || ['source', 'broker company', 'broker']),
+        source: findColumnIndex(headers, columnMapping.source || ['broker company', 'source', 'broker']),
         discovered: findColumnIndex(headers, columnMapping.discovered || ['date added', 'discovered', 'added'])
     };
     
@@ -234,39 +262,45 @@ function parseCSV(csvText, columnMapping) {
         ebitda: colIndices.ebitda !== -1 ? headers[colIndices.ebitda] : 'NOT FOUND'
     });
     
-    // Parse data rows
+    // Parse data rows (start after header row)
     const deals = [];
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = headerRowIndex + 1; i < lines.length; i++) {
         try {
             const values = parseCSVLine(lines[i]);
             if (values.length === 0) continue;
             
-            // Generate meaningful name using smart fallback logic
-            const dealName = generateDealName(values, colIndices, i);
+            // Skip rows that look like section headers or empty data
+            const nameVal = colIndices.name !== -1 ? (values[colIndices.name] || '').trim() : '';
+            if (!nameVal || nameVal.toLowerCase().includes('auto update') || nameVal.toLowerCase().includes('member area')) {
+                continue;
+            }
+            
+            // Use the name directly from the Name column
+            const dealName = nameVal || generateDealName(values, colIndices, i);
             
             const deal = {
                 id: generateDealId(values[colIndices.url] || dealName || `row_${i}`),
                 name: dealName,
                 url: values[colIndices.url] || '',
-                description: values[colIndices.description] || '',
-                source: values[colIndices.source] || 'Custom Source',
+                description: colIndices.description !== -1 ? (values[colIndices.description] || '') : '',
+                source: colIndices.source !== -1 ? (values[colIndices.source] || 'google_sheets') : 'google_sheets',
                 sourceType: 'csv',
                 discoveredAt: colIndices.discovered !== -1 && values[colIndices.discovered] ? 
                     new Date(values[colIndices.discovered]).getTime() : Date.now(),
                 askingPrice: parsePrice(values[colIndices.price]),
                 ebitda: parsePrice(values[colIndices.ebitda]),
                 revenue: colIndices.revenue !== -1 ? parsePrice(values[colIndices.revenue]) : null,
-                location: values[colIndices.location] || '',
-                industry: values[colIndices.industry] || ''
+                location: colIndices.location !== -1 ? (values[colIndices.location] || '') : '',
+                industry: colIndices.industry !== -1 ? (values[colIndices.industry] || '') : ''
             };
             
             deals.push(deal);
         } catch (error) {
-            console.warn(`Error parsing row ${i}:`, error);
+            console.warn('Error parsing row ' + i + ':', error);
         }
     }
     
-    console.log(`Successfully parsed ${deals.length} deals from CSV`);
+    console.log('Successfully parsed ' + deals.length + ' deals from CSV');
     return deals;
 }
 

@@ -79,7 +79,7 @@ function generateRSSDealName(title, description, link, dealData) {
     }
     
     // 5. Last resort
-    console.warn('⚠️ RSS item missing title, using fallback name');
+    console.warn('RSS item missing title, using fallback name');
     return `RSS Deal ${Date.now()}`;
 }
 
@@ -92,7 +92,7 @@ function extractDealFromRSSItem(item) {
         const pubDate = getElementText(item, 'pubDate');
         
         if (!link) {
-            console.warn('⚠️ Skipping RSS item without link');
+            console.warn('Skipping RSS item without link');
             return null; // Skip items without link
         }
         
@@ -113,7 +113,7 @@ function extractDealFromRSSItem(item) {
             ...dealData
         };
     } catch (error) {
-        console.error('⚠️ Error extracting deal from RSS item:', error);
+        console.error('Error extracting deal from RSS item:', error);
         return null;
     }
 }
@@ -241,7 +241,7 @@ function generateDealId(url) {
 
 // Fetch and parse RSS feed from URL
 async function fetchRSSFeed(feedUrl) {
-    console.log('📡 Fetching RSS feed:', feedUrl);
+    console.log('Fetching RSS feed:', feedUrl);
     
     try {
         const response = await fetch(feedUrl, {
@@ -258,7 +258,7 @@ async function fetchRSSFeed(feedUrl) {
         const xmlText = await response.text();
         const deals = parseRSSFeed(xmlText);
         
-        console.log(`✅ Parsed ${deals.length} deals from RSS feed`);
+        console.log(`Parsed ${deals.length} deals from RSS feed`);
         return deals;
     } catch (error) {
         console.error('Error fetching RSS feed:', error);
@@ -285,7 +285,7 @@ const RSS_FEEDS = [
 
 // Fetch all enabled RSS feeds
 async function fetchAllRSSFeeds() {
-    console.log('📡 Fetching all RSS feeds...');
+    console.log('Fetching all RSS feeds...');
     
     const enabledFeeds = RSS_FEEDS.filter(feed => feed.enabled);
     const results = [];
@@ -312,7 +312,7 @@ async function fetchAllRSSFeeds() {
     }
     
     const totalDeals = results.reduce((sum, r) => sum + r.deals.length, 0);
-    console.log(`✅ Fetched ${totalDeals} total deals from ${results.length} RSS feeds`);
+    console.log(`Fetched ${totalDeals} total deals from ${results.length} RSS feeds`);
     
     return results;
 }

@@ -29,7 +29,7 @@ async function saveCustomSources(sources) {
             if (chrome.runtime.lastError) {
                 reject(chrome.runtime.lastError);
             } else {
-                console.log(`✅ Saved ${sources.length} custom sources`);
+                console.log(`Saved ${sources.length} custom sources`);
                 resolve();
             }
         });
@@ -97,7 +97,7 @@ function parseGoogleSheetsUrl(url) {
 
 // Fetch data from Google Sheets
 async function fetchGoogleSheets(source) {
-    console.log('📊 Fetching Google Sheets:', source.name);
+    console.log('Fetching Google Sheets:', source.name);
     
     try {
         const csvUrl = parseGoogleSheetsUrl(source.url);
@@ -110,7 +110,7 @@ async function fetchGoogleSheets(source) {
         const csvText = await response.text();
         const deals = parseCSV(csvText, source.columnMapping || {});
         
-        console.log(`✅ Parsed ${deals.length} deals from Google Sheets`);
+        console.log(`Parsed ${deals.length} deals from Google Sheets`);
         return deals;
         
     } catch (error) {
@@ -121,7 +121,7 @@ async function fetchGoogleSheets(source) {
 
 // Fetch data from CSV URL
 async function fetchCSV(source) {
-    console.log('📄 Fetching CSV:', source.name);
+    console.log('Fetching CSV:', source.name);
     
     try {
         const response = await fetch(source.url);
@@ -133,7 +133,7 @@ async function fetchCSV(source) {
         const csvText = await response.text();
         const deals = parseCSV(csvText, source.columnMapping || {});
         
-        console.log(`✅ Parsed ${deals.length} deals from CSV`);
+        console.log(`Parsed ${deals.length} deals from CSV`);
         return deals;
         
     } catch (error) {
@@ -198,8 +198,8 @@ function generateDealName(values, colIndices, rowNumber) {
     }
     
     // 5. Last resort: use row number
-    console.warn(`⚠️ Could not extract name for row ${rowNumber}, using fallback name`);
-    return `Deal #${rowNumber}`;
+    console.warn(`Could not extract name for row ${rowNumber}, using fallback name`);
+    return `Deal ${rowNumber}`;
 }
 
 // Parse CSV text to deals
@@ -209,24 +209,29 @@ function parseCSV(csvText, columnMapping) {
     
     // Parse header row
     const headers = parseCSVLine(lines[0]);
-    console.log('📋 CSV Headers found:', headers);
+    console.log('CSV Headers found:', headers);
     
-    // Get column indices
+    // Get column indices - matching your Google Sheet structure
     const colIndices = {
-        name: findColumnIndex(headers, columnMapping.name || ['name', 'business name', 'deal name', 'title']),
-        url: findColumnIndex(headers, columnMapping.url || ['url', 'link', 'listing url', 'website']),
-        price: findColumnIndex(headers, columnMapping.price || ['price', 'asking price', 'asking', 'sale price']),
-        ebitda: findColumnIndex(headers, columnMapping.ebitda || ['ebitda', 'sde', 'cash flow', 'earnings']),
-        location: findColumnIndex(headers, columnMapping.location || ['location', 'city', 'address', 'region']),
+        name: findColumnIndex(headers, columnMapping.name || ['name', 'business name', 'deal name', 'title', 'business']),
+        url: findColumnIndex(headers, columnMapping.url || ['view listing', 'url', 'link', 'listing url', 'website']),
+        price: findColumnIndex(headers, columnMapping.price || ['asking price', 'asking', 'price', 'sale price']),
+        ebitda: findColumnIndex(headers, columnMapping.ebitda || ['annual profit', 'ebitda', 'sde', 'cash flow', 'earnings', 'profit']),
+        revenue: findColumnIndex(headers, columnMapping.revenue || ['annual revenue', 'revenue', 'sales', 'annual sales']),
+        location: findColumnIndex(headers, columnMapping.location || ['location', 'city', 'state', 'county', 'address', 'region']),
         industry: findColumnIndex(headers, columnMapping.industry || ['industry', 'sector', 'category', 'type']),
-        description: findColumnIndex(headers, columnMapping.description || ['description', 'details', 'summary', 'about'])
+        description: findColumnIndex(headers, columnMapping.description || ['description', 'details', 'summary', 'about']),
+        source: findColumnIndex(headers, columnMapping.source || ['source', 'broker company', 'broker']),
+        discovered: findColumnIndex(headers, columnMapping.discovered || ['date added', 'discovered', 'added'])
     };
     
-    console.log('📊 Column mapping:', {
+    console.log('Column mapping:', {
         name: colIndices.name !== -1 ? headers[colIndices.name] : 'NOT FOUND',
         url: colIndices.url !== -1 ? headers[colIndices.url] : 'NOT FOUND',
         industry: colIndices.industry !== -1 ? headers[colIndices.industry] : 'NOT FOUND',
-        location: colIndices.location !== -1 ? headers[colIndices.location] : 'NOT FOUND'
+        location: colIndices.location !== -1 ? headers[colIndices.location] : 'NOT FOUND',
+        price: colIndices.price !== -1 ? headers[colIndices.price] : 'NOT FOUND',
+        ebitda: colIndices.ebitda !== -1 ? headers[colIndices.ebitda] : 'NOT FOUND'
     });
     
     // Parse data rows
@@ -244,22 +249,24 @@ function parseCSV(csvText, columnMapping) {
                 name: dealName,
                 url: values[colIndices.url] || '',
                 description: values[colIndices.description] || '',
-                source: 'Custom Source',
+                source: values[colIndices.source] || 'Custom Source',
                 sourceType: 'csv',
-                discoveredAt: Date.now(),
+                discoveredAt: colIndices.discovered !== -1 && values[colIndices.discovered] ? 
+                    new Date(values[colIndices.discovered]).getTime() : Date.now(),
                 askingPrice: parsePrice(values[colIndices.price]),
                 ebitda: parsePrice(values[colIndices.ebitda]),
+                revenue: colIndices.revenue !== -1 ? parsePrice(values[colIndices.revenue]) : null,
                 location: values[colIndices.location] || '',
                 industry: values[colIndices.industry] || ''
             };
             
             deals.push(deal);
         } catch (error) {
-            console.warn(`⚠️ Error parsing row ${i}:`, error);
+            console.warn(`Error parsing row ${i}:`, error);
         }
     }
     
-    console.log(`✅ Successfully parsed ${deals.length} deals from CSV`);
+    console.log(`Successfully parsed ${deals.length} deals from CSV`);
     return deals;
 }
 
@@ -328,7 +335,7 @@ function generateDealId(str) {
 
 // Fetch deals from custom source
 async function fetchCustomSource(source) {
-    console.log(`📥 Fetching custom source: ${source.name} (${source.type})`);
+    console.log(`Fetching custom source: ${source.name} (${source.type})`);
     
     try {
         let deals = [];
@@ -375,7 +382,7 @@ async function fetchCustomSource(source) {
 
 // Fetch all enabled custom sources
 async function fetchAllCustomSources() {
-    console.log('📥 Fetching all custom sources...');
+    console.log('Fetching all custom sources...');
     
     const sources = await getCustomSources();
     const enabledSources = sources.filter(s => s.enabled);
@@ -408,7 +415,7 @@ async function fetchAllCustomSources() {
     await saveCustomSources(sources);
     
     const totalDeals = results.reduce((sum, r) => sum + r.deals.length, 0);
-    console.log(`✅ Fetched ${totalDeals} deals from ${results.length} custom sources`);
+    console.log(`Fetched ${totalDeals} deals from ${results.length} custom sources`);
     
     return results;
 }

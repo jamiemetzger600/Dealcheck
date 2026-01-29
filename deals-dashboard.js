@@ -123,7 +123,7 @@ function switchTab(tabName) {
 
 // Initialize tabs on load
 function initializeDashboard() {
-    console.log('🚀 Initializing Deal Aggregator v2.1.10');
+    console.log('Initializing Deal Aggregator v2.1.11');
     
     // Add global test functions for debugging
     window.testSourceModal = function() {
@@ -2357,7 +2357,7 @@ function sanitizeDealName(deal) {
     
     // If name is "Unnamed Deal" or empty, try to generate a better one
     if (!name || name === 'Unnamed Deal' || name.trim() === '') {
-        console.warn('⚠️ Found unnamed deal, attempting to generate name:', deal);
+        console.warn('Found unnamed deal, attempting to generate name:', deal);
         
         // Try to extract from description
         if (deal.description && deal.description.trim()) {
@@ -2402,7 +2402,7 @@ function sanitizeDealName(deal) {
         }
         
         // Last resort: use timestamp
-        console.error('❌ Could not generate meaningful name for deal:', deal);
+        console.error('Could not generate meaningful name for deal:', deal);
         return `Deal from ${new Date(deal.discoveredAt || deal.savedAt || Date.now()).toLocaleDateString()}`;
     }
     
@@ -2481,7 +2481,7 @@ function loadDeals() {
                         
                         if (originalName !== sanitizedName) {
                             namesFixed++;
-                            console.log(`✓ Fixed deal name: "${originalName}" → "${sanitizedName}"`);
+                            console.log(`Fixed deal name: "${originalName}" -> "${sanitizedName}"`);
                         }
                         
                         return {
@@ -2493,7 +2493,7 @@ function loadDeals() {
                 
                 // Log summary of fixes
                 if (namesFixed > 0) {
-                    console.log(`✅ Fixed ${namesFixed} unnamed deal(s)`);
+                    console.log(`Fixed ${namesFixed} unnamed deal(s)`);
                 }
                 
                 // If we filtered out invalid deals, save the cleaned version

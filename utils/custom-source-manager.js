@@ -142,6 +142,66 @@ async function fetchCSV(source) {
     }
 }
 
+// Generate a meaningful name from available deal data
+function generateDealName(values, colIndices, rowNumber) {
+    // Try to extract name from various sources in priority order
+    let name = null;
+    
+    // 1. Try the name column
+    if (colIndices.name !== -1 && values[colIndices.name]) {
+        name = values[colIndices.name].trim();
+        if (name) return name;
+    }
+    
+    // 2. Try to extract from description (first line or sentence)
+    if (colIndices.description !== -1 && values[colIndices.description]) {
+        const desc = values[colIndices.description].trim();
+        if (desc) {
+            // Take first sentence or first 50 chars
+            const firstSentence = desc.split(/[.!?\n]/)[0].trim();
+            if (firstSentence && firstSentence.length > 0 && firstSentence.length <= 100) {
+                return firstSentence;
+            }
+            if (desc.length <= 100) {
+                return desc;
+            }
+            return desc.substring(0, 97) + '...';
+        }
+    }
+    
+    // 3. Build name from industry + location
+    const industry = colIndices.industry !== -1 ? (values[colIndices.industry] || '').trim() : '';
+    const location = colIndices.location !== -1 ? (values[colIndices.location] || '').trim() : '';
+    
+    if (industry && location) {
+        return `${industry} Business in ${location}`;
+    }
+    if (industry) {
+        return `${industry} Business`;
+    }
+    if (location) {
+        return `Business in ${location}`;
+    }
+    
+    // 4. Try to extract domain from URL
+    if (colIndices.url !== -1 && values[colIndices.url]) {
+        const url = values[colIndices.url].trim();
+        try {
+            const urlObj = new URL(url);
+            const domain = urlObj.hostname.replace('www.', '');
+            if (domain) {
+                return `Business - ${domain}`;
+            }
+        } catch (e) {
+            // Not a valid URL, ignore
+        }
+    }
+    
+    // 5. Last resort: use row number
+    console.warn(`⚠️ Could not extract name for row ${rowNumber}, using fallback name`);
+    return `Deal #${rowNumber}`;
+}
+
 // Parse CSV text to deals
 function parseCSV(csvText, columnMapping) {
     const lines = csvText.split('\n').filter(line => line.trim());
@@ -149,6 +209,7 @@ function parseCSV(csvText, columnMapping) {
     
     // Parse header row
     const headers = parseCSVLine(lines[0]);
+    console.log('📋 CSV Headers found:', headers);
     
     // Get column indices
     const colIndices = {
@@ -161,6 +222,13 @@ function parseCSV(csvText, columnMapping) {
         description: findColumnIndex(headers, columnMapping.description || ['description', 'details', 'summary', 'about'])
     };
     
+    console.log('📊 Column mapping:', {
+        name: colIndices.name !== -1 ? headers[colIndices.name] : 'NOT FOUND',
+        url: colIndices.url !== -1 ? headers[colIndices.url] : 'NOT FOUND',
+        industry: colIndices.industry !== -1 ? headers[colIndices.industry] : 'NOT FOUND',
+        location: colIndices.location !== -1 ? headers[colIndices.location] : 'NOT FOUND'
+    });
+    
     // Parse data rows
     const deals = [];
     for (let i = 1; i < lines.length; i++) {
@@ -168,9 +236,12 @@ function parseCSV(csvText, columnMapping) {
             const values = parseCSVLine(lines[i]);
             if (values.length === 0) continue;
             
+            // Generate meaningful name using smart fallback logic
+            const dealName = generateDealName(values, colIndices, i);
+            
             const deal = {
-                id: generateDealId(values[colIndices.url] || values[colIndices.name] || `row_${i}`),
-                name: values[colIndices.name] || 'Unnamed Deal',
+                id: generateDealId(values[colIndices.url] || dealName || `row_${i}`),
+                name: dealName,
                 url: values[colIndices.url] || '',
                 description: values[colIndices.description] || '',
                 source: 'Custom Source',
@@ -184,10 +255,11 @@ function parseCSV(csvText, columnMapping) {
             
             deals.push(deal);
         } catch (error) {
-            console.warn(`Error parsing row ${i}:`, error);
+            console.warn(`⚠️ Error parsing row ${i}:`, error);
         }
     }
     
+    console.log(`✅ Successfully parsed ${deals.length} deals from CSV`);
     return deals;
 }
 

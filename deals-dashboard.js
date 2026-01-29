@@ -2351,6 +2351,64 @@ function showToast(message, type = 'info', duration = 3000) {
 }
 
 // Validate deal structure
+// Sanitize and improve deal name
+function sanitizeDealName(deal) {
+    let name = deal.name || '';
+    
+    // If name is "Unnamed Deal" or empty, try to generate a better one
+    if (!name || name === 'Unnamed Deal' || name.trim() === '') {
+        console.warn('⚠️ Found unnamed deal, attempting to generate name:', deal);
+        
+        // Try to extract from description
+        if (deal.description && deal.description.trim()) {
+            const desc = deal.description.trim();
+            const firstSentence = desc.split(/[.!?\n]/)[0].trim();
+            if (firstSentence && firstSentence.length > 0 && firstSentence.length <= 100) {
+                return firstSentence;
+            }
+            if (desc.length <= 100) {
+                return desc;
+            }
+            return desc.substring(0, 97) + '...';
+        }
+        
+        // Build from industry + location
+        if (deal.industry && deal.location) {
+            return `${deal.industry} Business in ${deal.location}`;
+        }
+        if (deal.industry) {
+            return `${deal.industry} Business`;
+        }
+        if (deal.location) {
+            return `Business in ${deal.location}`;
+        }
+        
+        // Try to extract from inputs
+        if (deal.inputs && deal.inputs.businessName) {
+            return deal.inputs.businessName;
+        }
+        
+        // Try to extract domain from URL
+        if (deal.url) {
+            try {
+                const urlObj = new URL(deal.url);
+                const domain = urlObj.hostname.replace('www.', '');
+                if (domain) {
+                    return `Business - ${domain}`;
+                }
+            } catch (e) {
+                // Not a valid URL
+            }
+        }
+        
+        // Last resort: use timestamp
+        console.error('❌ Could not generate meaningful name for deal:', deal);
+        return `Deal from ${new Date(deal.discoveredAt || deal.savedAt || Date.now()).toLocaleDateString()}`;
+    }
+    
+    return name;
+}
+
 function validateDeal(deal) {
     if (!deal || typeof deal !== 'object') return false;
     if (!deal.name || typeof deal.name !== 'string') return false;
@@ -2407,7 +2465,8 @@ function loadDeals() {
                 
                 const rawDeals = result.savedDeals || [];
                 
-                // Validate and clean deals
+                // Validate, clean, and sanitize deal names
+                let namesFixed = 0;
                 allDeals = rawDeals
                     .filter(deal => {
                         if (!validateDeal(deal)) {
@@ -2416,10 +2475,26 @@ function loadDeals() {
                         }
                         return true;
                     })
-                    .map(deal => ({
-                        ...deal,
-                        status: deal.status || 'none'
-                    }));
+                    .map(deal => {
+                        const originalName = deal.name;
+                        const sanitizedName = sanitizeDealName(deal);
+                        
+                        if (originalName !== sanitizedName) {
+                            namesFixed++;
+                            console.log(`✓ Fixed deal name: "${originalName}" → "${sanitizedName}"`);
+                        }
+                        
+                        return {
+                            ...deal,
+                            name: sanitizedName,
+                            status: deal.status || 'none'
+                        };
+                    });
+                
+                // Log summary of fixes
+                if (namesFixed > 0) {
+                    console.log(`✅ Fixed ${namesFixed} unnamed deal(s)`);
+                }
                 
                 // If we filtered out invalid deals, save the cleaned version
                 if (rawDeals.length !== allDeals.length) {

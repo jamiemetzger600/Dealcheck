@@ -32,6 +32,57 @@ function parseRSSFeed(xmlText) {
     }
 }
 
+// Generate meaningful name for RSS deal
+function generateRSSDealName(title, description, link, dealData) {
+    // 1. Use title if available
+    if (title && title.trim()) {
+        return title.trim();
+    }
+    
+    // 2. Try to extract from description (first meaningful sentence)
+    if (description) {
+        const cleaned = cleanHTML(description).trim();
+        if (cleaned) {
+            const firstSentence = cleaned.split(/[.!?\n]/)[0].trim();
+            if (firstSentence && firstSentence.length > 0 && firstSentence.length <= 100) {
+                return firstSentence;
+            }
+            if (cleaned.length <= 100) {
+                return cleaned;
+            }
+            return cleaned.substring(0, 97) + '...';
+        }
+    }
+    
+    // 3. Build from parsed deal data (industry + location)
+    if (dealData.industry && dealData.location) {
+        return `${dealData.industry} in ${dealData.location}`;
+    }
+    if (dealData.industry) {
+        return `${dealData.industry} Business`;
+    }
+    if (dealData.location) {
+        return `Business in ${dealData.location}`;
+    }
+    
+    // 4. Try to extract domain from link
+    if (link) {
+        try {
+            const urlObj = new URL(link);
+            const domain = urlObj.hostname.replace('www.', '');
+            if (domain) {
+                return `Business Listing - ${domain}`;
+            }
+        } catch (e) {
+            // Not a valid URL
+        }
+    }
+    
+    // 5. Last resort
+    console.warn('⚠️ RSS item missing title, using fallback name');
+    return `RSS Deal ${Date.now()}`;
+}
+
 // Extract deal information from RSS item
 function extractDealFromRSSItem(item) {
     try {
@@ -40,16 +91,20 @@ function extractDealFromRSSItem(item) {
         const description = getElementText(item, 'description');
         const pubDate = getElementText(item, 'pubDate');
         
-        if (!title || !link) {
-            return null; // Skip items without essential data
+        if (!link) {
+            console.warn('⚠️ Skipping RSS item without link');
+            return null; // Skip items without link
         }
         
         // Parse deal details from title and description
         const dealData = parseDealDetails(title, description);
         
+        // Generate meaningful name with smart fallbacks
+        const dealName = generateRSSDealName(title, description, link, dealData);
+        
         return {
             id: generateDealId(link),
-            name: title,
+            name: dealName,
             url: link,
             description: cleanHTML(description),
             source: 'RSS Feed',
@@ -58,7 +113,7 @@ function extractDealFromRSSItem(item) {
             ...dealData
         };
     } catch (error) {
-        console.error('Error extracting deal from RSS item:', error);
+        console.error('⚠️ Error extracting deal from RSS item:', error);
         return null;
     }
 }

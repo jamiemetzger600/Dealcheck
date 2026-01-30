@@ -123,7 +123,7 @@ function switchTab(tabName) {
 
 // Initialize tabs on load
 function initializeDashboard() {
-    console.log('Initializing Deal Aggregator v2.1.11');
+    console.log('Initializing Deal Aggregator v2.1.43');
     
     // Add global test functions for debugging
     window.testSourceModal = function() {
@@ -369,10 +369,20 @@ function initializeDashboard() {
         searchInput.addEventListener('input', (e) => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
-                searchAggregatorDeals(e.target.value);
+                applyAggregatorFilters();
             }, 300);
         });
     }
+    
+    // Set up exclude keywords with tags UI
+    initializeExcludeKeywords();
+    
+    // Set up column visibility and clear/refresh
+    initializeColumnVisibility();
+    initializeClearRefresh();
+    
+    // Set up deal details panel
+    initializeDealPanel();
     
     // Set up pagination buttons
     const prevBtn = document.getElementById('page-prev');
@@ -528,6 +538,7 @@ async function loadAggregatorDeals() {
         // Update stats
         document.getElementById('total-aggregated').textContent = deals.length;
         document.getElementById('aggregator-count').textContent = deals.length;
+        document.getElementById('total-count').textContent = deals.length;
         
         // Calculate today's new deals
         const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
@@ -538,9 +549,8 @@ async function loadAggregatorDeals() {
         const sources = new Set(deals.map(d => d.source));
         document.getElementById('sources-active').textContent = sources.size;
         
-        // Calculate buy box matches
-        const buyBoxMatches = deals.filter(d => dealMatchesBuyBox(d)).length;
-        document.getElementById('matches-buybox').textContent = buyBoxMatches;
+        // Update showing count (will be updated by filter)
+        document.getElementById('showing-count').textContent = deals.length;
         
         // If we have deals, show table and hide empty state
         const emptyState = document.getElementById('aggregator-empty');
@@ -569,6 +579,12 @@ function renderAggregatorTable() {
     // Sort deals
     const sortedDeals = sortAggregatorDeals(filteredAggregatedDeals, currentAggregatorSort);
     
+    // Update showing count stat
+    const showingCountElem = document.getElementById('showing-count');
+    if (showingCountElem) {
+        showingCountElem.textContent = sortedDeals.length;
+    }
+    
     // Paginate
     const startIdx = (currentPage - 1) * DEALS_PER_PAGE;
     const endIdx = startIdx + DEALS_PER_PAGE;
@@ -592,63 +608,89 @@ function createAggregatorDealRow(deal) {
     const row = document.createElement('tr');
     row.dataset.dealId = deal.id;
     
-    // Name
-    const nameCell = document.createElement('td');
+    // Helper to check if column is visible
+    const isVisible = (colId) => visibleColumns[colId] !== false;
+    
+    // Helper to create a cell
+    const createCell = (colId, content, className = '') => {
+        const cell = document.createElement('td');
+        cell.dataset.col = colId;
+        if (className) cell.className = className;
+        if (typeof content === 'string') {
+            cell.innerHTML = content;
+        }
+        // Name and actions always visible, others check visibility
+        if (colId !== 'name' && colId !== 'actions') {
+            cell.style.display = isVisible(colId) ? '' : 'none';
+        }
+        return cell;
+    };
+    
+    // Name (always visible)
+    const nameCell = createCell('name', '');
     const matchesBuyBox = dealMatchesBuyBox(deal);
     nameCell.innerHTML = `
         <div class="aggregator-deal-name">
             ${escapeHtml(deal.name || 'Unnamed Deal')}
-            ${matchesBuyBox ? '<span class="buybox-badge" title="Matches Your Buy Box">🎯</span>' : ''}
+            ${matchesBuyBox ? '<span class="buybox-badge">*</span>' : ''}
         </div>
-        <div class="aggregator-deal-source">${escapeHtml(deal.source || 'Unknown')}</div>
     `;
     row.appendChild(nameCell);
     
     // Asking Price
-    const priceCell = document.createElement('td');
-    priceCell.innerHTML = `<span class="aggregator-price">${formatPrice(deal.askingPrice)}</span>`;
-    row.appendChild(priceCell);
+    row.appendChild(createCell('price', `<span class="aggregator-price">${formatPrice(deal.askingPrice)}</span>`));
     
     // EBITDA
-    const ebitdaCell = document.createElement('td');
-    ebitdaCell.innerHTML = `<span class="aggregator-price positive">${formatPrice(deal.ebitda)}</span>`;
-    row.appendChild(ebitdaCell);
+    row.appendChild(createCell('ebitda', `<span class="aggregator-price positive">${formatPrice(deal.ebitda)}</span>`));
+    
+    // Revenue
+    row.appendChild(createCell('revenue', `<span class="aggregator-price">${formatPrice(deal.revenue)}</span>`));
     
     // Location
-    const locationCell = document.createElement('td');
-    locationCell.textContent = deal.location || deal.city || '-';
-    row.appendChild(locationCell);
+    row.appendChild(createCell('location', escapeHtml(deal.location || '-')));
+    
+    // City
+    row.appendChild(createCell('city', escapeHtml(deal.city || '-')));
+    
+    // State
+    row.appendChild(createCell('state', escapeHtml(deal.state || '-')));
     
     // Industry
-    const industryCell = document.createElement('td');
-    industryCell.innerHTML = deal.industry ? 
-        `<span class="aggregator-industry-tag">${escapeHtml(deal.industry)}</span>` : 
-        '-';
-    row.appendChild(industryCell);
+    const industryContent = deal.industry ? 
+        `<span class="aggregator-industry-tag">${escapeHtml(deal.industry)}</span>` : '-';
+    row.appendChild(createCell('industry', industryContent));
     
     // Source
-    const sourceCell = document.createElement('td');
-    sourceCell.textContent = deal.sourceType || 'RSS';
-    row.appendChild(sourceCell);
+    row.appendChild(createCell('source', escapeHtml(deal.source || deal.sourceType || '-')));
+    
+    // Broker
+    row.appendChild(createCell('broker', escapeHtml(deal.broker || '-')));
     
     // Date
-    const dateCell = document.createElement('td');
-    dateCell.textContent = formatRelativeTime(deal.discoveredAt);
-    row.appendChild(dateCell);
+    row.appendChild(createCell('date', formatRelativeTime(deal.discoveredAt)));
     
-    // Actions
-    const actionsCell = document.createElement('td');
-    actionsCell.innerHTML = `
+    // Description
+    const descText = deal.description || '';
+    const truncatedDesc = descText.length > 80 ? descText.substring(0, 80) + '...' : descText || '-';
+    row.appendChild(createCell('description', escapeHtml(truncatedDesc)));
+    
+    // URL
+    const urlContent = deal.url ? 
+        `<a href="${escapeHtml(deal.url)}" target="_blank" class="deal-link" onclick="event.stopPropagation()">View</a>` : '-';
+    row.appendChild(createCell('url', urlContent));
+    
+    // Actions (always visible)
+    const actionsCell = createCell('actions', `
         <div class="aggregator-actions">
-            <button class="aggregator-action-btn save" title="Save Deal">💾</button>
-            <button class="aggregator-action-btn" title="View Details">👁️</button>
+            <button class="aggregator-action-btn save" title="Save Deal">+</button>
+            <button class="aggregator-action-btn view" title="View Details">i</button>
         </div>
-    `;
+    `);
     row.appendChild(actionsCell);
     
     // Click handlers
     const saveBtn = actionsCell.querySelector('.save');
-    const viewBtn = actionsCell.querySelector('.aggregator-action-btn:not(.save)');
+    const viewBtn = actionsCell.querySelector('.view');
     
     saveBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -738,13 +780,490 @@ function updateAggregatorPagination(totalDeals) {
     // TODO: Update page number buttons dynamically
 }
 
-// Search aggregator deals
-function searchAggregatorDeals(query) {
-    if (!query.trim()) {
-        filteredAggregatedDeals = aggregatedDeals;
-    } else {
-        const lowerQuery = query.toLowerCase();
-        filteredAggregatedDeals = aggregatedDeals.filter(deal => {
+// ====== EXCLUDE KEYWORDS FEATURE ======
+let currentExcludeKeywords = [];
+let savedExcludeLists = {};
+
+let currentSelectedList = ''; // Track which list is currently selected
+
+function initializeExcludeKeywords() {
+    const keywordInput = document.getElementById('exclude-keyword-input');
+    const addBtn = document.getElementById('add-exclude-keyword');
+    const saveBtn = document.getElementById('save-exclude-list');
+    const updateBtn = document.getElementById('update-exclude-list');
+    const deleteBtn = document.getElementById('delete-exclude-list');
+    const listSelect = document.getElementById('exclude-list-select');
+    
+    // Load saved data
+    chrome.storage.local.get(['currentExcludeKeywords', 'savedExcludeLists', 'currentSelectedList'], (result) => {
+        currentExcludeKeywords = result.currentExcludeKeywords || [];
+        savedExcludeLists = result.savedExcludeLists || {};
+        currentSelectedList = result.currentSelectedList || '';
+        renderExcludeTags();
+        populateExcludeListSelect();
+        // Restore selected list in dropdown
+        if (listSelect && currentSelectedList && savedExcludeLists[currentSelectedList]) {
+            listSelect.value = currentSelectedList;
+            updateExcludeListButtons();
+        }
+        applyAggregatorFilters();
+    });
+    
+    // Add keyword on Enter or button click
+    if (keywordInput) {
+        keywordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addExcludeKeyword(keywordInput.value);
+                keywordInput.value = '';
+            }
+        });
+    }
+    
+    if (addBtn) {
+        addBtn.addEventListener('click', () => {
+            addExcludeKeyword(keywordInput.value);
+            keywordInput.value = '';
+            keywordInput.focus();
+        });
+    }
+    
+    // Save as new list
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveExcludeList);
+    }
+    
+    // Update existing list
+    if (updateBtn) {
+        updateBtn.addEventListener('click', updateExcludeList);
+    }
+    
+    // Delete list
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', deleteExcludeList);
+    }
+    
+    // Clear all keywords
+    const clearBtn = document.getElementById('clear-exclude-keywords');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearAllExcludeKeywords);
+    }
+    
+    // Load list on selection
+    if (listSelect) {
+        listSelect.addEventListener('change', (e) => {
+            currentSelectedList = e.target.value;
+            chrome.storage.local.set({ currentSelectedList });
+            updateExcludeListButtons();
+            if (e.target.value) {
+                loadExcludeList(e.target.value);
+            }
+        });
+    }
+}
+
+function updateExcludeListButtons() {
+    const updateBtn = document.getElementById('update-exclude-list');
+    const deleteBtn = document.getElementById('delete-exclude-list');
+    
+    if (updateBtn) {
+        // Show Update button only when a list is selected
+        updateBtn.style.display = currentSelectedList ? 'inline-block' : 'none';
+    }
+    if (deleteBtn) {
+        // Optionally disable delete if no list selected
+        deleteBtn.style.opacity = currentSelectedList ? '1' : '0.5';
+    }
+}
+
+function addExcludeKeyword(keyword) {
+    keyword = keyword.trim();
+    if (!keyword) return;
+    
+    // Handle comma-separated input
+    const keywords = keyword.split(',').map(k => k.trim()).filter(k => k.length > 0);
+    
+    keywords.forEach(kw => {
+        const lowerKw = kw.toLowerCase();
+        if (!currentExcludeKeywords.includes(lowerKw)) {
+            currentExcludeKeywords.push(lowerKw);
+        }
+    });
+    
+    saveCurrentExcludeKeywords();
+    renderExcludeTags();
+    applyAggregatorFilters();
+}
+
+function removeExcludeKeyword(keyword) {
+    currentExcludeKeywords = currentExcludeKeywords.filter(k => k !== keyword);
+    saveCurrentExcludeKeywords();
+    renderExcludeTags();
+    applyAggregatorFilters();
+}
+
+function saveCurrentExcludeKeywords() {
+    chrome.storage.local.set({ currentExcludeKeywords });
+}
+
+function renderExcludeTags() {
+    const container = document.getElementById('exclude-tags');
+    if (!container) return;
+    
+    if (currentExcludeKeywords.length === 0) {
+        container.innerHTML = '<span class="exclude-tags-empty">No keywords excluded. Add keywords above to filter out unwanted deals.</span>';
+        return;
+    }
+    
+    container.innerHTML = currentExcludeKeywords.map(keyword => `
+        <span class="exclude-tag">
+            ${escapeHtml(keyword)}
+            <span class="exclude-tag-remove" data-keyword="${escapeHtml(keyword)}" title="Remove">&times;</span>
+        </span>
+    `).join('');
+    
+    // Add click handlers for remove buttons
+    container.querySelectorAll('.exclude-tag-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            removeExcludeKeyword(btn.dataset.keyword);
+        });
+    });
+}
+
+function saveExcludeList() {
+    if (currentExcludeKeywords.length === 0) {
+        showToast('Add some keywords first before saving a list', 'error');
+        return;
+    }
+    
+    const listName = prompt('Enter a name for this exclude list:', '');
+    if (!listName || !listName.trim()) return;
+    
+    const name = listName.trim();
+    savedExcludeLists[name] = [...currentExcludeKeywords];
+    currentSelectedList = name;
+    
+    chrome.storage.local.set({ savedExcludeLists, currentSelectedList }, () => {
+        populateExcludeListSelect();
+        document.getElementById('exclude-list-select').value = name;
+        updateExcludeListButtons();
+        showToast(`Exclude list "${name}" saved with ${currentExcludeKeywords.length} keywords`, 'success');
+    });
+}
+
+function updateExcludeList() {
+    if (!currentSelectedList) {
+        showToast('Select a list to update first', 'error');
+        return;
+    }
+    
+    if (currentExcludeKeywords.length === 0) {
+        showToast('Add some keywords first before updating', 'error');
+        return;
+    }
+    
+    savedExcludeLists[currentSelectedList] = [...currentExcludeKeywords];
+    
+    chrome.storage.local.set({ savedExcludeLists }, () => {
+        populateExcludeListSelect();
+        // Keep the same list selected
+        document.getElementById('exclude-list-select').value = currentSelectedList;
+        showToast(`List "${currentSelectedList}" updated with ${currentExcludeKeywords.length} keywords`, 'success');
+    });
+}
+
+function deleteExcludeList() {
+    if (!currentSelectedList) {
+        showToast('Select a list to delete', 'error');
+        return;
+    }
+    
+    if (!confirm(`Delete exclude list "${currentSelectedList}"?`)) return;
+    
+    const deletedName = currentSelectedList;
+    delete savedExcludeLists[currentSelectedList];
+    currentSelectedList = '';
+    
+    chrome.storage.local.set({ savedExcludeLists, currentSelectedList }, () => {
+        populateExcludeListSelect();
+        updateExcludeListButtons();
+        showToast(`Exclude list "${deletedName}" deleted`, 'success');
+    });
+}
+
+function clearAllExcludeKeywords() {
+    if (currentExcludeKeywords.length === 0) {
+        showToast('No keywords to clear', 'info');
+        return;
+    }
+    
+    currentExcludeKeywords = [];
+    currentSelectedList = '';
+    
+    // Reset dropdown
+    const listSelect = document.getElementById('exclude-list-select');
+    if (listSelect) listSelect.value = '';
+    
+    saveCurrentExcludeKeywords();
+    chrome.storage.local.set({ currentSelectedList });
+    renderExcludeTags();
+    updateExcludeListButtons();
+    applyAggregatorFilters();
+    
+    showToast('All exclude keywords cleared', 'success');
+}
+
+function loadExcludeList(listName) {
+    if (!savedExcludeLists[listName]) return;
+    
+    currentExcludeKeywords = [...savedExcludeLists[listName]];
+    saveCurrentExcludeKeywords();
+    renderExcludeTags();
+    applyAggregatorFilters();
+    showToast(`Loaded exclude list "${listName}" with ${currentExcludeKeywords.length} keywords`, 'info');
+}
+
+function populateExcludeListSelect() {
+    const select = document.getElementById('exclude-list-select');
+    if (!select) return;
+    
+    const listNames = Object.keys(savedExcludeLists).sort();
+    
+    select.innerHTML = '<option value="">-- Select List --</option>' + 
+        listNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)} (${savedExcludeLists[name].length})</option>`).join('');
+}
+
+// ====== COLUMN VISIBILITY FEATURE ======
+// Define all possible columns with display names
+const COLUMN_CONFIG = {
+    name: { label: 'Name', default: true, required: true },
+    price: { label: 'Asking Price', default: true },
+    ebitda: { label: 'EBITDA/Profit', default: true },
+    revenue: { label: 'Revenue', default: false },
+    location: { label: 'Location', default: true },
+    city: { label: 'City', default: false },
+    state: { label: 'State', default: false },
+    industry: { label: 'Industry', default: true },
+    source: { label: 'Source', default: true },
+    broker: { label: 'Broker', default: false },
+    date: { label: 'Date Added', default: true },
+    description: { label: 'Description', default: false },
+    url: { label: 'Listing URL', default: false },
+    actions: { label: 'Actions', default: true, required: true }
+};
+
+let visibleColumns = {};
+let availableColumns = []; // Columns that have data
+
+function initializeColumnVisibility() {
+    const toggleBtn = document.getElementById('toggle-columns-btn');
+    const closeBtn = document.getElementById('close-columns-panel');
+    const panel = document.getElementById('column-visibility-panel');
+    
+    // Load saved column visibility
+    chrome.storage.local.get(['visibleColumns'], (result) => {
+        if (result.visibleColumns) {
+            visibleColumns = result.visibleColumns;
+        } else {
+            // Set defaults
+            Object.keys(COLUMN_CONFIG).forEach(colId => {
+                visibleColumns[colId] = COLUMN_CONFIG[colId].default;
+            });
+        }
+        renderColumnCheckboxes();
+    });
+    
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            // Refresh available columns before showing
+            detectAvailableColumns();
+            renderColumnCheckboxes();
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        });
+    }
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            panel.style.display = 'none';
+        });
+    }
+}
+
+// Detect which columns actually have data
+function detectAvailableColumns() {
+    availableColumns = ['name', 'actions']; // Always available
+    
+    if (aggregatedDeals.length === 0) {
+        // Show all possible columns if no data yet
+        availableColumns = Object.keys(COLUMN_CONFIG);
+        return;
+    }
+    
+    // Check first 50 deals to see what data exists
+    const sampleDeals = aggregatedDeals.slice(0, 50);
+    
+    const fieldMap = {
+        price: 'askingPrice',
+        ebitda: 'ebitda',
+        revenue: 'revenue',
+        location: 'location',
+        city: 'city',
+        state: 'state',
+        industry: 'industry',
+        source: 'source',
+        broker: 'broker',
+        date: 'discoveredAt',
+        description: 'description',
+        url: 'url'
+    };
+    
+    Object.entries(fieldMap).forEach(([colId, fieldName]) => {
+        const hasData = sampleDeals.some(deal => {
+            const val = deal[fieldName];
+            return val !== null && val !== undefined && val !== '' && val !== '-';
+        });
+        if (hasData) {
+            availableColumns.push(colId);
+        }
+    });
+}
+
+function renderColumnCheckboxes() {
+    const container = document.getElementById('column-checkboxes');
+    if (!container) return;
+    
+    detectAvailableColumns();
+    
+    // Show all columns, mark unavailable ones
+    const allCols = Object.keys(COLUMN_CONFIG);
+    
+    container.innerHTML = allCols.map(colId => {
+        const config = COLUMN_CONFIG[colId];
+        const hasData = availableColumns.includes(colId);
+        const isChecked = visibleColumns[colId] !== false;
+        const isRequired = config.required;
+        
+        return `
+            <label class="${!hasData ? 'no-data' : ''}">
+                <input type="checkbox" 
+                       data-column="${colId}" 
+                       ${isChecked ? 'checked' : ''} 
+                       ${isRequired ? 'disabled' : ''} />
+                ${config.label}
+                ${!hasData && !isRequired ? '<span class="no-data-hint">(no data)</span>' : ''}
+            </label>
+        `;
+    }).join('');
+    
+    // Add change handlers
+    container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => {
+            visibleColumns[cb.dataset.column] = cb.checked;
+            chrome.storage.local.set({ visibleColumns });
+            updateTableColumns();
+            renderAggregatorTable();
+        });
+    });
+}
+
+function updateTableColumns() {
+    // Update header visibility
+    document.querySelectorAll('.aggregator-table th[data-col]').forEach(th => {
+        const colId = th.dataset.col;
+        if (colId === 'name' || colId === 'actions') {
+            th.style.display = '';
+        } else {
+            th.style.display = visibleColumns[colId] ? '' : 'none';
+        }
+    });
+    
+    // Update cell visibility
+    document.querySelectorAll('.aggregator-table td[data-col]').forEach(td => {
+        const colId = td.dataset.col;
+        if (colId === 'name' || colId === 'actions') {
+            td.style.display = '';
+        } else {
+            td.style.display = visibleColumns[colId] ? '' : 'none';
+        }
+    });
+}
+
+// ====== CLEAR & REFRESH FEATURE ======
+function initializeClearRefresh() {
+    const clearBtn = document.getElementById('clear-refresh-btn');
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', async () => {
+            // Offer choice: clear and refresh vs clear only
+            const choice = confirm(
+                'Clear all cached deals?\n\n' +
+                'OK = Clear and re-import from sources\n' +
+                'Cancel = Just clear (no re-import)\n\n' +
+                'To completely purge all data, click Cancel.'
+            );
+            
+            showToast('Clearing all cached deals...', 'info');
+            
+            // Clear aggregated deals from storage (use correct key!)
+            await new Promise((resolve) => {
+                chrome.storage.local.remove(['aggregatedDealsPool', 'aggregatedDeals'], resolve);
+            });
+            console.log('🗑️ Cleared aggregatedDealsPool from storage');
+            
+            // Reset in-memory data
+            aggregatedDeals = [];
+            filteredAggregatedDeals = [];
+            
+            // Update UI
+            renderAggregatorTable();
+            updateAggregatorStats();
+            
+            if (choice) {
+                showToast('Cache cleared! Re-importing deals from sources...', 'success');
+                
+                // Trigger re-fetch from sources
+                setTimeout(() => {
+                    const fetchBtn = document.getElementById('fetch-deals-btn');
+                    if (fetchBtn) {
+                        startAggregation(fetchBtn);
+                    }
+                }, 500);
+            } else {
+                showToast('All deals cleared! Click "Fetch Deals" when ready to import.', 'success');
+            }
+        });
+    }
+}
+
+// Update aggregator stats display
+function updateAggregatorStats() {
+    const total = aggregatedDeals.length;
+    const showing = filteredAggregatedDeals.length;
+    
+    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+    const newToday = aggregatedDeals.filter(d => d.discoveredAt > oneDayAgo).length;
+    
+    const sources = new Set(aggregatedDeals.map(d => d.source));
+    
+    document.getElementById('total-aggregated').textContent = total;
+    document.getElementById('aggregator-count').textContent = total;
+    document.getElementById('total-count').textContent = total;
+    document.getElementById('showing-count').textContent = showing;
+    document.getElementById('new-today').textContent = newToday;
+    document.getElementById('sources-active').textContent = sources.size;
+}
+
+// Apply all aggregator filters (search + exclude keywords)
+function applyAggregatorFilters() {
+    let filtered = [...aggregatedDeals];
+    
+    // Apply search filter
+    const searchInput = document.getElementById('aggregator-search');
+    const searchQuery = searchInput ? searchInput.value.trim() : '';
+    
+    if (searchQuery) {
+        const lowerQuery = searchQuery.toLowerCase();
+        filtered = filtered.filter(deal => {
             return (
                 (deal.name || '').toLowerCase().includes(lowerQuery) ||
                 (deal.description || '').toLowerCase().includes(lowerQuery) ||
@@ -756,8 +1275,29 @@ function searchAggregatorDeals(query) {
         });
     }
     
+    // Apply exclude keywords filter (from tags)
+    if (currentExcludeKeywords.length > 0) {
+        filtered = filtered.filter(deal => {
+            const searchableText = [
+                deal.name || '',
+                deal.description || '',
+                deal.industry || '',
+                deal.location || ''
+            ].join(' ').toLowerCase();
+            
+            // Exclude if ANY keyword is found
+            return !currentExcludeKeywords.some(keyword => searchableText.includes(keyword));
+        });
+    }
+    
+    filteredAggregatedDeals = filtered;
     currentPage = 1;
     renderAggregatorTable();
+}
+
+// Legacy function for compatibility
+function searchAggregatorDeals(query) {
+    applyAggregatorFilters();
 }
 
 // Save deal from aggregator to My Deals
@@ -1484,10 +2024,633 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // View deal details (placeholder - will open modal in future)
+// ====== DEAL DETAILS PANEL ======
+let currentViewedDeal = null;
+let dealViewStyle = 'popup'; // 'popup' or 'sidebar'
+
 function viewDealDetails(deal) {
     console.log('View deal details:', deal);
-    showToast('Deal details modal coming soon! Click 💾 to save deal.', 'info');
-    // TODO: Open deal details modal with KNOWLEDGE stage
+    currentViewedDeal = deal;
+    
+    // Get view style preference
+    chrome.storage.local.get(['dealViewStyle'], (result) => {
+        dealViewStyle = result.dealViewStyle || 'popup';
+        showDealPanel(deal);
+    });
+}
+
+function showDealPanel(deal) {
+    const overlay = document.getElementById('deal-details-overlay');
+    const panel = document.getElementById('deal-details-panel');
+    
+    if (!panel) {
+        console.error('Deal panel not found');
+        return;
+    }
+    
+    // Set panel mode
+    panel.classList.remove('popup-mode', 'sidebar-mode');
+    panel.classList.add(dealViewStyle + '-mode');
+    
+    // Populate deal info
+    document.getElementById('deal-panel-title').textContent = deal.name || 'Deal Details';
+    
+    // Deal Info Grid
+    const infoGrid = document.getElementById('deal-info-grid');
+    infoGrid.innerHTML = `
+        <div class="deal-info-item">
+            <div class="deal-info-label">Asking Price</div>
+            <div class="deal-info-value price">${formatPrice(deal.askingPrice)}</div>
+        </div>
+        <div class="deal-info-item">
+            <div class="deal-info-label">EBITDA/SDE</div>
+            <div class="deal-info-value price">${formatPrice(deal.ebitda)}</div>
+        </div>
+        <div class="deal-info-item">
+            <div class="deal-info-label">Revenue</div>
+            <div class="deal-info-value">${formatPrice(deal.revenue)}</div>
+        </div>
+        <div class="deal-info-item">
+            <div class="deal-info-label">Multiple</div>
+            <div class="deal-info-value">${deal.askingPrice && deal.ebitda ? (deal.askingPrice / deal.ebitda).toFixed(2) + 'x' : '-'}</div>
+        </div>
+        <div class="deal-info-item">
+            <div class="deal-info-label">Location</div>
+            <div class="deal-info-value">${escapeHtml(deal.location || deal.city || '-')}</div>
+        </div>
+        <div class="deal-info-item">
+            <div class="deal-info-label">State</div>
+            <div class="deal-info-value">${escapeHtml(deal.state || '-')}</div>
+        </div>
+        <div class="deal-info-item">
+            <div class="deal-info-label">Industry</div>
+            <div class="deal-info-value">${escapeHtml(deal.industry || '-')}</div>
+        </div>
+        <div class="deal-info-item">
+            <div class="deal-info-label">Source</div>
+            <div class="deal-info-value">${escapeHtml(deal.source || deal.sourceType || '-')}</div>
+        </div>
+    `;
+    
+    // Broker Info - Enhanced with contact details
+    const brokerInfo = document.getElementById('deal-broker-info');
+    const brokerName = deal.brokerName || deal.broker || '-';
+    const brokerCompany = deal.brokerCompany || deal.source || '-';
+    const brokerEmail = deal.brokerEmail || deal.contactEmail || '';
+    const brokerPhone = deal.brokerPhone || deal.contactPhone || '';
+    const listedDate = deal.discoveredAt ? new Date(deal.discoveredAt).toLocaleDateString() : '-';
+    
+    brokerInfo.innerHTML = `
+        <div class="broker-grid">
+            <div class="broker-item">
+                <span class="broker-label">Broker Name</span>
+                <span class="broker-value">${escapeHtml(brokerName)}</span>
+            </div>
+            <div class="broker-item">
+                <span class="broker-label">Company</span>
+                <span class="broker-value">${escapeHtml(brokerCompany)}</span>
+            </div>
+            <div class="broker-item">
+                <span class="broker-label">Email</span>
+                <span class="broker-value">${brokerEmail ? `<a href="mailto:${escapeHtml(brokerEmail)}">${escapeHtml(brokerEmail)}</a>` : '-'}</span>
+            </div>
+            <div class="broker-item">
+                <span class="broker-label">Phone</span>
+                <span class="broker-value">${brokerPhone ? `<a href="tel:${escapeHtml(brokerPhone)}">${escapeHtml(brokerPhone)}</a>` : '-'}</span>
+            </div>
+            <div class="broker-item full-width">
+                <span class="broker-label">Listed</span>
+                <span class="broker-value">${listedDate}</span>
+            </div>
+        </div>
+    `;
+    
+    // Description
+    const descEl = document.getElementById('deal-description');
+    descEl.textContent = deal.description || 'No description available.';
+    
+    // Set calculator initial values
+    const ebitdaEl = document.getElementById('calc-ebitda');
+    const askingEl = document.getElementById('calc-asking');
+    if (ebitdaEl) ebitdaEl.value = deal.ebitda ? fmtCalc(deal.ebitda) : '';
+    if (askingEl) askingEl.value = deal.askingPrice ? fmtCalc(deal.askingPrice) : '';
+    
+    // View listing button - validate URL before setting
+    const viewBtn = document.getElementById('view-listing-btn');
+    console.log('Deal URL debug:', { url: deal.url, deal: deal });
+    
+    // Check if URL is valid (starts with http/https)
+    const isValidUrl = deal.url && typeof deal.url === 'string' && 
+        (deal.url.startsWith('http://') || deal.url.startsWith('https://'));
+    
+    // Always show the button, but style differently if no valid URL
+    viewBtn.style.display = '';
+    if (isValidUrl) {
+        viewBtn.href = deal.url;
+        viewBtn.classList.remove('disabled');
+        viewBtn.textContent = 'View Original Listing';
+        console.log('✅ View listing URL set to:', deal.url);
+    } else {
+        viewBtn.href = '#';
+        viewBtn.classList.add('disabled');
+        viewBtn.textContent = 'No Listing URL Available';
+        console.warn('⚠️ Invalid or missing deal URL:', deal.url);
+    }
+    
+    // Hide target offer result initially
+    const targetResult = document.getElementById('target-offer-result');
+    if (targetResult) targetResult.style.display = 'none';
+    
+    // Reset scenarios for this deal
+    resetScenarios();
+    
+    // Ensure calculator is collapsed by default to save space
+    const calcHeader = document.getElementById('calc-header');
+    const calcBody = document.getElementById('calc-body');
+    if (calcHeader) calcHeader.classList.add('collapsed');
+    if (calcBody) calcBody.classList.add('collapsed');
+    
+    // Reset panel position for popup mode (remove any previous drag offset)
+    if (dealViewStyle === 'popup') {
+        panel.classList.remove('dragging');
+        panel.style.left = '';
+        panel.style.top = '';
+    }
+    
+    // Show panel
+    overlay.style.display = 'block';
+    panel.style.display = 'flex';
+    
+    // Run full calculator
+    runFullCalculator();
+}
+
+function closeDealPanel() {
+    document.getElementById('deal-details-overlay').style.display = 'none';
+    document.getElementById('deal-details-panel').style.display = 'none';
+    currentViewedDeal = null;
+}
+
+// ====== FULL DEAL CALCULATOR (from content.js) ======
+
+// Parse currency input
+function parseCalcNumber(val) {
+    if (!val) return 0;
+    return parseFloat(String(val).replace(/[$,]/g, '')) || 0;
+}
+
+// Format currency for display
+function fmtCalc(num) {
+    if (!num || isNaN(num)) return '$0';
+    return '$' + Math.round(num).toLocaleString();
+}
+
+// Calculate debt service per $1 of loan
+function calcDebtServicePer1(rate, years, paymentType = 'amortizing') {
+    if (paymentType === 'interest-only') {
+        return rate;
+    }
+    if (rate <= 0 || years <= 0) return years > 0 ? 1 / years : 0;
+    const r = rate / 12;
+    const n = years * 12;
+    const monthlyPer1 = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+    return monthlyPer1 * 12;
+}
+
+// Main calculator function
+function runFullCalculator() {
+    // Get inputs
+    const ebitda = parseCalcNumber(document.getElementById('calc-ebitda')?.value);
+    const askingPrice = parseCalcNumber(document.getElementById('calc-asking')?.value);
+    const targetDSCR = parseFloat(document.getElementById('calc-dscr')?.value) || 1.25;
+    
+    // SBA
+    const sbaPercent = parseFloat(document.getElementById('calc-sba-percent')?.value) || 0;
+    const sbaRate = (parseFloat(document.getElementById('calc-sba-rate')?.value) || 0) / 100;
+    const sbaYears = parseFloat(document.getElementById('calc-sba-term')?.value) || 10;
+    
+    // Equity
+    const equityPercent = parseFloat(document.getElementById('calc-equity-percent')?.value) || 0;
+    const targetSalary = parseCalcNumber(document.getElementById('calc-salary')?.value);
+    
+    // Seller Note
+    const sellerEnabled = document.getElementById('calc-seller-enabled')?.checked || false;
+    const sellerPercent = sellerEnabled ? (parseFloat(document.getElementById('calc-seller-percent')?.value) || 0) : 0;
+    const sellerRate = (parseFloat(document.getElementById('calc-seller-rate')?.value) || 0) / 100;
+    const sellerType = document.getElementById('calc-seller-type')?.value || 'amortizing';
+    const sellerStandby = document.getElementById('calc-seller-standby')?.value === 'yes';
+    const sellerYears = 5; // Standard seller note term
+    
+    // Validate percentages
+    const totalPercent = sbaPercent + equityPercent + sellerPercent;
+    const percentWarning = document.getElementById('calc-percent-warning');
+    if (percentWarning) {
+        percentWarning.style.display = Math.abs(totalPercent - 100) > 0.01 ? 'block' : 'none';
+    }
+    
+    // Update summaries
+    document.getElementById('sba-summary').textContent = `${sbaPercent}% • ${(sbaRate*100).toFixed(1)}% • ${sbaYears}yr`;
+    document.getElementById('equity-summary').textContent = `${equityPercent}% • ${fmtCalc(targetSalary)} salary`;
+    document.getElementById('seller-summary').textContent = sellerEnabled ? 
+        `${sellerPercent}% • ${(sellerRate*100).toFixed(1)}% • ${sellerType === 'interest-only' ? 'I/O' : 'Amort'}` : 'Disabled';
+    
+    // Calculate debt service per $1 of price
+    const sbaDebtServicePer1 = calcDebtServicePer1(sbaRate, sbaYears);
+    const sellerDebtServicePer1 = sellerEnabled ? calcDebtServicePer1(sellerRate, sellerYears, sellerType) : 0;
+    
+    // For DSCR calculation, exclude standby seller note
+    const sellerDSForDSCR = sellerStandby ? 0 : sellerDebtServicePer1;
+    const totalDSPer1 = (sbaPercent / 100) * sbaDebtServicePer1 + (sellerPercent / 100) * sellerDSForDSCR;
+    
+    // Max allowable debt service
+    const maxAnnualDS = ebitda / targetDSCR;
+    
+    // Max purchase price (DSCR-based)
+    let maxPrice = 0;
+    if (totalDSPer1 > 0) {
+        maxPrice = maxAnnualDS / totalDSPer1;
+    }
+    
+    // Use asking price for actual calculations (or max if no asking)
+    const actualPrice = askingPrice > 0 ? askingPrice : maxPrice;
+    
+    // Calculate component amounts
+    const sbaLoan = (sbaPercent / 100) * actualPrice;
+    const downPayment = (equityPercent / 100) * actualPrice;
+    const sellerNote = (sellerPercent / 100) * actualPrice;
+    
+    // Calculate actual debt service
+    let sbaAnnualDS = 0;
+    if (sbaLoan > 0 && sbaRate > 0) {
+        const r = sbaRate / 12;
+        const n = sbaYears * 12;
+        const monthly = sbaLoan * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+        sbaAnnualDS = monthly * 12;
+    } else if (sbaLoan > 0) {
+        sbaAnnualDS = sbaLoan / sbaYears;
+    }
+    
+    let sellerAnnualDS = 0;
+    if (sellerNote > 0 && sellerEnabled) {
+        if (sellerType === 'interest-only') {
+            sellerAnnualDS = sellerNote * sellerRate;
+        } else {
+            const r = sellerRate / 12;
+            const n = sellerYears * 12;
+            if (r === 0) {
+                sellerAnnualDS = sellerNote / sellerYears;
+            } else {
+                const monthly = sellerNote * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+                sellerAnnualDS = monthly * 12;
+            }
+        }
+    }
+    
+    // Total debt service (exclude standby from cash flow calc)
+    const totalDebtService = sbaAnnualDS + (sellerStandby ? 0 : sellerAnnualDS);
+    
+    // Cash flow calculations
+    const availableCashFlow = ebitda - totalDebtService;
+    const freeCashFlow = availableCashFlow - targetSalary;
+    const totalTakeHome = targetSalary + freeCashFlow;
+    
+    // ROI metrics
+    const actualDSCR = totalDebtService > 0 ? ebitda / totalDebtService : 0;
+    const cashOnCash = downPayment > 0 ? (totalTakeHome / downPayment) * 100 : 0;
+    const paybackPeriod = totalTakeHome > 0 ? downPayment / totalTakeHome : 0;
+    
+    // Update UI
+    document.getElementById('calc-max-price').textContent = fmtCalc(maxPrice);
+    
+    const cocEl = document.getElementById('calc-coc');
+    cocEl.textContent = cashOnCash.toFixed(1) + '%';
+    cocEl.className = 'result-card-value ' + (cashOnCash >= 25 ? 'good' : cashOnCash >= 15 ? 'warning' : 'bad');
+    
+    const paybackEl = document.getElementById('calc-payback');
+    paybackEl.textContent = paybackPeriod.toFixed(1) + ' yrs';
+    paybackEl.className = 'result-card-value ' + (paybackPeriod <= 4 ? 'good' : paybackPeriod <= 6 ? 'warning' : 'bad');
+    
+    const dscrEl = document.getElementById('calc-actual-dscr');
+    dscrEl.textContent = actualDSCR.toFixed(2) + 'x';
+    dscrEl.className = 'result-card-value ' + (actualDSCR >= 1.25 ? 'good' : actualDSCR >= 1.0 ? 'warning' : 'bad');
+    
+    document.getElementById('calc-debt-service').textContent = fmtCalc(totalDebtService);
+    document.getElementById('calc-available-cash').textContent = fmtCalc(availableCashFlow);
+    
+    const fcfEl = document.getElementById('calc-fcf');
+    fcfEl.textContent = fmtCalc(freeCashFlow);
+    fcfEl.style.color = freeCashFlow < 0 ? '#e74c3c' : '';
+    
+    const takeHomeEl = document.getElementById('calc-takehome');
+    takeHomeEl.textContent = fmtCalc(totalTakeHome);
+    takeHomeEl.style.color = totalTakeHome < 0 ? '#e74c3c' : '#27ae60';
+    
+    // Store for target offer calculation
+    window.calcState = {
+        ebitda, askingPrice, targetDSCR, sbaPercent, sbaRate, sbaYears,
+        equityPercent, targetSalary, sellerEnabled, sellerPercent, sellerRate,
+        sellerType, sellerStandby, sellerYears, maxPrice, totalDSPer1
+    };
+}
+
+// Target Offer Calculator
+function calculateTargetOffer() {
+    const state = window.calcState;
+    if (!state || !state.ebitda) {
+        alert('Please enter EBITDA first');
+        return;
+    }
+    
+    const targetCOC = parseFloat(document.getElementById('calc-target-coc')?.value) || 25;
+    const { ebitda, askingPrice, targetDSCR, equityPercent, targetSalary, totalDSPer1 } = state;
+    
+    // Calculate max price constrained by:
+    // 1. DSCR requirement
+    // 2. Target COC return
+    // 3. Salary coverage
+    // 4. Asking price (never exceed)
+    
+    const maxDSCRPrice = totalDSPer1 > 0 ? (ebitda / targetDSCR) / totalDSPer1 : Infinity;
+    
+    // For target COC: (ebitda - DS - salary) / equity = targetCOC/100
+    // Solve for price iteratively
+    let targetPrice = maxDSCRPrice;
+    for (let i = 0; i < 50; i++) {
+        const equity = (equityPercent / 100) * targetPrice;
+        const ds = totalDSPer1 * targetPrice;
+        const fcf = ebitda - ds - targetSalary;
+        const coc = equity > 0 ? ((targetSalary + fcf) / equity) * 100 : 0;
+        
+        if (coc >= targetCOC) break;
+        targetPrice *= 0.98; // Reduce by 2% and try again
+    }
+    
+    // Apply constraints
+    let finalPrice = Math.min(targetPrice, maxDSCRPrice);
+    if (askingPrice > 0) {
+        finalPrice = Math.min(finalPrice, askingPrice);
+    }
+    
+    // Calculate metrics at target price
+    const finalEquity = (equityPercent / 100) * finalPrice;
+    const finalDS = totalDSPer1 * finalPrice;
+    const finalFCF = ebitda - finalDS - targetSalary;
+    const finalCOC = finalEquity > 0 ? ((targetSalary + finalFCF) / finalEquity) * 100 : 0;
+    const finalPayback = (targetSalary + finalFCF) > 0 ? finalEquity / (targetSalary + finalFCF) : 0;
+    
+    // Determine constraint
+    let constraint = 'COC target';
+    if (finalPrice >= askingPrice && askingPrice > 0) constraint = 'asking price';
+    else if (finalPrice >= maxDSCRPrice) constraint = 'DSCR requirement';
+    
+    // Update UI
+    document.getElementById('target-price').textContent = fmtCalc(finalPrice);
+    document.getElementById('target-subtitle').textContent = 
+        `${finalCOC.toFixed(0)}% COC • ${finalPayback.toFixed(1)} yr payback • Limited by ${constraint}`;
+    
+    const diff = askingPrice - finalPrice;
+    const diffPct = askingPrice > 0 ? (diff / askingPrice) * 100 : 0;
+    document.getElementById('target-comparison').innerHTML = askingPrice > 0 ? 
+        `<strong>vs Asking (${fmtCalc(askingPrice)}):</strong> ${fmtCalc(diff)} below (${diffPct.toFixed(1)}% discount)` :
+        'No asking price entered for comparison';
+    
+    document.getElementById('target-offer-result').style.display = 'block';
+    
+    // Store for use button
+    window.targetOfferPrice = finalPrice;
+}
+
+function useTargetOffer() {
+    if (window.targetOfferPrice) {
+        document.getElementById('calc-asking').value = fmtCalc(window.targetOfferPrice);
+        runFullCalculator();
+        document.getElementById('target-offer-result').style.display = 'none';
+    }
+}
+
+// Initialize Deal Panel Events
+function initializeDealPanel() {
+    // Close button
+    document.getElementById('deal-panel-close')?.addEventListener('click', closeDealPanel);
+    
+    // Overlay click to close (popup mode only)
+    document.getElementById('deal-details-overlay')?.addEventListener('click', () => {
+        if (dealViewStyle === 'popup') {
+            closeDealPanel();
+        }
+    });
+    
+    // Save deal button
+    document.getElementById('save-deal-btn')?.addEventListener('click', () => {
+        if (currentViewedDeal) {
+            saveDealFromAggregator(currentViewedDeal);
+        }
+    });
+    
+    // Full Calculator inputs - recalculate on change
+    const calcInputs = [
+        'calc-ebitda', 'calc-asking', 'calc-dscr',
+        'calc-sba-percent', 'calc-sba-rate', 'calc-sba-term',
+        'calc-equity-percent', 'calc-salary',
+        'calc-seller-percent', 'calc-seller-rate', 'calc-seller-type', 'calc-seller-standby'
+    ];
+    
+    calcInputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', runFullCalculator);
+            el.addEventListener('change', runFullCalculator);
+        }
+    });
+    
+    // Seller note toggle
+    document.getElementById('calc-seller-enabled')?.addEventListener('change', (e) => {
+        const fieldsEl = document.getElementById('seller-note-fields');
+        if (fieldsEl) {
+            fieldsEl.style.display = e.target.checked ? 'block' : 'none';
+        }
+        runFullCalculator();
+    });
+    
+    // Target offer calculator
+    document.getElementById('calc-target-btn')?.addEventListener('click', calculateTargetOffer);
+    document.getElementById('use-target-btn')?.addEventListener('click', useTargetOffer);
+    
+    // Calculator collapse/expand toggle
+    const calcHeader = document.getElementById('calc-header');
+    const calcBody = document.getElementById('calc-body');
+    if (calcHeader && calcBody) {
+        calcHeader.addEventListener('click', () => {
+            calcHeader.classList.toggle('collapsed');
+            calcBody.classList.toggle('collapsed');
+        });
+    }
+    
+    // Scenario tabs
+    document.querySelectorAll('.calc-scenario-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            const scenarioIndex = parseInt(e.target.dataset.scenario);
+            switchScenario(scenarioIndex);
+        });
+    });
+    
+    // Panel drag functionality
+    initializePanelDrag();
+    
+    // Load view style preference and set in Buy Box
+    chrome.storage.local.get(['dealViewStyle'], (result) => {
+        dealViewStyle = result.dealViewStyle || 'popup';
+        const popupRadio = document.getElementById('view-style-popup');
+        const sidebarRadio = document.getElementById('view-style-sidebar');
+        if (popupRadio && sidebarRadio) {
+            popupRadio.checked = dealViewStyle === 'popup';
+            sidebarRadio.checked = dealViewStyle === 'sidebar';
+        }
+    });
+    
+    // Save view style preference when changed
+    document.querySelectorAll('input[name="deal-view-style"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            dealViewStyle = e.target.value;
+            chrome.storage.local.set({ dealViewStyle });
+        });
+    });
+}
+
+// ====== PANEL DRAG FUNCTIONALITY ======
+let isDragging = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let panelStartLeft = 0;
+let panelStartTop = 0;
+
+function initializePanelDrag() {
+    const panel = document.getElementById('deal-details-panel');
+    const header = document.getElementById('deal-panel-close')?.parentElement; // Get header element
+    
+    if (!panel || !header) return;
+    
+    header.addEventListener('mousedown', (e) => {
+        // Don't drag if clicking close button
+        if (e.target.closest('.deal-panel-close')) return;
+        
+        // Only enable drag for popup mode
+        if (!panel.classList.contains('popup-mode')) return;
+        
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        
+        // Get current position
+        const rect = panel.getBoundingClientRect();
+        panelStartLeft = rect.left;
+        panelStartTop = rect.top;
+        
+        // Remove transform and set absolute positioning
+        panel.classList.add('dragging');
+        panel.style.left = panelStartLeft + 'px';
+        panel.style.top = panelStartTop + 'px';
+        
+        e.preventDefault();
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const panel = document.getElementById('deal-details-panel');
+        if (!panel) return;
+        
+        const deltaX = e.clientX - dragStartX;
+        const deltaY = e.clientY - dragStartY;
+        
+        panel.style.left = (panelStartLeft + deltaX) + 'px';
+        panel.style.top = (panelStartTop + deltaY) + 'px';
+    });
+    
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+}
+
+// ====== SCENARIO MANAGEMENT ======
+let currentScenarioIndex = 0;
+let dealScenarios = [{}, {}, {}]; // Store 3 scenarios
+
+function switchScenario(index) {
+    // Save current scenario first
+    saveCurrentScenarioData();
+    
+    // Update tab UI
+    document.querySelectorAll('.calc-scenario-tab').forEach((tab, i) => {
+        tab.classList.toggle('active', i === index);
+    });
+    
+    currentScenarioIndex = index;
+    
+    // Load scenario data
+    loadScenarioData(index);
+    
+    // Recalculate
+    runFullCalculator();
+}
+
+function saveCurrentScenarioData() {
+    dealScenarios[currentScenarioIndex] = {
+        ebitda: document.getElementById('calc-ebitda')?.value || '',
+        asking: document.getElementById('calc-asking')?.value || '',
+        dscr: document.getElementById('calc-dscr')?.value || '1.25',
+        sbaPercent: document.getElementById('calc-sba-percent')?.value || '80',
+        sbaRate: document.getElementById('calc-sba-rate')?.value || '11.5',
+        sbaTerm: document.getElementById('calc-sba-term')?.value || '10',
+        equityPercent: document.getElementById('calc-equity-percent')?.value || '10',
+        salary: document.getElementById('calc-salary')?.value || '150000',
+        sellerEnabled: document.getElementById('calc-seller-enabled')?.checked || false,
+        sellerPercent: document.getElementById('calc-seller-percent')?.value || '10',
+        sellerRate: document.getElementById('calc-seller-rate')?.value || '6.0',
+        sellerType: document.getElementById('calc-seller-type')?.value || 'amortizing',
+        sellerStandby: document.getElementById('calc-seller-standby')?.value || 'no'
+    };
+}
+
+function loadScenarioData(index) {
+    const scenario = dealScenarios[index];
+    
+    // Set values, using defaults if scenario is empty
+    const setVal = (id, val, def) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val || def;
+    };
+    
+    setVal('calc-ebitda', scenario.ebitda, '');
+    setVal('calc-asking', scenario.asking, '');
+    setVal('calc-dscr', scenario.dscr, '1.25');
+    setVal('calc-sba-percent', scenario.sbaPercent, '80');
+    setVal('calc-sba-rate', scenario.sbaRate, '11.5');
+    setVal('calc-sba-term', scenario.sbaTerm, '10');
+    setVal('calc-equity-percent', scenario.equityPercent, '10');
+    setVal('calc-salary', scenario.salary, '150000');
+    setVal('calc-seller-percent', scenario.sellerPercent, '10');
+    setVal('calc-seller-rate', scenario.sellerRate, '6.0');
+    setVal('calc-seller-type', scenario.sellerType, 'amortizing');
+    setVal('calc-seller-standby', scenario.sellerStandby, 'no');
+    
+    // Handle seller checkbox
+    const sellerCheck = document.getElementById('calc-seller-enabled');
+    if (sellerCheck) {
+        sellerCheck.checked = scenario.sellerEnabled || false;
+        const fieldsEl = document.getElementById('seller-note-fields');
+        if (fieldsEl) {
+            fieldsEl.style.display = sellerCheck.checked ? 'block' : 'none';
+        }
+    }
+}
+
+function resetScenarios() {
+    dealScenarios = [{}, {}, {}];
+    currentScenarioIndex = 0;
+    document.querySelectorAll('.calc-scenario-tab').forEach((tab, i) => {
+        tab.classList.toggle('active', i === 0);
+    });
 }
 
 // ===== SOURCE MANAGEMENT MODAL =====

@@ -268,12 +268,11 @@
         .aggregator-search {
             flex: 1;
             min-width: 250px;
-            position: relative;
         }
 
         .aggregator-search input {
             width: 100%;
-            padding: 10px 12px 10px 40px;
+            padding: 10px 14px;
             border: 2px solid var(--border-color);
             border-radius: 8px;
             font-size: 14px;
@@ -286,14 +285,6 @@
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .aggregator-search-icon {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-secondary);
         }
 
         .aggregator-filter-btn {
@@ -317,6 +308,262 @@
             background: #667eea;
             color: white;
             border-color: #667eea;
+        }
+
+        /* Exclude Keywords Section */
+        .exclude-keywords-section {
+            background: var(--bg-secondary);
+            border: 2px solid #e74c3c;
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+
+        .exclude-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .exclude-label {
+            font-weight: 600;
+            color: #e74c3c;
+            font-size: 13px;
+        }
+
+        .exclude-list-controls {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .exclude-list-controls select {
+            padding: 5px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 12px;
+            min-width: 140px;
+        }
+
+        .exclude-btn {
+            padding: 5px 10px;
+            border: 1px solid #e74c3c;
+            border-radius: 4px;
+            background: transparent;
+            color: #e74c3c;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .exclude-btn:hover {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .exclude-btn-clear {
+            background: var(--bg-tertiary);
+            border-color: var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .exclude-btn-clear:hover {
+            background: var(--bg-secondary);
+            border-color: var(--text-secondary);
+            color: var(--text-primary);
+        }
+
+        .exclude-input-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .exclude-input-row input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+
+        .exclude-input-row input:focus {
+            outline: none;
+            border-color: #e74c3c;
+        }
+
+        .exclude-add-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: #e74c3c;
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .exclude-add-btn:hover {
+            background: #c0392b;
+        }
+
+        .exclude-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 32px;
+        }
+
+        .exclude-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: #e74c3c;
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .exclude-tag-remove {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 10px;
+            line-height: 1;
+            transition: background 0.2s;
+        }
+
+        .exclude-tag-remove:hover {
+            background: rgba(255,255,255,0.5);
+        }
+
+        .exclude-tags-empty {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        /* Controls Row */
+        .controls-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .controls-row .aggregator-search {
+            flex: 1;
+        }
+
+        .toolbar-btn {
+            padding: 8px 14px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--bg-secondary);
+            border-color: #667eea;
+        }
+
+        .toolbar-btn-danger {
+            border-color: #e74c3c;
+            color: #e74c3c;
+        }
+
+        .toolbar-btn-danger:hover {
+            background: #e74c3c;
+            color: white;
+        }
+
+        /* Column Visibility Panel */
+        .column-visibility-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 12px;
+        }
+
+        .column-visibility-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .column-close-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+
+        .column-close-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .column-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 20px;
+        }
+
+        .column-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .column-checkboxes input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .column-checkboxes label.no-data {
+            opacity: 0.6;
+        }
+
+        .column-checkboxes .no-data-hint {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            margin-left: 4px;
+        }
+
+        .deal-link {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .deal-link:hover {
+            text-decoration: underline;
         }
 
         .aggregator-table {
@@ -1964,13 +2211,621 @@
                 transform: translateY(0);
             }
         }
+
+        /* Radio Group Styles */
+        .radio-group {
+            display: flex;
+            gap: 20px;
+        }
+
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .radio-label input[type="radio"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        /* Deal Details Panel */
+        .deal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 999;
+        }
+
+        .deal-panel {
+            position: fixed;
+            background: var(--bg-secondary);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+            resize: both;
+            overflow: hidden;
+            min-width: 400px;
+            min-height: 300px;
+        }
+
+        .deal-panel.popup-mode {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 700px;
+            max-width: 95vw;
+            max-height: 90vh;
+            border-radius: 12px;
+        }
+
+        .deal-panel.popup-mode.dragging {
+            transform: none;
+        }
+
+        .deal-panel.sidebar-mode {
+            top: 0;
+            right: 0;
+            width: 550px;
+            height: 100vh;
+            border-radius: 0;
+        }
+
+        .deal-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            flex-shrink: 0;
+            cursor: move;
+            user-select: none;
+        }
+
+        .deal-panel-header h2 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: calc(100% - 40px);
+        }
+
+        .deal-panel-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            line-height: 1;
+            padding: 4px;
+        }
+
+        .deal-panel-close:hover {
+            color: var(--text-primary);
+        }
+
+        .deal-panel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px 16px;
+        }
+
+        .deal-section {
+            margin-bottom: 16px;
+        }
+
+        .deal-section h3 {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Compact Deal Overview Grid */
+        .deal-info-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+
+        .deal-info-item {
+            background: var(--bg-tertiary);
+            padding: 8px 10px;
+            border-radius: 6px;
+        }
+
+        .deal-info-label {
+            font-size: 9px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        .deal-info-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .deal-info-value.price {
+            color: #27ae60;
+        }
+
+        /* Broker Info - More Details */
+        .deal-broker-info {
+            background: var(--bg-tertiary);
+            padding: 10px 12px;
+            border-radius: 8px;
+        }
+
+        .broker-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .broker-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .broker-item.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .broker-label {
+            font-size: 9px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        .broker-value {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .broker-value a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .broker-value a:hover {
+            text-decoration: underline;
+        }
+
+        .broker-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+
+        /* Description - Auto-scale */
+        .deal-description {
+            background: var(--bg-tertiary);
+            padding: 12px;
+            border-radius: 8px;
+            line-height: 1.5;
+            color: var(--text-primary);
+            font-size: 12px;
+            max-height: none;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        /* Full Calculator Styles - Collapsible */
+        .deal-calculator-section {
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .calc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 14px;
+            cursor: pointer;
+            user-select: none;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .calc-header:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .calc-header-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .calc-toggle-icon {
+            transition: transform 0.2s ease;
+            font-size: 12px;
+        }
+
+        .calc-header.collapsed .calc-toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .calc-body {
+            padding: 14px;
+            display: block;
+        }
+
+        .calc-body.collapsed {
+            display: none;
+        }
+
+        /* Scenario Tabs */
+        .calc-scenario-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .calc-scenario-tab {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .calc-scenario-tab:hover {
+            border-color: #667eea;
+            color: var(--text-primary);
+        }
+
+        .calc-scenario-tab.active {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        .calc-section {
+            margin-bottom: 12px;
+        }
+
+        .calc-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .calc-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .calc-field {
+            flex: 1;
+        }
+
+        .calc-field.small {
+            flex: 0 0 auto;
+            min-width: 70px;
+        }
+
+        .calc-field label {
+            display: block;
+            font-size: 9px;
+            color: var(--text-secondary);
+            margin-bottom: 3px;
+        }
+
+        .calc-field input, .calc-field select {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 12px;
+        }
+
+        .calc-percent-warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 6px 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+
+        .financing-block {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+
+        .financing-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .financing-label {
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--text-primary);
+        }
+
+        .financing-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        .financing-checkbox input {
+            width: 14px;
+            height: 14px;
+        }
+
+        .financing-summary {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        /* Results Grid - Compact */
+        .calc-results-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .result-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 6px;
+            text-align: center;
+        }
+
+        .result-card.primary {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(102, 126, 234, 0.05));
+            border-color: #667eea;
+        }
+
+        .result-card-title {
+            font-size: 8px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            line-height: 1.2;
+        }
+
+        .result-card-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .result-card.primary .result-card-value {
+            color: #667eea;
+        }
+
+        .result-card-value.good { color: #27ae60; }
+        .result-card-value.warning { color: #f39c12; }
+        .result-card-value.bad { color: #e74c3c; }
+
+        /* Calc Details - Compact */
+        .calc-details {
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 12px;
+        }
+
+        .calc-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 11px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .calc-detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .calc-detail-row.highlight {
+            background: rgba(39, 174, 96, 0.1);
+            margin: 3px -10px;
+            padding: 8px 10px;
+            border-radius: 5px;
+            font-weight: 600;
+        }
+
+        .calc-detail-row span:last-child {
+            font-weight: 600;
+        }
+
+        /* Target Offer */
+        .target-offer-section {
+            background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), rgba(52, 152, 219, 0.05));
+            border: 1px solid #3498db;
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .target-offer-header {
+            font-weight: 600;
+            font-size: 12px;
+            color: #3498db;
+            margin-bottom: 6px;
+        }
+
+        .target-offer-desc {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .calc-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            background: #3498db;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .calc-btn:hover {
+            background: #2980b9;
+        }
+
+        .calc-btn.use-target {
+            width: 100%;
+            background: #27ae60;
+            margin-top: 8px;
+        }
+
+        .calc-btn.use-target:hover {
+            background: #229954;
+        }
+
+        .target-offer-result {
+            margin-top: 12px;
+        }
+
+        .target-price-box {
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .target-label {
+            font-size: 9px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .target-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #3498db;
+        }
+
+        .target-subtitle {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .target-comparison {
+            font-size: 11px;
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+            padding: 8px;
+            border-radius: 5px;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 700px) {
+            .calc-results-grid { grid-template-columns: repeat(2, 1fr); }
+            .calc-row { flex-wrap: wrap; }
+            .deal-info-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .deal-panel-footer {
+            display: flex;
+            gap: 8px;
+            padding: 10px 16px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            flex-shrink: 0;
+        }
+
+        .deal-btn {
+            padding: 8px 16px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+        }
+
+        .deal-btn.primary {
+            background: #667eea;
+            color: white;
+            border: none;
+        }
+
+        .deal-btn.primary:hover { background: #5a6fd6; }
+
+        .deal-btn.secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .deal-btn.secondary:hover { background: var(--bg-primary); }
+        
+        .deal-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        @media (max-width: 700px) {
+            .deal-panel.sidebar-mode { width: 100%; }
+            .scenarios-container, .calculator-inputs { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>📊 Deal Acquisition Platform</h1>
         <p>From discovery to closing: Data → Information → Knowledge → Insight → Wisdom</p>
-        <span class="header-version" id="header-version">v2.1.11</span>
+        <span class="header-version" id="header-version">v2.1.43</span>
     </div>
 
     <!-- Global Action Buttons (always accessible) -->
@@ -2043,10 +2898,10 @@
             <h2>🔍 Discover Business Deals</h2>
             <p>Explore 100+ active deals aggregated from 200+ sources</p>
             <div class="aggregator-stats">
-                <div class="aggregator-stat">📊 <span id="total-aggregated">0</span> Total Deals</div>
-                <div class="aggregator-stat">🔥 <span id="new-today">0</span> Added Today</div>
-                <div class="aggregator-stat">🎯 <span id="matches-buybox">0</span> Match Your Buy Box</div>
-                <div class="aggregator-stat">⚡ <span id="sources-active">0</span> Active Sources</div>
+                <div class="aggregator-stat">Total: <span id="total-aggregated">0</span> Deals</div>
+                <div class="aggregator-stat">New: <span id="new-today">0</span> Added Today</div>
+                <div class="aggregator-stat">Showing: <span id="showing-count">0</span> of <span id="total-count">0</span></div>
+                <div class="aggregator-stat">Sources: <span id="sources-active">0</span> Active</div>
             </div>
         </div>
 
@@ -2065,23 +2920,67 @@
         <!-- Aggregator Table -->
         <div class="aggregator-table-container" id="aggregator-table-container">
             <div class="aggregator-controls">
-                <div class="aggregator-search">
-                    <span class="aggregator-search-icon">🔍</span>
-                    <input type="text" id="aggregator-search" placeholder="Search deals by name, location, or industry...">
+                <!-- Row 1: Search + Buttons -->
+                <div class="controls-row">
+                    <div class="aggregator-search">
+                        <input type="text" id="aggregator-search" placeholder="Search deals by name, location, or industry...">
+                    </div>
+                    <button class="toolbar-btn" id="toggle-columns-btn">Columns</button>
+                    <button class="toolbar-btn toolbar-btn-danger" id="clear-refresh-btn">Clear & Refresh</button>
+                </div>
+                
+                <!-- Column Visibility Panel (appears when Columns clicked) -->
+                <div class="column-visibility-panel" id="column-visibility-panel" style="display: none;">
+                    <div class="column-visibility-header">
+                        <span>Show/Hide Columns:</span>
+                        <button class="column-close-btn" id="close-columns-panel">&times;</button>
+                    </div>
+                    <div class="column-checkboxes" id="column-checkboxes">
+                        <!-- Checkboxes will be inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Row 2: Exclude Keywords -->
+                <div class="exclude-keywords-section">
+                    <div class="exclude-header">
+                        <span class="exclude-label">Exclude Keywords:</span>
+                        <div class="exclude-list-controls">
+                            <select id="exclude-list-select" title="Select saved list">
+                                <option value="">-- Select List --</option>
+                            </select>
+                            <button class="exclude-btn" id="update-exclude-list" title="Update selected list with current keywords" style="display: none;">Update</button>
+                            <button class="exclude-btn" id="save-exclude-list" title="Save as new list">Save New</button>
+                            <button class="exclude-btn" id="delete-exclude-list" title="Delete selected list">Delete</button>
+                            <button class="exclude-btn exclude-btn-clear" id="clear-exclude-keywords" title="Clear all keywords">Clear All</button>
+                        </div>
+                    </div>
+                    <div class="exclude-input-row">
+                        <input type="text" id="exclude-keyword-input" placeholder="Type keyword and press Enter..." />
+                        <button class="exclude-add-btn" id="add-exclude-keyword">Add</button>
+                    </div>
+                    <div class="exclude-tags" id="exclude-tags">
+                        <!-- Tags will be inserted here -->
+                    </div>
                 </div>
             </div>
 
             <table class="aggregator-table">
                 <thead>
                     <tr>
-                        <th class="sortable" data-sort="name">NAME</th>
-                        <th class="sortable" data-sort="price">ASKING</th>
-                        <th class="sortable" data-sort="ebitda">EBITDA</th>
-                        <th class="sortable" data-sort="location">LOCATION</th>
-                        <th class="sortable" data-sort="industry">INDUSTRY</th>
-                        <th class="sortable" data-sort="source">SOURCE</th>
-                        <th class="sortable" data-sort="date">DISCOVERED</th>
-                        <th style="width: 120px;">ACTIONS</th>
+                        <th class="sortable" data-sort="name" data-col="name">NAME</th>
+                        <th class="sortable" data-sort="price" data-col="price">ASKING</th>
+                        <th class="sortable" data-sort="ebitda" data-col="ebitda">EBITDA</th>
+                        <th class="sortable" data-sort="revenue" data-col="revenue">REVENUE</th>
+                        <th class="sortable" data-sort="location" data-col="location">LOCATION</th>
+                        <th class="sortable" data-sort="city" data-col="city">CITY</th>
+                        <th class="sortable" data-sort="state" data-col="state">STATE</th>
+                        <th class="sortable" data-sort="industry" data-col="industry">INDUSTRY</th>
+                        <th class="sortable" data-sort="source" data-col="source">SOURCE</th>
+                        <th class="sortable" data-sort="broker" data-col="broker">BROKER</th>
+                        <th class="sortable" data-sort="date" data-col="date">DATE ADDED</th>
+                        <th data-col="description">DESCRIPTION</th>
+                        <th data-col="url">URL</th>
+                        <th style="width: 100px;" data-col="actions">ACTIONS</th>
                     </tr>
                 </thead>
                 <tbody id="aggregator-tbody">
@@ -2967,7 +3866,7 @@
                 </div>
 
                 <div class="form-section">
-                    <h4>🏭 Industry Preferences</h4>
+                    <h4>Industry Preferences</h4>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Target Industries</label>
@@ -2997,18 +3896,266 @@
                     </div>
                 </div>
 
+                <div class="form-section">
+                    <h4>Display Preferences</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Deal Details View</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="deal-view-style" id="view-style-popup" value="popup" checked />
+                                    <span>Popup Window</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="deal-view-style" id="view-style-sidebar" value="sidebar" />
+                                    <span>Sidebar Panel</span>
+                                </label>
+                            </div>
+                            <div class="form-hint">How deal details are displayed when clicking a deal</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="form-section" style="background: var(--bg-tertiary); padding: 15px; border-radius: 8px;">
-                    <h4 style="margin-bottom: 10px;">✨ Preview</h4>
+                    <h4 style="margin-bottom: 10px;">Preview</h4>
                     <p id="buybox-preview" style="color: var(--text-secondary); font-size: 13px;">
                         Configure your criteria above to see a preview of matching deals
                     </p>
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="buybox-save" class="modal-btn">💾 Save Buy Box</button>
+                <button id="buybox-save" class="modal-btn">Save Buy Box</button>
                 <button id="buybox-reset" class="modal-btn secondary">🔄 Reset to Defaults</button>
                 <button id="buybox-cancel" class="modal-btn secondary">Cancel</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Deal Details Panel (Popup or Sidebar mode) -->
+    <div id="deal-details-overlay" class="deal-overlay" style="display: none;"></div>
+    <div id="deal-details-panel" class="deal-panel" style="display: none;">
+        <div class="deal-panel-header">
+            <h2 id="deal-panel-title">Deal Details</h2>
+            <button class="deal-panel-close" id="deal-panel-close">&times;</button>
+        </div>
+        <div class="deal-panel-body">
+            <!-- Deal Info Section -->
+            <div class="deal-section">
+                <h3>Deal Overview</h3>
+                <div class="deal-info-grid" id="deal-info-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Broker Info Section -->
+            <div class="deal-section">
+                <h3>Broker Information</h3>
+                <div class="deal-broker-info" id="deal-broker-info">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Description Section -->
+            <div class="deal-section">
+                <h3>Description</h3>
+                <div class="deal-description" id="deal-description">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Deal Calculator Section - Collapsible with Scenarios -->
+            <div class="deal-section deal-calculator-section">
+                <div class="calc-header" id="calc-header">
+                    <span class="calc-header-title">
+                        <span class="calc-toggle-icon">▼</span>
+                        Deal Analyzer Calculator
+                    </span>
+                </div>
+                <div class="calc-body" id="calc-body">
+                    <!-- Scenario Tabs -->
+                    <div class="calc-scenario-tabs">
+                        <button class="calc-scenario-tab active" data-scenario="0">Scenario 1</button>
+                        <button class="calc-scenario-tab" data-scenario="1">Scenario 2</button>
+                        <button class="calc-scenario-tab" data-scenario="2">Scenario 3</button>
+                    </div>
+                    
+                    <!-- Deal Inputs -->
+                    <div class="calc-section">
+                        <div class="calc-row">
+                            <div class="calc-field">
+                                <label>EBITDA/SDE ($)</label>
+                                <input type="text" id="calc-ebitda" placeholder="0" />
+                            </div>
+                            <div class="calc-field">
+                                <label>Asking Price ($)</label>
+                                <input type="text" id="calc-asking" placeholder="0" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Financing Structure -->
+                    <div class="calc-section">
+                        <div class="calc-section-title">Financing Structure</div>
+                        <div class="calc-percent-warning" id="calc-percent-warning" style="display:none;">
+                            Percentages must total 100%
+                        </div>
+                        
+                        <!-- SBA Loan -->
+                        <div class="financing-block">
+                            <div class="financing-header">
+                                <span class="financing-label">A. SBA Loan</span>
+                                <span class="financing-summary" id="sba-summary">80% • 11.5% • 10yr</span>
+                            </div>
+                            <div class="calc-row">
+                                <div class="calc-field small">
+                                    <label>% of Price</label>
+                                    <input type="number" id="calc-sba-percent" value="80" step="5" min="0" max="100" />
+                                </div>
+                                <div class="calc-field small">
+                                    <label>Rate (%)</label>
+                                    <input type="number" id="calc-sba-rate" value="11.5" step="0.25" />
+                                </div>
+                                <div class="calc-field small">
+                                    <label>Term (Yrs)</label>
+                                    <input type="number" id="calc-sba-term" value="10" />
+                                </div>
+                                <div class="calc-field small">
+                                    <label>DSCR Target</label>
+                                    <input type="number" id="calc-dscr" value="1.25" step="0.05" min="1.0" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Buyer Equity -->
+                        <div class="financing-block">
+                            <div class="financing-header">
+                                <span class="financing-label">B. Buyer Equity</span>
+                                <span class="financing-summary" id="equity-summary">10% • $150k salary</span>
+                            </div>
+                            <div class="calc-row">
+                                <div class="calc-field small">
+                                    <label>% of Price</label>
+                                    <input type="number" id="calc-equity-percent" value="10" step="5" min="0" max="100" />
+                                </div>
+                                <div class="calc-field">
+                                    <label>Target Owner Salary ($)</label>
+                                    <input type="text" id="calc-salary" value="150000" placeholder="150000" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Seller Note -->
+                        <div class="financing-block">
+                            <div class="financing-header">
+                                <label class="financing-checkbox">
+                                    <input type="checkbox" id="calc-seller-enabled" />
+                                    <span class="financing-label">C. Seller Note (Optional)</span>
+                                </label>
+                                <span class="financing-summary" id="seller-summary">10% • 6% • Amortizing</span>
+                            </div>
+                            <div class="seller-note-fields" id="seller-note-fields" style="display:none;">
+                                <div class="calc-row">
+                                    <div class="calc-field small">
+                                        <label>% of Price</label>
+                                        <input type="number" id="calc-seller-percent" value="10" step="5" min="0" max="100" />
+                                    </div>
+                                    <div class="calc-field small">
+                                        <label>Rate (%)</label>
+                                        <input type="number" id="calc-seller-rate" value="6.0" step="0.25" />
+                                    </div>
+                                    <div class="calc-field small">
+                                        <label>Payment</label>
+                                        <select id="calc-seller-type">
+                                            <option value="amortizing">Amortizing</option>
+                                            <option value="interest-only">Interest Only</option>
+                                        </select>
+                                    </div>
+                                    <div class="calc-field small">
+                                        <label>Standby?</label>
+                                        <select id="calc-seller-standby">
+                                            <option value="no">No</option>
+                                            <option value="yes">Yes</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Grid -->
+                    <div class="calc-results-grid">
+                        <!-- Max Allowable -->
+                        <div class="result-card primary">
+                            <div class="result-card-title">Max Price (DSCR)</div>
+                            <div class="result-card-value" id="calc-max-price">$0</div>
+                        </div>
+                        
+                        <!-- ROI Metrics -->
+                        <div class="result-card">
+                            <div class="result-card-title">Cash-on-Cash</div>
+                            <div class="result-card-value" id="calc-coc">0%</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="result-card-title">Payback</div>
+                            <div class="result-card-value" id="calc-payback">0 yrs</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="result-card-title">DSCR</div>
+                            <div class="result-card-value" id="calc-actual-dscr">0x</div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Results -->
+                    <div class="calc-details">
+                        <div class="calc-detail-row">
+                            <span>Total Debt Service (Annual)</span>
+                            <span id="calc-debt-service">$0</span>
+                        </div>
+                        <div class="calc-detail-row">
+                            <span>Available Cash Flow</span>
+                            <span id="calc-available-cash">$0</span>
+                        </div>
+                        <div class="calc-detail-row">
+                            <span>Free Cash Flow (After Salary)</span>
+                            <span id="calc-fcf">$0</span>
+                        </div>
+                        <div class="calc-detail-row highlight">
+                            <span>Total Owner Take-Home</span>
+                            <span id="calc-takehome">$0</span>
+                        </div>
+                    </div>
+
+                    <!-- Target Offer Calculator -->
+                    <div class="target-offer-section">
+                        <div class="target-offer-header">
+                            <span>Target Offer Calculator</span>
+                        </div>
+                        <div class="target-offer-desc">
+                            Calculate max offer that achieves your target COC return while meeting DSCR and salary requirements.
+                        </div>
+                        <div class="calc-row">
+                            <div class="calc-field">
+                                <label>Target COC Return (%)</label>
+                                <input type="number" id="calc-target-coc" value="25" step="5" />
+                            </div>
+                            <button class="calc-btn" id="calc-target-btn">Calculate Target Offer</button>
+                        </div>
+                        <div class="target-offer-result" id="target-offer-result" style="display:none;">
+                            <div class="target-price-box">
+                                <div class="target-label">Recommended Offer Price</div>
+                                <div class="target-value" id="target-price">$0</div>
+                                <div class="target-subtitle" id="target-subtitle">-</div>
+                            </div>
+                            <div class="target-comparison" id="target-comparison"></div>
+                            <button class="calc-btn use-target" id="use-target-btn">Use This Price</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="deal-panel-footer">
+            <button class="deal-btn primary" id="save-deal-btn">Save to My Deals</button>
+            <a class="deal-btn secondary" id="view-listing-btn" href="#" target="_blank">View Original Listing</a>
         </div>
     </div>
 

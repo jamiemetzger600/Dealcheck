@@ -325,12 +325,27 @@
             margin-bottom: 10px;
             flex-wrap: wrap;
             gap: 8px;
+            user-select: none;
         }
 
         .exclude-label {
             font-weight: 600;
             color: #e74c3c;
             font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        #exclude-toggle-icon {
+            display: inline-block;
+            font-size: 12px;
+            transition: transform 0.2s ease;
+        }
+
+        .exclude-content {
+            transition: all 0.3s ease;
+            overflow: hidden;
         }
 
         .exclude-list-controls {
@@ -591,6 +606,36 @@
             user-select: none;
             white-space: nowrap;
             transition: all 0.2s;
+            position: relative;
+            min-width: 80px;
+        }
+        
+        .aggregator-table th.dragging {
+            opacity: 0.5;
+            background: rgba(102, 126, 234, 0.2);
+        }
+        
+        .aggregator-table th.drag-over {
+            border-left: 3px solid #667eea;
+        }
+        
+        .aggregator-table th .resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            cursor: col-resize;
+            background: transparent;
+            z-index: 1;
+        }
+        
+        .aggregator-table th .resize-handle:hover {
+            background: #667eea;
+        }
+        
+        .aggregator-table th.resizing {
+            user-select: none;
         }
 
         .aggregator-table th:hover {
@@ -2825,7 +2870,7 @@
     <div class="header">
         <h1>📊 Deal Acquisition Platform</h1>
         <p>From discovery to closing: Data → Information → Knowledge → Insight → Wisdom</p>
-        <span class="header-version" id="header-version">v2.1.43</span>
+        <span class="header-version" id="header-version">v2.2.0</span>
     </div>
 
     <!-- Global Action Buttons (always accessible) -->
@@ -2846,6 +2891,10 @@
             <button type="button" class="aggregator-filter-btn" id="configure-buybox-btn">
                 <span>⚙️</span>
                 <span>Configure Buy Box</span>
+            </button>
+            <button type="button" class="aggregator-filter-btn" id="settings-btn">
+                <span>🔔</span>
+                <span>Auto-Refresh Settings</span>
             </button>
         </div>
     </div>
@@ -2942,8 +2991,10 @@
                 
                 <!-- Row 2: Exclude Keywords -->
                 <div class="exclude-keywords-section">
-                    <div class="exclude-header">
-                        <span class="exclude-label">Exclude Keywords:</span>
+                    <div class="exclude-header" id="exclude-header-toggle" style="cursor: pointer;">
+                        <span class="exclude-label">
+                            <span id="exclude-toggle-icon">▼</span> Exclude Keywords:
+                        </span>
                         <div class="exclude-list-controls">
                             <select id="exclude-list-select" title="Select saved list">
                                 <option value="">-- Select List --</option>
@@ -2954,12 +3005,14 @@
                             <button class="exclude-btn exclude-btn-clear" id="clear-exclude-keywords" title="Clear all keywords">Clear All</button>
                         </div>
                     </div>
-                    <div class="exclude-input-row">
-                        <input type="text" id="exclude-keyword-input" placeholder="Type keyword and press Enter..." />
-                        <button class="exclude-add-btn" id="add-exclude-keyword">Add</button>
-                    </div>
-                    <div class="exclude-tags" id="exclude-tags">
-                        <!-- Tags will be inserted here -->
+                    <div class="exclude-content" id="exclude-content">
+                        <div class="exclude-input-row">
+                            <input type="text" id="exclude-keyword-input" placeholder="Type keyword and press Enter..." />
+                            <button class="exclude-add-btn" id="add-exclude-keyword">Add</button>
+                        </div>
+                        <div class="exclude-tags" id="exclude-tags">
+                            <!-- Tags will be inserted here -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2980,7 +3033,6 @@
                         <th class="sortable" data-sort="date" data-col="date">DATE ADDED</th>
                         <th data-col="description">DESCRIPTION</th>
                         <th data-col="url">URL</th>
-                        <th style="width: 100px;" data-col="actions">ACTIONS</th>
                     </tr>
                 </thead>
                 <tbody id="aggregator-tbody">
@@ -4209,6 +4261,108 @@
         </div>
     </div>
 
+    <!-- Auto-Refresh Settings Modal -->
+    <div id="settings-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>🔔 Auto-Refresh & Notifications</h2>
+                <span class="modal-close" id="settings-modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="modal-section">
+                    <h3>⏰ Auto-Refresh Settings</h3>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                        Automatically check for new deals from your sources in the background
+                    </p>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="auto-refresh-enabled" style="width: auto;" />
+                                <span>Enable Auto-Refresh</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row" id="refresh-interval-row">
+                        <div class="form-group">
+                            <label>Refresh Interval</label>
+                            <select id="refresh-interval" style="width: 100%;">
+                                <option value="15">Every 15 minutes</option>
+                                <option value="30">Every 30 minutes</option>
+                                <option value="60" selected>Every 1 hour</option>
+                                <option value="120">Every 2 hours</option>
+                                <option value="240">Every 4 hours</option>
+                                <option value="480">Every 8 hours</option>
+                                <option value="1440">Once per day</option>
+                            </select>
+                            <div class="form-hint">How often to check for new deals</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; font-size: 12px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                    <span style="color: var(--text-secondary);">Last Refresh:</span>
+                                    <span id="last-refresh-time">Never</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="color: var(--text-secondary);">Next Refresh:</span>
+                                    <span id="next-refresh-time">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <h3>🔔 New Deal Notifications</h3>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                        Get notified when new deals matching your Buy Box are found
+                    </p>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="notify-new-deals" style="width: auto;" />
+                                <span>Show notifications for new matching deals</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <div style="background: #667eea15; border: 1px solid #667eea50; padding: 12px; border-radius: 8px; font-size: 12px;">
+                                <strong>💡 Tip:</strong> Configure your Buy Box criteria to receive notifications only for deals that match your investment profile.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <h3>📊 Statistics</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #667eea;" id="total-deals-stat">0</div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Total Deals</div>
+                        </div>
+                        <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #10b981;" id="new-deals-stat">0</div>
+                            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">New Today</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button class="modal-btn" id="save-settings-btn">💾 Save Settings</button>
+                    <button class="modal-btn secondary" id="test-notification-btn">🔔 Test Notification</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="version.js"></script>
     <script src="utils/storage-manager.js"></script>
     <script src="utils/custom-source-manager.js"></script>
     <script src="scrapers/rss-parser.js"></script>

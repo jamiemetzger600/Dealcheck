@@ -122,8 +122,15 @@ function switchTab(tabName) {
 }
 
 // Initialize tabs on load
-function initializeDashboard() {
-    console.log('Initializing Deal Aggregator v2.1.43');
+async function initializeDashboard() {
+    // Get version from centralized version.js
+    const version = window.EXTENSION_VERSION || '2.2.0';
+    console.log(`Initializing Deal Aggregator v${version}`);
+    
+    // Load Buy Box configuration FIRST before anything else
+    console.log('📦 Loading Buy Box configuration...');
+    await loadBuyBoxConfig();
+    console.log('✅ Buy Box configuration loaded:', currentBuyBox);
     
     // Add global test functions for debugging
     window.testSourceModal = function() {
@@ -381,6 +388,11 @@ function initializeDashboard() {
     initializeColumnVisibility();
     initializeClearRefresh();
     
+    // Set up column drag & drop and resizing
+    setTimeout(() => {
+        initializeColumnDragDrop();
+    }, 500); // Delay to ensure table is rendered
+    
     // Set up deal details panel
     initializeDealPanel();
     
@@ -513,11 +525,17 @@ function initializeDashboard() {
 
 // Run initialization - handle case where DOMContentLoaded already fired
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeDashboard);
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeDashboard().catch(err => {
+            console.error('❌ Dashboard initialization failed:', err);
+        });
+    });
 } else {
     // DOM already loaded, run immediately
     console.log('🚀 DOM already ready, initializing immediately...');
-    initializeDashboard();
+    initializeDashboard().catch(err => {
+        console.error('❌ Dashboard initialization failed:', err);
+    });
 }
 
 // Load and display aggregated deals
@@ -529,28 +547,27 @@ let currentAggregatorSort = { field: 'date', direction: 'desc' };
 
 async function loadAggregatorDeals() {
     try {
+        // Load Buy Box configuration first
+        await loadBuyBoxConfig();
+        
         const deals = await loadAggregatedDeals();
         console.log(`📊 Loaded ${deals.length} aggregated deals`);
         
         aggregatedDeals = deals;
-        filteredAggregatedDeals = deals;
         
         // Update stats
-        document.getElementById('total-aggregated').textContent = deals.length;
-        document.getElementById('aggregator-count').textContent = deals.length;
-        document.getElementById('total-count').textContent = deals.length;
+        document.getElementById('total-aggregated').textContent = formatNumber(deals.length);
+        document.getElementById('aggregator-count').textContent = formatNumber(deals.length);
+        document.getElementById('total-count').textContent = formatNumber(deals.length);
         
         // Calculate today's new deals
         const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
         const newToday = deals.filter(d => d.discoveredAt > oneDayAgo).length;
-        document.getElementById('new-today').textContent = newToday;
+        document.getElementById('new-today').textContent = formatNumber(newToday);
         
         // Update sources count
         const sources = new Set(deals.map(d => d.source));
-        document.getElementById('sources-active').textContent = sources.size;
-        
-        // Update showing count (will be updated by filter)
-        document.getElementById('showing-count').textContent = deals.length;
+        document.getElementById('sources-active').textContent = formatNumber(sources.size);
         
         // If we have deals, show table and hide empty state
         const emptyState = document.getElementById('aggregator-empty');
@@ -559,7 +576,9 @@ async function loadAggregatorDeals() {
         if (deals.length > 0) {
             if (emptyState) emptyState.style.display = 'none';
             if (tableContainer) tableContainer.classList.add('active');
-            renderAggregatorTable();
+            
+            // IMPORTANT: Apply filters (including Buy Box) immediately
+            applyAggregatorFilters();
         } else {
             if (emptyState) emptyState.style.display = 'block';
             if (tableContainer) tableContainer.classList.remove('active');
@@ -582,7 +601,7 @@ function renderAggregatorTable() {
     // Update showing count stat
     const showingCountElem = document.getElementById('showing-count');
     if (showingCountElem) {
-        showingCountElem.textContent = sortedDeals.length;
+        showingCountElem.textContent = formatNumber(sortedDeals.length);
     }
     
     // Paginate
@@ -601,6 +620,9 @@ function renderAggregatorTable() {
     
     // Update pagination
     updateAggregatorPagination(sortedDeals.length);
+    
+    // IMPORTANT: Update column visibility after rendering
+    updateTableColumns();
 }
 
 // Create table row for a deal
@@ -619,12 +641,15 @@ function createAggregatorDealRow(deal) {
         if (typeof content === 'string') {
             cell.innerHTML = content;
         }
-        // Name and actions always visible, others check visibility
-        if (colId !== 'name' && colId !== 'actions') {
+        // Name always visible, others check visibility
+        if (colId !== 'name') {
             cell.style.display = isVisible(colId) ? '' : 'none';
         }
         return cell;
     };
+    
+    // Create cells map for all columns
+    const cells = {};
     
     // Name (always visible)
     const nameCell = createCell('name', '');
@@ -635,71 +660,55 @@ function createAggregatorDealRow(deal) {
             ${matchesBuyBox ? '<span class="buybox-badge">*</span>' : ''}
         </div>
     `;
-    row.appendChild(nameCell);
+    cells['name'] = nameCell;
     
-    // Asking Price
-    row.appendChild(createCell('price', `<span class="aggregator-price">${formatPrice(deal.askingPrice)}</span>`));
+    // Asking Price - MUST match "price" column
+    cells['price'] = createCell('price', `<span class="aggregator-price">${formatPrice(deal.askingPrice)}</span>`);
     
-    // EBITDA
-    row.appendChild(createCell('ebitda', `<span class="aggregator-price positive">${formatPrice(deal.ebitda)}</span>`));
+    // EBITDA - MUST match "ebitda" column  
+    cells['ebitda'] = createCell('ebitda', `<span class="aggregator-price positive">${formatPrice(deal.ebitda)}</span>`);
     
-    // Revenue
-    row.appendChild(createCell('revenue', `<span class="aggregator-price">${formatPrice(deal.revenue)}</span>`));
+    // Revenue - MUST match "revenue" column
+    cells['revenue'] = createCell('revenue', `<span class="aggregator-price">${formatPrice(deal.revenue)}</span>`);
     
     // Location
-    row.appendChild(createCell('location', escapeHtml(deal.location || '-')));
+    cells['location'] = createCell('location', escapeHtml(deal.location || '-'));
     
     // City
-    row.appendChild(createCell('city', escapeHtml(deal.city || '-')));
+    cells['city'] = createCell('city', escapeHtml(deal.city || '-'));
     
     // State
-    row.appendChild(createCell('state', escapeHtml(deal.state || '-')));
+    cells['state'] = createCell('state', escapeHtml(deal.state || '-'));
     
     // Industry
     const industryContent = deal.industry ? 
         `<span class="aggregator-industry-tag">${escapeHtml(deal.industry)}</span>` : '-';
-    row.appendChild(createCell('industry', industryContent));
+    cells['industry'] = createCell('industry', industryContent);
     
     // Source
-    row.appendChild(createCell('source', escapeHtml(deal.source || deal.sourceType || '-')));
+    cells['source'] = createCell('source', escapeHtml(deal.source || deal.sourceType || '-'));
     
     // Broker
-    row.appendChild(createCell('broker', escapeHtml(deal.broker || '-')));
+    cells['broker'] = createCell('broker', escapeHtml(deal.broker || '-'));
     
     // Date
-    row.appendChild(createCell('date', formatRelativeTime(deal.discoveredAt)));
+    cells['date'] = createCell('date', formatRelativeTime(deal.discoveredAt));
     
     // Description
     const descText = deal.description || '';
     const truncatedDesc = descText.length > 80 ? descText.substring(0, 80) + '...' : descText || '-';
-    row.appendChild(createCell('description', escapeHtml(truncatedDesc)));
+    cells['description'] = createCell('description', escapeHtml(truncatedDesc));
     
     // URL
     const urlContent = deal.url ? 
         `<a href="${escapeHtml(deal.url)}" target="_blank" class="deal-link" onclick="event.stopPropagation()">View</a>` : '-';
-    row.appendChild(createCell('url', urlContent));
+    cells['url'] = createCell('url', urlContent);
     
-    // Actions (always visible)
-    const actionsCell = createCell('actions', `
-        <div class="aggregator-actions">
-            <button class="aggregator-action-btn save" title="Save Deal">+</button>
-            <button class="aggregator-action-btn view" title="View Details">i</button>
-        </div>
-    `);
-    row.appendChild(actionsCell);
-    
-    // Click handlers
-    const saveBtn = actionsCell.querySelector('.save');
-    const viewBtn = actionsCell.querySelector('.view');
-    
-    saveBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        saveDealFromAggregator(deal);
-    });
-    
-    viewBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        viewDealDetails(deal);
+    // Append cells in the same order as headers (COLUMN_ORDER)
+    COLUMN_ORDER.forEach(colId => {
+        if (cells[colId]) {
+            row.appendChild(cells[colId]);
+        }
     });
     
     // Row click to view details
@@ -767,7 +776,7 @@ function updateAggregatorPagination(totalDeals) {
     // Update info text
     const infoEl = document.getElementById('pagination-info');
     if (infoEl) {
-        infoEl.textContent = `Showing ${startIdx}-${endIdx} of ${totalDeals} deals`;
+        infoEl.textContent = `Showing ${formatNumber(startIdx)}-${formatNumber(endIdx)} of ${formatNumber(totalDeals)} deals`;
     }
     
     // Update buttons
@@ -793,6 +802,32 @@ function initializeExcludeKeywords() {
     const updateBtn = document.getElementById('update-exclude-list');
     const deleteBtn = document.getElementById('delete-exclude-list');
     const listSelect = document.getElementById('exclude-list-select');
+    
+    // Set up collapsible toggle
+    const headerToggle = document.getElementById('exclude-header-toggle');
+    const excludeContent = document.getElementById('exclude-content');
+    const toggleIcon = document.getElementById('exclude-toggle-icon');
+    
+    // Load collapse state from storage
+    chrome.storage.local.get(['excludeKeywordsExpanded'], (result) => {
+        const isExpanded = result.excludeKeywordsExpanded !== false; // Default to expanded
+        excludeContent.style.display = isExpanded ? 'block' : 'none';
+        toggleIcon.textContent = isExpanded ? '▼' : '▶';
+    });
+    
+    if (headerToggle) {
+        headerToggle.addEventListener('click', (e) => {
+            // Don't toggle if clicking on buttons or select
+            if (e.target.closest('.exclude-list-controls')) return;
+            
+            const isCurrentlyVisible = excludeContent.style.display !== 'none';
+            excludeContent.style.display = isCurrentlyVisible ? 'none' : 'block';
+            toggleIcon.textContent = isCurrentlyVisible ? '▶' : '▼';
+            
+            // Save state
+            chrome.storage.local.set({ excludeKeywordsExpanded: !isCurrentlyVisible });
+        });
+    }
     
     // Load saved data
     chrome.storage.local.get(['currentExcludeKeywords', 'savedExcludeLists', 'currentSelectedList'], (result) => {
@@ -1048,8 +1083,8 @@ const COLUMN_CONFIG = {
     broker: { label: 'Broker', default: false },
     date: { label: 'Date Added', default: true },
     description: { label: 'Description', default: false },
-    url: { label: 'Listing URL', default: false },
-    actions: { label: 'Actions', default: true, required: true }
+    url: { label: 'Listing URL', default: false }
+    // Note: 'actions' column is always visible and not configurable
 };
 
 let visibleColumns = {};
@@ -1091,7 +1126,7 @@ function initializeColumnVisibility() {
 
 // Detect which columns actually have data
 function detectAvailableColumns() {
-    availableColumns = ['name', 'actions']; // Always available
+    availableColumns = ['name']; // Always available
     
     if (aggregatedDeals.length === 0) {
         // Show all possible columns if no data yet
@@ -1170,7 +1205,7 @@ function updateTableColumns() {
     // Update header visibility
     document.querySelectorAll('.aggregator-table th[data-col]').forEach(th => {
         const colId = th.dataset.col;
-        if (colId === 'name' || colId === 'actions') {
+        if (colId === 'name') {
             th.style.display = '';
         } else {
             th.style.display = visibleColumns[colId] ? '' : 'none';
@@ -1180,11 +1215,227 @@ function updateTableColumns() {
     // Update cell visibility
     document.querySelectorAll('.aggregator-table td[data-col]').forEach(td => {
         const colId = td.dataset.col;
-        if (colId === 'name' || colId === 'actions') {
+        if (colId === 'name') {
             td.style.display = '';
         } else {
             td.style.display = visibleColumns[colId] ? '' : 'none';
         }
+    });
+}
+
+// ====== COLUMN DRAG & DROP REORDERING ======
+// Define the canonical column order
+const COLUMN_ORDER = ['name', 'price', 'ebitda', 'revenue', 'location', 'city', 'state', 'industry', 'source', 'broker', 'date', 'description', 'url'];
+
+function ensureColumnOrder() {
+    // Ensure headers are in correct order
+    const thead = document.querySelector('.aggregator-table thead tr');
+    if (!thead) return;
+    
+    const headers = Array.from(thead.querySelectorAll('th[data-col]'));
+    const headerMap = {};
+    headers.forEach(th => {
+        headerMap[th.dataset.col] = th;
+    });
+    
+    // Reorder headers
+    thead.innerHTML = '';
+    COLUMN_ORDER.forEach(colId => {
+        if (headerMap[colId]) {
+            thead.appendChild(headerMap[colId]);
+        }
+    });
+    
+    console.log('✅ Column order reset to default');
+}
+
+// Guard to prevent multiple initializations
+let dragDropInitialized = false;
+
+function initializeColumnDragDrop() {
+    if (dragDropInitialized) {
+        console.log('⚠️ Drag & drop already initialized, skipping');
+        return;
+    }
+    
+    // First, ensure columns are in correct order
+    ensureColumnOrder();
+    
+    // ONLY make aggregator table headers draggable (not My Deals table)
+    const headers = document.querySelectorAll('.aggregator-table th[data-col]');
+    
+    if (headers.length === 0) {
+        console.log('⚠️ No aggregator table headers found, skipping drag & drop init');
+        return;
+    }
+    
+    let draggedColumn = null;
+    
+    console.log('🎯 Initializing drag & drop for', headers.length, 'aggregator columns');
+    
+    headers.forEach(th => {
+        // Skip if already initialized (check for resize handle)
+        if (th.querySelector('.resize-handle')) {
+            console.log('⚠️ Header already has resize handle, skipping:', th.dataset.col);
+            return;
+        }
+        
+        // Make draggable
+        th.draggable = true;
+        
+        // Add resize handle
+        const resizeHandle = document.createElement('div');
+        resizeHandle.className = 'resize-handle';
+        th.appendChild(resizeHandle);
+        
+        // Prevent dragging when clicking for sort (only drag when holding for 200ms)
+        let dragStartTimeout;
+        let isDragEnabled = false;
+        
+        th.addEventListener('mousedown', (e) => {
+            // Don't enable drag if clicking resize handle
+            if (e.target.classList.contains('resize-handle')) return;
+            
+            isDragEnabled = false;
+            dragStartTimeout = setTimeout(() => {
+                isDragEnabled = true;
+            }, 200); // 200ms delay before drag is enabled
+        });
+        
+        th.addEventListener('mouseup', () => {
+            clearTimeout(dragStartTimeout);
+            isDragEnabled = false;
+        });
+        
+        // Drag start
+        th.addEventListener('dragstart', (e) => {
+            if (!isDragEnabled) {
+                e.preventDefault();
+                return false;
+            }
+            draggedColumn = th;
+            th.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', th.innerHTML);
+        });
+        
+        // Drag over
+        th.addEventListener('dragover', (e) => {
+            if (e.preventDefault) {
+                e.preventDefault();
+            }
+            e.dataTransfer.dropEffect = 'move';
+            th.classList.add('drag-over');
+            return false;
+        });
+        
+        // Drag enter
+        th.addEventListener('dragenter', (e) => {
+            th.classList.add('drag-over');
+        });
+        
+        // Drag leave
+        th.addEventListener('dragleave', (e) => {
+            th.classList.remove('drag-over');
+        });
+        
+        // Drop
+        th.addEventListener('drop', (e) => {
+            if (e.stopPropagation) {
+                e.stopPropagation();
+            }
+            
+            if (draggedColumn !== th) {
+                // Reorder columns
+                reorderTableColumns(draggedColumn, th);
+            }
+            
+            th.classList.remove('drag-over');
+            return false;
+        });
+        
+        // Drag end
+        th.addEventListener('dragend', (e) => {
+            headers.forEach(header => {
+                header.classList.remove('dragging', 'drag-over');
+            });
+            draggedColumn = null;
+        });
+        
+        // Column resizing
+        initializeColumnResize(th, resizeHandle);
+    });
+    
+    dragDropInitialized = true;
+    console.log('✅ Drag & drop initialization complete');
+}
+
+function reorderTableColumns(draggedTh, targetTh) {
+    const draggedIndex = Array.from(draggedTh.parentNode.children).indexOf(draggedTh);
+    const targetIndex = Array.from(targetTh.parentNode.children).indexOf(targetTh);
+    
+    if (draggedIndex === targetIndex) return;
+    
+    // Reorder header
+    const thead = draggedTh.parentNode;
+    if (draggedIndex < targetIndex) {
+        thead.insertBefore(draggedTh, targetTh.nextSibling);
+    } else {
+        thead.insertBefore(draggedTh, targetTh);
+    }
+    
+    // Reorder all body cells
+    const tbody = document.getElementById('aggregator-tbody');
+    const rows = tbody.querySelectorAll('tr');
+    
+    rows.forEach(row => {
+        const cells = Array.from(row.children);
+        const draggedCell = cells[draggedIndex];
+        const targetCell = cells[targetIndex];
+        
+        if (draggedCell && targetCell) {
+            if (draggedIndex < targetIndex) {
+                row.insertBefore(draggedCell, targetCell.nextSibling);
+            } else {
+                row.insertBefore(draggedCell, targetCell);
+            }
+        }
+    });
+    
+    console.log('✅ Columns reordered');
+}
+
+// ====== COLUMN RESIZING ======
+function initializeColumnResize(th, resizeHandle) {
+    let startX, startWidth;
+    
+    resizeHandle.addEventListener('mousedown', (e) => {
+        e.stopPropagation(); // Prevent sorting when resizing
+        startX = e.pageX;
+        startWidth = th.offsetWidth;
+        
+        th.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        
+        const onMouseMove = (e) => {
+            const width = startWidth + (e.pageX - startX);
+            if (width > 50) { // Minimum width
+                th.style.width = width + 'px';
+                th.style.minWidth = width + 'px';
+            }
+        };
+        
+        const onMouseUp = () => {
+            th.classList.remove('resizing');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
     });
 }
 
@@ -1245,38 +1496,27 @@ function updateAggregatorStats() {
     
     const sources = new Set(aggregatedDeals.map(d => d.source));
     
-    document.getElementById('total-aggregated').textContent = total;
-    document.getElementById('aggregator-count').textContent = total;
-    document.getElementById('total-count').textContent = total;
-    document.getElementById('showing-count').textContent = showing;
-    document.getElementById('new-today').textContent = newToday;
-    document.getElementById('sources-active').textContent = sources.size;
+    document.getElementById('total-aggregated').textContent = formatNumber(total);
+    document.getElementById('aggregator-count').textContent = formatNumber(total);
+    document.getElementById('total-count').textContent = formatNumber(total);
+    document.getElementById('showing-count').textContent = formatNumber(showing);
+    document.getElementById('new-today').textContent = formatNumber(newToday);
+    document.getElementById('sources-active').textContent = formatNumber(sources.size);
 }
 
 // Apply all aggregator filters (search + exclude keywords)
 function applyAggregatorFilters() {
     let filtered = [...aggregatedDeals];
+    console.log(`🔍 Starting filter with ${filtered.length} deals`);
     
-    // Apply search filter
-    const searchInput = document.getElementById('aggregator-search');
-    const searchQuery = searchInput ? searchInput.value.trim() : '';
+    // STEP 1: Apply Buy Box filter first (most restrictive)
+    const beforeBuyBox = filtered.length;
+    filtered = filtered.filter(deal => dealMatchesBuyBox(deal));
+    console.log(`📦 Buy Box filter: ${beforeBuyBox} → ${filtered.length} deals (removed ${beforeBuyBox - filtered.length})`);
     
-    if (searchQuery) {
-        const lowerQuery = searchQuery.toLowerCase();
-        filtered = filtered.filter(deal => {
-            return (
-                (deal.name || '').toLowerCase().includes(lowerQuery) ||
-                (deal.description || '').toLowerCase().includes(lowerQuery) ||
-                (deal.location || '').toLowerCase().includes(lowerQuery) ||
-                (deal.city || '').toLowerCase().includes(lowerQuery) ||
-                (deal.state || '').toLowerCase().includes(lowerQuery) ||
-                (deal.industry || '').toLowerCase().includes(lowerQuery)
-            );
-        });
-    }
-    
-    // Apply exclude keywords filter (from tags)
+    // STEP 2: Apply exclude keywords filter
     if (currentExcludeKeywords.length > 0) {
+        const beforeExclude = filtered.length;
         filtered = filtered.filter(deal => {
             const searchableText = [
                 deal.name || '',
@@ -1288,6 +1528,27 @@ function applyAggregatorFilters() {
             // Exclude if ANY keyword is found
             return !currentExcludeKeywords.some(keyword => searchableText.includes(keyword));
         });
+        console.log(`🚫 Exclude keywords filter: ${beforeExclude} → ${filtered.length} deals (removed ${beforeExclude - filtered.length})`);
+    }
+    
+    // STEP 3: Apply search filter (user's manual search)
+    const searchInput = document.getElementById('aggregator-search');
+    const searchQuery = searchInput ? searchInput.value.trim() : '';
+    
+    if (searchQuery) {
+        const beforeSearch = filtered.length;
+        const lowerQuery = searchQuery.toLowerCase();
+        filtered = filtered.filter(deal => {
+            return (
+                (deal.name || '').toLowerCase().includes(lowerQuery) ||
+                (deal.description || '').toLowerCase().includes(lowerQuery) ||
+                (deal.location || '').toLowerCase().includes(lowerQuery) ||
+                (deal.city || '').toLowerCase().includes(lowerQuery) ||
+                (deal.state || '').toLowerCase().includes(lowerQuery) ||
+                (deal.industry || '').toLowerCase().includes(lowerQuery)
+            );
+        });
+        console.log(`🔎 Search filter: ${beforeSearch} → ${filtered.length} deals (removed ${beforeSearch - filtered.length})`);
     }
     
     filteredAggregatedDeals = filtered;
@@ -1339,7 +1600,7 @@ async function saveDealFromAggregator(deal) {
         showToast('✅ Deal saved to My Deals!', 'success');
         
         // Update My Deals count
-        document.getElementById('my-deals-count').textContent = existingDeals.length;
+        document.getElementById('my-deals-count').textContent = formatNumber(existingDeals.length);
         
     } catch (error) {
         console.error('Error saving deal:', error);
@@ -1419,11 +1680,11 @@ function updateMyDealsStats() {
         cold: myDeals.filter(d => d.status === 'cold').length
     };
     
-    document.getElementById('stat-total').textContent = stats.total;
-    document.getElementById('stat-hot').textContent = stats.hot;
-    document.getElementById('stat-warm').textContent = stats.warm;
-    document.getElementById('stat-cold').textContent = stats.cold;
-    document.getElementById('my-deals-count').textContent = stats.total;
+    document.getElementById('stat-total').textContent = formatNumber(stats.total);
+    document.getElementById('stat-hot').textContent = formatNumber(stats.hot);
+    document.getElementById('stat-warm').textContent = formatNumber(stats.warm);
+    document.getElementById('stat-cold').textContent = formatNumber(stats.cold);
+    document.getElementById('my-deals-count').textContent = formatNumber(stats.total);
 }
 
 // Render My Deals table
@@ -1537,7 +1798,11 @@ function createMyDealRow(deal) {
         toggleDealSelection(deal.savedAt, checkbox.checked);
     });
     
-    nameCell.addEventListener('click', () => openDealModal(deal));
+    nameCell.addEventListener('click', (e) => {
+        console.log('💼 Name cell clicked for deal:', deal.name);
+        e.stopPropagation();
+        openDealModal(deal);
+    });
     
     const [viewBtn, exportBtn, deleteBtn] = actionsCell.querySelectorAll('.action-btn');
     viewBtn.addEventListener('click', (e) => {
@@ -1591,12 +1856,14 @@ function formatDate(timestamp) {
 function formatCurrency(value) {
     if (!value || value === 0) return '$0';
     if (value >= 1000000) {
-        return '$' + (value / 1000000).toFixed(2) + 'M';
+        const millions = (value / 1000000).toFixed(2);
+        return '$' + parseFloat(millions).toLocaleString() + 'M';
     }
     if (value >= 1000) {
-        return '$' + (value / 1000).toFixed(0) + 'K';
+        const thousands = (value / 1000).toFixed(0);
+        return '$' + parseFloat(thousands).toLocaleString() + 'K';
     }
-    return '$' + value.toLocaleString();
+    return '$' + Math.round(value).toLocaleString();
 }
 
 // Escape HTML to prevent XSS
@@ -1824,16 +2091,26 @@ function exportDealsToCSV(deals) {
     showToast(`Exported ${deals.length} deals to CSV`, 'success');
 }
 
-// Open deal modal with full details
+// Open deal modal with full details (for My Deals tab)
 function openDealModal(deal) {
-    console.log('Opening deal modal for:', deal.name);
+    console.log('📋 [My Deals] Opening deal modal for:', deal?.name || deal);
+    console.log('📋 [My Deals] Deal object:', deal);
+    
+    // Handle both deal object and deal name string
+    if (typeof deal === 'string') {
+        console.log('📋 Received string, redirecting to legacy function');
+        openDealModalLegacy(deal);
+        return;
+    }
     
     const modal = document.getElementById('deal-modal');
     if (!modal) {
-        console.error('Deal modal not found');
-        showToast('Modal not found', 'error');
+        console.error('❌ Deal modal not found in DOM');
+        showToast('Modal not found - please refresh the page', 'error');
         return;
     }
+    
+    console.log('✅ Modal found, populating data...');
     
     // Store current deal for updates
     window.currentDeal = deal;
@@ -3040,7 +3317,7 @@ async function saveManualDeal() {
         
         // Update UI
         await loadAggregatorDeals();
-        document.getElementById('my-deals-count').textContent = existingDeals.length;
+        document.getElementById('my-deals-count').textContent = formatNumber(existingDeals.length);
         
         showToast('✅ Off-market deal added successfully!', 'success');
         closeManualDealModal();
@@ -3092,7 +3369,25 @@ function closeBuyBoxModal() {
     if (modal) modal.style.display = 'none';
 }
 
-// Load buy box settings from storage
+// Load buy box config into memory (without updating UI)
+async function loadBuyBoxConfig() {
+    try {
+        const result = await new Promise((resolve) => {
+            chrome.storage.local.get(['buyBoxConfig'], (result) => {
+                resolve(result.buyBoxConfig || DEFAULT_BUYBOX);
+            });
+        });
+        
+        currentBuyBox = result;
+        console.log('📦 Buy Box config loaded:', currentBuyBox);
+        
+    } catch (error) {
+        console.error('Error loading buy box config:', error);
+        currentBuyBox = { ...DEFAULT_BUYBOX };
+    }
+}
+
+// Load buy box settings from storage and populate form
 async function loadBuyBoxSettings() {
     try {
         const result = await new Promise((resolve) => {
@@ -3229,9 +3524,9 @@ async function saveBuyBoxConfig() {
         showToast('✅ Buy Box configuration saved!', 'success');
         closeBuyBoxModal();
         
-        // Re-render aggregator table with new filters
+        // Re-apply filters with new Buy Box criteria
         if (currentTab === 'aggregator') {
-            renderAggregatorTable();
+            applyAggregatorFilters();
         }
         
     } catch (error) {
@@ -3267,6 +3562,12 @@ async function resetBuyBox() {
 
 // Check if deal matches buy box criteria
 function dealMatchesBuyBox(deal) {
+    // Ensure currentBuyBox is initialized
+    if (!currentBuyBox) {
+        console.warn('⚠️ Buy Box not loaded yet, allowing all deals');
+        return true;
+    }
+    
     // If no criteria set, all deals match
     const hasAnyCriteria = 
         currentBuyBox.minPrice || currentBuyBox.maxPrice ||
@@ -3277,7 +3578,10 @@ function dealMatchesBuyBox(deal) {
         (currentBuyBox.targetIndustries && currentBuyBox.targetIndustries.length > 0) ||
         currentBuyBox.minQuality;
     
-    if (!hasAnyCriteria) return true;
+    if (!hasAnyCriteria) {
+        console.log('ℹ️ No Buy Box criteria set, showing all deals');
+        return true;
+    }
     
     // Price checks
     if (currentBuyBox.minPrice && deal.askingPrice < currentBuyBox.minPrice) return false;
@@ -3297,12 +3601,21 @@ function dealMatchesBuyBox(deal) {
     // State checks
     if (currentBuyBox.targetStates && currentBuyBox.targetStates.length > 0) {
         const dealState = deal.state?.toUpperCase();
-        if (!dealState || !currentBuyBox.targetStates.includes(dealState)) return false;
+        if (!dealState || !currentBuyBox.targetStates.includes(dealState)) {
+            // Debug: Log filtered deals
+            if (dealState === 'WA') {
+                console.log(`🚫 Filtering out deal from ${dealState} (not in target states: ${currentBuyBox.targetStates.join(', ')}):`, deal.name);
+            }
+            return false;
+        }
     }
     
     if (currentBuyBox.excludeStates && currentBuyBox.excludeStates.length > 0) {
         const dealState = deal.state?.toUpperCase();
-        if (dealState && currentBuyBox.excludeStates.includes(dealState)) return false;
+        if (dealState && currentBuyBox.excludeStates.includes(dealState)) {
+            console.log(`🚫 Filtering out deal from excluded state ${dealState}:`, deal.name);
+            return false;
+        }
     }
     
     // Industry checks
@@ -3462,11 +3775,13 @@ function formatPrice(price) {
     if (!price || price === 0) return '-';
     
     if (price >= 1000000) {
-        return `$${(price / 1000000).toFixed(1)}M`;
+        const millions = (price / 1000000).toFixed(1);
+        return `$${parseFloat(millions).toLocaleString()}M`;
     } else if (price >= 1000) {
-        return `$${(price / 1000).toFixed(0)}K`;
+        const thousands = (price / 1000).toFixed(0);
+        return `$${parseFloat(thousands).toLocaleString()}K`;
     }
-    return `$${price.toLocaleString()}`;
+    return `$${Math.round(price).toLocaleString()}`;
 }
 
 // Escape HTML
@@ -3701,10 +4016,10 @@ function loadDeals() {
 
 // Update statistics
 function updateStats() {
-    document.getElementById('stat-total').textContent = allDeals.length;
-    document.getElementById('stat-hot').textContent = allDeals.filter(d => d.status === 'hot').length;
-    document.getElementById('stat-warm').textContent = allDeals.filter(d => d.status === 'warm').length;
-    document.getElementById('stat-cold').textContent = allDeals.filter(d => d.status === 'cold').length;
+    document.getElementById('stat-total').textContent = formatNumber(allDeals.length);
+    document.getElementById('stat-hot').textContent = formatNumber(allDeals.filter(d => d.status === 'hot').length);
+    document.getElementById('stat-warm').textContent = formatNumber(allDeals.filter(d => d.status === 'warm').length);
+    document.getElementById('stat-cold').textContent = formatNumber(allDeals.filter(d => d.status === 'cold').length);
 }
 
 // Apply filters and sorting
@@ -3807,7 +4122,8 @@ function parseCOC(str) {
 
 // Format number with commas
 function formatNumber(num) {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    if (num === null || num === undefined) return '0';
+    return Math.round(num).toLocaleString();
 }
 
 // Escape HTML to prevent XSS
@@ -4201,6 +4517,9 @@ let currentSortColumn = 'date';
 let currentSortDirection = 'desc';
 
 document.querySelectorAll('.deals-table th.sortable').forEach(header => {
+    // Explicitly disable dragging on My Deals headers
+    header.draggable = false;
+    
     header.addEventListener('click', () => {
         const sortType = header.dataset.sort;
         
@@ -4238,9 +4557,14 @@ let currentModalDeal = null;
 let currentScenario = 0;
 let scenarios = [{}, {}, {}]; // Store 3 scenarios
 
-function openDealModal(dealName) {
+// Legacy function for old code that passes deal name as string
+function openDealModalLegacy(dealName) {
+    console.log('📋 [Legacy] Opening deal modal for:', dealName);
     const deal = allDeals.find(d => d.name === dealName);
-    if (!deal) return;
+    if (!deal) {
+        console.error('❌ Deal not found:', dealName);
+        return;
+    }
     
     currentModalDeal = deal;
     currentScenario = 0;
@@ -5181,6 +5505,151 @@ document.getElementById('share-native').addEventListener('click', async () => {
     }
 });
 
+// ====== AUTO-REFRESH SETTINGS ======
+function initializeAutoRefreshSettings() {
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsModalClose = document.getElementById('settings-modal-close');
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
+    const testNotificationBtn = document.getElementById('test-notification-btn');
+    
+    const autoRefreshCheckbox = document.getElementById('auto-refresh-enabled');
+    const refreshIntervalSelect = document.getElementById('refresh-interval');
+    const notifyNewDealsCheckbox = document.getElementById('notify-new-deals');
+    const refreshIntervalRow = document.getElementById('refresh-interval-row');
+    
+    // Open settings modal
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', async () => {
+            console.log('⚙️ Opening auto-refresh settings...');
+            
+            // Load current settings
+            const settings = await chrome.storage.local.get([
+                'autoRefreshEnabled',
+                'refreshInterval',
+                'notifyNewDeals',
+                'lastRefreshTime',
+                'aggregatedDealsPool'
+            ]);
+            
+            // Populate form
+            autoRefreshCheckbox.checked = settings.autoRefreshEnabled !== false;
+            refreshIntervalSelect.value = settings.refreshInterval || 60;
+            notifyNewDealsCheckbox.checked = settings.notifyNewDeals !== false;
+            refreshIntervalRow.style.display = autoRefreshCheckbox.checked ? 'block' : 'none';
+            
+            // Update last refresh time
+            if (settings.lastRefreshTime) {
+                const lastRefresh = new Date(settings.lastRefreshTime);
+                document.getElementById('last-refresh-time').textContent = lastRefresh.toLocaleString();
+                
+                // Calculate next refresh
+                const intervalMs = (settings.refreshInterval || 60) * 60 * 1000;
+                const nextRefresh = new Date(settings.lastRefreshTime + intervalMs);
+                document.getElementById('next-refresh-time').textContent = nextRefresh.toLocaleString();
+            } else {
+                document.getElementById('last-refresh-time').textContent = 'Never';
+                document.getElementById('next-refresh-time').textContent = '-';
+            }
+            
+            // Update stats
+            const deals = settings.aggregatedDealsPool || [];
+            document.getElementById('total-deals-stat').textContent = formatNumber(deals.length);
+            const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+            const newToday = deals.filter(d => d.discoveredAt > oneDayAgo).length;
+            document.getElementById('new-deals-stat').textContent = formatNumber(newToday);
+            
+            settingsModal.style.display = 'flex';
+        });
+    }
+    
+    // Toggle interval visibility
+    if (autoRefreshCheckbox) {
+        autoRefreshCheckbox.addEventListener('change', () => {
+            refreshIntervalRow.style.display = autoRefreshCheckbox.checked ? 'block' : 'none';
+        });
+    }
+    
+    // Close modal
+    if (settingsModalClose) {
+        settingsModalClose.addEventListener('click', () => {
+            settingsModal.style.display = 'none';
+        });
+    }
+    
+    // Close on outside click
+    if (settingsModal) {
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.style.display = 'none';
+            }
+        });
+    }
+    
+    // Save settings
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', async () => {
+            const settings = {
+                autoRefreshEnabled: autoRefreshCheckbox.checked,
+                refreshInterval: parseInt(refreshIntervalSelect.value),
+                notifyNewDeals: notifyNewDealsCheckbox.checked
+            };
+            
+            console.log('💾 Saving auto-refresh settings:', settings);
+            
+            await chrome.storage.local.set(settings);
+            
+            showToast('Settings saved! Auto-refresh is now ' + (settings.autoRefreshEnabled ? 'enabled' : 'disabled'), 'success');
+            settingsModal.style.display = 'none';
+        });
+    }
+    
+    // Test notification
+    if (testNotificationBtn) {
+        testNotificationBtn.addEventListener('click', async () => {
+            console.log('🔔 Testing notification...');
+            
+            // Request notification permission if needed
+            if (Notification.permission === 'default') {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    showToast('Notification permission denied', 'error');
+                    return;
+                }
+            }
+            
+            // Send test notification via background script
+            chrome.runtime.sendMessage({
+                action: 'testNotification'
+            }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error('Failed to send test notification:', chrome.runtime.lastError);
+                    showToast('Test notification failed', 'error');
+                } else {
+                    showToast('Test notification sent!', 'success');
+                }
+            });
+        });
+    }
+}
+
+// Listen for background refresh messages
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'backgroundRefresh') {
+        console.log('🔄 Background refresh triggered at', new Date(message.timestamp).toLocaleTimeString());
+        
+        // Reload deals if on aggregator tab
+        const activeTab = document.querySelector('.tab-btn.active');
+        if (activeTab && activeTab.dataset.tab === 'aggregator') {
+            console.log('📥 Reloading aggregated deals...');
+            loadAggregatorDeals();
+        }
+        
+        sendResponse({ success: true });
+    }
+});
+
 // Initialize
 loadDeals();
+initializeAutoRefreshSettings();
 

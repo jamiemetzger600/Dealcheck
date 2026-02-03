@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Max Price Deal Analyzer",
-  "version": "2.1.43",
+  "version": "2.2.0",
   "description": "Complete deal acquisition platform: Aggregate deals from 10+ sources, filter with AI-powered buy box, analyze with scenario calculator, and track through due diligence. Data → Information → Knowledge → Insight → Wisdom.",
-  "permissions": ["storage", "activeTab", "tabs"],
+  "permissions": ["storage", "activeTab", "tabs", "alarms", "notifications"],
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -26,13 +26,14 @@
     {
       "matches": ["<all_urls>"],
       "css": ["styles.css"],
-      "js": ["i18n.js", "jspdf.min.js", "content.js"],
+      "js": ["version.js", "i18n.js", "jspdf.min.js", "content.js"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
+        "version.js",
         "deals-dashboard.html",
         "deals-dashboard.js",
         "scrapers/rss-parser.js",
@@ -41,5 +42,8 @@
       ],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
 }

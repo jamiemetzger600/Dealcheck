@@ -1,7 +1,8 @@
 // --- VERSION ---
 // Version is now managed centrally in version.js
 // Access via window.EXTENSION_VERSION
-const VERSION = window.EXTENSION_VERSION ? `v${window.EXTENSION_VERSION}` : 'v2.2.0';
+// Using var to avoid conflict with version.js const VERSION
+var VERSION = window.EXTENSION_VERSION ? `v${window.EXTENSION_VERSION}` : 'v2.2.0';
 
 // Global error handler to catch any unhandled errors
 window.addEventListener('error', (event) => {

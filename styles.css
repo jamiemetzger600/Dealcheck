@@ -260,3 +260,140 @@ a:hover {
   transition: background-color 0.3s ease;
 }
 
+/* Exclude Keywords Section */
+.exclude-keywords-section {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border: 2px solid #e74c3c;
+  border-radius: 8px;
+}
+
+.exclude-keywords-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.exclude-label {
+  font-weight: 600;
+  color: #e74c3c;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.exclude-keywords-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.exclude-list-select {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 13px;
+  min-width: 180px;
+  cursor: pointer;
+}
+
+.exclude-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.exclude-btn-save {
+  background: #27ae60;
+  color: white;
+}
+
+.exclude-btn-save:hover {
+  background: #229954;
+}
+
+.exclude-btn-delete {
+  background: #e74c3c;
+  color: white;
+}
+
+.exclude-btn-delete:hover {
+  background: #c0392b;
+}
+
+.exclude-keywords-input-wrapper {
+  margin-bottom: 12px;
+}
+
+.exclude-keywords-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.exclude-keywords-input:focus {
+  outline: none;
+  border-color: #e74c3c;
+}
+
+.exclude-keywords-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.keyword-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #e74c3c;
+  color: white;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.keyword-bubble:hover {
+  background: #c0392b;
+  transform: translateY(-1px);
+}
+
+.keyword-bubble-text {
+  user-select: none;
+}
+
+.keyword-bubble-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  transition: background 0.2s ease;
+}
+
+.keyword-bubble-remove:hover {
+  background: rgba(255, 255, 255, 0.4);
+}

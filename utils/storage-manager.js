@@ -36,6 +36,38 @@ async function getStorageUsage() {
 }
 
 // Save aggregated deals with LRU pruning
+// Sanitize deal object for storage (remove non-serializable data)
+function sanitizeDealForStorage(deal) {
+    // Create a clean copy with only serializable data
+    return {
+        id: String(deal.id || ''),
+        name: String(deal.name || ''),
+        url: String(deal.url || ''),
+        description: String(deal.description || '').substring(0, 1500), // Limit description length
+        broker: String(deal.broker || ''),
+        brokerName: String(deal.brokerName || ''),
+        brokerCompany: String(deal.brokerCompany || ''),
+        brokerEmail: String(deal.brokerEmail || ''),
+        brokerPhone: String(deal.brokerPhone || ''),
+        source: String(deal.source || ''),
+        sourceType: String(deal.sourceType || ''),
+        discoveredAt: Number(deal.discoveredAt) || Date.now(),
+        askingPrice: Number(deal.askingPrice) || null,
+        ebitda: Number(deal.ebitda) || null,
+        revenue: Number(deal.revenue) || null,
+        location: String(deal.location || ''),
+        city: String(deal.city || ''),
+        state: String(deal.state || ''),
+        county: String(deal.county || ''),
+        country: String(deal.country || ''),
+        industry: String(deal.industry || ''),
+        yearsEstablished: String(deal.yearsEstablished || ''),
+        franchise: String(deal.franchise || ''),
+        remote: String(deal.remote || ''),
+        listingId: String(deal.listingId || '')
+    };
+}
+
 async function saveAggregatedDeals(deals) {
     console.log(`💾 Saving ${deals.length} aggregated deals...`);
     
@@ -44,11 +76,26 @@ async function saveAggregatedDeals(deals) {
         const usage = await getStorageUsage();
         console.log(`📊 Storage usage: ${usage.percentUsed}% (${usage.megabytesUsed} MB)`);
         
+        // Sanitize all deals to ensure they're serializable
+        let dealsToSave = deals.map(sanitizeDealForStorage);
+        
         // If we have too many deals or approaching storage limit, prune
-        let dealsToSave = deals;
-        if (deals.length > MAX_AGGREGATED_DEALS || usage.percentUsed > 80) {
+        if (dealsToSave.length > MAX_AGGREGATED_DEALS || usage.percentUsed > 80) {
             console.log('⚠️  Pruning deals (LRU eviction)...');
-            dealsToSave = pruneDealsByRelevance(deals, MAX_AGGREGATED_DEALS);
+            dealsToSave = pruneDealsByRelevance(dealsToSave, MAX_AGGREGATED_DEALS);
+        }
+        
+        // Estimate size before saving
+        const jsonString = JSON.stringify(dealsToSave);
+        const estimatedSizeMB = (jsonString.length * 2) / BYTES_PER_MB; // UTF-16 = 2 bytes per char
+        console.log(`📦 Estimated data size: ${estimatedSizeMB.toFixed(2)} MB`);
+        
+        if (estimatedSizeMB > 8) {
+            console.warn('⚠️ Data too large, reducing deal count...');
+            // Reduce to fit within limits
+            const targetCount = Math.floor(dealsToSave.length * (7 / estimatedSizeMB));
+            dealsToSave = pruneDealsByRelevance(dealsToSave, targetCount);
+            console.log(`📉 Reduced to ${dealsToSave.length} deals`);
         }
         
         return new Promise((resolve, reject) => {
@@ -217,7 +264,18 @@ async function loadBuyBoxSettings() {
     });
 }
 
-// Export functions
+// Export functions for browser (global scope)
+window.getStorageUsage = getStorageUsage;
+window.saveAggregatedDeals = saveAggregatedDeals;
+window.loadAggregatedDeals = loadAggregatedDeals;
+window.addDealsToPool = addDealsToPool;
+window.clearAggregatedDeals = clearAggregatedDeals;
+window.getLastSyncTime = getLastSyncTime;
+window.saveBuyBoxSettings = saveBuyBoxSettings;
+window.loadBuyBoxSettings = loadBuyBoxSettings;
+window.STORAGE_KEYS = STORAGE_KEYS;
+
+// Also export for Node.js if available
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         getStorageUsage,

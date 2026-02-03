@@ -123,8 +123,13 @@ function switchTab(tabName) {
 
 // Initialize tabs on load
 async function initializeDashboard() {
-    // Get version from centralized version.js
-    const version = window.EXTENSION_VERSION || '2.2.0';
+    // Get version from centralized version.js (fallback: manifest)
+    const version = window.EXTENSION_VERSION || (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '2.2.2';
+    
+    // Update header version display (must use central version, no hardcoding)
+    const headerVersionEl = document.getElementById('header-version');
+    if (headerVersionEl) headerVersionEl.textContent = `v${version}`;
+    
     console.log(`Initializing Deal Aggregator v${version}`);
     
     // Load Buy Box configuration FIRST before anything else

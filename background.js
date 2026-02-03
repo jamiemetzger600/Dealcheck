@@ -219,8 +219,52 @@ chrome.storage.onChanged.addListener((changes, area) => {
         console.log('⏸️ Auto-refresh disabled');
       }
     }
+    
+    // Auto-backup when savedDeals changes (new deal, update, delete)
+    if (changes.savedDeals) {
+      scheduleAutoBackup();
+    }
   }
 });
+
+// ====== AUTO-BACKUP (runs when My Deals change) ======
+let autoBackupTimeout = null;
+const AUTO_BACKUP_DEBOUNCE_MS = 1500; // Wait 1.5s after last change before backing up
+
+function scheduleAutoBackup() {
+  if (autoBackupTimeout) clearTimeout(autoBackupTimeout);
+  autoBackupTimeout = setTimeout(() => {
+    autoBackupTimeout = null;
+    runAutoBackup().catch(err => console.warn('Auto-backup failed:', err));
+  }, AUTO_BACKUP_DEBOUNCE_MS);
+}
+
+async function runAutoBackup() {
+  try {
+    const { savedDeals } = await chrome.storage.local.get(['savedDeals']);
+    const deals = savedDeals || [];
+    
+    const backup = {
+      version: chrome.runtime.getManifest().version,
+      exportedAt: new Date().toISOString(),
+      savedDeals: deals
+    };
+    
+    const json = JSON.stringify(backup, null, 2);
+    const dataUrl = 'data:application/json;base64,' + btoa(unescape(encodeURIComponent(json)));
+    
+    await chrome.downloads.download({
+      url: dataUrl,
+      filename: 'Deal Analyzer/deal-analyzer-backup.json',
+      saveAs: false,
+      conflictAction: 'overwrite'
+    });
+    
+    console.log('💾 Auto-backup saved:', deals.length, 'deals → Downloads/Deal Analyzer/');
+  } catch (error) {
+    console.error('❌ Auto-backup failed:', error);
+  }
+}
 
 // ====== EXTENSION ICON CLICK ======
 chrome.action.onClicked.addListener((tab) => {

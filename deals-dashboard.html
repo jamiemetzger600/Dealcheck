@@ -3108,7 +3108,10 @@
                     <option value="coc-asc">Lowest COC Return</option>
                 </select>
 
-                <button id="export-btn" class="secondary">📤 Export</button>
+                <button id="export-btn" class="secondary">📤 Export CSV</button>
+                <button id="backup-btn" class="secondary" title="Save full backup to your computer (survives extension reinstall)">💾 Backup</button>
+                <button id="restore-btn" class="secondary" title="Restore from backup file">📥 Restore</button>
+                <input type="file" id="restore-file-input" accept=".json,application/json" style="display:none">
                 <button id="refresh-btn" class="secondary">↻ Refresh</button>
             </div>
         </div>

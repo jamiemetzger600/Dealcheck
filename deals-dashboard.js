@@ -459,6 +459,18 @@ async function initializeDashboard() {
         });
     }
     
+    // Backup button (saves JSON to Downloads - survives extension reinstall)
+    const backupBtn = document.getElementById('backup-btn');
+    if (backupBtn) {
+        backupBtn.addEventListener('click', () => exportBackup());
+    }
+    
+    // Restore button (import from backup file)
+    const restoreBtn = document.getElementById('restore-btn');
+    if (restoreBtn) {
+        restoreBtn.addEventListener('click', () => importBackup());
+    }
+    
     // Refresh button
     const refreshBtn = document.getElementById('refresh-btn');
     if (refreshBtn) {
@@ -1706,7 +1718,7 @@ function renderMyDealsTable() {
             <tr>
                 <td colspan="9" style="text-align: center; padding: 40px; color: #999;">
                     ${myDeals.length === 0 
-                        ? '📭 No deals saved yet. Save deals from the Deal Aggregator!' 
+                        ? '📭 No deals saved yet. Save deals from the Deal Aggregator!<br><small style="margin-top:8px;display:block;">Tip: Use <strong>Restore</strong> to recover from a backup file after reinstalling the extension.</small>' 
                         : '🔍 No deals match your filters'}
                 </td>
             </tr>
@@ -2089,6 +2101,92 @@ function exportDealsToCSV(deals) {
     URL.revokeObjectURL(url);
     
     showToast(`Exported ${deals.length} deals to CSV`, 'success');
+}
+
+// Export full backup to JSON file (saves to Downloads - survives extension reinstall)
+async function exportBackup() {
+    try {
+        const savedDeals = await new Promise((resolve) => {
+            chrome.storage.local.get(['savedDeals'], (result) => {
+                resolve(result.savedDeals || []);
+            });
+        });
+        
+        const backup = {
+            version: window.EXTENSION_VERSION || '2.2.0',
+            exportedAt: new Date().toISOString(),
+            savedDeals: savedDeals
+        };
+        
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `deal-analyzer-backup-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        showToast(`Backup saved: ${savedDeals.length} deals → Downloads folder`, 'success', 4000);
+        console.log('💾 Backup exported:', savedDeals.length, 'deals');
+    } catch (error) {
+        console.error('Backup export error:', error);
+        showToast('Error creating backup: ' + error.message, 'error');
+    }
+}
+
+// Restore from backup file
+async function importBackup() {
+    const input = document.getElementById('restore-file-input');
+    if (!input) return;
+    
+    input.value = '';
+    input.onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        try {
+            const text = await file.text();
+            const backup = JSON.parse(text);
+            
+            if (!backup.savedDeals || !Array.isArray(backup.savedDeals)) {
+                showToast('Invalid backup file: missing savedDeals array', 'error');
+                return;
+            }
+            
+            const existingDeals = await new Promise((resolve) => {
+                chrome.storage.local.get(['savedDeals'], (result) => {
+                    resolve(result.savedDeals || []);
+                });
+            });
+            
+            // Merge: backup deals first, then add existing deals not in backup
+            const backupKeys = new Set(backup.savedDeals.map(d => (d.url || d.savedAt || '').toString()));
+            const extraExisting = existingDeals.filter(d => {
+                const key = (d.url || d.savedAt || '').toString();
+                return key && !backupKeys.has(key);
+            });
+            const mergedDeals = [...backup.savedDeals, ...extraExisting];
+            
+            await new Promise((resolve, reject) => {
+                chrome.storage.local.set({ savedDeals: mergedDeals }, () => {
+                    if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+                    else resolve();
+                });
+            });
+            
+            const fromBackup = backup.savedDeals.length;
+            const total = mergedDeals.length;
+            showToast(`Restored: ${fromBackup} deals from backup (${total} total)`, 'success', 5000);
+            console.log('📥 Backup restored:', fromBackup, 'from backup,', total, 'total');
+            
+            loadMyDeals();
+        } catch (error) {
+            console.error('Restore error:', error);
+            showToast('Error restoring backup: ' + error.message, 'error');
+        }
+    };
+    
+    input.click();
 }
 
 // Open deal modal with full details (for My Deals tab)

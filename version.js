@@ -3,7 +3,7 @@
 // Update this file and run update-version.sh to propagate changes
 
 (function() {
-    const VERSION = '2.2.19';
+    const VERSION = '2.2.22';
     
     // Export for different module systems
     if (typeof module !== 'undefined' && module.exports) {

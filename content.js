@@ -24,13 +24,13 @@ const uiHTML = `
 <div id="deal-analyzer-container">
   <div id="deal-analyzer-header">
     Deal Analyzer <span style="font-size:11px; opacity:0.8; font-weight:400;">${EXT_VERSION}</span>
-    <div style="display:flex; gap:8px; align-items:center;">
-      <span id="da-save-deal-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Save current deal (Cmd/Ctrl+S)">💾</span>
-      <span id="da-dashboard-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Open Deals Dashboard">📊</span>
-      <span id="da-coffee-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Buy me a coffee ☕ ($10)">☕</span>
-      <span id="da-debug-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Scraping Diagnostics">🔍</span>
-      <span id="da-settings-btn" style="cursor:pointer; font-size:18px; opacity:0.7; transition:opacity 0.2s;" title="Settings">⚙️</span>
-      <span id="da-close" style="cursor:pointer;">✕</span>
+    <div class="da-header-icons">
+      <span id="da-save-deal-btn" class="da-header-icon" title="Save current deal (Cmd/Ctrl+S)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span>
+      <span id="da-dashboard-btn" class="da-header-icon" title="Open Deals Dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+      <span id="da-coffee-btn" class="da-header-icon" title="Buy me a coffee ☕ ($10)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span>
+      <span id="da-debug-btn" class="da-header-icon" title="Scraping Diagnostics"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+      <span id="da-settings-btn" class="da-header-icon" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+      <span id="da-close" class="da-header-icon da-header-icon-close" title="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
     </div>
   </div>
 
@@ -543,6 +543,34 @@ try {
   console.error('Error injecting debug modal:', error);
 }
 
+// Coffee/Donate modal HTML (with Venmo QR code)
+const venmoQrUrl = chrome.runtime.getURL('icons/venmo-qr.png');
+const coffeeModalHTML = `
+<div id="da-coffee-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center; ">
+  <div style="background:white; border-radius:12px; padding:24px; max-width:320px; width:90%; box-shadow:0 4px 24px rgba(0,0,0,0.3); text-align:center;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h3 style="margin:0; font-size:18px; color:#2c3e50;">☕ Buy me a coffee</h3>
+      <span id="da-coffee-modal-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
+    </div>
+    <p style="margin:0 0 16px 0; font-size:14px; color:#666;">Suggested amount: $10</p>
+    <div style="background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:16px;">
+      <img src="${venmoQrUrl}" alt="Venmo QR Code" style="max-width:180px; height:auto; display:block; margin:0 auto;">
+      <p style="margin:12px 0 0 0; font-size:13px; color:#333; font-weight:600;">@amco-digital</p>
+      <p style="margin:4px 0 0 0; font-size:11px; color:#666;">Scan to pay with Venmo</p>
+    </div>
+    <a id="da-coffee-open-venmo" href="https://venmo.com/u/amco-digital" target="_blank" rel="noopener" style="display:inline-block; background:#008CFF; color:white; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; margin-bottom:8px;">Open Venmo</a>
+    <p style="margin:8px 0 0 0; font-size:11px; color:#999;">Or click to open Venmo in a new tab</p>
+  </div>
+</div>
+`;
+try {
+  const coffeeDiv = document.createElement('div');
+  coffeeDiv.innerHTML = coffeeModalHTML;
+  document.body.appendChild(coffeeDiv.firstElementChild);
+} catch (error) {
+  console.error('Error injecting coffee modal:', error);
+}
+
 // --- 2. DRAGGABLE WINDOW LOGIC ---
 const container = document.getElementById('deal-analyzer-container');
 const header = document.getElementById('deal-analyzer-header');
@@ -720,13 +748,24 @@ if (closeBtn && container) {
   closeBtn.onclick = () => container.style.display = 'none';
 }
 
-// Coffee button - opens Venmo with suggested amount
+// Coffee button - shows donate modal with Venmo QR code
 const coffeeBtn = document.getElementById('da-coffee-btn');
-if (coffeeBtn) {
+const coffeeModal = document.getElementById('da-coffee-modal');
+const coffeeModalClose = document.getElementById('da-coffee-modal-close');
+if (coffeeBtn && coffeeModal) {
   coffeeBtn.onclick = () => {
-    if (confirm('☕ Buy me a coffee?\n\nSuggested amount: $10\n\nThis will open Venmo (@amco-digital)')) {
-      window.open('https://venmo.com/u/amco-digital', '_blank');
-    }
+    coffeeModal.style.display = 'flex';
+  };
+}
+if (coffeeModalClose && coffeeModal) {
+  coffeeModalClose.onclick = () => {
+    coffeeModal.style.display = 'none';
+  };
+}
+// Close coffee modal when clicking overlay
+if (coffeeModal) {
+  coffeeModal.onclick = (e) => {
+    if (e.target === coffeeModal) coffeeModal.style.display = 'none';
   };
 }
 
@@ -2640,22 +2679,36 @@ function calculateTargetOffer() {
     document.getElementById('da-target-diff-percent').innerText = Math.abs(diffPercent).toFixed(1) + '%';
     
     const comparisonDiv = document.getElementById('da-target-comparison');
+    const diffAmountEl = document.getElementById('da-target-diff-amount');
+    const diffPercentEl = document.getElementById('da-target-diff-percent');
     if (diff < 0) {
       // Target is below asking - good!
-      comparisonDiv.style.background = '#d4edda';
-      comparisonDiv.style.border = '1px solid #28a745';
-      document.getElementById('da-target-diff-amount').style.color = '#e74c3c';
-      document.getElementById('da-target-diff-amount').innerText = '-' + fmt(Math.abs(diff)) + ' (below asking)';
+      comparisonDiv.style.background = 'var(--success-bg)';
+      comparisonDiv.style.border = '1px solid var(--success-border)';
+      comparisonDiv.style.color = 'var(--success-text)';
+      diffAmountEl.style.color = 'var(--success-text)';
+      diffPercentEl.style.color = 'var(--success-text)';
+      diffAmountEl.innerText = '-' + fmt(Math.abs(diff)) + ' (below asking)';
     } else {
       // Target is above asking - acceptable
-      comparisonDiv.style.background = '#fff3cd';
-      comparisonDiv.style.border = '1px solid #ffc107';
-      document.getElementById('da-target-diff-amount').style.color = '#27ae60';
-      document.getElementById('da-target-diff-amount').innerText = '+' + fmt(diff) + ' (above asking)';
+      comparisonDiv.style.background = 'var(--warning-bg)';
+      comparisonDiv.style.border = '1px solid var(--warning-text)';
+      comparisonDiv.style.color = 'var(--warning-text)';
+      diffAmountEl.style.color = 'var(--warning-text)';
+      diffPercentEl.style.color = 'var(--warning-text)';
+      diffAmountEl.innerText = '+' + fmt(diff) + ' (above asking)';
     }
   } else {
-    document.getElementById('da-target-diff-amount').innerText = 'N/A (no asking price)';
-    document.getElementById('da-target-diff-percent').innerText = 'N/A';
+    const comparisonDiv = document.getElementById('da-target-comparison');
+    const diffAmountEl = document.getElementById('da-target-diff-amount');
+    const diffPercentEl = document.getElementById('da-target-diff-percent');
+    comparisonDiv.style.background = 'var(--bg-secondary)';
+    comparisonDiv.style.border = 'none';
+    comparisonDiv.style.color = 'var(--text-primary)';
+    diffAmountEl.style.color = '';
+    diffPercentEl.style.color = '';
+    diffAmountEl.innerText = 'N/A (no asking price)';
+    diffPercentEl.innerText = 'N/A';
   }
   
   // Display financing breakdown

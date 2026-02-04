@@ -48,6 +48,7 @@ coverage/
 # Build outputs (if applicable in future)
 dist/
 build/
+build-temp/
 *.zip
 
 # Environment files

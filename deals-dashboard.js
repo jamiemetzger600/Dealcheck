@@ -124,7 +124,7 @@ function switchTab(tabName) {
 // Initialize tabs on load
 async function initializeDashboard() {
     // Get version from centralized version.js (fallback: manifest)
-    const version = window.EXTENSION_VERSION || (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '2.2.19';
+    const version = window.EXTENSION_VERSION || (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '2.2.22';
     
     // Update header version display (must use central version, no hardcoding)
     const headerVersionEl = document.getElementById('header-version');

@@ -84,8 +84,12 @@
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
-/* Header */
+/* Header - sticky so it stays visible when scrolling */
 #deal-analyzer-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-shrink: 0;
   padding: 8px 12px;
   background-color: var(--bg-header);
   color: white;
@@ -100,10 +104,30 @@
   transition: background-color 0.3s ease;
 }
 
-#da-close { cursor: pointer; font-weight: bold; opacity: 0.8; }
+/* Header icon buttons */
+.da-header-icons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.da-header-icon {
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.2s, transform 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+.da-header-icon:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+.da-header-icon svg {
+  display: block;
+}
+#da-close { cursor: pointer; font-weight: bold; }
 #da-close:hover { opacity: 1; }
-
-#da-coffee-btn:hover { opacity: 1 !important; transform: scale(1.1); }
 
 /* Sections */
 .da-section { 

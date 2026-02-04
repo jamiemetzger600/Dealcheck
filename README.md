@@ -75,9 +75,12 @@ Thank you for testing Deal Check v2.2.0! This release includes a major new featu
 
 ## 📚 Documentation
 
-- **QUICK_START.md** - Basic setup guide
-- **AUTO_REFRESH_QUICK_START.md** - Auto-refresh feature guide (5-minute setup)
-- **RELEASE_NOTES_v2.2.0.md** - Detailed release notes
+All documentation is in the `docs/` folder:
+
+- **[docs/guides/QUICK_START.md](docs/guides/QUICK_START.md)** - Basic setup guide
+- **[docs/guides/AUTO_REFRESH_QUICK_START.md](docs/guides/AUTO_REFRESH_QUICK_START.md)** - Auto-refresh feature guide (5-minute setup)
+- **[docs/release-notes/RELEASE_NOTES_v2.2.0.md](docs/release-notes/RELEASE_NOTES_v2.2.0.md)** - Detailed release notes
+- **[docs/README.md](docs/README.md)** - Full documentation index
 
 ---
 
@@ -181,8 +184,8 @@ Please provide feedback on:
 If you encounter any issues:
 
 1. **Check Documentation:**
-   - Open `AUTO_REFRESH_QUICK_START.md` for detailed setup
-   - Review `RELEASE_NOTES_v2.2.0.md` for technical details
+   - Open `docs/guides/AUTO_REFRESH_QUICK_START.md` for detailed setup
+   - Review `docs/release-notes/RELEASE_NOTES_v2.2.0.md` for technical details
 
 2. **Debug:**
    - Open browser console (F12)

@@ -61,17 +61,21 @@ const uiHTML = `
   </div>
 
   <div class="da-section">
-    <div class="da-label" style="font-weight:700; color:var(--text-primary); margin-bottom:10px; border-bottom:1px solid var(--border-light); padding-bottom:5px;">Financing Inputs</div>
-    <div id="da-percent-error" class="da-warning" style="display:none;">⚠️ Total percentages must equal 100%</div>
+    <div class="da-label" style="font-weight:700; color:var(--text-primary); margin-bottom:10px; border-bottom:1px solid var(--border-light); padding-bottom:5px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:8px;" id="da-financing-header">
+      <span id="da-financing-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+      <span>Financing Inputs</span>
+    </div>
+    <div id="da-financing-section">
+      <div id="da-percent-error" class="da-warning" style="display:none;">⚠️ Total percentages must equal 100%</div>
 
-    <div style="margin-bottom:10px;">
-      <div class="da-label" style="font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-sba-header">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
-          <span>A. SBA</span>
+      <div style="margin-bottom:10px;">
+        <div class="da-label" style="font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-sba-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+            <span>A. SBA</span>
+          </div>
+          <span id="da-sba-summary" style="font-size:11px; color:var(--text-secondary); font-weight:400;">80% • 9.25% • 10yr • 1.25x DSCR</span>
         </div>
-        <span id="da-sba-summary" style="font-size:11px; color:var(--text-secondary); font-weight:400;">80% • 11.5% • 10yr • 1.25x DSCR</span>
-      </div>
       <div id="da-sba-section" style="margin-top:8px;">
         <div class="da-flex-row">
           <div style="flex:1">
@@ -86,7 +90,7 @@ const uiHTML = `
         <div class="da-flex-row">
           <div style="flex:1">
             <label class="da-label">Interest Rate (%)</label>
-            <input type="number" id="da-bank-rate" class="da-input" value="11.5" step="0.1">
+            <input type="number" id="da-bank-rate" class="da-input" value="9.25" step="0.1">
           </div>
           <div style="flex:1">
             <label class="da-label">Term (Yrs)</label>
@@ -94,7 +98,13 @@ const uiHTML = `
           </div>
           <div style="flex:1">
             <label class="da-label">Target DSCR</label>
-            <input type="number" id="da-dscr" class="da-input" value="1.25" step="0.05" min="1.0">
+            <div style="display:flex; align-items:center; gap:4px;">
+              <input type="number" id="da-dscr" class="da-input" value="1.25" step="0.05" min="1.0" style="flex:1;">
+              <div style="display:flex; flex-direction:column; gap:2px;">
+                <button id="da-dscr-up" style="cursor:pointer; background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:2px; padding:2px 6px; font-size:10px; line-height:1; color:var(--text-primary); transition:background 0.2s;" title="Increase DSCR by 0.05">▲</button>
+                <button id="da-dscr-down" style="cursor:pointer; background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:2px; padding:2px 6px; font-size:10px; line-height:1; color:var(--text-primary); transition:background 0.2s;" title="Decrease DSCR by 0.05">▼</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -168,6 +178,7 @@ const uiHTML = `
           </div>
         </div>
       </div>
+    </div>
     </div>
   </div>
 
@@ -557,7 +568,7 @@ let userPreferences = {
   currency: 'USD', // Currency code
   // Persistent financing settings across tabs
   sbaPercent: 80,
-  bankRate: 11.5,
+  bankRate: 9.25,
   bankTerm: 10,
   dscr: 1.25,
   downPercent: 10,
@@ -943,6 +954,8 @@ const platformScrapers = {
   bizbuysell: function() {
     console.log('🏢 Using BizBuySell-specific scraper (REWRITTEN)');
     let data = { askingPrice: 0, ebitda: 0, isSDE: false };
+    let foundEBITDA = false;
+    let foundSDE = false;
     
     // BizBuySell uses a consistent pattern: rows with labels and values
     // The page text contains lines like:
@@ -978,7 +991,8 @@ const platformScrapers = {
         // Check if next line says "Not Disclosed"
         if (!nextLine.toLowerCase().includes('not disclosed') && !nextLine.toLowerCase().includes('n/a')) {
           const ebitdaVal = parseCurrency(nextLine);
-          if (ebitdaVal > data.ebitda) {
+          if (ebitdaVal > 0) {
+            foundEBITDA = true;
             data.ebitda = ebitdaVal;
             data.isSDE = false;
             console.log('  ✅ Found EBITDA:', data.ebitda, '(line', i + ')');
@@ -994,12 +1008,15 @@ const platformScrapers = {
         if (!nextLine.toLowerCase().includes('not disclosed') && !nextLine.toLowerCase().includes('n/a')) {
           const sdeVal = parseCurrency(nextLine);
           // Only use SDE if EBITDA wasn't found
-          if (sdeVal > 0 && data.ebitda === 0) {
-            data.ebitda = sdeVal;
-            data.isSDE = true;
-            console.log('  ✅ Found Cash Flow (SDE):', data.ebitda, '(line', i + ')');
-          } else if (sdeVal > 0 && data.ebitda > 0) {
-            console.log('  ℹ️ Found Cash Flow (SDE):', sdeVal, 'but already have EBITDA, skipping');
+          if (sdeVal > 0) {
+            foundSDE = true;
+            if (!foundEBITDA && data.ebitda === 0) {
+              data.ebitda = sdeVal;
+              data.isSDE = true;
+              console.log('  ✅ Found Cash Flow (SDE):', data.ebitda, '(line', i + ')');
+            } else if (data.ebitda > 0) {
+              console.log('  ℹ️ Found Cash Flow (SDE):', sdeVal, 'but already have EBITDA, skipping');
+            }
           }
         } else {
           console.log('  ⚠️ Cash Flow (SDE) is "Not Disclosed" (line', i + ')');
@@ -1018,13 +1035,21 @@ const platformScrapers = {
       if (lowerLine.includes('ebitda') && lowerLine.includes('$')) {
         if (!lowerLine.includes('not disclosed')) {
           const ebitdaVal = parseCurrency(line);
-          if (ebitdaVal > data.ebitda) {
+          if (ebitdaVal > 0) {
+            foundEBITDA = true;
             data.ebitda = ebitdaVal;
             data.isSDE = false;
             console.log('  ✅ Found EBITDA (inline):', data.ebitda);
           }
         }
       }
+    }
+    
+    // CRITICAL: If we found EBITDA at any point, ensure isSDE is false
+    // This handles cases where SDE might be processed after EBITDA in the loop
+    if (foundEBITDA) {
+      data.isSDE = false;
+      console.log('  🔒 EBITDA was found - ensuring isSDE = false');
     }
     
     console.log('  📊 Scrape results: Asking=' + (data.askingPrice || 'NOT FOUND') + ', EBITDA/SDE=' + (data.ebitda || 'NOT FOUND') + (data.isSDE ? ' (SDE)' : ' (EBITDA)'));
@@ -1293,6 +1318,11 @@ function findValueByLabel(keywords) {
   let foundElements = [];
 
   for (const el of candidates) {
+    // CRITICAL: Skip elements inside the Deal Analyzer container to avoid false positives
+    if (el.closest('#deal-analyzer-container')) {
+      continue;
+    }
+    
     const text = el.innerText?.trim().toLowerCase();
     if (!text) continue;
     
@@ -1505,10 +1535,36 @@ function scrapeBrokerInfo() {
   return brokerInfo;
 }
 
+let scrapeCallCount = 0;
+let lastScrapedURL = null;
+let scrapeInProgress = false;
+let lastScrapeTime = 0;
+
 function scrapeData() {
   try {
-    console.log('🔄 Starting scrapeData...');
-    console.log('📍 Current URL:', window.location.href);
+    const currentURL = window.location.href;
+    const now = Date.now();
+    
+    // Prevent duplicate scrapes on the same page within 2 seconds
+    if (currentURL === lastScrapedURL && (now - lastScrapeTime) < 2000) {
+      console.log('⏳ Skipping duplicate scrape (same page, within 2 seconds)');
+      return;
+    }
+    
+    // Prevent concurrent scrapes
+    if (scrapeInProgress) {
+      console.log('⏳ Skipping - scrape already in progress');
+      return;
+    }
+    
+    scrapeInProgress = true;
+    scrapeCallCount++;
+    console.log(`🔄 Starting scrapeData... (Call #${scrapeCallCount})`);
+    console.log('📍 Current URL:', currentURL);
+    
+    // Track this scrape
+    lastScrapedURL = currentURL;
+    lastScrapeTime = now;
     
     // Detect platform
     const platform = detectPlatform();
@@ -1538,17 +1594,7 @@ function scrapeData() {
         isSDE = platformData.isSDE;
         ebitdaFoundByPlatform = !platformData.isSDE; // True if EBITDA was found (not SDE)
         console.log('✅ Platform scraper found EBITDA/SDE:', ebitdaVal, isSDE ? '(SDE)' : '(EBITDA)');
-        
-        // CRITICAL SAFETY CHECK: If platform scraper found a value and marked it as SDE,
-        // but EBITDA actually exists on the page, override isSDE to false
-        if (isSDE) {
-          const ebitdaVerification = findValueByLabel(["EBITDA"]);
-          if (ebitdaVerification > 0) {
-            console.log('  🔒 Override: EBITDA found on page, correcting platform scraper isSDE flag');
-            isSDE = false;
-            ebitdaFoundByPlatform = true;
-          }
-        }
+        // Trust the platform scraper's determination - it already checks for "Not Disclosed"
       }
     }
     
@@ -1587,21 +1633,11 @@ function scrapeData() {
       }
     }
     
-    // FINAL SAFETY CHECK: If EBITDA was found (by platform or generic scraper), ensure isSDE is false
-    // This is the ultimate safeguard - if EBITDA exists on the page, never show SDE warning
-    if (ebitdaVal > 0) {
-      const ebitdaFinalCheck = findValueByLabel(["EBITDA"]);
-      if (ebitdaFinalCheck > 0) {
-        // EBITDA definitely exists - force isSDE to false
-        if (isSDE) {
-          console.log('🔒 FINAL OVERRIDE: EBITDA confirmed on page, forcing isSDE = false');
-        }
-        isSDE = false;
-        ebitdaFoundByPlatform = true;
-      } else if (ebitdaFoundByPlatform) {
-        // Platform scraper said it found EBITDA, trust it
-        isSDE = false;
-      }
+    // Trust the platform scraper's determination of EBITDA vs SDE
+    // The platform scraper already has logic to prefer EBITDA when both are present
+    if (ebitdaFoundByPlatform) {
+      isSDE = false;
+      console.log('✅ Platform scraper found EBITDA - isSDE = false');
     }
     
     // Store results for diagnostics
@@ -1625,45 +1661,28 @@ function scrapeData() {
 
     const ebitdaField = document.getElementById('da-ebitda');
     const sdeWarning = document.getElementById('da-sde-warning');
+    
+    // Always start by hiding the warning - only show if SDE is detected
+    if (sdeWarning) sdeWarning.classList.remove('visible');
+    
     if (ebitdaVal > 0 && ebitdaField) {
-        // CRITICAL FIRST CHECK: Verify EBITDA actually exists on the page
-        // Search the entire page text for "EBITDA" to be absolutely sure
-        const pageText = document.body.innerText || document.body.textContent || '';
-        const hasEbitdaLabel = /\bEBITDA\b/i.test(pageText);
-        
-        console.log('🔍 Checking for EBITDA on page:', hasEbitdaLabel);
-        
-        // If EBITDA exists on page (label found), NEVER show SDE warning
-        if (hasEbitdaLabel) {
-            // EBITDA label exists on page - Force isSDE to false and hide warning
-            console.log('🔒 EBITDA label found on page, forcing isSDE = false');
-            isSDE = false;
-            lastScrapeData.isSDE = false;
-            if (sdeWarning) sdeWarning.classList.remove('visible');
-            // Use the EBITDA value directly without any SDE deduction
-            ebitdaField.value = '$' + formatNumber(ebitdaVal);
-            console.log('✅ Using EBITDA (no SDE deduction applied)');
-        } else if (isSDE) {
-            // Only show warning if EBITDA label is NOT found AND we're using SDE
-            console.log('⚠️ SDE detected (EBITDA label not found), subtracting $200k for owner salary');
+        // Show warning and subtract $200k ONLY when SDE/Cashflow present but no EBITDA
+        if (isSDE) {
+            // SDE or Cashflow found, no EBITDA - show warning and subtract $200k for owner salary
+            console.log('⚠️ SDE detected - subtracting $200k for owner salary');
+            console.log(`   Original SDE: $${formatNumber(ebitdaVal)} → After: $${formatNumber(Math.max(0, ebitdaVal - 200000))}`);
             if (sdeWarning) sdeWarning.classList.add('visible');
-            // Apply $200k subtraction rule for SDE
-            const originalVal = ebitdaVal;
             ebitdaVal = Math.max(0, ebitdaVal - 200000);
-            console.log(`   Original SDE: $${formatNumber(originalVal)}`);
-            console.log(`   After -$200k: $${formatNumber(ebitdaVal)}`);
             ebitdaField.value = '$' + formatNumber(ebitdaVal);
+            lastScrapeData.ebitda = ebitdaVal;
         } else {
-            // EBITDA found - hide warning and don't subtract
-            if (sdeWarning) sdeWarning.classList.remove('visible');
+            // EBITDA present - don't show warning, don't subtract
             ebitdaField.value = '$' + formatNumber(ebitdaVal);
-            console.log('✅ Using EBITDA (no SDE deduction applied)');
+            console.log('✅ Using EBITDA:', ebitdaField.value);
         }
-        console.log('✅ Updated EBITDA field:', ebitdaField.value);
+        lastScrapeData.isSDE = isSDE;
     } else {
         console.log('⚠️ No EBITDA/SDE value to update');
-        // If we found nothing, clear the warning so it doesn't confuse user
-        if (sdeWarning) sdeWarning.classList.remove('visible');
     }
     
     // Log scraping summary
@@ -1672,10 +1691,14 @@ function scrapeData() {
     console.log('   Asking Price:', askingPrice > 0 ? '$' + formatNumber(askingPrice) : 'Not found');
     console.log('   EBITDA/SDE:', ebitdaVal > 0 ? '$' + formatNumber(ebitdaVal) + (isSDE ? ' (SDE)' : ' (EBITDA)') : 'Not found');
 
-    console.log('🏁 Scraping complete, triggering calculation...\n');
+    console.log('🏁 Scraping complete, triggering calculation...');
     calculate();
+    
+    console.log('');
+    scrapeInProgress = false;
   } catch (error) {
     console.error('❌ Error in scrapeData:', error);
+    scrapeInProgress = false;
   }
 }
 
@@ -2725,7 +2748,7 @@ function saveState() {
 // Save financing settings to userPreferences for cross-tab persistence
 function saveFinancingPreferences() {
     userPreferences.sbaPercent = parseFloat(document.getElementById('da-sba-percent').value) || 80;
-    userPreferences.bankRate = parseFloat(document.getElementById('da-bank-rate').value) || 11.5;
+    userPreferences.bankRate = parseFloat(document.getElementById('da-bank-rate').value) || 9.25;
     userPreferences.bankTerm = parseFloat(document.getElementById('da-bank-term').value) || 10;
     userPreferences.dscr = parseFloat(document.getElementById('da-dscr').value) || 1.25;
     userPreferences.downPercent = parseFloat(document.getElementById('da-down-percent').value) || 10;
@@ -2752,7 +2775,7 @@ function loadState() {
         // Apply user preferences as defaults
         document.getElementById('da-target-salary').value = userPreferences.targetSalary || 250000;
         document.getElementById('da-sba-percent').value = userPreferences.sbaPercent || 80;
-        document.getElementById('da-bank-rate').value = userPreferences.bankRate || 11.5;
+        document.getElementById('da-bank-rate').value = userPreferences.bankRate || 9.25;
         document.getElementById('da-bank-term').value = userPreferences.bankTerm || 10;
         document.getElementById('da-dscr').value = userPreferences.dscr || 1.25;
         document.getElementById('da-down-percent').value = userPreferences.downPercent || 10;
@@ -3075,8 +3098,48 @@ setupCollapsible('da-max-header', 'da-max-content', 'da-max-arrow', 'maxCollapse
 setupCollapsible('da-roi-header', 'da-roi-content', 'da-roi-arrow', 'roiCollapsed');
 setupCollapsible('da-target-offer-header', 'da-target-offer-content', 'da-target-offer-arrow', 'targetOfferCollapsed');
 setupCollapsible('da-actual-header', 'da-actual-content', 'da-actual-arrow', 'actualCollapsed');
+setupCollapsible('da-financing-header', 'da-financing-section', 'da-financing-arrow', 'financingCollapsed');
 setupCollapsible('da-sba-header', 'da-sba-section', 'da-sba-arrow', 'sbaCollapsed');
 setupCollapsible('da-buyer-equity-header', 'da-buyer-equity-section', 'da-buyer-equity-arrow', 'buyerEquityCollapsed');
+
+// --- DSCR UP/DOWN BUTTONS ---
+const dscrInput = document.getElementById('da-dscr');
+const dscrUpBtn = document.getElementById('da-dscr-up');
+const dscrDownBtn = document.getElementById('da-dscr-down');
+
+if (dscrUpBtn && dscrInput) {
+  dscrUpBtn.addEventListener('click', () => {
+    const currentValue = parseFloat(dscrInput.value) || 1.0;
+    const newValue = Math.round((currentValue + 0.05) * 100) / 100; // Round to 2 decimals
+    dscrInput.value = newValue;
+    calculate();
+  });
+  
+  // Hover effect
+  dscrUpBtn.addEventListener('mouseenter', () => {
+    dscrUpBtn.style.background = 'var(--bg-tertiary)';
+  });
+  dscrUpBtn.addEventListener('mouseleave', () => {
+    dscrUpBtn.style.background = 'var(--bg-secondary)';
+  });
+}
+
+if (dscrDownBtn && dscrInput) {
+  dscrDownBtn.addEventListener('click', () => {
+    const currentValue = parseFloat(dscrInput.value) || 1.0;
+    const newValue = Math.max(1.0, Math.round((currentValue - 0.05) * 100) / 100); // Don't go below 1.0
+    dscrInput.value = newValue;
+    calculate();
+  });
+  
+  // Hover effect
+  dscrDownBtn.addEventListener('mouseenter', () => {
+    dscrDownBtn.style.background = 'var(--bg-tertiary)';
+  });
+  dscrDownBtn.addEventListener('mouseleave', () => {
+    dscrDownBtn.style.background = 'var(--bg-secondary)';
+  });
+}
 
 // --- 7. SHARE FUNCTIONALITY ---
 const shareModal = document.getElementById('da-share-modal');

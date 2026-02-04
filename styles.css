@@ -142,6 +142,20 @@
 }
 .da-input[readonly]:hover {
   background-color: var(--input-bg-readonly-hover);
+}
+
+/* Warning messages - hidden by default, shown with .visible class */
+.da-warning {
+  display: none;
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.da-warning.visible {
+  display: block;
   border-color: var(--text-tertiary);
 }
 .da-select { 

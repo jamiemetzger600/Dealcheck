@@ -11,7 +11,7 @@ const STORAGE_KEYS = {
     LAST_SYNC: 'lastSyncTimestamp'
 };
 
-const MAX_AGGREGATED_DEALS = 10000; // Keep top 10K most relevant deals
+const MAX_AGGREGATED_DEALS = 6000; // Keep top 6K most recent deals
 const STORAGE_LIMIT_MB = 10;
 const BYTES_PER_MB = 1048576;
 
@@ -43,7 +43,7 @@ function sanitizeDealForStorage(deal) {
         id: String(deal.id || ''),
         name: String(deal.name || ''),
         url: String(deal.url || ''),
-        description: String(deal.description || '').substring(0, 1500), // Limit description length
+        description: String(deal.description || '').substring(0, 800), // Limit description length to save space
         broker: String(deal.broker || ''),
         brokerName: String(deal.brokerName || ''),
         brokerCompany: String(deal.brokerCompany || ''),
@@ -154,32 +154,52 @@ function pruneDealsByRelevance(deals, maxDeals) {
     const pruned = scoredDeals.slice(0, maxDeals);
     
     console.log(`✂️  Pruned ${deals.length - pruned.length} deals (kept top ${maxDeals})`);
+    
+    // Log breakdown by source type
+    const sourceBreakdown = {};
+    pruned.forEach(deal => {
+        const sourceType = deal.sourceType || 'unknown';
+        sourceBreakdown[sourceType] = (sourceBreakdown[sourceType] || 0) + 1;
+    });
+    console.log(`📊 Kept deals by source:`, sourceBreakdown);
+    
     return pruned;
 }
 
-// Calculate relevance score for a deal
+// Calculate relevance score for a deal (prioritize most recent)
 function calculateRelevanceScore(deal) {
+    // Simple scoring: Most recent deals get highest scores
+    // This ensures we keep the 6000 most recent deals
+    
     let score = 0;
     
-    // Recent deals are more relevant (max 50 points)
+    // Recency is king - use timestamp directly as score
+    // Newer deals get higher scores automatically
     const daysSinceDiscovered = (Date.now() - deal.discoveredAt) / (1000 * 60 * 60 * 24);
-    if (daysSinceDiscovered < 7) {
-        score += 50 - (daysSinceDiscovered * 7); // Decay over 7 days
+    
+    // Score based on age (newer = higher score)
+    if (daysSinceDiscovered < 1) {
+        score += 10000; // Today
+    } else if (daysSinceDiscovered < 7) {
+        score += 5000; // This week
+    } else if (daysSinceDiscovered < 30) {
+        score += 1000; // This month
+    } else if (daysSinceDiscovered < 90) {
+        score += 100; // Last 3 months
+    } else {
+        score += 10; // Older
     }
     
-    // Has complete data (30 points)
-    if (deal.askingPrice) score += 10;
-    if (deal.ebitda) score += 10;
-    if (deal.location) score += 5;
-    if (deal.industry) score += 5;
+    // Bonus for complete data
+    if (deal.askingPrice) score += 5;
+    if (deal.ebitda) score += 5;
+    if (deal.location) score += 2;
     
-    // Not passed by user (20 points)
-    if (!deal.userPassed) score += 20;
+    // Google Sheets deals get slight bonus
+    if (deal.sourceType === 'google_sheets') score += 10;
     
-    // Add any existing AI match score if available
-    if (deal.aiMatchScore) {
-        score += deal.aiMatchScore * 0.3; // Up to 30 points
-    }
+    // Not passed by user
+    if (!deal.userPassed) score += 10;
     
     return score;
 }
@@ -198,6 +218,20 @@ async function addDealsToPool(newDeals) {
         const uniqueNewDeals = newDeals.filter(deal => !existingIds.has(deal.id));
         
         console.log(`🔍 Found ${uniqueNewDeals.length} unique deals (${newDeals.length - uniqueNewDeals.length} duplicates)`);
+        
+        // Log details about new deals for debugging
+        if (uniqueNewDeals.length > 0) {
+            const sampleDeal = uniqueNewDeals[0];
+            console.log(`📋 Sample new deal:`, {
+                name: sampleDeal.name?.substring(0, 50),
+                source: sampleDeal.source,
+                sourceType: sampleDeal.sourceType,
+                hasPrice: !!sampleDeal.askingPrice,
+                hasEbitda: !!sampleDeal.ebitda,
+                hasLocation: !!sampleDeal.location,
+                discoveredAt: new Date(sampleDeal.discoveredAt).toISOString()
+            });
+        }
         
         // Merge arrays
         const mergedDeals = [...existingDeals, ...uniqueNewDeals];

@@ -2,7 +2,7 @@
 // Version is now managed centrally in version.js
 // We access it here but store in a local variable scoped to this file
 // Using an immediately-invoked function expression to avoid global conflicts
-const getVersion = () => `v${window.EXTENSION_VERSION || '2.2.0'}`;
+const getVersion = () => `v${window.EXTENSION_VERSION || '3.0.0'}`;
 const EXT_VERSION = getVersion();
 
 // Global error handler to catch any unhandled errors

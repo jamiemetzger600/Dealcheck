@@ -124,7 +124,7 @@ function switchTab(tabName) {
 // Initialize tabs on load
 async function initializeDashboard() {
     // Get version from centralized version.js (fallback: manifest)
-    const version = window.EXTENSION_VERSION || (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '2.2.22';
+    const version = window.EXTENSION_VERSION || (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '3.0.0';
     
     // Update header version display (must use central version, no hardcoding)
     const headerVersionEl = document.getElementById('header-version');
@@ -179,7 +179,8 @@ async function initializeDashboard() {
     
     // Verify required functions are available
     console.log('📦 Checking dependencies...');
-    console.log('  fetchAllRSSFeeds:', typeof fetchAllRSSFeeds !== 'undefined' ? '✅' : '❌');
+    console.log('  ℹ️  RSS feeds disabled - Google Sheets only mode');
+    console.log('  ℹ️  Storage limit: 6000 most recent deals');
     console.log('  addDealsToPool:', typeof addDealsToPool !== 'undefined' ? '✅' : '❌');
     console.log('  loadAggregatedDeals:', typeof loadAggregatedDeals !== 'undefined' ? '✅' : '❌');
     console.log('  getCustomSources:', typeof getCustomSources !== 'undefined' ? '✅' : '❌');
@@ -289,44 +290,31 @@ async function initializeDashboard() {
         btn.classList.add('loading');
         
         try {
+            console.log('🔄 Fetching deals from Google Sheets only...');
             const allDeals = [];
-            let rssCount = 0;
             let customCount = 0;
             
-            // Fetch RSS feeds
-            try {
-                const rssResults = await fetchAllRSSFeeds();
-                const rssDeals = rssResults.flatMap(r => r.deals);
-                allDeals.push(...rssDeals);
-                rssCount = rssDeals.length;
-                console.log(`📡 Fetched ${rssCount} deals from RSS feeds`);
-            } catch (error) {
-                console.error('Error fetching RSS feeds:', error);
-                showToast('⚠️ Some RSS feeds failed: ' + error.message, 'warning');
-            }
-            
-            // Fetch custom sources (Google Sheets, CSV, etc.)
+            // Fetch custom sources (Google Sheets only for now - RSS disabled)
             try {
                 if (typeof fetchAllCustomSources !== 'undefined') {
                     const customResults = await fetchAllCustomSources();
                     const customDeals = customResults.flatMap(r => r.deals);
                     allDeals.push(...customDeals);
                     customCount = customDeals.length;
-                    console.log(`📥 Fetched ${customCount} deals from custom sources`);
+                    console.log(`📥 Fetched ${customCount} deals from Google Sheets`);
                 }
             } catch (error) {
-                console.error('Error fetching custom sources:', error);
-                showToast('⚠️ Some custom sources failed: ' + error.message, 'warning');
+                console.error('Error fetching Google Sheets:', error);
+                showToast('⚠️ Google Sheets fetch failed: ' + error.message, 'error');
             }
             
             // Add all deals to storage
             if (allDeals.length > 0) {
                 const stats = await addDealsToPool(allDeals);
                 const summary = `✅ Added ${stats.added} new deals (${stats.duplicates} duplicates)`;
-                const breakdown = `RSS: ${rssCount} | Custom: ${customCount}`;
-                showToast(`${summary}\n${breakdown}`, 'success', 5000);
+                showToast(`${summary}. Total: ${stats.total} deals (max 6000)`, 'success', 5000);
             } else {
-                showToast('ℹ️ No deals found. Add sources in "Manage Sources"', 'info', 5000);
+                showToast('ℹ️ No deals found. Add Google Sheet in "Manage Sources"', 'info', 5000);
             }
             
             // Update UI
@@ -570,6 +558,37 @@ async function loadAggregatorDeals() {
         const deals = await loadAggregatedDeals();
         console.log(`📊 Loaded ${deals.length} aggregated deals`);
         
+        // DEBUG: Show breakdown by source type
+        const sourceBreakdown = {};
+        deals.forEach(deal => {
+            const sourceType = deal.sourceType || 'unknown';
+            sourceBreakdown[sourceType] = (sourceBreakdown[sourceType] || 0) + 1;
+        });
+        console.log(`📊 Deals by source type:`, sourceBreakdown);
+        
+        // DEBUG: Log first 2 deals to see structure
+        if (deals.length > 0) {
+            console.log(`🔍 Sample deal 1:`, {
+                name: deals[0].name?.substring(0, 50),
+                askingPrice: deals[0].askingPrice,
+                ebitda: deals[0].ebitda,
+                location: deals[0].location,
+                industry: deals[0].industry,
+                sourceType: deals[0].sourceType,
+                keys: Object.keys(deals[0]).slice(0, 15)
+            });
+        }
+        if (deals.length > 1) {
+            console.log(`🔍 Sample deal 2:`, {
+                name: deals[1].name?.substring(0, 50),
+                askingPrice: deals[1].askingPrice,
+                ebitda: deals[1].ebitda,
+                location: deals[1].location,
+                industry: deals[1].industry,
+                sourceType: deals[1].sourceType
+            });
+        }
+        
         aggregatedDeals = deals;
         
         // Update stats
@@ -644,6 +663,26 @@ function renderAggregatorTable() {
 
 // Create table row for a deal
 function createAggregatorDealRow(deal) {
+    // DEBUG: Log first few deals to see what data we have
+    if (window._debugDealCount === undefined) window._debugDealCount = 0;
+    if (window._debugDealCount < 3) {
+        console.log(`🔍 DEBUG Deal ${window._debugDealCount + 1}:`, {
+            id: deal.id,
+            name: deal.name?.substring(0, 50),
+            askingPrice: deal.askingPrice,
+            ebitda: deal.ebitda,
+            location: deal.location,
+            city: deal.city,
+            state: deal.state,
+            industry: deal.industry,
+            source: deal.source,
+            sourceType: deal.sourceType,
+            url: deal.url?.substring(0, 50),
+            allKeys: Object.keys(deal)
+        });
+        window._debugDealCount++;
+    }
+    
     const row = document.createElement('tr');
     row.dataset.dealId = deal.id;
     
@@ -2118,7 +2157,7 @@ async function exportBackup() {
         });
         
         const backup = {
-            version: window.EXTENSION_VERSION || '2.2.0',
+            version: window.EXTENSION_VERSION || '3.0.0',
             exportedAt: new Date().toISOString(),
             savedDeals: savedDeals
         };

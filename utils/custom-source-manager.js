@@ -649,107 +649,269 @@ async function extractHyperlinksFromPublishedSheet(pubhtmlUrl, columnIndex) {
     });
 }
 
-// Fetch data from Google Sheets
-async function fetchGoogleSheets(source) {
-    console.log('Fetching Google Sheets:', source.name);
-    console.log('📋 Sheet URL:', source.url);
-    
+function getGoogleSheetsAuthToken(interactive = true) {
+    return new Promise((resolve, reject) => {
+        if (!chrome?.identity?.getAuthToken) {
+            reject(new Error('Chrome identity API not available'));
+            return;
+        }
+        chrome.identity.getAuthToken({ interactive }, (token) => {
+            if (chrome.runtime.lastError || !token) {
+                reject(new Error(chrome.runtime.lastError?.message || 'Failed to get auth token'));
+                return;
+            }
+            resolve(token);
+        });
+    });
+}
+
+function removeCachedAuthToken(token) {
+    return new Promise((resolve) => {
+        if (!chrome?.identity?.removeCachedAuthToken || !token) {
+            resolve();
+            return;
+        }
+        chrome.identity.removeCachedAuthToken({ token }, () => resolve());
+    });
+}
+
+async function fetchSheetsMetadata(sheetId, token) {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties(sheetId,title))`;
+    const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    return response;
+}
+
+async function fetchSheetsGridData(sheetId, range, token) {
+    const encodedRange = encodeURIComponent(range);
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?includeGridData=true&ranges=${encodedRange}&fields=sheets(data(rowData(values(formattedValue,hyperlink))))`;
+    const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    return response;
+}
+
+async function resolveSheetTitle(info, token, fallbackTitle) {
     try {
-        // Strategy: Always try to extract hyperlinks via background script + merge with CSV
-        console.log('🎯 Strategy: Fetch CSV data + Extract hyperlinks from rendered page');
-        
-        // Step 1: Get CSV data (all the content except hyperlinks)
-        const csvUrl = parseGoogleSheetsUrl(source.url, 'csv');
-        console.log('Step 1: Fetching CSV data from:', csvUrl);
-        
-        let csvText = '';
-        let csvResponse = await fetch(csvUrl);
-        
-        // If direct export fails, try the published URL format
-        if (!csvResponse.ok) {
-            console.warn(`⚠️ Direct CSV export failed (${csvResponse.status}), trying published format...`);
-            
-            // Extract sheet ID and try published format
-            const sheetIdMatch = source.url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-            if (sheetIdMatch) {
-                const sheetId = sheetIdMatch[1];
-                // Try gviz/tq endpoint which often works without publishing
-                const gvizUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=0`;
-                console.log('Trying gviz endpoint:', gvizUrl);
-                
-                csvResponse = await fetch(gvizUrl);
-                if (!csvResponse.ok) {
-                    // Last resort: provide helpful error message
-                    console.error('❌ All CSV fetch methods failed');
-                    console.error('📋 To fix this, please publish your Google Sheet:');
-                    console.error('   1. Open the Google Sheet');
-                    console.error('   2. Go to File > Share > Publish to web');
-                    console.error('   3. Select the sheet tab and choose "Comma-separated values (.csv)"');
-                    console.error('   4. Click Publish and copy the URL');
-                    console.error('   5. Use that published URL in Manage Sources');
-                    throw new Error(`CSV fetch failed: ${csvResponse.status}. Please publish your Google Sheet to web (File > Share > Publish to web) and use the published CSV URL.`);
-                }
-            } else {
-                throw new Error(`CSV fetch failed: ${csvResponse.status}`);
-            }
+        const response = await fetchSheetsMetadata(info.id, token);
+        if (!response.ok) {
+            throw new Error(`Metadata fetch failed (${response.status})`);
         }
-        
-        csvText = await csvResponse.text();
-        console.log(`✅ Got CSV (${csvText.length} chars)`);
-        
-        // Check if we got HTML error page instead of CSV
-        if (csvText.includes('<!DOCTYPE html>') || csvText.includes('<html')) {
-            console.error('❌ Received HTML instead of CSV - sheet may not be publicly accessible');
-            console.log('First 500 chars of response:', csvText.substring(0, 500));
-            throw new Error('Google Sheet is not publicly accessible. Please publish the sheet to web (File > Share > Publish to web).');
+        const data = await response.json();
+        const sheets = data.sheets || [];
+        const gid = info.gid ? parseInt(info.gid, 10) : null;
+        let match = null;
+        if (!Number.isNaN(gid)) {
+            match = sheets.find(s => s.properties?.sheetId === gid);
         }
-        
-        // Log first few lines to debug
-        const firstLines = csvText.split('\n').slice(0, 6);
-        console.log('📝 First 6 lines of CSV:');
-        firstLines.forEach((line, i) => console.log(`  Line ${i}: ${line.substring(0, 100)}${line.length > 100 ? '...' : ''}`));
-        
-        // Parse CSV to get all deal data
-        const deals = parseCSV(csvText, source.columnMapping || {});
-        console.log(`✅ Parsed ${deals.length} deals from CSV`);
-        
-        // Step 2: Extract hyperlinks from the rendered page (works for both edit and pubhtml URLs)
-        try {
-            const pubhtmlUrl = parseGoogleSheetsUrl(source.url, 'html');
-            console.log('Step 2: Extracting hyperlinks from rendered page:', pubhtmlUrl);
-            
-            // Raw URL is column W = index 22 (A=0, B=1, ... V=21, W=22)
-            const urlColumnIndex = 22;
-            console.log(`🔗 Looking for URLs in column W (index ${urlColumnIndex})`);
-            
-            const hyperlinks = await extractHyperlinksFromPublishedSheet(pubhtmlUrl, urlColumnIndex);
-            
-            // Merge hyperlinks into deals
-            if (hyperlinks.length > 0) {
-                console.log(`📊 Merging ${hyperlinks.length} hyperlinks with ${deals.length} deals...`);
-                const merged = deals.map((deal, index) => {
-                    if (index < hyperlinks.length && hyperlinks[index]) {
-                        return { ...deal, url: hyperlinks[index] };
-                    }
-                    return deal;
-                });
-                
-                const withUrls = merged.filter(d => d.url).length;
-                console.log(`🎉 Successfully merged! ${withUrls}/${merged.length} deals now have URLs`);
-                return merged;
-            } else {
-                console.warn('⚠️ No hyperlinks extracted, returning deals without URLs');
-                return deals;
-            }
-            
-        } catch (hyperlinkError) {
-            console.warn('⚠️ Hyperlink extraction failed:', hyperlinkError.message);
-            console.log('Returning deals from CSV only (no URLs)');
-            return deals;
+        if (!match && fallbackTitle) {
+            match = sheets.find(s => s.properties?.title === fallbackTitle);
         }
-        
+        return match?.properties?.title || sheets[0]?.properties?.title || fallbackTitle || 'Sheet1';
     } catch (error) {
-        console.error('Error fetching Google Sheets:', error);
+        console.warn('⚠️ Failed to resolve sheet title, using fallback:', error.message);
+        return fallbackTitle || 'Sheet1';
+    }
+}
+
+function parseSheetsRowData(rows, columnMapping) {
+    if (!rows || rows.length === 0) {
+        return [];
+    }
+
+    const headerCells = rows[0]?.values || [];
+    const headers = headerCells.map((cell, index) => {
+        const label = (cell?.formattedValue || '').trim();
+        if (label) return label;
+        const columnLetter = String.fromCharCode(65 + index);
+        return `Column_${columnLetter}`;
+    });
+    const lowerHeaders = headers.map(h => (h || '').toLowerCase().trim());
+
+    const colIndices = {
+        discovered: findColumnIndex(lowerHeaders, columnMapping.discovered || ['date added', 'discovered', 'added', 'listed date']),
+        name: findColumnIndex(lowerHeaders, columnMapping.name || ['name', 'business name', 'deal name', 'title']),
+        industry: findColumnIndex(lowerHeaders, columnMapping.industry || ['industry', 'sector', 'category', 'type']),
+        description: findColumnIndex(lowerHeaders, columnMapping.description || ['description', 'details', 'summary', 'about', 'notes']),
+        city: findColumnIndex(lowerHeaders, columnMapping.city || ['city']),
+        county: findColumnIndex(lowerHeaders, columnMapping.county || ['county']),
+        state: findColumnIndex(lowerHeaders, columnMapping.state || ['state']),
+        country: findColumnIndex(lowerHeaders, columnMapping.country || ['country']),
+        yearsEstablished: findColumnIndex(lowerHeaders, columnMapping.yearsEstablished || ['years established', 'years in business', 'established']),
+        ebitda: findColumnIndex(lowerHeaders, columnMapping.ebitda || ['annual profit', 'ebitda', 'sde', 'cash flow', 'earnings']),
+        revenue: findColumnIndex(lowerHeaders, columnMapping.revenue || ['annual revenue', 'revenue', 'sales', 'gross revenue']),
+        price: findColumnIndex(lowerHeaders, columnMapping.price || ['asking price', 'asking', 'price', 'sale price']),
+        profitMultiple: findColumnIndex(lowerHeaders, columnMapping.profitMultiple || ['profit multiple', 'ebitda multiple']),
+        revenueMultiple: findColumnIndex(lowerHeaders, columnMapping.revenueMultiple || ['revenue multiple']),
+        remote: findColumnIndex(lowerHeaders, columnMapping.remote || ['remote', 'relocatable', 'absentee', 'remote/relocatable/absentee-run']),
+        franchise: findColumnIndex(lowerHeaders, columnMapping.franchise || ['franchise']),
+        fiveYearsInBusiness: findColumnIndex(lowerHeaders, columnMapping.fiveYearsInBusiness || ['5+ years in business', 'years in business']),
+        brokerName: findColumnIndex(lowerHeaders, columnMapping.brokerName || ['broker name', 'broker']),
+        brokerCompany: findColumnIndex(lowerHeaders, columnMapping.brokerCompany || ['broker company', 'brokerage']),
+        brokerPhone: findColumnIndex(lowerHeaders, columnMapping.brokerPhone || ['broker contact', 'broker phone', 'contact phone', 'phone', 'phone number']),
+        brokerEmail: findColumnIndex(lowerHeaders, columnMapping.brokerEmail || ['broker email', 'contact email', 'email']),
+        url: findColumnIndex(lowerHeaders, columnMapping.url || ['view listing', 'listing url', 'url', 'link', 'website', 'deal url']),
+        location: findColumnIndex(lowerHeaders, columnMapping.location || ['location', 'address', 'region']),
+        source: findColumnIndex(lowerHeaders, columnMapping.source || ['source', 'platform', 'marketplace'])
+    };
+
+    const deals = [];
+    
+    // DEBUG: Log headers to see what we're working with
+    console.log('🔍 Google Sheets Headers (first 10):', headers.slice(0, 10));
+    console.log('🔍 Column indices:', {
+        name: colIndices.name,
+        price: colIndices.price,
+        ebitda: colIndices.ebitda,
+        location: colIndices.location,
+        city: colIndices.city,
+        state: colIndices.state,
+        url: colIndices.url
+    });
+    
+    for (let i = 1; i < rows.length; i++) {
+        const cells = rows[i]?.values || [];
+        const values = headers.map((_, index) => (cells[index]?.formattedValue || '').trim());
+        const hasAnyValue = values.some(value => value && value.trim());
+        if (!hasAnyValue) continue;
+        
+        // DEBUG: Log first 3 data rows
+        if (i <= 3) {
+            console.log(`🔍 Row ${i} sample values (first 10):`, values.slice(0, 10));
+        }
+
+        const getValue = (index) => {
+            if (index === -1 || index >= values.length) return '';
+            return values[index] || '';
+        };
+
+        const rawColumns = {};
+        headers.forEach((header, index) => {
+            rawColumns[header] = values[index] || '';
+        });
+
+        let url = '';
+        if (colIndices.url !== -1) {
+            const urlCell = cells[colIndices.url];
+            if (urlCell?.hyperlink) {
+                url = urlCell.hyperlink;
+            } else {
+                const urlText = getValue(colIndices.url);
+                if (urlText.startsWith('http://') || urlText.startsWith('https://')) {
+                    url = urlText;
+                }
+            }
+        }
+        if (!url) {
+            const linkedCell = cells.find(cell => cell?.hyperlink);
+            if (linkedCell?.hyperlink) {
+                url = linkedCell.hyperlink;
+            }
+        }
+
+        const nameVal = getValue(colIndices.name);
+        const dealName = nameVal || generateDealName(values, colIndices, i);
+
+        let location = getValue(colIndices.location);
+        if (!location) {
+            const city = getValue(colIndices.city);
+            const state = getValue(colIndices.state);
+            if (city && state) location = `${city}, ${state}`;
+            else if (city) location = city;
+            else if (state) location = state;
+        }
+
+        const brokerName = getValue(colIndices.brokerName);
+        const brokerCompany = getValue(colIndices.brokerCompany);
+        const brokerDisplay = brokerName && brokerCompany ? `${brokerName} (${brokerCompany})` : brokerName || brokerCompany;
+
+        const deal = {
+            id: generateDealId(url || dealName || `row_${i}`),
+            name: dealName,
+            url: url,
+            industry: getValue(colIndices.industry),
+            description: getValue(colIndices.description),
+            location: location,
+            city: getValue(colIndices.city),
+            county: getValue(colIndices.county),
+            state: getValue(colIndices.state),
+            country: getValue(colIndices.country),
+            yearsEstablished: getValue(colIndices.yearsEstablished),
+            ebitda: parsePrice(getValue(colIndices.ebitda)),
+            revenue: parsePrice(getValue(colIndices.revenue)),
+            askingPrice: parsePrice(getValue(colIndices.price)),
+            profitMultiple: parseFloat(getValue(colIndices.profitMultiple)) || null,
+            revenueMultiple: parseFloat(getValue(colIndices.revenueMultiple)) || null,
+            remote: getValue(colIndices.remote),
+            franchise: getValue(colIndices.franchise),
+            fiveYearsInBusiness: getValue(colIndices.fiveYearsInBusiness),
+            broker: brokerDisplay,
+            brokerName: brokerName,
+            brokerCompany: brokerCompany,
+            brokerPhone: getValue(colIndices.brokerPhone),
+            brokerEmail: getValue(colIndices.brokerEmail),
+            source: getValue(colIndices.source) || 'google_sheets',
+            sourceType: 'google_sheets',
+            discoveredAt: getValue(colIndices.discovered) ?
+                new Date(getValue(colIndices.discovered)).getTime() : Date.now(),
+            rawColumns: rawColumns
+        };
+        
+        // DEBUG: Log first 3 deals to see what we're getting
+        if (i <= 3) {
+            console.log(`🔍 Parsed deal ${i}:`, {
+                name: deal.name?.substring(0, 50),
+                askingPrice: deal.askingPrice,
+                ebitda: deal.ebitda,
+                location: deal.location,
+                city: deal.city,
+                state: deal.state,
+                industry: deal.industry,
+                url: deal.url?.substring(0, 50),
+                rawPriceValue: getValue(colIndices.price),
+                rawEbitdaValue: getValue(colIndices.ebitda)
+            });
+        }
+
+        deals.push(deal);
+    }
+
+    console.log(`Parsed ${deals.length} deals from Google Sheets API`);
+    return deals;
+}
+
+// Fetch data from Google Sheets (OAuth + API)
+async function fetchGoogleSheets(source) {
+    console.log('Fetching Google Sheets (API):', source.name);
+    console.log('📋 Sheet URL:', source.url);
+
+    try {
+        const sheetInfo = extractSheetInfo(source.url);
+        const token = await getGoogleSheetsAuthToken(true);
+        // Allow user to specify sheet name, default to 'Deal Check Source' or first sheet
+        const targetSheetName = source.sheetName || source.sheetTab || 'Deal Check Source';
+        console.log('📋 Looking for sheet tab:', targetSheetName);
+        const sheetTitle = await resolveSheetTitle(sheetInfo, token, targetSheetName);
+        console.log('📋 Using sheet tab:', sheetTitle);
+        const range = `${sheetTitle}!A1:W`;
+
+        let response = await fetchSheetsGridData(sheetInfo.id, range, token);
+        if (response.status === 401) {
+            await removeCachedAuthToken(token);
+            const refreshedToken = await getGoogleSheetsAuthToken(true);
+            response = await fetchSheetsGridData(sheetInfo.id, range, refreshedToken);
+        }
+
+        if (!response.ok) {
+            throw new Error(`Google Sheets API error (${response.status})`);
+        }
+
+        const data = await response.json();
+        const rows = data?.sheets?.[0]?.data?.[0]?.rowData || [];
+        return parseSheetsRowData(rows, source.columnMapping || {});
+    } catch (error) {
+        console.error('Error fetching Google Sheets via API:', error);
         throw error;
     }
 }

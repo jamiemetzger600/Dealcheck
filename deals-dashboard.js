@@ -1976,6 +1976,9 @@ function updateMyDealsStats() {
 // Render My Deals table
 function renderMyDealsTable() {
     const tbody = document.getElementById('deals-tbody');
+    const table = document.getElementById('deals-table');
+    const emptyState = document.getElementById('empty-state');
+    
     if (!tbody) {
         console.error('Table body not found');
         return;
@@ -1988,6 +1991,10 @@ function renderMyDealsTable() {
     
     // Check if we have deals
     if (filteredMyDeals.length === 0) {
+        // Hide table, show empty state
+        if (table) table.style.display = 'none';
+        if (emptyState) emptyState.style.display = 'block';
+        
         tbody.innerHTML = `
             <tr>
                 <td colspan="9" style="text-align: center; padding: 40px; color: #999;">
@@ -1999,6 +2006,10 @@ function renderMyDealsTable() {
         `;
         return;
     }
+    
+    // Show table, hide empty state
+    if (table) table.style.display = 'table';
+    if (emptyState) emptyState.style.display = 'none';
     
     // Render each deal
     filteredMyDeals.forEach(deal => {

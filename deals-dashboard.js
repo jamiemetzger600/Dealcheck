@@ -353,6 +353,9 @@ async function initializeDashboard() {
     // Load aggregated deals on tab switch
     loadAggregatorDeals();
     
+    // Load My Deals count on initial page load (so badge shows correct number)
+    loadMyDealsCount();
+    
     // Set up aggregator table sorting
     document.querySelectorAll('.aggregator-table th.sortable').forEach(th => {
         th.addEventListener('click', () => {
@@ -1928,6 +1931,28 @@ async function loadMyDeals() {
     } catch (error) {
         console.error('Error loading My Deals:', error);
         showToast('Error loading deals: ' + error.message, 'error');
+    }
+}
+
+// Load just the My Deals count (lightweight version for initial page load)
+async function loadMyDealsCount() {
+    try {
+        const result = await new Promise((resolve) => {
+            chrome.storage.local.get(['savedDeals'], (result) => {
+                resolve(result.savedDeals || []);
+            });
+        });
+        
+        const count = result.length;
+        console.log(`💼 Loaded My Deals count: ${count}`);
+        
+        // Update the badge count
+        const countBadge = document.getElementById('my-deals-count');
+        if (countBadge) {
+            countBadge.textContent = formatNumber(count);
+        }
+    } catch (error) {
+        console.error('Error loading My Deals count:', error);
     }
 }
 

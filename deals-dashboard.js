@@ -749,6 +749,28 @@ function createAggregatorDealRow(deal) {
     `;
     cells['name'] = nameCell;
     
+    // Date Added
+    cells['date'] = createCell('date', formatRelativeTime(deal.discoveredAt));
+    
+    // Industry
+    const industryContent = deal.industry ? 
+        `<span class="aggregator-industry-tag">${escapeHtml(deal.industry)}</span>` : '-';
+    cells['industry'] = createCell('industry', industryContent);
+    
+    // Description
+    const descText = deal.description || '';
+    const truncatedDesc = descText.length > 80 ? descText.substring(0, 80) + '...' : descText || '-';
+    cells['description'] = createCell('description', escapeHtml(truncatedDesc));
+    
+    // City, County, State, Country
+    cells['city'] = createCell('city', escapeHtml(deal.city || '-'));
+    cells['county'] = createCell('county', escapeHtml(deal.county || '-'));
+    cells['state'] = createCell('state', escapeHtml(deal.state || '-'));
+    cells['country'] = createCell('country', escapeHtml(deal.country || '-'));
+    
+    // Years Established
+    cells['yearsEstablished'] = createCell('yearsEstablished', escapeHtml(deal.yearsEstablished || '-'));
+    
     // Asking Price - MUST match "price" column
     cells['price'] = createCell('price', `<span class="aggregator-price">${formatPrice(deal.askingPrice)}</span>`);
     
@@ -758,33 +780,38 @@ function createAggregatorDealRow(deal) {
     // Revenue - MUST match "revenue" column
     cells['revenue'] = createCell('revenue', `<span class="aggregator-price">${formatPrice(deal.revenue)}</span>`);
     
+    // Profit Multiple
+    cells['profitMultiple'] = createCell('profitMultiple', deal.profitMultiple ? `${deal.profitMultiple.toFixed(1)}x` : '-');
+    
+    // Revenue Multiple
+    cells['revenueMultiple'] = createCell('revenueMultiple', deal.revenueMultiple ? `${deal.revenueMultiple.toFixed(1)}x` : '-');
+    
+    // Remote/Relocatable/Absentee-Run
+    cells['remote'] = createCell('remote', escapeHtml(deal.remote || '-'));
+    
+    // Franchise
+    cells['franchise'] = createCell('franchise', escapeHtml(deal.franchise || '-'));
+    
+    // 5+ Years In Business
+    cells['fiveYearsInBusiness'] = createCell('fiveYearsInBusiness', escapeHtml(deal.fiveYearsInBusiness || '-'));
+    
     // Location
     cells['location'] = createCell('location', escapeHtml(deal.location || '-'));
     
-    // City
-    cells['city'] = createCell('city', escapeHtml(deal.city || '-'));
+    // Broker
+    cells['broker'] = createCell('broker', escapeHtml(deal.broker || deal.brokerName || '-'));
     
-    // State
-    cells['state'] = createCell('state', escapeHtml(deal.state || '-'));
+    // Broker Company
+    cells['brokerCompany'] = createCell('brokerCompany', escapeHtml(deal.brokerCompany || '-'));
     
-    // Industry
-    const industryContent = deal.industry ? 
-        `<span class="aggregator-industry-tag">${escapeHtml(deal.industry)}</span>` : '-';
-    cells['industry'] = createCell('industry', industryContent);
+    // Broker Phone
+    cells['brokerPhone'] = createCell('brokerPhone', escapeHtml(deal.brokerPhone || '-'));
+    
+    // Broker Email
+    cells['brokerEmail'] = createCell('brokerEmail', escapeHtml(deal.brokerEmail || '-'));
     
     // Source
     cells['source'] = createCell('source', escapeHtml(deal.source || deal.sourceType || '-'));
-    
-    // Broker
-    cells['broker'] = createCell('broker', escapeHtml(deal.broker || '-'));
-    
-    // Date
-    cells['date'] = createCell('date', formatRelativeTime(deal.discoveredAt));
-    
-    // Description
-    const descText = deal.description || '';
-    const truncatedDesc = descText.length > 80 ? descText.substring(0, 80) + '...' : descText || '-';
-    cells['description'] = createCell('description', escapeHtml(truncatedDesc));
     
     // URL
     const urlContent = deal.url ? 
@@ -1187,19 +1214,30 @@ function populateExcludeListSelect() {
 // Define all possible columns with display names
 const COLUMN_CONFIG = {
     name: { label: 'Name', default: true, required: true },
-    price: { label: 'Asking Price', default: true },
-    ebitda: { label: 'EBITDA/Profit', default: true },
-    revenue: { label: 'Revenue', default: false },
-    location: { label: 'Location', default: true },
-    city: { label: 'City', default: false },
-    state: { label: 'State', default: false },
-    industry: { label: 'Industry', default: true },
-    source: { label: 'Source', default: true },
-    broker: { label: 'Broker', default: false },
     date: { label: 'Date Added', default: true },
+    industry: { label: 'Industry', default: true },
     description: { label: 'Description', default: false },
+    city: { label: 'City', default: false },
+    county: { label: 'County', default: false },
+    state: { label: 'State', default: false },
+    country: { label: 'Country', default: false },
+    yearsEstablished: { label: 'Years Established', default: false },
+    ebitda: { label: 'Annual Profit', default: true },
+    revenue: { label: 'Annual Revenue', default: false },
+    price: { label: 'Asking Price', default: true },
+    profitMultiple: { label: 'Profit Multiple', default: false },
+    revenueMultiple: { label: 'Revenue Multiple', default: false },
+    remote: { label: 'Remote/Relocatable/Absentee-Run', default: false },
+    franchise: { label: 'Franchise', default: false },
+    fiveYearsInBusiness: { label: '5+ Years In Business', default: false },
+    broker: { label: 'Broker Name', default: false },
+    brokerCompany: { label: 'Broker Company', default: false },
+    brokerPhone: { label: 'Broker Contact', default: false },
+    brokerEmail: { label: 'Broker Email', default: false },
+    location: { label: 'Location', default: true },
+    source: { label: 'Source', default: true },
     url: { label: 'Listing URL', default: false }
-    // Note: 'actions' column is always visible and not configurable
+    // Note: Dynamic columns from rawColumns will be added at runtime
 };
 
 let visibleColumns = {};
@@ -1252,18 +1290,30 @@ function detectAvailableColumns() {
     // Check first 50 deals to see what data exists
     const sampleDeals = aggregatedDeals.slice(0, 50);
     
+    // Map column IDs to deal property names
     const fieldMap = {
-        price: 'askingPrice',
+        date: 'discoveredAt',
+        industry: 'industry',
+        description: 'description',
+        city: 'city',
+        county: 'county',
+        state: 'state',
+        country: 'country',
+        yearsEstablished: 'yearsEstablished',
         ebitda: 'ebitda',
         revenue: 'revenue',
-        location: 'location',
-        city: 'city',
-        state: 'state',
-        industry: 'industry',
-        source: 'source',
+        price: 'askingPrice',
+        profitMultiple: 'profitMultiple',
+        revenueMultiple: 'revenueMultiple',
+        remote: 'remote',
+        franchise: 'franchise',
+        fiveYearsInBusiness: 'fiveYearsInBusiness',
         broker: 'broker',
-        date: 'discoveredAt',
-        description: 'description',
+        brokerCompany: 'brokerCompany',
+        brokerPhone: 'brokerPhone',
+        brokerEmail: 'brokerEmail',
+        location: 'location',
+        source: 'source',
         url: 'url'
     };
     
@@ -1291,6 +1341,8 @@ function detectAvailableColumns() {
         }
     });
     
+    console.log(`📋 Detected ${rawColumnNames.size} additional columns from rawColumns:`, Array.from(rawColumnNames));
+    
     // Add rawColumn-based columns to COLUMN_CONFIG dynamically
     rawColumnNames.forEach(colName => {
         const colId = 'raw_' + colName.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -1303,6 +1355,8 @@ function detectAvailableColumns() {
             availableColumns.push(colId);
         }
     });
+    
+    console.log(`📊 Total available columns: ${availableColumns.length}`, availableColumns);
 }
 
 function renderColumnCheckboxes() {
@@ -1390,8 +1444,34 @@ function updateTableColumns() {
 }
 
 // ====== COLUMN DRAG & DROP REORDERING ======
-// Define the canonical column order
-const COLUMN_ORDER = ['name', 'price', 'ebitda', 'revenue', 'location', 'city', 'state', 'industry', 'source', 'broker', 'date', 'description', 'url'];
+// Define the canonical column order (matches Google Sheets A:Q order)
+const COLUMN_ORDER = [
+    'name',              // Column B
+    'date',              // Column A - Date Added
+    'industry',          // Column C
+    'description',       // Column D
+    'city',              // Column E
+    'county',            // Column F
+    'state',             // Column G
+    'country',           // Column H
+    'yearsEstablished',  // Column I
+    'ebitda',            // Column J - Annual Profit
+    'revenue',           // Column K - Annual Revenue
+    'price',             // Column L - Asking Price
+    'profitMultiple',    // Column M
+    'revenueMultiple',   // Column N
+    'remote',            // Column O - Remote/Relocatable/Absentee-Run
+    'franchise',         // Column P
+    'fiveYearsInBusiness', // Column Q
+    'broker',            // Broker fields
+    'brokerCompany',
+    'brokerPhone',
+    'brokerEmail',
+    'location',          // Derived
+    'source',
+    'url'
+    // Dynamic rawColumns will be appended at runtime
+];
 
 function ensureColumnOrder() {
     // Ensure headers are in correct order

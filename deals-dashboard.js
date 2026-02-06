@@ -1920,14 +1920,37 @@ async function loadMyDeals() {
             });
         });
         
+        // Use the old system variables that renderDeals() expects
+        allDeals = result;
+        filteredDeals = [...allDeals];
+        
+        // Also update the new system for stats
         myDeals = result;
         filteredMyDeals = [...myDeals];
         
         console.log(`✅ Loaded ${myDeals.length} deals`);
         
-        // Update UI
-        updateMyDealsStats();
-        renderMyDealsTable();
+        // Update UI using the old rendering system (has Quality Score & COC)
+        updateStats(); // Use the old stats function that works with allDeals
+        
+        // Update the My Deals tab badge
+        const countBadge = document.getElementById('my-deals-count');
+        if (countBadge) {
+            countBadge.textContent = formatNumber(allDeals.length);
+        }
+        
+        renderDeals(); // Use the old detailed renderer instead of renderMyDealsTable()
+        
+        // Show/hide table based on deal count
+        const table = document.getElementById('deals-table');
+        const emptyState = document.getElementById('empty-state');
+        if (allDeals.length === 0) {
+            if (table) table.style.display = 'none';
+            if (emptyState) emptyState.style.display = 'block';
+        } else {
+            if (table) table.style.display = 'table';
+            if (emptyState) emptyState.style.display = 'none';
+        }
         
     } catch (error) {
         console.error('Error loading My Deals:', error);

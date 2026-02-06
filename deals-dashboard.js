@@ -353,8 +353,9 @@ async function initializeDashboard() {
     // Load aggregated deals on tab switch
     loadAggregatorDeals();
     
-    // Load My Deals count on initial page load (so badge shows correct number)
-    loadMyDealsCount();
+    // Load My Deals on initial page load (so table is ready even if not visible)
+    // This ensures rows are clickable when user switches to My Deals tab
+    loadMyDeals();
     
     // Set up aggregator table sorting
     document.querySelectorAll('.aggregator-table th.sortable').forEach(th => {

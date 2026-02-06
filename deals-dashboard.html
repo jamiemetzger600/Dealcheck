@@ -681,13 +681,15 @@
         .aggregator-deal-name {
             font-weight: 600;
             color: var(--text-primary);
-            max-width: 300px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            max-width: 100%;
+            overflow: visible;
+            white-space: normal;
+            word-wrap: break-word;
+            word-break: break-word;
             display: flex;
             align-items: center;
             gap: 8px;
+            line-height: 1.4;
         }
 
         .buybox-badge {
@@ -2975,6 +2977,10 @@
                         <input type="text" id="aggregator-search" placeholder="Search deals by name, location, or industry...">
                     </div>
                     <button class="toolbar-btn" id="toggle-columns-btn">Columns</button>
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); cursor: pointer; padding: 6px 12px; background: var(--bg-tertiary); border-radius: 6px;" title="Show deals you've hidden">
+                        <input type="checkbox" id="show-hidden-deals-toggle" style="cursor: pointer;">
+                        <span>Show Hidden (<span id="hidden-count">0</span>)</span>
+                    </label>
                     <button class="toolbar-btn toolbar-btn-danger" id="clear-refresh-btn">Clear & Refresh</button>
                 </div>
                 

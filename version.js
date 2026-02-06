@@ -3,7 +3,7 @@
 // Update this file and run update-version.sh to propagate changes
 
 (function() {
-    const VERSION = '3.0.5';
+    const VERSION = '3.0.6';
     
     // Export for different module systems
     if (typeof module !== 'undefined' && module.exports) {

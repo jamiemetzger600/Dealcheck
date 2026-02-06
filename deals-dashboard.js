@@ -266,6 +266,19 @@ async function initializeDashboard() {
     
     console.log('✅ Global action buttons initialized');
     
+    // Show Hidden Deals toggle
+    const showHiddenToggle = document.getElementById('show-hidden-deals-toggle');
+    if (showHiddenToggle) {
+        console.log('✅ Setting up Show Hidden Deals toggle');
+        showHiddenToggle.addEventListener('change', () => {
+            console.log('👁️ Show hidden deals toggled:', showHiddenToggle.checked);
+            applyAggregatorFilters();
+        });
+    }
+    
+    // Update hidden count on load
+    updateHiddenDealsCount();
+    
     // Set up tab navigation
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -285,7 +298,7 @@ async function initializeDashboard() {
     
     // Start aggregation button function (make it accessible globally)
     window.startAggregation = async function(btn) {
-        showToast('Starting deal aggregation...', 'info');
+        showToast('Starting deal aggregation from Google Sheets...', 'info');
         btn.disabled = true;
         btn.classList.add('loading');
         
@@ -311,6 +324,7 @@ async function initializeDashboard() {
             // Add all deals to storage
             if (allDeals.length > 0) {
                 const stats = await addDealsToPool(allDeals);
+                console.log(`📊 Added ${stats.added} new deals, ${stats.duplicates} duplicates, total: ${stats.total}`);
                 const summary = `✅ Added ${stats.added} new deals (${stats.duplicates} duplicates)`;
                 showToast(`${summary}. Total: ${stats.total} deals (max 6000)`, 'success', 5000);
             } else {
@@ -319,6 +333,7 @@ async function initializeDashboard() {
             
             // Update UI
             await loadAggregatorDeals();
+            await updateHiddenDealsCount(); // Update hidden count
             
         } catch (error) {
             console.error('Error aggregating deals:', error);
@@ -543,6 +558,19 @@ if (document.readyState === 'loading') {
     });
 }
 
+// Update hidden deals count display
+async function updateHiddenDealsCount() {
+    try {
+        const count = await getHiddenDealsCount();
+        const countEl = document.getElementById('hidden-count');
+        if (countEl) {
+            countEl.textContent = count;
+        }
+    } catch (error) {
+        console.error('Error updating hidden count:', error);
+    }
+}
+
 // Load and display aggregated deals
 let aggregatedDeals = [];
 let filteredAggregatedDeals = [];
@@ -711,9 +739,12 @@ function createAggregatorDealRow(deal) {
     const nameCell = createCell('name', '');
     const matchesBuyBox = dealMatchesBuyBox(deal);
     nameCell.innerHTML = `
-        <div class="aggregator-deal-name">
-            ${escapeHtml(deal.name || 'Unnamed Deal')}
-            ${matchesBuyBox ? '<span class="buybox-badge">*</span>' : ''}
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <button class="hide-deal-btn" data-deal-id="${escapeHtml(deal.id)}" title="Hide this deal" onclick="event.stopPropagation();" style="padding: 4px 8px; font-size: 11px; border: none; background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; border-radius: 4px;">👁️‍🗨️</button>
+            <div class="aggregator-deal-name">
+                ${escapeHtml(deal.name || 'Unnamed Deal')}
+                ${matchesBuyBox ? '<span class="buybox-badge">*</span>' : ''}
+            </div>
         </div>
     `;
     cells['name'] = nameCell;
@@ -760,9 +791,26 @@ function createAggregatorDealRow(deal) {
         `<a href="${escapeHtml(deal.url)}" target="_blank" class="deal-link" onclick="event.stopPropagation()">View</a>` : '-';
     cells['url'] = createCell('url', urlContent);
     
+    // Add cells for rawColumns if they exist
+    if (deal.rawColumns && typeof deal.rawColumns === 'object') {
+        Object.entries(deal.rawColumns).forEach(([colName, value]) => {
+            const colId = 'raw_' + colName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            if (COLUMN_CONFIG[colId]) {
+                cells[colId] = createCell(colId, escapeHtml(String(value || '-')));
+            }
+        });
+    }
+    
     // Append cells in the same order as headers (COLUMN_ORDER)
     COLUMN_ORDER.forEach(colId => {
         if (cells[colId]) {
+            row.appendChild(cells[colId]);
+        }
+    });
+    
+    // Add any rawColumn cells not in COLUMN_ORDER
+    Object.keys(cells).forEach(colId => {
+        if (colId.startsWith('raw_') && !COLUMN_ORDER.includes(colId)) {
             row.appendChild(cells[colId]);
         }
     });
@@ -771,6 +819,17 @@ function createAggregatorDealRow(deal) {
     row.addEventListener('click', () => {
         viewDealDetails(deal);
     });
+    
+    // Hide button click handler
+    const hideBtn = nameCell.querySelector('.hide-deal-btn');
+    if (hideBtn) {
+        hideBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await hideDeal(deal.id);
+            showToast(`Deal hidden: ${deal.name}`, 'success', 2000);
+            await loadAggregatorDeals(); // Reload to apply filter
+        });
+    }
     
     return row;
 }
@@ -1217,6 +1276,33 @@ function detectAvailableColumns() {
             availableColumns.push(colId);
         }
     });
+    
+    // Detect columns from rawColumns (additional Google Sheets columns)
+    const rawColumnNames = new Set();
+    sampleDeals.forEach(deal => {
+        if (deal.rawColumns && typeof deal.rawColumns === 'object') {
+            Object.keys(deal.rawColumns).forEach(colName => {
+                // Only add if it has non-empty data and isn't already mapped
+                const val = deal.rawColumns[colName];
+                if (val !== null && val !== undefined && val !== '' && val !== '-') {
+                    rawColumnNames.add(colName);
+                }
+            });
+        }
+    });
+    
+    // Add rawColumn-based columns to COLUMN_CONFIG dynamically
+    rawColumnNames.forEach(colName => {
+        const colId = 'raw_' + colName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        if (!COLUMN_CONFIG[colId]) {
+            COLUMN_CONFIG[colId] = {
+                label: colName,
+                default: false,
+                rawColumnKey: colName
+            };
+            availableColumns.push(colId);
+        }
+    });
 }
 
 function renderColumnCheckboxes() {
@@ -1254,6 +1340,30 @@ function renderColumnCheckboxes() {
             updateTableColumns();
             renderAggregatorTable();
         });
+    });
+    
+    // Add dynamic headers to table for rawColumns
+    addDynamicHeaders();
+}
+
+// Add headers for dynamic rawColumns
+function addDynamicHeaders() {
+    const thead = document.querySelector('.aggregator-table thead tr');
+    if (!thead) return;
+    
+    // Remove old dynamic headers
+    thead.querySelectorAll('th[data-col^="raw_"]').forEach(th => th.remove());
+    
+    // Add new headers for each rawColumn
+    Object.keys(COLUMN_CONFIG).forEach(colId => {
+        if (colId.startsWith('raw_') && !thead.querySelector(`th[data-col="${colId}"]`)) {
+            const config = COLUMN_CONFIG[colId];
+            const th = document.createElement('th');
+            th.dataset.col = colId;
+            th.textContent = config.label.toUpperCase();
+            th.style.display = visibleColumns[colId] ? '' : 'none';
+            thead.appendChild(th);
+        }
     });
 }
 
@@ -1560,12 +1670,27 @@ function updateAggregatorStats() {
     document.getElementById('sources-active').textContent = formatNumber(sources.size);
 }
 
-// Apply all aggregator filters (search + exclude keywords)
-function applyAggregatorFilters() {
+// Apply all aggregator filters (search + exclude keywords + hidden deals)
+async function applyAggregatorFilters() {
     let filtered = [...aggregatedDeals];
     console.log(`🔍 Starting filter with ${filtered.length} deals`);
     
-    // STEP 1: Apply Buy Box filter first (most restrictive)
+    // STEP 0: Apply hidden deals filter (unless "Show Hidden" is checked)
+    const showHiddenToggle = document.getElementById('show-hidden-deals-toggle');
+    const showHidden = showHiddenToggle?.checked || false;
+    
+    if (!showHidden) {
+        const hiddenIds = await getHiddenDealIds();
+        if (hiddenIds.size > 0) {
+            const beforeHidden = filtered.length;
+            filtered = filtered.filter(deal => !hiddenIds.has(deal.id));
+            console.log(`👁️‍🗨️ Hidden deals filter: ${beforeHidden} → ${filtered.length} deals (removed ${beforeHidden - filtered.length} hidden)`);
+        }
+    } else {
+        console.log(`👁️ Showing hidden deals (toggle ON)`);
+    }
+    
+    // STEP 1: Apply Buy Box filter
     const beforeBuyBox = filtered.length;
     filtered = filtered.filter(deal => dealMatchesBuyBox(deal));
     console.log(`📦 Buy Box filter: ${beforeBuyBox} → ${filtered.length} deals (removed ${beforeBuyBox - filtered.length})`);
@@ -3186,13 +3311,22 @@ function createSourceListItem(source) {
     
     fetchBtn.addEventListener('click', async () => {
         fetchBtn.disabled = true;
+        const originalText = fetchBtn.textContent;
         fetchBtn.textContent = '⏳ Fetching...';
+        showToast(`Fetching deals from ${source.name}...`, 'info');
+        
         try {
             const deals = await fetchCustomSource(source);
+            console.log(`✅ Fetched ${deals.length} deals from ${source.name}`);
+            
             const stats = await addDealsToPool(deals);
+            console.log(`📊 Added ${stats.added} new deals, ${stats.duplicates} duplicates, total: ${stats.total}`);
+            
             await loadAggregatorDeals();
             await loadCustomSourcesList();
-            showToast(`✅ Added ${stats.added} deals from ${source.name}`, 'success');
+            await updateHiddenDealsCount(); // Update hidden count
+            
+            showToast(`✅ Added ${stats.added} new deals from ${source.name}`, 'success', 3000);
         } catch (error) {
             showToast(`Error fetching ${source.name}: ${error.message}`, 'error');
         } finally {
@@ -3767,6 +3901,35 @@ function dealMatchesBuyBox(deal) {
     
     // Quality score check
     if (currentBuyBox.minQuality && deal.qualityScore && deal.qualityScore < currentBuyBox.minQuality) return false;
+    
+    // Custom column filters (e.g., Absentee Run, Remote/Relocatable)
+    if (currentBuyBox.customFilters && deal.rawColumns) {
+        for (const [columnName, expectedValue] of Object.entries(currentBuyBox.customFilters)) {
+            const actualValue = deal.rawColumns[columnName];
+            
+            // Simple string matching (case-insensitive)
+            if (typeof expectedValue === 'string') {
+                const actualStr = String(actualValue || '').toLowerCase();
+                const expectedStr = expectedValue.toLowerCase();
+                
+                // Check if actual value contains expected value (supports "Yes", "Y", etc.)
+                if (!actualStr.includes(expectedStr)) {
+                    return false;
+                }
+            }
+            // Boolean matching
+            else if (typeof expectedValue === 'boolean') {
+                const actualBool = actualValue === true || 
+                                   actualValue === 'true' || 
+                                   actualValue === 'Yes' || 
+                                   actualValue === 'Y' ||
+                                   actualValue === '1';
+                if (actualBool !== expectedValue) {
+                    return false;
+                }
+            }
+        }
+    }
     
     return true;
 }

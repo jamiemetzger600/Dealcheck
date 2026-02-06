@@ -39,7 +39,7 @@ async function getStorageUsage() {
 // Sanitize deal object for storage (remove non-serializable data)
 function sanitizeDealForStorage(deal) {
     // Create a clean copy with only serializable data
-    return {
+    const sanitized = {
         id: String(deal.id || ''),
         name: String(deal.name || ''),
         url: String(deal.url || ''),
@@ -66,6 +66,22 @@ function sanitizeDealForStorage(deal) {
         remote: String(deal.remote || ''),
         listingId: String(deal.listingId || '')
     };
+    
+    // Preserve ALL original columns from Google Sheets for user access
+    if (deal.rawColumns && typeof deal.rawColumns === 'object') {
+        sanitized.rawColumns = {};
+        // Only keep string values, truncate long text
+        Object.keys(deal.rawColumns).forEach(key => {
+            const value = deal.rawColumns[key];
+            if (typeof value === 'string') {
+                sanitized.rawColumns[key] = value.substring(0, 500);
+            } else if (typeof value === 'number' || typeof value === 'boolean') {
+                sanitized.rawColumns[key] = value;
+            }
+        });
+    }
+    
+    return sanitized;
 }
 
 async function saveAggregatedDeals(deals) {
@@ -308,6 +324,79 @@ window.getLastSyncTime = getLastSyncTime;
 window.saveBuyBoxSettings = saveBuyBoxSettings;
 window.loadBuyBoxSettings = loadBuyBoxSettings;
 window.STORAGE_KEYS = STORAGE_KEYS;
+
+// ===== HIDDEN DEALS MANAGEMENT =====
+const HIDDEN_DEALS_KEY = 'hiddenDealIds';
+
+// Get hidden deal IDs
+async function getHiddenDealIds() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get([HIDDEN_DEALS_KEY], (result) => {
+            const ids = result[HIDDEN_DEALS_KEY] || [];
+            resolve(new Set(ids));
+        });
+    });
+}
+
+// Save hidden deal IDs
+async function saveHiddenDealIds(idsSet) {
+    const ids = Array.from(idsSet);
+    return new Promise((resolve, reject) => {
+        chrome.storage.local.set({ [HIDDEN_DEALS_KEY]: ids }, () => {
+            if (chrome.runtime.lastError) {
+                reject(chrome.runtime.lastError);
+            } else {
+                console.log(`💾 Saved ${ids.length} hidden deal IDs`);
+                resolve();
+            }
+        });
+    });
+}
+
+// Hide a deal
+async function hideDeal(dealId) {
+    const hiddenIds = await getHiddenDealIds();
+    hiddenIds.add(dealId);
+    await saveHiddenDealIds(hiddenIds);
+    console.log(`👁️‍🗨️ Hidden deal: ${dealId}`);
+}
+
+// Unhide a deal
+async function unhideDeal(dealId) {
+    const hiddenIds = await getHiddenDealIds();
+    hiddenIds.delete(dealId);
+    await saveHiddenDealIds(hiddenIds);
+    console.log(`👁️ Unhidden deal: ${dealId}`);
+}
+
+// Hide multiple deals
+async function hideDeals(dealIds) {
+    const hiddenIds = await getHiddenDealIds();
+    dealIds.forEach(id => hiddenIds.add(id));
+    await saveHiddenDealIds(hiddenIds);
+    console.log(`👁️‍🗨️ Hidden ${dealIds.length} deals`);
+}
+
+// Clear all hidden deals
+async function clearHiddenDeals() {
+    await saveHiddenDealIds(new Set());
+    console.log(`🗑️ Cleared all hidden deals`);
+}
+
+// Get count of hidden deals
+async function getHiddenDealsCount() {
+    const hiddenIds = await getHiddenDealIds();
+    return hiddenIds.size;
+}
+
+// Export hidden deals functions
+window.getHiddenDealIds = getHiddenDealIds;
+window.saveHiddenDealIds = saveHiddenDealIds;
+window.hideDeal = hideDeal;
+window.unhideDeal = unhideDeal;
+window.hideDeals = hideDeals;
+window.clearHiddenDeals = clearHiddenDeals;
+window.getHiddenDealsCount = getHiddenDealsCount;
 
 // Also export for Node.js if available
 if (typeof module !== 'undefined' && module.exports) {

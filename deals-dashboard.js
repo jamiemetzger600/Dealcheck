@@ -743,7 +743,6 @@ function createAggregatorDealRow(deal) {
             <button class="hide-deal-btn" data-deal-id="${escapeHtml(deal.id)}" title="Hide this deal" onclick="event.stopPropagation();" style="padding: 4px 8px; font-size: 11px; border: none; background: var(--bg-tertiary); color: var(--text-secondary); cursor: pointer; border-radius: 4px;">👁️‍🗨️</button>
             <div class="aggregator-deal-name">
                 ${escapeHtml(deal.name || 'Unnamed Deal')}
-                ${matchesBuyBox ? '<span class="buybox-badge">*</span>' : ''}
             </div>
         </div>
     `;

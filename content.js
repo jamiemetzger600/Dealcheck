@@ -1584,6 +1584,9 @@ function scrapeData() {
     const currentURL = window.location.href;
     const now = Date.now();
     
+    // Detect if URL changed (new listing)
+    const urlChanged = currentURL !== lastScrapedURL;
+    
     // Prevent duplicate scrapes on the same page within 2 seconds
     if (currentURL === lastScrapedURL && (now - lastScrapeTime) < 2000) {
       console.log('⏳ Skipping duplicate scrape (same page, within 2 seconds)');
@@ -1600,6 +1603,15 @@ function scrapeData() {
     scrapeCallCount++;
     console.log(`🔄 Starting scrapeData... (Call #${scrapeCallCount})`);
     console.log('📍 Current URL:', currentURL);
+    
+    // Clear Deal Name if URL changed (new listing)
+    if (urlChanged) {
+      const dealNameField = document.getElementById('da-deal-name');
+      if (dealNameField) {
+        dealNameField.value = '';
+        console.log('🔄 URL changed - cleared Deal Name field for auto-fill');
+      }
+    }
     
     // Track this scrape
     lastScrapedURL = currentURL;
@@ -2941,7 +2953,10 @@ function loadState() {
             }
             
             // Deal Name & Notes (always from state, not preferences)
-            document.getElementById('da-deal-name').value = state.dealName || '';
+            // Only set dealName if it exists in state (don't clear it, let auto-fill work)
+            if (state.dealName) {
+                document.getElementById('da-deal-name').value = state.dealName;
+            }
             document.getElementById('da-deal-notes').value = state.dealNotes || '';
         }
         scrapeData();

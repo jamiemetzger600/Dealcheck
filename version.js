@@ -3,7 +3,7 @@
 // Update this file and run update-version.sh to propagate changes
 
 (function() {
-    const VERSION = '3.0.14';
+    const VERSION = '3.0.15';
     
     // Export for different module systems
     if (typeof module !== 'undefined' && module.exports) {

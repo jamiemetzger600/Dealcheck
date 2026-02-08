@@ -364,24 +364,38 @@ async function initializeDashboard() {
     // This ensures rows are clickable when user switches to My Deals tab
     loadMyDeals();
     
-    // Set up aggregator table sorting
+    // Set up aggregator table sorting (multi-level with Shift+Click)
     document.querySelectorAll('.aggregator-table th.sortable').forEach(th => {
-        th.addEventListener('click', () => {
+        th.addEventListener('click', (e) => {
             const sortField = th.getAttribute('data-sort');
             
-            // Toggle direction if same field, otherwise default to desc
-            if (currentAggregatorSort.field === sortField) {
-                currentAggregatorSort.direction = currentAggregatorSort.direction === 'asc' ? 'desc' : 'asc';
+            if (e.shiftKey) {
+                // Shift+Click: Add to multi-level sort
+                const existingIndex = currentAggregatorSort.findIndex(s => s.field === sortField);
+                
+                if (existingIndex >= 0) {
+                    // Field already in sort - toggle direction
+                    currentAggregatorSort[existingIndex].direction = 
+                        currentAggregatorSort[existingIndex].direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    // Add new sort level
+                    currentAggregatorSort.push({ field: sortField, direction: 'desc' });
+                }
             } else {
-                currentAggregatorSort.field = sortField;
-                currentAggregatorSort.direction = 'desc';
+                // Regular click: Single-level sort (or toggle if already sorting by this field)
+                const isSingleSort = currentAggregatorSort.length === 1 && currentAggregatorSort[0].field === sortField;
+                
+                if (isSingleSort) {
+                    // Toggle direction
+                    currentAggregatorSort[0].direction = currentAggregatorSort[0].direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    // New single sort
+                    currentAggregatorSort = [{ field: sortField, direction: 'desc' }];
+                }
             }
             
-            // Update UI
-            document.querySelectorAll('.aggregator-table th').forEach(h => {
-                h.classList.remove('sorted-asc', 'sorted-desc');
-            });
-            th.classList.add(`sorted-${currentAggregatorSort.direction}`);
+            // Update UI with sort indicators
+            updateSortIndicators();
             
             // Re-render
             renderAggregatorTable();
@@ -587,7 +601,8 @@ let aggregatedDeals = [];
 let filteredAggregatedDeals = [];
 let currentPage = 1;
 const DEALS_PER_PAGE = 50;
-let currentAggregatorSort = { field: 'date', direction: 'desc' };
+// Multi-level sorting: array of {field, direction} objects
+let currentAggregatorSort = [{ field: 'date', direction: 'desc' }];
 
 async function loadAggregatorDeals() {
     try {
@@ -876,47 +891,157 @@ function sortAggregatorDeals(deals, sortConfig) {
     const sorted = [...deals];
     
     sorted.sort((a, b) => {
-        let aVal, bVal;
-        
-        switch (sortConfig.field) {
-            case 'name':
-                aVal = (a.name || '').toLowerCase();
-                bVal = (b.name || '').toLowerCase();
-                break;
-            case 'price':
-                aVal = a.askingPrice || 0;
-                bVal = b.askingPrice || 0;
-                break;
-            case 'ebitda':
-                aVal = a.ebitda || 0;
-                bVal = b.ebitda || 0;
-                break;
-            case 'location':
-                aVal = (a.location || a.city || '').toLowerCase();
-                bVal = (b.location || b.city || '').toLowerCase();
-                break;
-            case 'industry':
-                aVal = (a.industry || '').toLowerCase();
-                bVal = (b.industry || '').toLowerCase();
-                break;
-            case 'source':
-                aVal = (a.source || '').toLowerCase();
-                bVal = (b.source || '').toLowerCase();
-                break;
-            case 'date':
-                aVal = a.discoveredAt || 0;
-                bVal = b.discoveredAt || 0;
-                break;
-            default:
-                return 0;
+        // Multi-level sorting: iterate through sort levels
+        for (let i = 0; i < sortConfig.length; i++) {
+            const sort = sortConfig[i];
+            let aVal, bVal;
+            
+            switch (sort.field) {
+                case 'name':
+                    aVal = (a.name || '').toLowerCase();
+                    bVal = (b.name || '').toLowerCase();
+                    break;
+                case 'price':
+                    aVal = a.askingPrice || 0;
+                    bVal = b.askingPrice || 0;
+                    break;
+                case 'ebitda':
+                    aVal = a.ebitda || 0;
+                    bVal = b.ebitda || 0;
+                    break;
+                case 'revenue':
+                    aVal = a.revenue || 0;
+                    bVal = b.revenue || 0;
+                    break;
+                case 'location':
+                    aVal = (a.location || a.city || '').toLowerCase();
+                    bVal = (b.location || b.city || '').toLowerCase();
+                    break;
+                case 'industry':
+                    aVal = (a.industry || '').toLowerCase();
+                    bVal = (b.industry || '').toLowerCase();
+                    break;
+                case 'source':
+                    aVal = (a.source || '').toLowerCase();
+                    bVal = (b.source || '').toLowerCase();
+                    break;
+                case 'date':
+                    aVal = a.discoveredAt || 0;
+                    bVal = b.discoveredAt || 0;
+                    break;
+                case 'description':
+                    aVal = (a.description || '').toLowerCase();
+                    bVal = (b.description || '').toLowerCase();
+                    break;
+                case 'city':
+                    aVal = (a.city || '').toLowerCase();
+                    bVal = (b.city || '').toLowerCase();
+                    break;
+                case 'county':
+                    aVal = (a.county || '').toLowerCase();
+                    bVal = (b.county || '').toLowerCase();
+                    break;
+                case 'state':
+                    aVal = (a.state || '').toLowerCase();
+                    bVal = (b.state || '').toLowerCase();
+                    break;
+                case 'country':
+                    aVal = (a.country || '').toLowerCase();
+                    bVal = (b.country || '').toLowerCase();
+                    break;
+                case 'yearsEstablished':
+                    aVal = parseInt(a.yearsEstablished) || 0;
+                    bVal = parseInt(b.yearsEstablished) || 0;
+                    break;
+                case 'profitMultiple':
+                    aVal = a.profitMultiple || 0;
+                    bVal = b.profitMultiple || 0;
+                    break;
+                case 'revenueMultiple':
+                    aVal = a.revenueMultiple || 0;
+                    bVal = b.revenueMultiple || 0;
+                    break;
+                case 'remote':
+                    aVal = (a.remote || '').toLowerCase();
+                    bVal = (b.remote || '').toLowerCase();
+                    break;
+                case 'franchise':
+                    aVal = (a.franchise || '').toLowerCase();
+                    bVal = (b.franchise || '').toLowerCase();
+                    break;
+                case 'fiveYearsInBusiness':
+                    aVal = (a.fiveYearsInBusiness || '').toLowerCase();
+                    bVal = (b.fiveYearsInBusiness || '').toLowerCase();
+                    break;
+                case 'broker':
+                    aVal = (a.broker || a.brokerName || '').toLowerCase();
+                    bVal = (b.broker || b.brokerName || '').toLowerCase();
+                    break;
+                case 'brokerCompany':
+                    aVal = (a.brokerCompany || '').toLowerCase();
+                    bVal = (b.brokerCompany || '').toLowerCase();
+                    break;
+                case 'brokerPhone':
+                    aVal = (a.brokerPhone || '').toLowerCase();
+                    bVal = (b.brokerPhone || '').toLowerCase();
+                    break;
+                case 'brokerEmail':
+                    aVal = (a.brokerEmail || '').toLowerCase();
+                    bVal = (b.brokerEmail || '').toLowerCase();
+                    break;
+                case 'url':
+                    aVal = (a.url || '').toLowerCase();
+                    bVal = (b.url || '').toLowerCase();
+                    break;
+                default:
+                    // Handle dynamic rawColumns
+                    if (sort.field.startsWith('raw_')) {
+                        const colName = sort.field.replace('raw_', '').replace(/_/g, ' ');
+                        aVal = (a.rawColumns?.[colName] || '').toString().toLowerCase();
+                        bVal = (b.rawColumns?.[colName] || '').toString().toLowerCase();
+                    } else {
+                        continue; // Skip unknown fields
+                    }
+            }
+            
+            // Compare values
+            if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1;
+            // Values equal, continue to next sort level
         }
         
-        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
+        return 0; // All sort levels equal
     });
     
     return sorted;
+}
+
+// Update sort indicators on table headers
+function updateSortIndicators() {
+    // Clear all indicators
+    document.querySelectorAll('.aggregator-table th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        // Remove existing priority badges
+        const existingBadge = th.querySelector('.sort-priority');
+        if (existingBadge) existingBadge.remove();
+    });
+    
+    // Add indicators for each sort level
+    currentAggregatorSort.forEach((sort, index) => {
+        const header = document.querySelector(`.aggregator-table th[data-sort="${sort.field}"]`);
+        if (header) {
+            header.classList.add(`sorted-${sort.direction}`);
+            
+            // Add priority badge if multi-level sort
+            if (currentAggregatorSort.length > 1) {
+                const badge = document.createElement('span');
+                badge.className = 'sort-priority';
+                badge.textContent = index + 1;
+                badge.title = `Sort priority ${index + 1}`;
+                header.appendChild(badge);
+            }
+        }
+    });
 }
 
 // Update pagination controls

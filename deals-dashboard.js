@@ -2568,16 +2568,49 @@ function exportDealsToCSV(deals) {
 // Export full backup to JSON file (saves to Downloads - survives extension reinstall)
 async function exportBackup() {
     try {
-        const savedDeals = await new Promise((resolve) => {
-            chrome.storage.local.get(['savedDeals'], (result) => {
-                resolve(result.savedDeals || []);
+        // Get all user data from storage
+        const data = await new Promise((resolve) => {
+            chrome.storage.local.get([
+                'savedDeals',
+                'buyBoxConfig',
+                'userPreferences',
+                'visibleColumns',
+                'dealViewStyle',
+                'currentExcludeKeywords',
+                'savedExcludeLists',
+                'currentSelectedList',
+                'excludeKeywordsExpanded',
+                'lastSMSNumber',
+                'windowGeometry',
+                'autoRefreshEnabled',
+                'refreshInterval',
+                'notifyNewDeals',
+                'customSources',
+                'hiddenDealIds'
+            ], (result) => {
+                resolve(result);
             });
         });
         
         const backup = {
             version: window.EXTENSION_VERSION || '3.0.0',
             exportedAt: new Date().toISOString(),
-            savedDeals: savedDeals
+            savedDeals: data.savedDeals || [],
+            buyBoxConfig: data.buyBoxConfig || null,
+            userPreferences: data.userPreferences || null,
+            visibleColumns: data.visibleColumns || null,
+            dealViewStyle: data.dealViewStyle || null,
+            currentExcludeKeywords: data.currentExcludeKeywords || null,
+            savedExcludeLists: data.savedExcludeLists || null,
+            currentSelectedList: data.currentSelectedList || null,
+            excludeKeywordsExpanded: data.excludeKeywordsExpanded || null,
+            lastSMSNumber: data.lastSMSNumber || null,
+            windowGeometry: data.windowGeometry || null,
+            autoRefreshEnabled: data.autoRefreshEnabled !== undefined ? data.autoRefreshEnabled : null,
+            refreshInterval: data.refreshInterval || null,
+            notifyNewDeals: data.notifyNewDeals !== undefined ? data.notifyNewDeals : null,
+            customSources: data.customSources || null,
+            hiddenDealIds: data.hiddenDealIds || null
         };
         
         const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -2588,8 +2621,8 @@ async function exportBackup() {
         a.click();
         URL.revokeObjectURL(url);
         
-        showToast(`Backup saved: ${savedDeals.length} deals → Downloads folder`, 'success', 4000);
-        console.log('💾 Backup exported:', savedDeals.length, 'deals');
+        showToast(`Backup saved: ${backup.savedDeals.length} deals + all settings → Downloads folder`, 'success', 4000);
+        console.log('💾 Backup exported:', backup.savedDeals.length, 'deals + all user settings');
     } catch (error) {
         console.error('Backup export error:', error);
         showToast('Error creating backup: ' + error.message, 'error');
@@ -2615,6 +2648,7 @@ async function importBackup() {
                 return;
             }
             
+            // Get existing deals for merge
             const existingDeals = await new Promise((resolve) => {
                 chrome.storage.local.get(['savedDeals'], (result) => {
                     resolve(result.savedDeals || []);
@@ -2629,8 +2663,61 @@ async function importBackup() {
             });
             const mergedDeals = [...backup.savedDeals, ...extraExisting];
             
+            // Prepare all data to restore
+            const dataToRestore = {
+                savedDeals: mergedDeals
+            };
+            
+            // Restore all available settings from backup
+            if (backup.buyBoxConfig !== undefined && backup.buyBoxConfig !== null) {
+                dataToRestore.buyBoxConfig = backup.buyBoxConfig;
+            }
+            if (backup.userPreferences !== undefined && backup.userPreferences !== null) {
+                dataToRestore.userPreferences = backup.userPreferences;
+            }
+            if (backup.visibleColumns !== undefined && backup.visibleColumns !== null) {
+                dataToRestore.visibleColumns = backup.visibleColumns;
+            }
+            if (backup.dealViewStyle !== undefined && backup.dealViewStyle !== null) {
+                dataToRestore.dealViewStyle = backup.dealViewStyle;
+            }
+            if (backup.currentExcludeKeywords !== undefined && backup.currentExcludeKeywords !== null) {
+                dataToRestore.currentExcludeKeywords = backup.currentExcludeKeywords;
+            }
+            if (backup.savedExcludeLists !== undefined && backup.savedExcludeLists !== null) {
+                dataToRestore.savedExcludeLists = backup.savedExcludeLists;
+            }
+            if (backup.currentSelectedList !== undefined && backup.currentSelectedList !== null) {
+                dataToRestore.currentSelectedList = backup.currentSelectedList;
+            }
+            if (backup.excludeKeywordsExpanded !== undefined && backup.excludeKeywordsExpanded !== null) {
+                dataToRestore.excludeKeywordsExpanded = backup.excludeKeywordsExpanded;
+            }
+            if (backup.lastSMSNumber !== undefined && backup.lastSMSNumber !== null) {
+                dataToRestore.lastSMSNumber = backup.lastSMSNumber;
+            }
+            if (backup.windowGeometry !== undefined && backup.windowGeometry !== null) {
+                dataToRestore.windowGeometry = backup.windowGeometry;
+            }
+            if (backup.autoRefreshEnabled !== undefined && backup.autoRefreshEnabled !== null) {
+                dataToRestore.autoRefreshEnabled = backup.autoRefreshEnabled;
+            }
+            if (backup.refreshInterval !== undefined && backup.refreshInterval !== null) {
+                dataToRestore.refreshInterval = backup.refreshInterval;
+            }
+            if (backup.notifyNewDeals !== undefined && backup.notifyNewDeals !== null) {
+                dataToRestore.notifyNewDeals = backup.notifyNewDeals;
+            }
+            if (backup.customSources !== undefined && backup.customSources !== null) {
+                dataToRestore.customSources = backup.customSources;
+            }
+            if (backup.hiddenDealIds !== undefined && backup.hiddenDealIds !== null) {
+                dataToRestore.hiddenDealIds = backup.hiddenDealIds;
+            }
+            
+            // Restore everything to storage
             await new Promise((resolve, reject) => {
-                chrome.storage.local.set({ savedDeals: mergedDeals }, () => {
+                chrome.storage.local.set(dataToRestore, () => {
                     if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
                     else resolve();
                 });
@@ -2638,10 +2725,14 @@ async function importBackup() {
             
             const fromBackup = backup.savedDeals.length;
             const total = mergedDeals.length;
-            showToast(`Restored: ${fromBackup} deals from backup (${total} total)`, 'success', 5000);
-            console.log('📥 Backup restored:', fromBackup, 'from backup,', total, 'total');
+            const settingsCount = Object.keys(dataToRestore).length - 1; // Minus savedDeals
             
+            showToast(`Restored: ${fromBackup} deals + ${settingsCount} settings (${total} total deals)`, 'success', 5000);
+            console.log('📥 Backup restored:', fromBackup, 'from backup,', total, 'total deals,', settingsCount, 'settings restored');
+            
+            // Reload the page to apply all settings
             loadMyDeals();
+            loadBuyBox(); // Refresh Buy Box if settings changed
         } catch (error) {
             console.error('Restore error:', error);
             showToast('Error restoring backup: ' + error.message, 'error');
@@ -5505,9 +5596,17 @@ function loadProgressHistory(deal) {
                 <div class="progress-status">${escapeHtml(item.status)}</div>
                 <div class="progress-date">${new Date(item.date).toLocaleString()}</div>
             </div>
-            <button class="progress-delete" onclick="deleteProgressItem(${index})" title="Remove">×</button>
+            <button class="progress-delete" data-index="${index}" title="Remove">×</button>
         </div>
     `).join('');
+    
+    // Add event listeners to delete buttons
+    progressList.querySelectorAll('.progress-delete').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            deleteProgressItem(index);
+        });
+    });
 }
 
 // Load custom statuses into dropdown
@@ -5610,36 +5709,55 @@ document.getElementById('add-custom-status-btn').addEventListener('click', () =>
 
 // Delete progress item
 function deleteProgressItem(index) {
-    if (!currentModalDeal) return;
+    console.log('🗑️ Deleting progress item at index:', index);
+    if (!currentModalDeal) {
+        console.error('No currentModalDeal available');
+        return;
+    }
     
     const progressHistory = currentModalDeal.progressHistory || [];
+    console.log('Progress history before delete:', progressHistory.length, 'items');
     
     // Sort to get the same order as displayed
     const sortedProgress = [...progressHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
     const itemToDelete = sortedProgress[index];
+    console.log('Item to delete:', itemToDelete);
     
     // Find and remove from original array
     const originalIndex = progressHistory.findIndex(item => 
         item.status === itemToDelete.status && item.date === itemToDelete.date
     );
+    console.log('Original index in unsorted array:', originalIndex);
     
     if (originalIndex > -1) {
         progressHistory.splice(originalIndex, 1);
         currentModalDeal.progressHistory = progressHistory;
+        console.log('Progress history after delete:', progressHistory.length, 'items');
         
-        // Update in allDeals
-        const deal = allDeals.find(d => d.name === currentModalDeal.name);
-        if (deal) {
-            deal.progressHistory = progressHistory;
-        }
-        
-        // Save to storage
-        saveDeals(allDeals, (success) => {
-            if (success) {
-                showToast('Progress item removed', 'success', 2000);
-                loadProgressHistory(currentModalDeal);
+        // Update in savedDeals storage directly
+        chrome.storage.local.get(['savedDeals'], (result) => {
+            const savedDeals = result.savedDeals || [];
+            const dealIndex = savedDeals.findIndex(d => d.name === currentModalDeal.name);
+            
+            if (dealIndex > -1) {
+                savedDeals[dealIndex].progressHistory = progressHistory;
+                
+                chrome.storage.local.set({ savedDeals }, () => {
+                    if (chrome.runtime.lastError) {
+                        console.error('Error saving:', chrome.runtime.lastError);
+                        showToast('Failed to remove progress item', 'error');
+                    } else {
+                        console.log('✅ Progress item removed and saved');
+                        showToast('Progress item removed', 'success', 2000);
+                        loadProgressHistory(currentModalDeal);
+                    }
+                });
+            } else {
+                console.error('Deal not found in savedDeals:', currentModalDeal.name);
             }
         });
+    } else {
+        console.error('Could not find item to delete');
     }
 }
 

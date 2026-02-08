@@ -324,9 +324,16 @@ async function initializeDashboard() {
             // Add all deals to storage
             if (allDeals.length > 0) {
                 const stats = await addDealsToPool(allDeals);
-                console.log(`📊 Added ${stats.added} new deals, ${stats.duplicates} duplicates, total: ${stats.total}`);
-                const summary = `✅ Added ${stats.added} new deals (${stats.duplicates} duplicates)`;
-                showToast(`${summary}. Total: ${stats.total} deals (max 6000)`, 'success', 5000);
+                console.log(`📊 Added ${stats.added} new, updated ${stats.updated}, unchanged ${stats.unchanged}, total: ${stats.total}`);
+                
+                // Build summary message
+                const parts = [];
+                if (stats.added > 0) parts.push(`${stats.added} new`);
+                if (stats.updated > 0) parts.push(`${stats.updated} updated`);
+                if (stats.unchanged > 0) parts.push(`${stats.unchanged} unchanged`);
+                
+                const summary = parts.length > 0 ? parts.join(', ') : 'No changes';
+                showToast(`✅ ${summary}. Total: ${stats.total} deals (max 6000)`, 'success', 5000);
             } else {
                 showToast('ℹ️ No deals found. Add Google Sheet in "Manage Sources"', 'info', 5000);
             }
@@ -3459,13 +3466,19 @@ function createSourceListItem(source) {
             console.log(`✅ Fetched ${deals.length} deals from ${source.name}`);
             
             const stats = await addDealsToPool(deals);
-            console.log(`📊 Added ${stats.added} new deals, ${stats.duplicates} duplicates, total: ${stats.total}`);
+            console.log(`📊 Added ${stats.added} new, updated ${stats.updated}, unchanged ${stats.unchanged}, total: ${stats.total}`);
             
             await loadAggregatorDeals();
             await loadCustomSourcesList();
             await updateHiddenDealsCount(); // Update hidden count
             
-            showToast(`✅ Added ${stats.added} new deals from ${source.name}`, 'success', 3000);
+            // Build summary message
+            const parts = [];
+            if (stats.added > 0) parts.push(`${stats.added} new`);
+            if (stats.updated > 0) parts.push(`${stats.updated} updated`);
+            const summary = parts.length > 0 ? parts.join(', ') : 'No changes';
+            
+            showToast(`✅ ${summary} from ${source.name}`, 'success', 3000);
         } catch (error) {
             showToast(`Error fetching ${source.name}: ${error.message}`, 'error');
         } finally {

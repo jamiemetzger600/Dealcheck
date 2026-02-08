@@ -227,43 +227,134 @@ async function addDealsToPool(newDeals) {
     try {
         const existingDeals = await loadAggregatedDeals();
         
-        // Create map of existing deal IDs
-        const existingIds = new Set(existingDeals.map(d => d.id));
+        // Create map of existing deals by ID for fast lookup
+        const existingDealsMap = new Map(existingDeals.map(d => [d.id, d]));
         
-        // Filter out duplicates
-        const uniqueNewDeals = newDeals.filter(deal => !existingIds.has(deal.id));
+        let addedCount = 0;
+        let updatedCount = 0;
+        let unchangedCount = 0;
+        const updatedDeals = [];
         
-        console.log(`🔍 Found ${uniqueNewDeals.length} unique deals (${newDeals.length - uniqueNewDeals.length} duplicates)`);
-        
-        // Log details about new deals for debugging
-        if (uniqueNewDeals.length > 0) {
-            const sampleDeal = uniqueNewDeals[0];
-            console.log(`📋 Sample new deal:`, {
-                name: sampleDeal.name?.substring(0, 50),
-                source: sampleDeal.source,
-                sourceType: sampleDeal.sourceType,
-                hasPrice: !!sampleDeal.askingPrice,
-                hasEbitda: !!sampleDeal.ebitda,
-                hasLocation: !!sampleDeal.location,
-                discoveredAt: new Date(sampleDeal.discoveredAt).toISOString()
-            });
+        // Process each new deal
+        for (const newDeal of newDeals) {
+            const existingDeal = existingDealsMap.get(newDeal.id);
+            
+            if (!existingDeal) {
+                // New deal - add it
+                updatedDeals.push(newDeal);
+                addedCount++;
+            } else {
+                // Deal exists - check if data has changed
+                const hasChanges = detectDealChanges(existingDeal, newDeal);
+                
+                if (hasChanges.changed) {
+                    // Update the existing deal with new data
+                    const updatedDeal = {
+                        ...existingDeal,
+                        ...newDeal,
+                        // Preserve original discovery date
+                        discoveredAt: existingDeal.discoveredAt,
+                        // Add last updated timestamp
+                        lastUpdatedAt: Date.now(),
+                        // Track what changed
+                        lastChanges: hasChanges.changes
+                    };
+                    updatedDeals.push(updatedDeal);
+                    updatedCount++;
+                    
+                    console.log(`🔄 Updated deal "${newDeal.name?.substring(0, 40)}": ${hasChanges.changes.join(', ')}`);
+                } else {
+                    // No changes - keep existing deal as-is
+                    updatedDeals.push(existingDeal);
+                    unchangedCount++;
+                }
+            }
         }
         
-        // Merge arrays
-        const mergedDeals = [...existingDeals, ...uniqueNewDeals];
+        // Add any existing deals that weren't in the new batch
+        for (const existingDeal of existingDeals) {
+            if (!newDeals.find(d => d.id === existingDeal.id)) {
+                updatedDeals.push(existingDeal);
+            }
+        }
         
-        // Save merged deals (with automatic pruning if needed)
-        await saveAggregatedDeals(mergedDeals);
+        console.log(`📊 Deal processing summary:`);
+        console.log(`   ✅ Added: ${addedCount} new deals`);
+        console.log(`   🔄 Updated: ${updatedCount} deals with changes`);
+        console.log(`   ⏭️  Unchanged: ${unchangedCount} deals (skipped)`);
+        
+        // Log details about new deals for debugging
+        if (addedCount > 0) {
+            const sampleDeal = updatedDeals.find(d => !existingDealsMap.has(d.id));
+            if (sampleDeal) {
+                console.log(`📋 Sample new deal:`, {
+                    name: sampleDeal.name?.substring(0, 50),
+                    source: sampleDeal.source,
+                    sourceType: sampleDeal.sourceType,
+                    hasPrice: !!sampleDeal.askingPrice,
+                    hasEbitda: !!sampleDeal.ebitda,
+                    hasLocation: !!sampleDeal.location,
+                    discoveredAt: new Date(sampleDeal.discoveredAt).toISOString()
+                });
+            }
+        }
+        
+        // Save updated deals (with automatic pruning if needed)
+        await saveAggregatedDeals(updatedDeals);
         
         return {
-            added: uniqueNewDeals.length,
-            duplicates: newDeals.length - uniqueNewDeals.length,
-            total: mergedDeals.length
+            added: addedCount,
+            updated: updatedCount,
+            unchanged: unchangedCount,
+            duplicates: unchangedCount, // For backwards compatibility
+            total: updatedDeals.length
         };
     } catch (error) {
         console.error('Error adding deals to pool:', error);
         throw error;
     }
+}
+
+// Detect changes between existing and new deal data
+function detectDealChanges(existingDeal, newDeal) {
+    const changes = [];
+    
+    // Key fields to check for changes
+    const fieldsToCheck = [
+        { key: 'askingPrice', label: 'Price' },
+        { key: 'ebitda', label: 'EBITDA' },
+        { key: 'revenue', label: 'Revenue' },
+        { key: 'description', label: 'Description' },
+        { key: 'industry', label: 'Industry' },
+        { key: 'location', label: 'Location' },
+        { key: 'city', label: 'City' },
+        { key: 'state', label: 'State' },
+        { key: 'broker', label: 'Broker' },
+        { key: 'brokerName', label: 'Broker Name' },
+        { key: 'brokerCompany', label: 'Broker Company' },
+        { key: 'brokerPhone', label: 'Broker Phone' },
+        { key: 'brokerEmail', label: 'Broker Email' },
+        { key: 'profitMultiple', label: 'Profit Multiple' },
+        { key: 'revenueMultiple', label: 'Revenue Multiple' }
+    ];
+    
+    for (const field of fieldsToCheck) {
+        const oldValue = existingDeal[field.key];
+        const newValue = newDeal[field.key];
+        
+        // Check if values are different (handle null/undefined)
+        if (oldValue != newValue) { // Intentional != for null/undefined equivalence
+            // Only track as change if new value is not empty
+            if (newValue !== null && newValue !== undefined && newValue !== '') {
+                changes.push(field.label);
+            }
+        }
+    }
+    
+    return {
+        changed: changes.length > 0,
+        changes: changes
+    };
 }
 
 // Clear all aggregated deals (keep saved deals)

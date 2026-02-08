@@ -365,42 +365,7 @@ async function initializeDashboard() {
     loadMyDeals();
     
     // Set up aggregator table sorting (multi-level with Shift+Click)
-    document.querySelectorAll('.aggregator-table th.sortable').forEach(th => {
-        th.addEventListener('click', (e) => {
-            const sortField = th.getAttribute('data-sort');
-            
-            if (e.shiftKey) {
-                // Shift+Click: Add to multi-level sort
-                const existingIndex = currentAggregatorSort.findIndex(s => s.field === sortField);
-                
-                if (existingIndex >= 0) {
-                    // Field already in sort - toggle direction
-                    currentAggregatorSort[existingIndex].direction = 
-                        currentAggregatorSort[existingIndex].direction === 'asc' ? 'desc' : 'asc';
-                } else {
-                    // Add new sort level
-                    currentAggregatorSort.push({ field: sortField, direction: 'desc' });
-                }
-            } else {
-                // Regular click: Single-level sort (or toggle if already sorting by this field)
-                const isSingleSort = currentAggregatorSort.length === 1 && currentAggregatorSort[0].field === sortField;
-                
-                if (isSingleSort) {
-                    // Toggle direction
-                    currentAggregatorSort[0].direction = currentAggregatorSort[0].direction === 'asc' ? 'desc' : 'asc';
-                } else {
-                    // New single sort
-                    currentAggregatorSort = [{ field: sortField, direction: 'desc' }];
-                }
-            }
-            
-            // Update UI with sort indicators
-            updateSortIndicators();
-            
-            // Re-render
-            renderAggregatorTable();
-        });
-    });
+    initializeAggregatorSorting();
     
     // Set up aggregator search
     const searchInput = document.getElementById('aggregator-search');
@@ -713,6 +678,9 @@ function renderAggregatorTable() {
     
     // IMPORTANT: Update column visibility after rendering
     updateTableColumns();
+    
+    // IMPORTANT: Update sort indicators after rendering
+    updateSortIndicators();
 }
 
 // Create table row for a deal
@@ -884,6 +852,59 @@ function createAggregatorDealRow(deal) {
     }
     
     return row;
+}
+
+// Initialize/reinitialize sorting event listeners on aggregator table headers
+function initializeAggregatorSorting() {
+    // Remove existing listeners by cloning and replacing (prevents double-binding)
+    document.querySelectorAll('.aggregator-table th.sortable').forEach(th => {
+        const newTh = th.cloneNode(true);
+        th.parentNode.replaceChild(newTh, th);
+    });
+    
+    // Attach fresh event listeners
+    document.querySelectorAll('.aggregator-table th.sortable').forEach(th => {
+        th.addEventListener('click', (e) => {
+            const sortField = th.getAttribute('data-sort');
+            
+            console.log('🔄 Sort clicked:', sortField, 'Shift:', e.shiftKey);
+            
+            if (e.shiftKey) {
+                // Shift+Click: Add to multi-level sort
+                const existingIndex = currentAggregatorSort.findIndex(s => s.field === sortField);
+                
+                if (existingIndex >= 0) {
+                    // Field already in sort - toggle direction
+                    currentAggregatorSort[existingIndex].direction = 
+                        currentAggregatorSort[existingIndex].direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    // Add new sort level
+                    currentAggregatorSort.push({ field: sortField, direction: 'desc' });
+                }
+            } else {
+                // Regular click: Single-level sort (or toggle if already sorting by this field)
+                const isSingleSort = currentAggregatorSort.length === 1 && currentAggregatorSort[0].field === sortField;
+                
+                if (isSingleSort) {
+                    // Toggle direction
+                    currentAggregatorSort[0].direction = currentAggregatorSort[0].direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    // New single sort
+                    currentAggregatorSort = [{ field: sortField, direction: 'desc' }];
+                }
+            }
+            
+            console.log('🔄 Current sort config:', currentAggregatorSort);
+            
+            // Update UI with sort indicators
+            updateSortIndicators();
+            
+            // Re-render
+            renderAggregatorTable();
+        });
+    });
+    
+    console.log('✅ Initialized sorting on', document.querySelectorAll('.aggregator-table th.sortable').length, 'columns');
 }
 
 // Sort aggregator deals
@@ -1500,23 +1521,19 @@ function renderColumnCheckboxes() {
     
     detectAvailableColumns();
     
-    // Show all columns, mark unavailable ones
-    const allCols = Object.keys(COLUMN_CONFIG);
-    
-    container.innerHTML = allCols.map(colId => {
+    // Show only columns that have data
+    container.innerHTML = availableColumns.map(colId => {
         const config = COLUMN_CONFIG[colId];
-        const hasData = availableColumns.includes(colId);
         const isChecked = visibleColumns[colId] !== false;
         const isRequired = config.required;
         
         return `
-            <label class="${!hasData ? 'no-data' : ''}">
+            <label>
                 <input type="checkbox" 
                        data-column="${colId}" 
                        ${isChecked ? 'checked' : ''} 
                        ${isRequired ? 'disabled' : ''} />
                 ${config.label}
-                ${!hasData && !isRequired ? '<span class="no-data-hint">(no data)</span>' : ''}
             </label>
         `;
     }).join('');
@@ -1549,11 +1566,16 @@ function addDynamicHeaders() {
             const config = COLUMN_CONFIG[colId];
             const th = document.createElement('th');
             th.dataset.col = colId;
+            th.dataset.sort = colId; // Make it sortable
+            th.className = 'sortable'; // Add sortable class
             th.textContent = config.label.toUpperCase();
             th.style.display = visibleColumns[colId] ? '' : 'none';
             thead.appendChild(th);
         }
     });
+    
+    // Reinitialize sorting after adding dynamic headers
+    initializeAggregatorSorting();
 }
 
 function updateTableColumns() {

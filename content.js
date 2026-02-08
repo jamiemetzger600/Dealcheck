@@ -1724,6 +1724,16 @@ function scrapeData() {
         console.log('⚠️ No EBITDA/SDE value to update');
     }
     
+    // Auto-fill Deal Name if empty
+    const dealNameField = document.getElementById('da-deal-name');
+    if (dealNameField && !dealNameField.value.trim()) {
+      const businessName = getBusinessName();
+      if (businessName && businessName !== 'Deal-Analysis') {
+        dealNameField.value = businessName;
+        console.log('✅ Auto-filled Deal Name:', businessName);
+      }
+    }
+    
     // Log scraping summary
     console.log('\n📋 SCRAPING SUMMARY:');
     console.log('   Platform:', platform);

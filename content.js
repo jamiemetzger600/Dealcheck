@@ -3926,14 +3926,15 @@ function getBusinessName() {
   console.log('Page title:', pageTitle);
   
   if (pageTitle && pageTitle !== 'Business For Sale') {
-    // Clean up the title - remove common suffixes
+    // Clean up the title - remove common suffixes and location info
     let cleanTitle = pageTitle
+      .replace(/\s*\|\s*For Sale in.*$/i, '') // Remove "| For Sale in [location]" and everything after
       .replace(/\s*-\s*BizQuest.*$/i, '')
       .replace(/\s*\|\s*BizBuySell.*$/i, '')
       .replace(/\s*-\s*Business For Sale.*$/i, '')
       .replace(/\s*\|\s*Crexi.*$/i, '')
       .replace(/\s*-\s*BizBuySell.*$/i, '')
-      .replace(/\s*\|\s*Business.*$/i, '')
+      .replace(/\s*\|\s*BizQuest.*$/i, '') // Catch BizQuest.com
       .trim();
     
     console.log('Cleaned title:', cleanTitle);

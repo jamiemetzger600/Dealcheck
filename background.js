@@ -223,13 +223,33 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // ====== EXTENSION ICON CLICK ======
-chrome.action.onClicked.addListener((tab) => {
-  // Send message to content script to toggle the window
-  chrome.tabs.sendMessage(tab.id, { action: "toggleWindow" }, (response) => {
-    // Check for errors (e.g., if content script isn't loaded on this page)
-    if (chrome.runtime.lastError) {
-      console.log('Content script not available on this page:', chrome.runtime.lastError.message);
+chrome.action.onClicked.addListener(async (tab) => {
+  console.log('🖱️ Extension icon clicked on tab:', tab.id);
+  
+  // Try to send message to content script to toggle the popup overlay
+  try {
+    await chrome.tabs.sendMessage(tab.id, { action: "toggleWindow" });
+    console.log('✅ Toggle message sent to content script');
+  } catch (error) {
+    // Content script not available (chrome:// pages, new tab, PDF, etc.)
+    console.log('⚠️ Content script not available, opening dashboard in new tab');
+    console.log('   Reason:', error.message);
+    
+    // Check if dashboard is already open in any tab
+    const tabs = await chrome.tabs.query({});
+    const dashboardTab = tabs.find(t => t.url && t.url.includes('deals-dashboard.html'));
+    
+    if (dashboardTab) {
+      // Focus existing dashboard tab
+      console.log('✅ Dashboard already open, focusing tab:', dashboardTab.id);
+      await chrome.tabs.update(dashboardTab.id, { active: true });
+      await chrome.windows.update(dashboardTab.windowId, { focused: true });
+    } else {
+      // Open dashboard in new tab
+      console.log('🚀 Opening dashboard in new tab');
+      const dashboardUrl = chrome.runtime.getURL('deals-dashboard.html');
+      await chrome.tabs.create({ url: dashboardUrl });
     }
-  });
+  }
 });
 

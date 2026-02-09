@@ -2507,6 +2507,79 @@ function unformatInputOnFocus(e) {
   e.target.value = e.target.value.replace(/[,$]/g, '');
 }
 
+// Live format input as user types (add commas in real-time)
+function liveFormatInput(e) {
+  // Safety check: only process extension's own inputs
+  const isExtensionInput = (e.target.id && e.target.id.startsWith('da-')) || 
+                          e.target.classList.contains('da-input') || 
+                          e.target.classList.contains('da-select');
+  if (!isExtensionInput) {
+    return; // Don't modify inputs that don't belong to the extension
+  }
+  
+  console.log('🔢 Live formatting:', e.target.id, 'value:', e.target.value);
+  
+  // Get current value and cursor position
+  const input = e.target;
+  const cursorPos = input.selectionStart;
+  const oldValue = input.value;
+  
+  // Don't format if empty
+  if (!oldValue || oldValue === '$') {
+    return;
+  }
+  
+  // Remove all non-digit characters except decimal point
+  let cleanValue = oldValue.replace(/[^\d.]/g, '');
+  
+  // Don't format if no digits
+  if (!cleanValue || cleanValue === '.') {
+    return;
+  }
+  
+  // Handle multiple decimal points - keep only the first one
+  const parts = cleanValue.split('.');
+  if (parts.length > 2) {
+    cleanValue = parts[0] + '.' + parts.slice(1).join('');
+  }
+  
+  // Split into integer and decimal parts
+  const [integerPart, decimalPart] = cleanValue.split('.');
+  
+  // Format integer part with commas
+  let formatted = '';
+  if (integerPart) {
+    const num = parseInt(integerPart, 10);
+    if (!isNaN(num)) {
+      formatted = num.toLocaleString('en-US');
+    }
+  }
+  
+  // Add decimal part if it exists
+  if (decimalPart !== undefined) {
+    formatted += '.' + decimalPart;
+  }
+  
+  // Add currency symbol for currency fields
+  const shouldAddDollar = isCurrencyField(input.id) && formatted;
+  if (shouldAddDollar) {
+    formatted = '$' + formatted;
+  }
+  
+  // Only update if value changed and formatted is not empty
+  if (formatted && formatted !== oldValue) {
+    input.value = formatted;
+    
+    // Restore cursor position, accounting for added/removed commas and $
+    const oldCommas = (oldValue.slice(0, cursorPos).match(/,/g) || []).length;
+    const newCommas = (formatted.slice(0, cursorPos).match(/,/g) || []).length;
+    const oldDollar = oldValue.slice(0, cursorPos).includes('$') ? 1 : 0;
+    const newDollar = formatted.slice(0, cursorPos).includes('$') ? 1 : 0;
+    const newCursorPos = cursorPos + (newCommas - oldCommas) + (newDollar - oldDollar);
+    input.setSelectionRange(newCursorPos, newCursorPos);
+  }
+}
+
 // --- TARGET OFFER CALCULATOR ---
 function calculateTargetOffer() {
   console.log('=== TARGET OFFER CALCULATOR ===');
@@ -3066,6 +3139,8 @@ try {
       el.addEventListener('input', calculate);
     }
     if (el.type === 'text') {
+      // Add live formatting on input for text fields (currency and large numbers)
+      el.addEventListener('input', liveFormatInput);
       el.addEventListener('blur', formatInputOnBlur);
       el.addEventListener('focus', unformatInputOnFocus);
     }

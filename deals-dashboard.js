@@ -137,6 +137,23 @@ async function initializeDashboard() {
     await loadBuyBoxConfig();
     console.log('✅ Buy Box configuration loaded:', currentBuyBox);
     
+    // Initialize default source and auto-fetch on first launch
+    console.log('🔍 Checking for first launch...');
+    const isFirstLaunch = await initializeDefaultSource();
+    if (isFirstLaunch) {
+        console.log('🎉 First launch detected - auto-fetching real business listings...');
+        // Wait a moment for UI to be ready, then auto-fetch
+        setTimeout(async () => {
+            try {
+                await startAggregation(null, true); // true = silent mode, no button state changes
+                showToast('Welcome! Loaded 100+ real business listings to get you started. Add your own sources anytime!', 'success', 6000);
+            } catch (error) {
+                console.error('❌ Auto-fetch failed:', error);
+                showToast('Welcome! Click "🔄 Fetch Deals" to load business listings.', 'info', 5000);
+            }
+        }, 1000);
+    }
+    
     // Add global test functions for debugging
     window.testSourceModal = function() {
         console.log('🧪 Testing source modal...');
@@ -297,10 +314,15 @@ async function initializeDashboard() {
     });
     
     // Start aggregation button function (make it accessible globally)
-    window.startAggregation = async function(btn) {
-        showToast('Starting deal aggregation from Google Sheets...', 'info');
-        btn.disabled = true;
-        btn.classList.add('loading');
+    window.startAggregation = async function(btn, silentMode = false) {
+        if (!silentMode) {
+            showToast('Starting deal aggregation from Google Sheets...', 'info');
+        }
+        
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add('loading');
+        }
         
         try {
             console.log('🔄 Fetching deals from Google Sheets only...');
@@ -318,7 +340,9 @@ async function initializeDashboard() {
                 }
             } catch (error) {
                 console.error('Error fetching Google Sheets:', error);
-                showToast('⚠️ Google Sheets fetch failed: ' + error.message, 'error');
+                if (!silentMode) {
+                    showToast('⚠️ Google Sheets fetch failed: ' + error.message, 'error');
+                }
             }
             
             // Add all deals to storage
@@ -326,16 +350,20 @@ async function initializeDashboard() {
                 const stats = await addDealsToPool(allDeals);
                 console.log(`📊 Added ${stats.added} new, updated ${stats.updated}, unchanged ${stats.unchanged}, total: ${stats.total}`);
                 
-                // Build summary message
-                const parts = [];
-                if (stats.added > 0) parts.push(`${stats.added} new`);
-                if (stats.updated > 0) parts.push(`${stats.updated} updated`);
-                if (stats.unchanged > 0) parts.push(`${stats.unchanged} unchanged`);
-                
-                const summary = parts.length > 0 ? parts.join(', ') : 'No changes';
-                showToast(`✅ ${summary}. Total: ${stats.total} deals (max 6000)`, 'success', 5000);
+                if (!silentMode) {
+                    // Build summary message
+                    const parts = [];
+                    if (stats.added > 0) parts.push(`${stats.added} new`);
+                    if (stats.updated > 0) parts.push(`${stats.updated} updated`);
+                    if (stats.unchanged > 0) parts.push(`${stats.unchanged} unchanged`);
+                    
+                    const summary = parts.length > 0 ? parts.join(', ') : 'No changes';
+                    showToast(`✅ ${summary}. Total: ${stats.total} deals (max 6000)`, 'success', 5000);
+                }
             } else {
-                showToast('ℹ️ No deals found. Add Google Sheet in "Manage Sources"', 'info', 5000);
+                if (!silentMode) {
+                    showToast('ℹ️ No deals found. Add Google Sheet in "Manage Sources"', 'info', 5000);
+                }
             }
             
             // Update UI
@@ -344,10 +372,14 @@ async function initializeDashboard() {
             
         } catch (error) {
             console.error('Error aggregating deals:', error);
-            showToast('❌ Error aggregating deals: ' + error.message, 'error');
+            if (!silentMode) {
+                showToast('❌ Error aggregating deals: ' + error.message, 'error');
+            }
         } finally {
-            btn.disabled = false;
-            btn.classList.remove('loading');
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
         }
     };
     
@@ -2932,6 +2964,15 @@ async function updateDealNotes(deal, newNotes) {
 
 // Initialize deal modal handlers
 document.addEventListener('DOMContentLoaded', () => {
+    // Add live formatting to modal calculator inputs
+    const modalCalcFields = ['calc-purchase-price', 'calc-ebitda'];
+    modalCalcFields.forEach(fieldId => {
+        const el = document.getElementById(fieldId);
+        if (el) {
+            el.addEventListener('input', liveFormatDashboardInput);
+        }
+    });
+    
     // Close button
     const closeBtn = document.getElementById('modal-close');
     if (closeBtn) {
@@ -3383,9 +3424,16 @@ function initializeDealPanel() {
         'calc-seller-percent', 'calc-seller-rate', 'calc-seller-type', 'calc-seller-standby'
     ];
     
+    // Fields that should have comma formatting (large numbers only)
+    const calcFormattedFields = ['calc-ebitda', 'calc-asking', 'calc-salary'];
+    
     calcInputs.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
+            // Add live formatting only for large number fields
+            if (calcFormattedFields.includes(id)) {
+                el.addEventListener('input', liveFormatDashboardInput);
+            }
             el.addEventListener('input', runFullCalculator);
             el.addEventListener('change', runFullCalculator);
         }
@@ -4395,6 +4443,20 @@ document.addEventListener('DOMContentLoaded', () => {
         'buybox-min-quality'
     ];
     
+    // Add live formatting to number input fields
+    const numberFields = ['buybox-min-price', 'buybox-max-price', 'buybox-min-ebitda', 
+                          'buybox-max-ebitda', 'buybox-min-revenue', 'buybox-revenue-multiple'];
+    numberFields.forEach(fieldId => {
+        const el = document.getElementById(fieldId);
+        if (el) {
+            // Change type from number to text to allow formatting
+            if (el.type === 'number') {
+                el.type = 'text';
+            }
+            el.addEventListener('input', liveFormatDashboardInput);
+        }
+    });
+    
     formFields.forEach(fieldId => {
         const field = document.getElementById(fieldId);
         if (field) {
@@ -4419,6 +4481,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Initialize manual deal modal handlers
 document.addEventListener('DOMContentLoaded', () => {
+    // Add live formatting to manual deal number fields
+    const manualNumberFields = ['manual-price', 'manual-revenue', 'manual-ebitda', 'manual-cashflow'];
+    manualNumberFields.forEach(fieldId => {
+        const el = document.getElementById(fieldId);
+        if (el) {
+            // Change type from number to text to allow formatting
+            el.type = 'text';
+            el.addEventListener('input', liveFormatDashboardInput);
+        }
+    });
+    
     // Save manual deal button
     const saveBtn = document.getElementById('manual-deal-save');
     if (saveBtn) {
@@ -4819,6 +4892,88 @@ function parseCOC(str) {
 function formatNumber(num) {
     if (num === null || num === undefined) return '0';
     return Math.round(num).toLocaleString();
+}
+
+// Live format input as user types (add commas in real-time)
+function liveFormatDashboardInput(e) {
+    console.log('🔢 Dashboard live formatting:', e.target.id, 'value:', e.target.value);
+    
+    // Get current value and cursor position
+    const input = e.target;
+    const cursorPos = input.selectionStart;
+    const oldValue = input.value;
+    
+    // Don't format if empty
+    if (!oldValue || oldValue === '$') {
+        return;
+    }
+    
+    // Remove all non-digit characters except decimal point and leading $
+    let cleanValue = oldValue.replace(/[^\d.$]/g, '');
+    
+    // Check if this is a currency field (has $ or is calc-purchase-price, calc-ebitda, calc-salary)
+    const isCurrencyField = oldValue.includes('$') || 
+                           input.id === 'calc-purchase-price' || 
+                           input.id === 'calc-ebitda' || 
+                           input.id === 'calc-salary' ||
+                           input.id === 'manual-price' ||
+                           input.id === 'manual-revenue' ||
+                           input.id === 'manual-ebitda' ||
+                           input.id === 'manual-cashflow' ||
+                           input.id === 'buybox-min-price' ||
+                           input.id === 'buybox-max-price' ||
+                           input.id === 'buybox-min-ebitda' ||
+                           input.id === 'buybox-max-ebitda' ||
+                           input.id === 'buybox-min-revenue';
+    
+    // Remove $ from clean value
+    cleanValue = cleanValue.replace(/\$/g, '');
+    
+    // Don't format if no digits
+    if (!cleanValue || cleanValue === '.') {
+        return;
+    }
+    
+    // Handle multiple decimal points - keep only the first one
+    const parts = cleanValue.split('.');
+    if (parts.length > 2) {
+        cleanValue = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Split into integer and decimal parts
+    const [integerPart, decimalPart] = cleanValue.split('.');
+    
+    // Format integer part with commas
+    let formatted = '';
+    if (integerPart) {
+        const num = parseInt(integerPart, 10);
+        if (!isNaN(num)) {
+            formatted = num.toLocaleString('en-US');
+        }
+    }
+    
+    // Add decimal part if it exists
+    if (decimalPart !== undefined) {
+        formatted += '.' + decimalPart;
+    }
+    
+    // Add currency symbol for currency fields
+    if (isCurrencyField && formatted) {
+        formatted = '$' + formatted;
+    }
+    
+    // Only update if value changed and formatted is not empty
+    if (formatted && formatted !== oldValue) {
+        input.value = formatted;
+        
+        // Restore cursor position, accounting for added/removed commas and $
+        const oldCommas = (oldValue.slice(0, cursorPos).match(/,/g) || []).length;
+        const newCommas = (formatted.slice(0, cursorPos).match(/,/g) || []).length;
+        const oldDollar = oldValue.slice(0, cursorPos).includes('$') ? 1 : 0;
+        const newDollar = formatted.slice(0, cursorPos).includes('$') ? 1 : 0;
+        const newCursorPos = cursorPos + (newCommas - oldCommas) + (newDollar - oldDollar);
+        input.setSelectionRange(newCursorPos, newCursorPos);
+    }
 }
 
 // Escape HTML to prevent XSS

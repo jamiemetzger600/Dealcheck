@@ -1,15 +1,15 @@
-# Deal Check v2.2.0 - Beta Release
+# Max Price Deal Analyzer v3.1.0 - Beta Release
 
 ## 🎉 Welcome Beta Tester!
 
-Thank you for testing Deal Check v2.2.0! This release includes a major new feature: **Auto-Refresh & Smart Notifications**.
+Thank you for testing Max Price Deal Analyzer v3.1.0! This release includes a game-changing improvement: **Instant Access to Real Business Listings** - no setup required!
 
 ---
 
 ## 📦 Installation
 
 ### **Step 1: Extract the ZIP**
-1. Extract the "Deal Check 2.2.0.zip" file to a folder on your computer
+1. Extract the extension ZIP file to a folder on your computer
 
 ### **Step 2: Load in Chrome**
 1. Open Chrome and go to `chrome://extensions/`
@@ -25,51 +25,57 @@ Thank you for testing Deal Check v2.2.0! This release includes a major new featu
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start - Works Immediately!
 
-### **First Time Setup (5 minutes):**
+### **First Time Experience (< 30 seconds):**
 
 1. **Open Dashboard**
    - Click the extension icon in Chrome toolbar
-   - Dashboard will open
+   - Dashboard opens
 
-2. **Add a Deal Source**
-   - Click "📥 Manage Sources"
-   - Add your Google Sheets URL or CSV file
-   - Click "🔄 Fetch Deals" to load deals
+2. **See Real Deals Instantly! 🎉**
+   - **100+ real business listings automatically loaded**
+   - No setup, no authentication, no configuration needed
+   - Start exploring immediately!
 
-3. **Configure Buy Box**
-   - Click "⚙️ Configure Buy Box"
-   - Set your investment criteria (price, location, industry)
-   - Save settings
+3. **Start Analyzing** (Optional)
+   - Click "⚙️ Configure Buy Box" to set your investment criteria
+   - Filter deals by price, location, industry
+   - Save promising deals to "My Deals"
+   - Use the financial calculator to analyze deals
 
-4. **Enable Auto-Refresh** (NEW in v2.2.0!)
+4. **Add Your Own Sources** (Optional)
+   - Click "📥 Manage Sources" to add your own Google Sheets or CSV files
+   - The default business listings database will remain available
+   - You can disable or remove it anytime
+
+5. **Enable Auto-Refresh** (Optional)
    - Click "🔔 Auto-Refresh Settings"
    - Check "Enable Auto-Refresh"
-   - Choose refresh interval (default: 1 hour)
-   - Check "Show notifications for new matching deals"
-   - Click "🔔 Test Notification" to verify it works
-   - Click "💾 Save Settings"
+   - Get notifications when new deals are added
 
 ---
 
-## ✨ What's New in v2.2.0
+## ✨ What's New in v3.1.0
 
-### **Auto-Refresh System**
-- Automatically checks your sources for new deals in the background
-- Configurable intervals: 15 minutes to once per day
-- Works even when dashboard is closed
+### **🎯 Instant Access to Real Business Listings**
+- **Zero setup required** - 100+ real deals pre-loaded on first launch
+- **No authentication** - removed OAuth complexity entirely
+- **Real data** - actual business listings from BizBuySell, BizQuest, and other sources
+- **Instant value** - start analyzing deals in seconds
 
-### **Smart Notifications**
-- Get desktop notifications when new deals matching your Buy Box are found
-- Shows count of new matching deals
-- Auto-dismisses after 10 seconds
+### **🌐 Opensheet API Integration**
+- Simplified Google Sheets integration using free Opensheet API
+- Works with any public Google Sheet - no authentication needed
+- Faster and more reliable than OAuth-based approach
+- 30-second caching for optimal performance
 
-### **Settings Interface**
-- New settings modal with comprehensive controls
-- Real-time statistics (total deals, new today)
-- Last/next refresh timestamps
-- Test notification button
+### **Previous Features (Still Available)**
+- Auto-refresh system with configurable intervals
+- Smart notifications for new matching deals
+- Buy Box filtering with AI-powered matching
+- Financial calculators (DSCR, Max Price, Target Offer)
+- Deal pipeline management
 
 ---
 
@@ -86,33 +92,44 @@ All documentation is in the `docs/` folder:
 
 ## 🧪 What to Test
 
-### **Priority 1: Auto-Refresh**
-- [ ] Open settings modal
-- [ ] Enable auto-refresh
-- [ ] Set interval to 15 minutes (for quick testing)
-- [ ] Save settings
-- [ ] Wait 15 minutes and verify deals refresh
+### **Priority 1: First Launch Experience (NEW!)**
+- [ ] Install extension
+- [ ] Click extension icon to open dashboard
+- [ ] Verify 100+ real business listings appear automatically
+- [ ] Verify welcome message appears
+- [ ] Verify no authentication prompts
 
-### **Priority 2: Notifications**
-- [ ] Enable notifications in settings
-- [ ] Click "Test Notification" button
-- [ ] Verify notification appears
-- [ ] Add new deal to your source
-- [ ] Wait for next refresh cycle
-- [ ] Verify notification for new deal
+### **Priority 2: Deal Exploration**
+- [ ] Browse through the pre-loaded business listings
+- [ ] Click on deal names to view details
+- [ ] Use search to filter deals
+- [ ] Sort by different columns
+- [ ] Save interesting deals to "My Deals"
 
 ### **Priority 3: Buy Box Filtering**
-- [ ] Configure Buy Box with specific criteria
-- [ ] Add deals that match AND don't match
-- [ ] Verify notifications only for matching deals
+- [ ] Click "⚙️ Configure Buy Box"
+- [ ] Set your investment criteria (price, location, industry)
+- [ ] Save settings
+- [ ] Verify deals show 🎯 badges when they match your criteria
 
-### **Priority 4: General Functionality**
-- [ ] Add/remove deal sources
-- [ ] Fetch deals manually
-- [ ] View deal details
-- [ ] Save deals to "My Deals"
-- [ ] Column sorting and filtering
-- [ ] Export deals
+### **Priority 4: Financial Calculator**
+- [ ] Open a deal detail modal
+- [ ] Use the Max Price calculator
+- [ ] Use the Target Offer calculator
+- [ ] Verify calculations are accurate
+
+### **Priority 5: Custom Sources (Optional)**
+- [ ] Click "📥 Manage Sources"
+- [ ] Verify default source is listed
+- [ ] Try adding your own Google Sheet (must be public)
+- [ ] Fetch deals from your custom source
+- [ ] Verify both sources work together
+
+### **Priority 6: Auto-Refresh (Optional)**
+- [ ] Open settings modal
+- [ ] Enable auto-refresh
+- [ ] Enable notifications
+- [ ] Test notification button
 
 ---
 

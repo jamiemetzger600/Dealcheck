@@ -881,37 +881,115 @@ function parseSheetsRowData(rows, columnMapping) {
     return deals;
 }
 
-// Fetch data from Google Sheets (OAuth + API)
+// Parse Opensheet JSON data to internal deal format
+function parseOpensheetData(rows, columnMapping, sourceName) {
+    if (!rows || rows.length === 0) {
+        return [];
+    }
+    
+    console.log('🔍 Parsing Opensheet data - first row keys:', Object.keys(rows[0] || {}).slice(0, 10));
+    
+    const deals = [];
+    
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        
+        // Skip empty rows
+        const hasAnyValue = Object.values(row).some(val => val && String(val).trim());
+        if (!hasAnyValue) continue;
+        
+        // Extract URL - check multiple possible column names
+        let url = row['Parsed URL'] || row['View Listing'] || row['URL'] || row['Link'] || row['Listing URL'] || '';
+        
+        // Extract name
+        const dealName = row['Name'] || row['Business Name'] || row['Deal Name'] || row['Title'] || '';
+        
+        // Build location from city + state
+        const city = row['City'] || '';
+        const state = row['State'] || '';
+        const location = (city && state) ? `${city}, ${state}` : (city || state || row['Location'] || '');
+        
+        // Build broker display
+        const brokerName = row['Broker Name'] || '';
+        const brokerCompany = row['Broker Company'] || '';
+        const brokerDisplay = brokerName && brokerCompany ? `${brokerName} (${brokerCompany})` : brokerName || brokerCompany;
+        
+        const deal = {
+            id: generateDealId(url || dealName || `opensheet_${i}`),
+            name: dealName,
+            url: url,
+            industry: row['Industry'] || '',
+            description: row['Description'] || '',
+            location: location,
+            city: city,
+            county: row['County'] || '',
+            state: state,
+            country: row['Country'] || '',
+            yearsEstablished: row['Years Established'] || '',
+            ebitda: parsePrice(row['Annual Profit']),
+            revenue: parsePrice(row['Annual Revenue']),
+            askingPrice: parsePrice(row['Asking Price']),
+            profitMultiple: parseFloat(row['Profit Multiple']) || null,
+            revenueMultiple: parseFloat(row['Revenue Multiple']) || null,
+            remote: row['Remote/Relocatable/Absentee-Run'] || '',
+            franchise: row['Franchise'] || '',
+            fiveYearsInBusiness: row['5+ Years In Business'] || '',
+            broker: brokerDisplay,
+            brokerName: brokerName,
+            brokerCompany: brokerCompany,
+            brokerPhone: row['Broker Contact'] || '',
+            brokerEmail: row['Broker Email'] || '',
+            source: sourceName || 'google_sheets',
+            sourceType: 'google_sheets',
+            discoveredAt: row['Date Added'] ? new Date(row['Date Added']).getTime() : Date.now(),
+            rawColumns: row // Preserve all original columns
+        };
+        
+        // DEBUG: Log first 3 deals
+        if (i < 3) {
+            console.log(`🔍 Parsed Opensheet deal ${i + 1}:`, {
+                name: deal.name?.substring(0, 50),
+                askingPrice: deal.askingPrice,
+                ebitda: deal.ebitda,
+                location: deal.location,
+                industry: deal.industry?.substring(0, 30),
+                url: deal.url?.substring(0, 50)
+            });
+        }
+        
+        deals.push(deal);
+    }
+    
+    console.log(`✅ Parsed ${deals.length} deals from Opensheet JSON`);
+    return deals;
+}
+
+// Fetch data from Google Sheets via Opensheet API (no authentication required)
 async function fetchGoogleSheets(source) {
-    console.log('Fetching Google Sheets (API):', source.name);
+    console.log('🌐 Fetching Google Sheets via Opensheet API:', source.name);
     console.log('📋 Sheet URL:', source.url);
 
     try {
         const sheetInfo = extractSheetInfo(source.url);
-        const token = await getGoogleSheetsAuthToken(true);
-        // Allow user to specify sheet name, default to 'Deal Check Source' or first sheet
-        const targetSheetName = source.sheetName || source.sheetTab || 'Deal Check Source';
-        console.log('📋 Looking for sheet tab:', targetSheetName);
-        const sheetTitle = await resolveSheetTitle(sheetInfo, token, targetSheetName);
-        console.log('📋 Using sheet tab:', sheetTitle);
-        const range = `${sheetTitle}!A1:W`;
-
-        let response = await fetchSheetsGridData(sheetInfo.id, range, token);
-        if (response.status === 401) {
-            await removeCachedAuthToken(token);
-            const refreshedToken = await getGoogleSheetsAuthToken(true);
-            response = await fetchSheetsGridData(sheetInfo.id, range, refreshedToken);
-        }
-
+        // Use sheet tab name/number if provided, otherwise default to first sheet (tab 1)
+        const sheetName = source.sheetName || source.sheetTab || '1';
+        
+        // Opensheet API endpoint - no authentication needed for public sheets
+        const opensheetUrl = `https://opensheet.elk.sh/${sheetInfo.id}/${encodeURIComponent(sheetName)}`;
+        console.log('🌐 Opensheet URL:', opensheetUrl);
+        
+        const response = await fetch(opensheetUrl);
         if (!response.ok) {
-            throw new Error(`Google Sheets API error (${response.status})`);
+            throw new Error(`Opensheet API error (${response.status}): ${response.statusText}`);
         }
-
-        const data = await response.json();
-        const rows = data?.sheets?.[0]?.data?.[0]?.rowData || [];
-        return parseSheetsRowData(rows, source.columnMapping || {});
+        
+        const jsonData = await response.json();
+        console.log(`✅ Fetched ${jsonData.length} rows from Opensheet API`);
+        
+        // Convert Opensheet JSON format to internal deal format
+        return parseOpensheetData(jsonData, source.columnMapping || {}, source.name);
     } catch (error) {
-        console.error('Error fetching Google Sheets via API:', error);
+        console.error('❌ Error fetching Google Sheets via Opensheet API:', error);
         throw error;
     }
 }
@@ -1396,6 +1474,40 @@ async function fetchCustomSource(source) {
         console.error(`Error fetching custom source ${source.name}:`, error);
         throw error;
     }
+}
+
+// Initialize default source on first launch
+async function initializeDefaultSource() {
+    const sources = await getCustomSources();
+    
+    // Check if default source already exists
+    const hasDefault = sources.some(s => s.id === 'default_deal_source');
+    if (hasDefault) {
+        console.log('✅ Default source already initialized');
+        return false; // Already initialized
+    }
+    
+    console.log('🚀 First launch detected - initializing default deal source...');
+    
+    // Add your public deal aggregator spreadsheet as default source
+    const defaultSource = {
+        id: 'default_deal_source',
+        name: 'Business Listings Database (100+ Real Deals)',
+        type: 'google_sheets',
+        url: 'https://docs.google.com/spreadsheets/d/1RKab4UHut6SvVjjCtSeCGL0xT__WTLNwsACFRmSXYyM/edit?usp=sharing',
+        sheetName: '1', // First sheet tab
+        enabled: true,
+        addedAt: Date.now(),
+        lastFetch: null,
+        dealCount: 0,
+        isDefault: true // Flag to identify default source
+    };
+    
+    sources.push(defaultSource);
+    await saveCustomSources(sources);
+    
+    console.log('✅ Default deal source initialized with real business listings');
+    return true; // Newly initialized
 }
 
 // Fetch all enabled custom sources

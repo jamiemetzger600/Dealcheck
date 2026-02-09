@@ -23,12 +23,11 @@ window.addEventListener('unhandledrejection', (event) => {
 const uiHTML = `
 <div id="deal-analyzer-container">
   <div id="deal-analyzer-header">
-    Deal Analyzer <span style="font-size:11px; opacity:0.8; font-weight:400;">${EXT_VERSION}</span>
+    Deal Analyzer <span style="font-size:calc(11px * var(--font-scale)); opacity:0.8; font-weight:400;">${EXT_VERSION}</span>
     <div class="da-header-icons">
       <span id="da-save-deal-btn" class="da-header-icon" title="Save current deal (Cmd/Ctrl+S)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span>
       <span id="da-dashboard-btn" class="da-header-icon" title="Open Deals Dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
       <span id="da-coffee-btn" class="da-header-icon" title="Buy me a coffee ☕ ($10)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span>
-      <span id="da-debug-btn" class="da-header-icon" title="Scraping Diagnostics"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
       <span id="da-settings-btn" class="da-header-icon" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
       <span id="da-close" class="da-header-icon da-header-icon-close" title="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
     </div>
@@ -37,13 +36,13 @@ const uiHTML = `
   <!-- Deal Quality Score Banner -->
   <div id="da-quality-banner" style="background:var(--bg-secondary); border-bottom:2px solid var(--border-light); padding:8px 15px; display:flex; justify-content:space-between; align-items:center;">
     <div style="display:flex; align-items:center; gap:10px;">
-      <div id="da-quality-badge" style="font-size:20px;">📊</div>
+      <div id="da-quality-badge" style="font-size:calc(20px * var(--font-scale));">📊</div>
       <div>
-        <div style="font-size:11px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Deal Quality</div>
-        <div id="da-quality-text" style="font-size:14px; font-weight:700; color:var(--text-primary);">Analyzing...</div>
+        <div style="font-size:calc(11px * var(--font-scale)); color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Deal Quality</div>
+        <div id="da-quality-text" style="font-size:calc(14px * var(--font-scale)); font-weight:700; color:var(--text-primary);">Analyzing...</div>
       </div>
     </div>
-    <div id="da-quality-score" style="font-size:28px; font-weight:700; color:var(--text-secondary);">--</div>
+    <div id="da-quality-score" style="font-size:calc(28px * var(--font-scale)); font-weight:700; color:var(--text-secondary);">--</div>
   </div>
 
   <div class="da-section">
@@ -61,22 +60,22 @@ const uiHTML = `
   </div>
 
   <div class="da-section">
-    <div class="da-label" style="font-weight:700; color:var(--text-primary); margin-bottom:10px; border-bottom:1px solid var(--border-light); padding-bottom:5px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:8px;" id="da-financing-header">
-      <span id="da-financing-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+    <div style="font-size:calc(10px * var(--font-scale)); font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none; padding-bottom:8px; border-bottom:1px solid var(--border-light);" id="da-financing-header">
+      <span id="da-financing-arrow" style="transition:transform 0.2s; display:inline-block; transform:rotate(-90deg);">▼</span>
       <span>Financing Inputs</span>
     </div>
-    <div id="da-financing-section">
+    <div id="da-financing-section" style="display:none; margin-top:10px;">
       <div id="da-percent-error" class="da-warning" style="display:none;">⚠️ Total percentages must equal 100%</div>
 
       <div style="margin-bottom:10px;">
         <div class="da-label" style="font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-sba-header">
           <div style="display:flex; align-items:center; gap:8px;">
-            <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+            <span id="da-sba-arrow" style="transition:transform 0.2s; display:inline-block; transform:rotate(-90deg);">▼</span>
             <span>A. SBA</span>
           </div>
-          <span id="da-sba-summary" style="font-size:11px; color:var(--text-secondary); font-weight:400;">80% • 9.25% • 10yr • 1.25x DSCR</span>
+          <span id="da-sba-summary" style="font-size:calc(11px * var(--font-scale)); color:var(--text-secondary); font-weight:400;">80% • 9.25% • 10yr • 1.25x DSCR</span>
         </div>
-      <div id="da-sba-section" style="margin-top:8px;">
+      <div id="da-sba-section" style="display:none; margin-top:8px;">
         <div class="da-flex-row">
           <div style="flex:1">
             <label class="da-label">Percentage (%)</label>
@@ -101,8 +100,8 @@ const uiHTML = `
             <div style="display:flex; align-items:center; gap:4px;">
               <input type="number" id="da-dscr" class="da-input" value="1.25" step="0.05" min="1.0" style="flex:1;">
               <div style="display:flex; flex-direction:column; gap:2px;">
-                <button id="da-dscr-up" style="cursor:pointer; background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:2px; padding:2px 6px; font-size:10px; line-height:1; color:var(--text-primary); transition:background 0.2s;" title="Increase DSCR by 0.05">▲</button>
-                <button id="da-dscr-down" style="cursor:pointer; background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:2px; padding:2px 6px; font-size:10px; line-height:1; color:var(--text-primary); transition:background 0.2s;" title="Decrease DSCR by 0.05">▼</button>
+                <button id="da-dscr-up" style="cursor:pointer; background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:2px; padding:2px 6px; font-size:calc(10px * var(--font-scale)); line-height:1; color:var(--text-primary); transition:background 0.2s;" title="Increase DSCR by 0.05">▲</button>
+                <button id="da-dscr-down" style="cursor:pointer; background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:2px; padding:2px 6px; font-size:calc(10px * var(--font-scale)); line-height:1; color:var(--text-primary); transition:background 0.2s;" title="Decrease DSCR by 0.05">▼</button>
               </div>
             </div>
           </div>
@@ -113,12 +112,12 @@ const uiHTML = `
     <div style="margin-bottom:10px;">
       <div class="da-label" style="font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none;" id="da-buyer-equity-header">
         <div style="display:flex; align-items:center; gap:8px;">
-          <span id="da-buyer-equity-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+          <span id="da-buyer-equity-arrow" style="transition:transform 0.2s; display:inline-block; transform:rotate(-90deg);">▼</span>
           <span>B. Buyer Equity</span>
         </div>
-        <span id="da-buyer-equity-summary" style="font-size:11px; color:var(--text-secondary); font-weight:400;">10% ($0) • $150k salary</span>
+        <span id="da-buyer-equity-summary" style="font-size:calc(11px * var(--font-scale)); color:var(--text-secondary); font-weight:400;">10% ($0) • $150k salary</span>
       </div>
-      <div id="da-buyer-equity-section" style="margin-top:8px;">
+      <div id="da-buyer-equity-section" style="display:none; margin-top:8px;">
         <div class="da-flex-row">
           <div style="flex:1">
             <label class="da-label">Percentage (%)</label>
@@ -130,7 +129,7 @@ const uiHTML = `
           </div>
         </div>
         <div class="da-row">
-          <label class="da-label">Target Owner Salary (Annual) <span style="font-weight:400; color:var(--text-tertiary); font-size:11px;">(Required for SBA)</span></label>
+          <label class="da-label">Target Owner Salary (Annual) <span style="font-weight:400; color:var(--text-tertiary); font-size:calc(11px * var(--font-scale));">(Required for SBA)</span></label>
           <input type="text" id="da-target-salary" class="da-input" placeholder="150000" value="150000">
           <div id="da-salary-warning" class="da-warning" style="display:none; padding:6px 8px; margin-top:4px;">⚠️ Warning: Target salary exceeds available cash flow!</div>
         </div>
@@ -146,7 +145,7 @@ const uiHTML = `
             <span>C. Seller Note <span style="font-weight:400; color:var(--text-tertiary);">(Optional)</span></span>
           </label>
         </div>
-        <span id="da-seller-note-summary" style="font-size:11px; color:var(--text-secondary); font-weight:400;">10% • 6.0% • Amortizing</span>
+        <span id="da-seller-note-summary" style="font-size:calc(11px * var(--font-scale)); color:var(--text-secondary); font-weight:400;">10% • 6.0% • Amortizing</span>
       </div>
       <div id="da-seller-note-section" style="display:none; margin-top:8px;">
         <div class="da-row">
@@ -154,7 +153,7 @@ const uiHTML = `
           <input type="number" id="da-seller-percent" class="da-input" value="10" step="0.1" min="0" max="100">
         </div>
         <div class="da-row">
-          <label class="da-label">Amount ($) <span style="font-weight:400; color:var(--text-tertiary); font-size:11px;">(Auto-calculated, override to edit)</span></label>
+          <label class="da-label">Amount ($) <span style="font-weight:400; color:var(--text-tertiary); font-size:calc(11px * var(--font-scale));">(Auto-calculated, override to edit)</span></label>
           <input type="text" id="da-seller-amt" class="da-input" value="" placeholder="0" readonly>
         </div>
         <div class="da-flex-row">
@@ -184,46 +183,46 @@ const uiHTML = `
 
   <div class="da-section" style="background:var(--bg-tertiary); flex-grow:1;">
     <div id="da-deal-opportunity" class="da-warning" style="display:none; margin-bottom:12px; position:relative; padding-right:30px;">
-      <span id="da-deal-opportunity-close" style="position:absolute; top:8px; right:8px; cursor:pointer; font-size:16px; opacity:0.7; line-height:1; transition:opacity 0.2s;" title="Dismiss">✕</span>
+      <span id="da-deal-opportunity-close" style="position:absolute; top:8px; right:8px; cursor:pointer; font-size:calc(16px * var(--font-scale)); opacity:0.7; line-height:1; transition:opacity 0.2s;" title="Dismiss">✕</span>
       💰 <strong>DEAL OPPORTUNITY!</strong><br>
       <span id="da-deal-savings"></span>
     </div>
     
     <!-- MAX SCENARIO -->
     <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-light);">
-      <div id="da-max-header" style="font-size:10px; font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
-        <span id="da-max-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+      <div id="da-max-header" style="font-size:calc(10px * var(--font-scale)); font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+        <span id="da-max-arrow" style="transition:transform 0.2s; display:inline-block; transform:rotate(-90deg);">▼</span>
         <span>Maximum Allowable (DSCR-Based)</span>
       </div>
-      <div id="da-max-content">
+      <div id="da-max-content" style="display:none;">
         <div class="da-result-box">
           <div class="da-result-title">Max Allowable Purchase Price</div>
-          <div class="da-result-value" id="da-max-price" style="font-size:16px;">$0</div>
+          <div class="da-result-value" id="da-max-price" style="font-size:calc(16px * var(--font-scale));">$0</div>
         </div>
         <div class="da-result-box" style="border-left-color: #95a5a6;">
           <div class="da-result-title">Max Annual Debt Service</div>
-          <div class="da-result-value" id="da-max-debt" style="font-size:16px;">$0</div>
+          <div class="da-result-value" id="da-max-debt" style="font-size:calc(16px * var(--font-scale));">$0</div>
         </div>
       </div>
     </div>
     
     <!-- ROI METRICS -->
     <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-light);">
-      <div id="da-roi-header" style="font-size:10px; font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
-        <span id="da-roi-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+      <div id="da-roi-header" style="font-size:calc(10px * var(--font-scale)); font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+        <span id="da-roi-arrow" style="transition:transform 0.2s; display:inline-block; transform:rotate(-90deg);">▼</span>
         <span>Return on Investment (Year 1)</span>
       </div>
-      <div id="da-roi-content">
+      <div id="da-roi-content" style="display:none;">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
           <div class="da-result-box" style="border-left-color: #e67e22; margin-top:0;">
             <div class="da-result-title">Cash-on-Cash Return</div>
-            <div class="da-result-value" id="da-coc-return" style="font-size:18px;">0%</div>
-            <div style="font-size:9px; color:var(--text-tertiary); margin-top:1px;">Annual return on equity</div>
+            <div class="da-result-value" id="da-coc-return" style="font-size:calc(18px * var(--font-scale));">0%</div>
+            <div style="font-size:calc(9px * var(--font-scale)); color:var(--text-tertiary); margin-top:1px;">Annual return on equity</div>
           </div>
           <div class="da-result-box" style="border-left-color: #9b59b6; margin-top:0;">
             <div class="da-result-title">Payback Period</div>
-            <div class="da-result-value" id="da-payback" style="font-size:18px;">0 yrs</div>
-            <div style="font-size:9px; color:var(--text-tertiary); margin-top:1px;">Time to recover equity</div>
+            <div class="da-result-value" id="da-payback" style="font-size:calc(18px * var(--font-scale));">0 yrs</div>
+            <div style="font-size:calc(9px * var(--font-scale)); color:var(--text-tertiary); margin-top:1px;">Time to recover equity</div>
           </div>
         </div>
     </div>
@@ -231,19 +230,19 @@ const uiHTML = `
   
   <!-- TARGET OFFER CALCULATOR -->
   <div style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border-light);">
-    <div id="da-target-offer-header" style="font-size:10px; font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
-      <span id="da-target-offer-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+    <div id="da-target-offer-header" style="font-size:calc(10px * var(--font-scale)); font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+      <span id="da-target-offer-arrow" style="transition:transform 0.2s; display:inline-block; transform:rotate(-90deg);">▼</span>
       <span>🎯 Target Offer Calculator</span>
     </div>
-    <div id="da-target-offer-content">
+    <div id="da-target-offer-content" style="display:none;">
       <div style="background:var(--bg-tertiary); border:1px solid #3498db; border-radius:4px; padding:10px; margin-bottom:8px;">
-        <div style="font-size:11px; color:var(--text-primary); margin-bottom:8px;">
+        <div style="font-size:calc(11px * var(--font-scale)); color:var(--text-primary); margin-bottom:8px;">
           <strong>Calculate the maximum offer price</strong> that meets ALL requirements:<br>
           ✓ Achieves your target <span id="da-target-coc-display">25</span>% COC return<br>
           ✓ Your salary is covered ($<span id="da-target-salary-display">150k</span>)<br>
           ✓ DSCR requirement is met (<span id="da-target-dscr-display">1.25</span>x)<br>
           ✓ Never exceeds the asking price<br>
-          <em style="font-size:10px; color:var(--text-secondary);">Shows which constraint limits your offer</em>
+          <em style="font-size:calc(10px * var(--font-scale)); color:var(--text-secondary);">Shows which constraint limits your offer</em>
         </div>
         <button id="da-calculate-target-offer-btn" class="da-btn" style="width:100%; background:#3498db; font-weight:600;">🎯 Calculate Target Offer Price</button>
       </div>
@@ -251,13 +250,13 @@ const uiHTML = `
       <div id="da-target-offer-results" style="display:none;">
         <div class="da-result-box" style="border-left-color:#3498db; background:var(--bg-tertiary);">
           <div class="da-result-title" style="font-weight:700; color:var(--text-primary);">🎯 Recommended Offer Price</div>
-          <div class="da-result-value" id="da-target-offer-price" style="font-size:20px; font-weight:700; color:#3498db;">$0</div>
-          <div style="font-size:10px; color:var(--text-secondary); margin-top:4px; line-height:1.4;" id="da-target-offer-subtitle">
+          <div class="da-result-value" id="da-target-offer-price" style="font-size:calc(20px * var(--font-scale)); font-weight:700; color:#3498db;">$0</div>
+          <div style="font-size:calc(10px * var(--font-scale)); color:var(--text-secondary); margin-top:4px; line-height:1.4;" id="da-target-offer-subtitle">
             To achieve your <span id="da-target-coc-result">25</span>% COC return in <span id="da-target-payback-result">4</span> years
           </div>
         </div>
         
-        <div id="da-target-comparison" style="margin-top:8px; padding:8px; border-radius:4px; font-size:11px; background:var(--bg-secondary); color:var(--text-primary);">
+        <div id="da-target-comparison" style="margin-top:8px; padding:8px; border-radius:4px; font-size:calc(11px * var(--font-scale)); background:var(--bg-secondary); color:var(--text-primary);">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
             <span style="font-weight:600;">vs. Asking Price:</span>
             <span id="da-target-diff-amount" style="font-weight:700;">$0</span>
@@ -268,54 +267,54 @@ const uiHTML = `
           </div>
         </div>
         
-        <div style="margin-top:8px; padding:8px; background:var(--bg-secondary); border-radius:4px; font-size:10px; color:var(--text-secondary);">
+        <div style="margin-top:8px; padding:8px; background:var(--bg-secondary); border-radius:4px; font-size:calc(10px * var(--font-scale)); color:var(--text-secondary);">
           <div style="font-weight:600; margin-bottom:4px;">Financing Assumptions:</div>
           <div id="da-target-financing-breakdown" style="line-height:1.6;"></div>
         </div>
         
         <div style="margin-top:8px;">
-          <div style="font-size:10px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;">Projected Metrics at Target Price:</div>
+          <div style="font-size:calc(10px * var(--font-scale)); font-weight:600; color:var(--text-secondary); margin-bottom:4px;">Projected Metrics at Target Price:</div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
             <div style="background:var(--bg-secondary); padding:6px; border-radius:3px;">
-              <div style="font-size:9px; color:var(--text-tertiary);">Free Cash Flow</div>
-              <div id="da-target-fcf" style="font-size:12px; font-weight:700; color:#27ae60;">$0</div>
+              <div style="font-size:calc(9px * var(--font-scale)); color:var(--text-tertiary);">Free Cash Flow</div>
+              <div id="da-target-fcf" style="font-size:calc(12px * var(--font-scale)); font-weight:700; color:#27ae60;">$0</div>
             </div>
             <div style="background:var(--bg-secondary); padding:6px; border-radius:3px;">
-              <div style="font-size:9px; color:var(--text-tertiary);">Total Take-Home</div>
-              <div id="da-target-takehome" style="font-size:12px; font-weight:700; color:var(--text-primary);">$0</div>
+              <div style="font-size:calc(9px * var(--font-scale)); color:var(--text-tertiary);">Total Take-Home</div>
+              <div id="da-target-takehome" style="font-size:calc(12px * var(--font-scale)); font-weight:700; color:var(--text-primary);">$0</div>
             </div>
           </div>
         </div>
         
-        <button id="da-use-target-offer-btn" class="da-btn" style="width:100%; margin-top:8px; background:#27ae60; font-size:11px;">✓ Use This as Actual Price</button>
+        <button id="da-use-target-offer-btn" class="da-btn" style="width:100%; margin-top:8px; background:#27ae60; font-size:calc(11px * var(--font-scale));">✓ Use This as Actual Price</button>
       </div>
     </div>
   </div>
   
   <!-- ACTUAL SCENARIO -->
   <div style="margin-bottom:10px;">
-    <div id="da-actual-header" style="font-size:10px; font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
-      <span id="da-actual-arrow" style="transition:transform 0.2s; display:inline-block;">▼</span>
+    <div id="da-actual-header" style="font-size:calc(10px * var(--font-scale)); font-weight:700; color:var(--text-secondary); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer; display:flex; align-items:center; gap:6px; user-select:none;">
+      <span id="da-actual-arrow" style="transition:transform 0.2s; display:inline-block; transform:rotate(-90deg);">▼</span>
       <span>Actual Deal Scenario</span>
     </div>
-      <div id="da-actual-content">
+      <div id="da-actual-content" style="display:none;">
         <div class="da-result-box" style="border-left-color: #e67e22;">
-          <div class="da-result-title">Offer Price <span style="font-weight:400; color:var(--text-tertiary); font-size:9px;">(Click to Edit)</span></div>
-          <input type="text" id="da-actual-price" class="da-input" value="$0" readonly style="font-size:16px; font-weight:700; color:var(--text-primary); border:none; background:transparent; padding:3px 0; cursor:pointer;">
+          <div class="da-result-title">Offer Price <span style="font-weight:400; color:var(--text-tertiary); font-size:calc(9px * var(--font-scale));">(Click to Edit)</span></div>
+          <input type="text" id="da-actual-price" class="da-input" value="$0" readonly style="font-size:calc(16px * var(--font-scale)); font-weight:700; color:var(--text-primary); border:none; background:transparent; padding:3px 0; cursor:pointer;">
         </div>
         <div class="da-result-box" style="border-left-color: #9b59b6;">
           <div class="da-result-title">Total Debt Service</div>
-          <div class="da-result-value" id="da-total-debt" style="font-size:16px;">$0</div>
+          <div class="da-result-value" id="da-total-debt" style="font-size:calc(16px * var(--font-scale));">$0</div>
         </div>
         <div class="da-result-box" style="border-left-color: #27ae60;">
           <div class="da-result-title">Free Cash Flow (Annual)</div>
-          <div class="da-result-value" id="da-fcf-annual" style="font-size:16px;">$0</div>
-          <div style="font-size:10px; color:var(--text-secondary); margin-top:3px;">Monthly: <span id="da-fcf-monthly">$0</span></div>
+          <div class="da-result-value" id="da-fcf-annual" style="font-size:calc(16px * var(--font-scale));">$0</div>
+          <div style="font-size:calc(10px * var(--font-scale)); color:var(--text-secondary); margin-top:3px;">Monthly: <span id="da-fcf-monthly">$0</span></div>
         </div>
         <div class="da-result-box" style="border-left-color: #3498db;">
           <div class="da-result-title">Total Owner Take-Home</div>
-          <div class="da-result-value" id="da-owner-salary" style="font-size:16px;">$0</div>
-          <div style="font-size:9px; color:var(--text-tertiary); margin-top:3px;" id="da-owner-subtitle">Salary + FCF (max available: <span id="da-max-available">$0</span>)</div>
+          <div class="da-result-value" id="da-owner-salary" style="font-size:calc(16px * var(--font-scale));">$0</div>
+          <div style="font-size:calc(9px * var(--font-scale)); color:var(--text-tertiary); margin-top:3px;" id="da-owner-subtitle">Salary + FCF (max available: <span id="da-max-available">$0</span>)</div>
         </div>
       </div>
     </div>
@@ -330,18 +329,27 @@ const uiHTML = `
   <div class="da-section" style="background:var(--bg-secondary); border-top:2px solid var(--border-light);">
     <div class="da-label" style="font-weight:600; color:var(--text-primary); margin-bottom:6px; display:flex; align-items:center; gap:6px;">
       📝 Deal Notes
-      <span style="font-size:10px; color:var(--text-tertiary); font-weight:400;">(Included in all exports)</span>
+      <span style="font-size:calc(10px * var(--font-scale)); color:var(--text-tertiary); font-weight:400;">(Included in all exports)</span>
     </div>
-    <textarea id="da-deal-notes" class="da-input" placeholder="Add notes: questions for seller, red flags, follow-ups, pros/cons..." style="width:100%; min-height:60px; font-size:11px; padding:8px; resize:vertical; font-family:inherit; border:1px solid var(--border-light);"></textarea>
-    <div id="da-deal-url-link" style="display:none; margin-top:6px; padding:6px 8px; background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:4px; font-size:11px;">
+    <textarea id="da-deal-notes" class="da-input" placeholder="Add notes: questions for seller, red flags, follow-ups, pros/cons..." style="width:100%; min-height:60px; font-size:calc(11px * var(--font-scale)); padding:8px; resize:vertical; font-family:inherit; border:1px solid var(--border-light);"></textarea>
+    <div id="da-deal-url-link" style="display:none; margin-top:6px; padding:6px 8px; background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:4px; font-size:calc(11px * var(--font-scale));">
       🔗 <a id="da-deal-url-anchor" href="#" target="_blank" style="color:#0066cc; text-decoration:none; font-weight:500;">View Original Listing</a>
     </div>
     <div style="display:flex; gap:6px; margin-top:6px;">
-      <input type="text" id="da-deal-name" class="da-input" placeholder="Deal name (for saving)" style="flex:1; font-size:11px; padding:6px 8px;">
-      <select id="da-saved-deals-list" class="da-select" style="flex:1; font-size:11px; padding:6px 8px;">
+      <input type="text" id="da-deal-name" class="da-input" placeholder="Deal name (for saving)" style="flex:1; font-size:calc(11px * var(--font-scale)); padding:6px 8px;">
+      <select id="da-saved-deals-list" class="da-select" style="flex:1; font-size:calc(11px * var(--font-scale)); padding:6px 8px;">
         <option value="">Load saved deal...</option>
       </select>
     </div>
+  </div>
+  
+  <!-- Footer with action buttons -->
+  <div id="deal-analyzer-footer" style="position:sticky; bottom:0; z-index:10; flex-shrink:0; padding:8px 12px; background-color:var(--bg-header); border-bottom-left-radius:8px; border-bottom-right-radius:8px; display:flex; justify-content:center; align-items:center; gap:12px; border-top:1px solid var(--border-light);">
+    <span id="da-save-deal-btn-footer" class="da-header-icon" title="Save current deal (Cmd/Ctrl+S)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span>
+    <span id="da-dashboard-btn-footer" class="da-header-icon" title="Open Deals Dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+    <span id="da-coffee-btn-footer" class="da-header-icon" title="Buy me a coffee ☕ ($10)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span>
+    <span id="da-settings-btn-footer" class="da-header-icon" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+    <span id="da-close-footer" class="da-header-icon da-header-icon-close" title="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
   </div>
 </div>
 `;
@@ -351,8 +359,8 @@ const shareModalHTML = `
 <div id="da-share-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center;">
   <div style="background:white; border-radius:8px; padding:24px; max-width:400px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-      <h3 style="margin:0; font-size:18px; color:#2c3e50;">Share Deal Analysis</h3>
-      <span id="da-share-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
+      <h3 style="margin:0; font-size:calc(18px * var(--font-scale)); color:#2c3e50;">Share Deal Analysis</h3>
+      <span id="da-share-close" style="cursor:pointer; font-size:calc(24px * var(--font-scale)); color:#999; line-height:1;">&times;</span>
     </div>
     <div style="display:flex; flex-direction:column; gap:10px;">
       <button id="da-share-pdf" class="da-btn" style="background:#e74c3c;">📄 Export as PDF</button>
@@ -370,47 +378,47 @@ const settingsModalHTML = `
 <div id="da-settings-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center;">
   <div id="da-settings-modal-content" style="background:white; border-radius:8px; padding:24px; max-width:450px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-      <h3 style="margin:0; font-size:18px; color:#2c3e50;">⚙️ Settings & Targets</h3>
-      <span id="da-settings-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
+      <h3 style="margin:0; font-size:calc(18px * var(--font-scale)); color:#2c3e50;">⚙️ Settings & Targets</h3>
+      <span id="da-settings-close" style="cursor:pointer; font-size:calc(24px * var(--font-scale)); color:#999; line-height:1;">&times;</span>
     </div>
     
     <div style="margin-bottom:20px;">
-      <h4 style="font-size:14px; color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Deal Quality Targets</h4>
+      <h4 style="font-size:calc(14px * var(--font-scale)); color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Deal Quality Targets</h4>
       <div style="margin-bottom:12px;">
-        <label style="display:block; font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">Target Cash-on-Cash Return (%)</label>
+        <label style="display:block; font-size:calc(12px * var(--font-scale)); color:#666; margin-bottom:4px; font-weight:600;">Target Cash-on-Cash Return (%)</label>
         <input type="number" id="da-target-coc" class="da-input" value="25" step="1" min="0" max="200" style="width:100%;">
-        <div style="font-size:10px; color:#999; margin-top:2px;">Your minimum acceptable annual return on equity investment</div>
+        <div style="font-size:calc(10px * var(--font-scale)); color:#999; margin-top:2px;">Your minimum acceptable annual return on equity investment</div>
       </div>
       <div style="margin-bottom:12px;">
-        <label style="display:block; font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">Target Payback Period (Years)</label>
+        <label style="display:block; font-size:calc(12px * var(--font-scale)); color:#666; margin-bottom:4px; font-weight:600;">Target Payback Period (Years)</label>
         <input type="number" id="da-target-payback" class="da-input" value="4" step="0.5" min="1" max="20" style="width:100%;">
-        <div style="font-size:10px; color:#999; margin-top:2px;">Maximum years to recover your initial equity investment</div>
+        <div style="font-size:calc(10px * var(--font-scale)); color:#999; margin-top:2px;">Maximum years to recover your initial equity investment</div>
       </div>
     </div>
     
     <div style="margin-bottom:20px;">
-      <h4 style="font-size:14px; color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Display Preferences</h4>
+      <h4 style="font-size:calc(14px * var(--font-scale)); color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Display Preferences</h4>
       <div style="margin-bottom:12px;">
         <label style="display:flex; align-items:center; cursor:pointer; gap:8px;">
           <input type="checkbox" id="da-format-compact" style="cursor:pointer;">
-          <span style="font-size:12px; color:#666; font-weight:600;">Use compact number format (1.2M instead of 1,200,000)</span>
+          <span style="font-size:calc(12px * var(--font-scale)); color:#666; font-weight:600;">Use compact number format (1.2M instead of 1,200,000)</span>
         </label>
       </div>
       <div style="margin-bottom:12px;">
         <label style="display:flex; align-items:center; cursor:pointer; gap:8px;">
           <input type="checkbox" id="da-dark-mode" style="cursor:pointer;">
-          <span style="font-size:12px; color:#666; font-weight:600;">Dark Mode</span>
+          <span style="font-size:calc(12px * var(--font-scale)); color:#666; font-weight:600;">Dark Mode</span>
         </label>
       </div>
       <div style="margin-bottom:12px;">
         <label style="display:flex; align-items:center; cursor:pointer; gap:8px;">
           <input type="checkbox" id="da-auto-open" style="cursor:pointer;">
-          <span style="font-size:12px; color:#666; font-weight:600;">Auto-open on business listing sites</span>
+          <span style="font-size:calc(12px * var(--font-scale)); color:#666; font-weight:600;">Auto-open on business listing sites</span>
         </label>
-        <div style="font-size:10px; color:#999; margin-top:2px; margin-left:28px;">Automatically show the extension when visiting business listing pages (BizBuySell, BizQuest, etc.)</div>
+        <div style="font-size:calc(10px * var(--font-scale)); color:#999; margin-top:2px; margin-left:28px;">Automatically show the extension when visiting business listing pages (BizBuySell, BizQuest, etc.)</div>
       </div>
       <div style="margin-bottom:12px;">
-        <label style="display:block; font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">Language</label>
+        <label style="display:block; font-size:calc(12px * var(--font-scale)); color:#666; margin-bottom:4px; font-weight:600;">Language</label>
         <select id="da-language" class="da-select" style="width:100%;">
           <option value="en">English</option>
           <option value="es">Español</option>
@@ -419,7 +427,7 @@ const settingsModalHTML = `
         </select>
       </div>
       <div style="margin-bottom:12px;">
-        <label style="display:block; font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">Currency</label>
+        <label style="display:block; font-size:calc(12px * var(--font-scale)); color:#666; margin-bottom:4px; font-weight:600;">Currency</label>
         <select id="da-currency" class="da-select" style="width:100%;">
           <option value="USD">USD - US Dollar ($)</option>
           <option value="EUR">EUR - Euro (€)</option>
@@ -430,6 +438,15 @@ const settingsModalHTML = `
           <option value="MXN">MXN - Mexican Peso (MX$)</option>
           <option value="CHF">CHF - Swiss Franc (CHF)</option>
         </select>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; font-size:calc(12px * var(--font-scale)); color:#666; margin-bottom:4px; font-weight:600;">Font Size</label>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <input type="range" id="da-font-size" min="80" max="150" value="100" step="10" 
+                 style="flex:1; height:6px; border-radius:3px; appearance:none; background:#e0e0e0; cursor:pointer;" />
+          <span id="da-font-size-display" style="min-width:50px; font-weight:600; font-size:calc(14px * var(--font-scale));">100%</span>
+        </div>
+        <div style="font-size:calc(10px * var(--font-scale)); color:#999; margin-top:2px;">Adjust from 80% to 150% (independent of browser zoom)</div>
       </div>
     </div>
     
@@ -446,51 +463,51 @@ const debugModalHTML = `
 <div id="da-debug-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center;">
   <div style="background:white; border-radius:8px; padding:24px; max-width:650px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-      <h3 style="margin:0; font-size:18px; color:#2c3e50;">🔍 Scraping Diagnostics</h3>
-      <span id="da-debug-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
+      <h3 style="margin:0; font-size:calc(18px * var(--font-scale)); color:#2c3e50;">🔍 Scraping Diagnostics</h3>
+      <span id="da-debug-close" style="cursor:pointer; font-size:calc(24px * var(--font-scale)); color:#999; line-height:1;">&times;</span>
     </div>
     
     <div style="margin-bottom:20px;">
       <div style="background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px;">
-        <div style="font-size:12px; color:#666; margin-bottom:8px; font-weight:600;">CURRENT PAGE</div>
-        <div id="da-debug-url" style="font-size:11px; color:#333; word-break:break-all; margin-bottom:6px;"></div>
+        <div style="font-size:calc(12px * var(--font-scale)); color:#666; margin-bottom:8px; font-weight:600;">CURRENT PAGE</div>
+        <div id="da-debug-url" style="font-size:calc(11px * var(--font-scale)); color:#333; word-break:break-all; margin-bottom:6px;"></div>
         <div style="display:flex; gap:12px; align-items:center;">
-          <div><span style="font-size:11px; color:#666;">Platform:</span> <strong id="da-debug-platform" style="font-size:12px; color:#3498db;">Unknown</strong></div>
-          <div><span style="font-size:11px; color:#666;">Status:</span> <span id="da-debug-status" style="font-size:12px; font-weight:600;">Not scraped</span></div>
+          <div><span style="font-size:calc(11px * var(--font-scale)); color:#666;">Platform:</span> <strong id="da-debug-platform" style="font-size:calc(12px * var(--font-scale)); color:#3498db;">Unknown</strong></div>
+          <div><span style="font-size:calc(11px * var(--font-scale)); color:#666;">Status:</span> <span id="da-debug-status" style="font-size:calc(12px * var(--font-scale)); font-weight:600;">Not scraped</span></div>
         </div>
       </div>
       
       <div style="background:#fff3cd; border-left:4px solid #f39c12; padding:12px; margin-bottom:12px; border-radius:4px;">
-        <div style="font-size:12px; color:#856404; font-weight:600; margin-bottom:4px;">💡 TIP</div>
-        <div style="font-size:11px; color:#856404;">Open your browser's console (F12) to see detailed scraping logs with all attempts and strategies used.</div>
+        <div style="font-size:calc(12px * var(--font-scale)); color:#856404; font-weight:600; margin-bottom:4px;">💡 TIP</div>
+        <div style="font-size:calc(11px * var(--font-scale)); color:#856404;">Open your browser's console (F12) to see detailed scraping logs with all attempts and strategies used.</div>
       </div>
     </div>
     
     <div style="margin-bottom:20px;">
-      <h4 style="font-size:14px; color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Scraped Data</h4>
+      <h4 style="font-size:calc(14px * var(--font-scale)); color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Scraped Data</h4>
       <div style="display:grid; gap:10px;">
         <div style="background:#f8f9fa; padding:10px; border-radius:4px;">
-          <div style="font-size:11px; color:#666; margin-bottom:4px;">Asking Price</div>
-          <div id="da-debug-price" style="font-size:14px; font-weight:600; color:#2c3e50;">Not found</div>
+          <div style="font-size:calc(11px * var(--font-scale)); color:#666; margin-bottom:4px;">Asking Price</div>
+          <div id="da-debug-price" style="font-size:calc(14px * var(--font-scale)); font-weight:600; color:#2c3e50;">Not found</div>
         </div>
         <div style="background:#f8f9fa; padding:10px; border-radius:4px;">
-          <div style="font-size:11px; color:#666; margin-bottom:4px;">EBITDA / SDE</div>
-          <div id="da-debug-ebitda" style="font-size:14px; font-weight:600; color:#2c3e50;">Not found</div>
+          <div style="font-size:calc(11px * var(--font-scale)); color:#666; margin-bottom:4px;">EBITDA / SDE</div>
+          <div id="da-debug-ebitda" style="font-size:calc(14px * var(--font-scale)); font-weight:600; color:#2c3e50;">Not found</div>
         </div>
       </div>
     </div>
     
     <div style="margin-bottom:20px;">
-      <h4 style="font-size:14px; color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Actions</h4>
+      <h4 style="font-size:calc(14px * var(--font-scale)); color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">Actions</h4>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button id="da-debug-rescrape" class="da-btn" style="background:#3498db; font-size:12px; padding:8px 16px;">🔄 Re-scrape Page</button>
-        <button id="da-debug-console" class="da-btn" style="background:#95a5a6; font-size:12px; padding:8px 16px;">📋 Open Console (F12)</button>
+        <button id="da-debug-rescrape" class="da-btn" style="background:#3498db; font-size:calc(12px * var(--font-scale)); padding:8px 16px;">🔄 Re-scrape Page</button>
+        <button id="da-debug-console" class="da-btn" style="background:#95a5a6; font-size:calc(12px * var(--font-scale)); padding:8px 16px;">📋 Open Console (F12)</button>
       </div>
     </div>
     
     <div style="background:#e7f3ff; border-left:4px solid #3498db; padding:12px; border-radius:4px; margin-bottom:12px;">
-      <div style="font-size:12px; color:#1e5a8e; font-weight:600; margin-bottom:6px;">🛠️ Troubleshooting</div>
-      <div style="font-size:11px; color:#1e5a8e; line-height:1.5;">
+      <div style="font-size:calc(12px * var(--font-scale)); color:#1e5a8e; font-weight:600; margin-bottom:6px;">🛠️ Troubleshooting</div>
+      <div style="font-size:calc(11px * var(--font-scale)); color:#1e5a8e; line-height:1.5;">
         <strong>No data found?</strong> Try these steps:<br>
         1. Make sure you're on a listing detail page (not search results)<br>
         2. Wait for the page to fully load before opening Deal Analyzer<br>
@@ -501,7 +518,7 @@ const debugModalHTML = `
     </div>
     
     <div style="text-align:center; margin-top:16px;">
-      <button id="da-debug-done" class="da-btn" style="background:#27ae60; font-size:12px; padding:10px 24px;">✅ Done</button>
+      <button id="da-debug-done" class="da-btn" style="background:#27ae60; font-size:calc(12px * var(--font-scale)); padding:10px 24px;">✅ Done</button>
     </div>
   </div>
 </div>
@@ -549,17 +566,17 @@ const coffeeModalHTML = `
 <div id="da-coffee-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center; ">
   <div style="background:white; border-radius:12px; padding:24px; max-width:320px; width:90%; box-shadow:0 4px 24px rgba(0,0,0,0.3); text-align:center;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <h3 style="margin:0; font-size:18px; color:#2c3e50;">☕ Buy me a coffee</h3>
-      <span id="da-coffee-modal-close" style="cursor:pointer; font-size:24px; color:#999; line-height:1;">&times;</span>
+      <h3 style="margin:0; font-size:calc(18px * var(--font-scale)); color:#2c3e50;">☕ Buy me a coffee</h3>
+      <span id="da-coffee-modal-close" style="cursor:pointer; font-size:calc(24px * var(--font-scale)); color:#999; line-height:1;">&times;</span>
     </div>
-    <p style="margin:0 0 16px 0; font-size:14px; color:#666;">Suggested amount: $10</p>
+    <p style="margin:0 0 16px 0; font-size:calc(14px * var(--font-scale)); color:#666;">Suggested amount: $10</p>
     <div style="background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:16px;">
       <img src="${venmoQrUrl}" alt="Venmo QR Code" style="max-width:180px; height:auto; display:block; margin:0 auto;">
-      <p style="margin:12px 0 0 0; font-size:13px; color:#333; font-weight:600;">@amco-digital</p>
-      <p style="margin:4px 0 0 0; font-size:11px; color:#666;">Scan to pay with Venmo</p>
+      <p style="margin:12px 0 0 0; font-size:calc(13px * var(--font-scale)); color:#333; font-weight:600;">@amco-digital</p>
+      <p style="margin:4px 0 0 0; font-size:calc(11px * var(--font-scale)); color:#666;">Scan to pay with Venmo</p>
     </div>
-    <a id="da-coffee-open-venmo" href="https://venmo.com/u/amco-digital" target="_blank" rel="noopener" style="display:inline-block; background:#008CFF; color:white; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:14px; margin-bottom:8px;">Open Venmo</a>
-    <p style="margin:8px 0 0 0; font-size:11px; color:#999;">Or click to open Venmo in a new tab</p>
+    <a id="da-coffee-open-venmo" href="https://venmo.com/u/amco-digital" target="_blank" rel="noopener" style="display:inline-block; background:#008CFF; color:white; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:600; font-size:calc(14px * var(--font-scale)); margin-bottom:8px;">Open Venmo</a>
+    <p style="margin:8px 0 0 0; font-size:calc(11px * var(--font-scale)); color:#999;">Or click to open Venmo in a new tab</p>
   </div>
 </div>
 `;
@@ -579,6 +596,34 @@ const header = document.getElementById('deal-analyzer-header');
 if (!container || !header) {
   console.error('Deal Analyzer UI elements not found. Extension may not work properly.');
 }
+
+// Load and apply font size preference
+(function loadFontSize() {
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    chrome.storage.local.get(['userPreferences'], (result) => {
+      const fontSize = result.userPreferences?.fontSize || 100;
+      console.log('🔤 Loading saved font size for widget:', fontSize + '%');
+      if (container) {
+        // Set CSS variable for font scaling
+        const scale = fontSize / 100;
+        container.style.setProperty('--font-scale', scale);
+        
+        // Debug: Check if it was actually set
+        const computedScale = getComputedStyle(container).getPropertyValue('--font-scale');
+        console.log('🔤 Applied font scale:', scale, 'Computed:', computedScale);
+        
+        // Test: Try getting a child element's computed font size
+        const testLabel = container.querySelector('.da-label');
+        if (testLabel) {
+          const computedFontSize = getComputedStyle(testLabel).fontSize;
+          console.log('🔤 Test label computed font-size:', computedFontSize);
+        }
+      } else {
+        console.error('🔤 Container not found during initial load!');
+      }
+    });
+  }
+})();
 
 // START HIDDEN BY DEFAULT - only show when user clicks extension icon
 if (container) {
@@ -748,6 +793,31 @@ if (closeBtn && container) {
   closeBtn.onclick = () => container.style.display = 'none';
 }
 
+// Footer buttons - same functionality as header buttons
+const closeBtnFooter = document.getElementById('da-close-footer');
+if (closeBtnFooter && container) {
+  closeBtnFooter.onclick = () => container.style.display = 'none';
+}
+
+const dashboardBtnFooter = document.getElementById('da-dashboard-btn-footer');
+if (dashboardBtnFooter) {
+  dashboardBtnFooter.onclick = () => {
+    const dashboardUrl = chrome.runtime.getURL('deals-dashboard.html');
+    window.open(dashboardUrl, '_blank');
+  };
+}
+
+const coffeeBtnFooter = document.getElementById('da-coffee-btn-footer');
+if (coffeeBtnFooter) {
+  coffeeBtnFooter.onclick = () => {
+    const coffeeModal = document.getElementById('da-coffee-modal');
+    if (coffeeModal) coffeeModal.style.display = 'flex';
+  };
+}
+
+// Settings button handler will be added with the main settings code
+// Save deal button handler will be added with the main save deal code
+
 // Coffee button - shows donate modal with Venmo QR code
 const coffeeBtn = document.getElementById('da-coffee-btn');
 const coffeeModal = document.getElementById('da-coffee-modal');
@@ -808,6 +878,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Return true to indicate we'll send a response asynchronously (though we send it synchronously above)
   return true;
 });
+
+// Listen for font size changes from chrome.storage
+if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.userPreferences?.newValue?.fontSize) {
+      const newFontSize = changes.userPreferences.newValue.fontSize || 100;
+      console.log('🔤 Font size changed to:', newFontSize + '%');
+      const container = document.getElementById('deal-analyzer-container');
+      if (container) {
+        const scale = newFontSize / 100;
+        container.style.setProperty('--font-scale', scale);
+      }
+    }
+  });
+}
 
 // --- 3. IMPROVED "SMART" SCRAPING LOGIC ---
 
@@ -3144,7 +3229,7 @@ function setupCollapsible(headerId, contentId, arrowId, storageKey) {
   const header = document.getElementById(headerId);
   const content = document.getElementById(contentId);
   const arrow = document.getElementById(arrowId);
-  let collapsed = false;
+  let collapsed = true; // Default to collapsed
 
   header.addEventListener('click', () => {
     collapsed = !collapsed;
@@ -3161,12 +3246,22 @@ function setupCollapsible(headerId, contentId, arrowId, storageKey) {
     chrome.storage.local.set(saveObj);
   });
 
-  // Restore collapsed state
+  // Restore collapsed state (defaults to collapsed if no saved state)
   chrome.storage.local.get([storageKey], (result) => {
-    if (result[storageKey]) {
+    if (result[storageKey] !== undefined) {
+      // Use saved state
+      collapsed = result[storageKey];
+    } else {
+      // Default to collapsed on first launch
       collapsed = true;
+    }
+    
+    if (collapsed) {
       content.style.display = 'none';
       arrow.style.transform = 'rotate(-90deg)';
+    } else {
+      content.style.display = 'block';
+      arrow.style.transform = 'rotate(0deg)';
     }
   });
 }
@@ -3250,23 +3345,23 @@ if (shareModal) {
 // --- 8. SETTINGS FUNCTIONALITY ---
 const settingsModal = document.getElementById('da-settings-modal');
 const settingsBtn = document.getElementById('da-settings-btn');
+const settingsBtnFooter = document.getElementById('da-settings-btn-footer');
 const settingsClose = document.getElementById('da-settings-close');
 const settingsSave = document.getElementById('da-settings-save');
 const settingsReset = document.getElementById('da-settings-reset');
 
-// Open settings modal
-if (settingsBtn && settingsModal) {
-  settingsBtn.addEventListener('click', () => {
-    // Load current preferences into modal fields
-    const targetCocField = document.getElementById('da-target-coc');
-    const targetPaybackField = document.getElementById('da-target-payback');
-    const formatCompactField = document.getElementById('da-format-compact');
-    
-    // Ensure preferences are loaded (in case page just loaded)
-    chrome.storage.local.get(['userPreferences'], (result) => {
-      if (result.userPreferences) {
-        userPreferences = result.userPreferences;
-      }
+// Function to open settings modal (shared by header and footer buttons)
+function openSettingsModal() {
+  // Load current preferences into modal fields
+  const targetCocField = document.getElementById('da-target-coc');
+  const targetPaybackField = document.getElementById('da-target-payback');
+  const formatCompactField = document.getElementById('da-format-compact');
+  
+  // Ensure preferences are loaded (in case page just loaded)
+  chrome.storage.local.get(['userPreferences'], (result) => {
+    if (result.userPreferences) {
+      userPreferences = result.userPreferences;
+    }
       
       // Set field values from preferences
       if (targetCocField) targetCocField.value = userPreferences.targetCOC;
@@ -3278,10 +3373,37 @@ if (settingsBtn && settingsModal) {
       const autoOpenField = document.getElementById('da-auto-open');
       const languageField = document.getElementById('da-language');
       const currencyField = document.getElementById('da-currency');
+      const fontSizeField = document.getElementById('da-font-size');
+      const fontSizeDisplay = document.getElementById('da-font-size-display');
       if (darkModeField) darkModeField.checked = userPreferences.darkMode || false;
       if (autoOpenField) autoOpenField.checked = userPreferences.autoOpenOnBusinessSites || false;
       if (languageField) languageField.value = userPreferences.language || 'en';
       if (currencyField) currencyField.value = userPreferences.currency || 'USD';
+      if (fontSizeField) {
+        const fontSize = userPreferences.fontSize || 100;
+        fontSizeField.value = fontSize;
+        if (fontSizeDisplay) fontSizeDisplay.textContent = fontSize + '%';
+        
+        // Add slider input listener for live preview (only if not already added)
+        if (!fontSizeField.dataset.listenerAdded) {
+          fontSizeField.addEventListener('input', function() {
+            const newSize = parseInt(this.value);
+            const display = document.getElementById('da-font-size-display');
+            if (display) display.textContent = newSize + '%';
+            
+            // Apply immediately for live preview
+            const widgetContainer = document.getElementById('deal-analyzer-container');
+            if (widgetContainer) {
+              const scale = newSize / 100;
+              widgetContainer.style.setProperty('--font-scale', scale);
+              console.log('🔤 Live preview - Font scale:', scale, 'Container found:', !!widgetContainer);
+            } else {
+              console.error('🔤 Container not found for live preview');
+            }
+          });
+          fontSizeField.dataset.listenerAdded = 'true';
+        }
+      }
       
       // Apply dark mode styling to modal if dark mode is enabled
       if (userPreferences.darkMode) {
@@ -3292,7 +3414,14 @@ if (settingsBtn && settingsModal) {
       
       settingsModal.style.display = 'flex';
     });
-  });
+}
+
+// Open settings modal - header and footer buttons
+if (settingsBtn && settingsModal) {
+  settingsBtn.addEventListener('click', openSettingsModal);
+}
+if (settingsBtnFooter && settingsModal) {
+  settingsBtnFooter.addEventListener('click', openSettingsModal);
 }
 
 // Close settings modal
@@ -3330,6 +3459,7 @@ if (settingsSave && settingsModal) {
     const autoOpenField = document.getElementById('da-auto-open');
     const languageField = document.getElementById('da-language');
     const currencyField = document.getElementById('da-currency');
+    const fontSizeField = document.getElementById('da-font-size');
     
     // Validate and parse values
     const newTargetCOC = targetCocField ? (parseFloat(targetCocField.value) || 25) : 25;
@@ -3339,6 +3469,7 @@ if (settingsSave && settingsModal) {
     const newAutoOpen = autoOpenField ? autoOpenField.checked : false;
     const newLanguage = languageField ? languageField.value : 'en';
     const newCurrency = currencyField ? currencyField.value : 'USD';
+    const newFontSize = fontSizeField ? parseInt(fontSizeField.value) : 100;
     
     // Update preferences object
     userPreferences.targetCOC = newTargetCOC;
@@ -3348,9 +3479,18 @@ if (settingsSave && settingsModal) {
     userPreferences.autoOpenOnBusinessSites = newAutoOpen;
     userPreferences.language = newLanguage;
     userPreferences.currency = newCurrency;
+    userPreferences.fontSize = newFontSize;
     
     // Apply dark mode immediately
     applyDarkMode(newDarkMode);
+    
+    // Apply font size immediately
+    if (container) {
+      // Set CSS variable for font scaling
+      const scale = newFontSize / 100;
+      container.style.setProperty('--font-scale', scale);
+      console.log('🔤 Font size applied - Scale:', scale, '(' + newFontSize + '%)');
+    }
     
     // Apply language and currency
     if (window.i18n) {
@@ -3407,6 +3547,8 @@ if (settingsReset) {
     const darkModeField = document.getElementById('da-dark-mode');
     const languageField = document.getElementById('da-language');
     const currencyField = document.getElementById('da-currency');
+    const fontSizeField = document.getElementById('da-font-size');
+    const fontSizeDisplay = document.getElementById('da-font-size-display');
     
     if (targetCocField) targetCocField.value = 25;
     if (targetPaybackField) targetPaybackField.value = 4;
@@ -3414,8 +3556,76 @@ if (settingsReset) {
     if (darkModeField) darkModeField.checked = false;
     if (languageField) languageField.value = 'en';
     if (currencyField) currencyField.value = 'USD';
+    if (fontSizeField) {
+      fontSizeField.value = 100;
+      if (fontSizeDisplay) fontSizeDisplay.textContent = '100%';
+    }
   });
 }
+
+// Make settings modal draggable
+(function makeSettingsModalDraggable() {
+  const settingsModal = document.getElementById('da-settings-modal');
+  const modalContent = document.getElementById('da-settings-modal-content');
+  
+  if (!modalContent) return;
+  
+  let isDragging = false;
+  let currentX;
+  let currentY;
+  let initialX;
+  let initialY;
+  let xOffset = 0;
+  let yOffset = 0;
+  
+  // Make the modal header area act as drag handle
+  const modalHeader = modalContent.querySelector('h3')?.parentElement;
+  if (modalHeader) {
+    modalHeader.style.cursor = 'move';
+    modalHeader.style.userSelect = 'none';
+    
+    modalHeader.addEventListener('mousedown', dragStart);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', dragEnd);
+  }
+  
+  function dragStart(e) {
+    // Only drag on header, not on close button
+    if (e.target.id === 'da-settings-close') return;
+    
+    initialX = e.clientX - xOffset;
+    initialY = e.clientY - yOffset;
+    
+    if (e.target === modalHeader || modalHeader.contains(e.target)) {
+      isDragging = true;
+      modalContent.style.transition = 'none';
+    }
+  }
+  
+  function drag(e) {
+    if (isDragging) {
+      e.preventDefault();
+      
+      currentX = e.clientX - initialX;
+      currentY = e.clientY - initialY;
+      
+      xOffset = currentX;
+      yOffset = currentY;
+      
+      setTranslate(currentX, currentY, modalContent);
+    }
+  }
+  
+  function dragEnd(e) {
+    initialX = currentX;
+    initialY = currentY;
+    isDragging = false;
+  }
+  
+  function setTranslate(xPos, yPos, el) {
+    el.style.transform = `translate(${xPos}px, ${yPos}px)`;
+  }
+})();
 
 // Apply dark mode styling to settings modal
 function applyDarkModeToSettingsModal(enabled) {
@@ -4668,6 +4878,12 @@ function updateSavedDealsList() {
 const saveDealBtn = document.getElementById('da-save-deal-btn');
 if (saveDealBtn) {
   saveDealBtn.addEventListener('click', saveDeal);
+}
+
+// Footer save deal button
+const saveDealBtnFooter = document.getElementById('da-save-deal-btn-footer');
+if (saveDealBtnFooter) {
+  saveDealBtnFooter.addEventListener('click', saveDeal);
 }
 
 const savedDealsList = document.getElementById('da-saved-deals-list');

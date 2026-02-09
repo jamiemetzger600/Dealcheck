@@ -64,6 +64,7 @@
 
 /* Container for the floating app */
 #deal-analyzer-container {
+  --font-scale: 1; /* Default scale, will be updated by JS */
   position: fixed;
   top: 120px;
   right: 50px;
@@ -97,7 +98,7 @@
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -126,6 +127,13 @@
 .da-header-icon svg {
   display: block;
 }
+
+/* Faster tooltip display for header icons */
+.da-header-icon[title]:hover::before,
+.da-header-icon[title]:hover::after {
+  animation-delay: 0.3s !important;
+}
+
 #da-close { cursor: pointer; font-weight: bold; }
 #da-close:hover { opacity: 1; }
 
@@ -143,7 +151,7 @@
 /* Inputs */
 .da-label { 
   display: block; 
-  font-size: 10px; 
+  font-size: calc(10px * var(--font-scale)); 
   color: var(--text-secondary); 
   margin-bottom: 2px; 
   font-weight: 500;
@@ -155,7 +163,7 @@
   box-sizing: border-box;
   border: 1px solid var(--input-border);
   border-radius: 3px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   background-color: var(--input-bg);
   color: var(--text-primary);
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
@@ -175,7 +183,7 @@
   color: var(--warning-text);
   padding: 8px 12px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   margin: 8px 0;
 }
 .da-warning.visible {
@@ -187,7 +195,7 @@
   padding: 5px 6px; 
   border-radius: 3px; 
   border: 1px solid var(--input-border); 
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   background-color: var(--input-bg);
   color: var(--text-primary);
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
@@ -203,14 +211,14 @@
   transition: background-color 0.3s ease;
 }
 .da-result-title { 
-  font-size: 9px; 
+  font-size: calc(9px * var(--font-scale)); 
   text-transform: uppercase; 
   color: var(--result-title); 
   letter-spacing: 0.3px;
   transition: color 0.3s ease;
 }
 .da-result-value { 
-  font-size: 14px; 
+  font-size: calc(14px * var(--font-scale)); 
   font-weight: 700; 
   color: var(--result-value); 
   margin-top: 1px;
@@ -228,7 +236,7 @@
   cursor: pointer; 
   margin-top: 6px; 
   font-weight: 600; 
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   transition: background-color 0.3s ease;
 }
 .da-btn:hover { background: var(--btn-primary-hover); }
@@ -434,4 +442,96 @@ a:hover {
 
 .keyword-bubble-remove:hover {
   background: rgba(255, 255, 255, 0.4);
+}
+
+/* Font size slider styling */
+#font-size-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+#font-size-slider::-webkit-slider-thumb:hover {
+  background: #5568d3;
+}
+
+#font-size-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s ease;
+}
+
+#font-size-slider::-moz-range-thumb:hover {
+  background: #5568d3;
+}
+
+/* Deal Analyzer font size slider styling */
+#da-font-size::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3498db;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+#da-font-size::-webkit-slider-thumb:hover {
+  background: #2980b9;
+}
+
+#da-font-size::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #3498db;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s ease;
+}
+
+#da-font-size::-moz-range-thumb:hover {
+  background: #2980b9;
+}
+
+/* Custom fast tooltip for header icons */
+.da-header-icon {
+  position: relative;
+}
+
+.da-header-icon::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -35px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  font-size: 11px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 10000;
+}
+
+.da-header-icon:hover::after {
+  opacity: 1;
+  transition-delay: 0.3s;
+}
+
+/* Footer specific tooltips - show above */
+#deal-analyzer-footer .da-header-icon::after {
+  bottom: auto;
+  top: -35px;
 }

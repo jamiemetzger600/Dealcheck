@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Max Price Deal Analyzer",
-  "version": "3.0.22",
+  "version": "3.0.32",
   "description": "Complete deal acquisition platform: Aggregate deals from 10+ sources, filter with AI-powered buy box, analyze with scenario calculator, and track through due diligence. Data → Information → Knowledge → Insight → Wisdom.",
   "permissions": ["storage", "activeTab", "tabs", "alarms", "notifications", "downloads", "identity"],
   "host_permissions": ["https://www.googleapis.com/*"],

@@ -6227,6 +6227,28 @@ document.getElementById('share-native').addEventListener('click', async () => {
     }
 });
 
+// ====== FONT SIZE MANAGEMENT ======
+function applyFontSize(fontSize) {
+    console.log('🔤 Applying font size:', fontSize + '%');
+    document.body.style.fontSize = fontSize + '%';
+}
+
+function updateFontSizePreview(fontSize) {
+    const previewFontSize = (fontSize / 100) * 12; // Base font size is 12px
+    document.documentElement.style.setProperty('--preview-font-size', previewFontSize + 'px');
+}
+
+// Load font size on page load
+(function loadFontSize() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.get(['fontSize'], (result) => {
+            const fontSize = result.fontSize || 100;
+            console.log('🔤 Loading saved font size:', fontSize + '%');
+            applyFontSize(fontSize);
+        });
+    }
+})();
+
 // ====== AUTO-REFRESH SETTINGS ======
 function initializeAutoRefreshSettings() {
     const settingsBtn = document.getElementById('settings-btn');
@@ -6240,6 +6262,10 @@ function initializeAutoRefreshSettings() {
     const notifyNewDealsCheckbox = document.getElementById('notify-new-deals');
     const refreshIntervalRow = document.getElementById('refresh-interval-row');
     
+    // Font size controls
+    const fontSizeSlider = document.getElementById('font-size-slider');
+    const fontSizeDisplay = document.getElementById('font-size-display');
+    
     // Open settings modal
     if (settingsBtn) {
         settingsBtn.addEventListener('click', async () => {
@@ -6251,7 +6277,8 @@ function initializeAutoRefreshSettings() {
                 'refreshInterval',
                 'notifyNewDeals',
                 'lastRefreshTime',
-                'aggregatedDealsPool'
+                'aggregatedDealsPool',
+                'fontSize'
             ]);
             
             // Populate form
@@ -6259,6 +6286,16 @@ function initializeAutoRefreshSettings() {
             refreshIntervalSelect.value = settings.refreshInterval || 60;
             notifyNewDealsCheckbox.checked = settings.notifyNewDeals !== false;
             refreshIntervalRow.style.display = autoRefreshCheckbox.checked ? 'block' : 'none';
+            
+            // Populate font size
+            const fontSize = settings.fontSize || 100;
+            if (fontSizeSlider) {
+                fontSizeSlider.value = fontSize;
+                if (fontSizeDisplay) {
+                    fontSizeDisplay.textContent = fontSize + '%';
+                }
+                updateFontSizePreview(fontSize);
+            }
             
             // Update last refresh time
             if (settings.lastRefreshTime) {
@@ -6282,6 +6319,17 @@ function initializeAutoRefreshSettings() {
             document.getElementById('new-deals-stat').textContent = formatNumber(newToday);
             
             settingsModal.style.display = 'flex';
+        });
+    }
+    
+    // Font size slider change
+    if (fontSizeSlider) {
+        fontSizeSlider.addEventListener('input', () => {
+            const fontSize = parseInt(fontSizeSlider.value);
+            if (fontSizeDisplay) {
+                fontSizeDisplay.textContent = fontSize + '%';
+            }
+            updateFontSizePreview(fontSize);
         });
     }
     
@@ -6311,15 +6359,21 @@ function initializeAutoRefreshSettings() {
     // Save settings
     if (saveSettingsBtn) {
         saveSettingsBtn.addEventListener('click', async () => {
+            const fontSize = fontSizeSlider ? parseInt(fontSizeSlider.value) : 100;
+            
             const settings = {
                 autoRefreshEnabled: autoRefreshCheckbox.checked,
                 refreshInterval: parseInt(refreshIntervalSelect.value),
-                notifyNewDeals: notifyNewDealsCheckbox.checked
+                notifyNewDeals: notifyNewDealsCheckbox.checked,
+                fontSize: fontSize
             };
             
             console.log('💾 Saving auto-refresh settings:', settings);
             
             await chrome.storage.local.set(settings);
+            
+            // Apply font size immediately
+            applyFontSize(fontSize);
             
             showToast('Settings saved! Auto-refresh is now ' + (settings.autoRefreshEnabled ? 'enabled' : 'disabled'), 'success');
             settingsModal.style.display = 'none';

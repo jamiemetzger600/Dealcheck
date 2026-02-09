@@ -2911,8 +2911,8 @@
                 <span>Configure Buy Box</span>
             </button>
             <button type="button" class="aggregator-filter-btn" id="settings-btn">
-                <span>🔔</span>
-                <span>Auto-Refresh Settings</span>
+                <span>⚙️</span>
+                <span>Settings</span>
             </button>
         </div>
     </div>
@@ -4306,7 +4306,7 @@
     <div id="settings-modal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
-                <h2>🔔 Auto-Refresh & Notifications</h2>
+                <h2>⚙️ Settings</h2>
                 <span class="modal-close" id="settings-modal-close">&times;</span>
             </div>
             <div class="modal-body">
@@ -4376,6 +4376,38 @@
                         <div class="form-group">
                             <div style="background: #667eea15; border: 1px solid #667eea50; padding: 12px; border-radius: 8px; font-size: 12px;">
                                 <strong>💡 Tip:</strong> Configure your Buy Box criteria to receive notifications only for deals that match your investment profile.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-section">
+                    <h3>🔤 Font Size</h3>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                        Adjust the font size for better readability
+                    </p>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Font Size</label>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <input type="range" id="font-size-slider" min="80" max="150" value="100" step="10" 
+                                       style="flex: 1; height: 6px; border-radius: 3px; appearance: none; background: var(--bg-tertiary); cursor: pointer;" />
+                                <span id="font-size-display" style="min-width: 50px; font-weight: 600; font-size: 14px;">100%</span>
+                            </div>
+                            <div class="form-hint">Adjust from 80% to 150% (default is 100%)</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <div style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; font-size: 12px;">
+                                <div style="margin-bottom: 8px; font-size: var(--preview-font-size, 12px);">
+                                    <strong>Preview:</strong> This is how your text will look at the selected size.
+                                </div>
+                                <div style="font-size: calc(var(--preview-font-size, 12px) * 0.92); color: var(--text-secondary);">
+                                    Deal Name: Example Business - $500,000
+                                </div>
                             </div>
                         </div>
                     </div>

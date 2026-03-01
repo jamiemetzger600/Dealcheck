@@ -911,7 +911,7 @@ function initializeAggregatorSorting() {
                         currentAggregatorSort[existingIndex].direction === 'asc' ? 'desc' : 'asc';
                 } else {
                     // Add new sort level
-                    currentAggregatorSort.push({ field: sortField, direction: 'desc' });
+                    currentAggregatorSort.push({ field: sortField, direction: 'asc' });
                 }
             } else {
                 // Regular click: Single-level sort (or toggle if already sorting by this field)
@@ -922,7 +922,7 @@ function initializeAggregatorSorting() {
                     currentAggregatorSort[0].direction = currentAggregatorSort[0].direction === 'asc' ? 'desc' : 'asc';
                 } else {
                     // New single sort
-                    currentAggregatorSort = [{ field: sortField, direction: 'desc' }];
+                    currentAggregatorSort = [{ field: sortField, direction: 'asc' }];
                 }
             }
             
@@ -4154,13 +4154,20 @@ async function loadBuyBoxSettings() {
 // Save buy box configuration
 async function saveBuyBoxConfig() {
     try {
+        // Helper to parse currency-formatted input values (strips $, commas)
+        const parseBuyBoxNumber = (val) => {
+            if (!val) return null;
+            const num = parseFloat(String(val).replace(/[$,]/g, ''));
+            return isNaN(num) ? null : num;
+        };
+        
         // Collect form data
-        const minPrice = parseFloat(document.getElementById('buybox-min-price')?.value) || null;
-        const maxPrice = parseFloat(document.getElementById('buybox-max-price')?.value) || null;
-        const minEbitda = parseFloat(document.getElementById('buybox-min-ebitda')?.value) || null;
-        const maxEbitda = parseFloat(document.getElementById('buybox-max-ebitda')?.value) || null;
-        const minRevenue = parseFloat(document.getElementById('buybox-min-revenue')?.value) || null;
-        const revenueMultiple = parseFloat(document.getElementById('buybox-revenue-multiple')?.value) || null;
+        const minPrice = parseBuyBoxNumber(document.getElementById('buybox-min-price')?.value);
+        const maxPrice = parseBuyBoxNumber(document.getElementById('buybox-max-price')?.value);
+        const minEbitda = parseBuyBoxNumber(document.getElementById('buybox-min-ebitda')?.value);
+        const maxEbitda = parseBuyBoxNumber(document.getElementById('buybox-max-ebitda')?.value);
+        const minRevenue = parseBuyBoxNumber(document.getElementById('buybox-min-revenue')?.value);
+        const revenueMultiple = parseBuyBoxNumber(document.getElementById('buybox-revenue-multiple')?.value);
         
         // Parse states (comma-separated)
         const statesInput = document.getElementById('buybox-states')?.value || '';
@@ -4195,7 +4202,7 @@ async function saveBuyBoxConfig() {
             }
         });
         
-        const minQuality = parseFloat(document.getElementById('buybox-min-quality')?.value) || null;
+        const minQuality = parseBuyBoxNumber(document.getElementById('buybox-min-quality')?.value);
         
         // Validate
         if (minPrice && maxPrice && minPrice > maxPrice) {
@@ -4293,7 +4300,6 @@ function dealMatchesBuyBox(deal) {
         currentBuyBox.minQuality;
     
     if (!hasAnyCriteria) {
-        console.log('ℹ️ No Buy Box criteria set, showing all deals');
         return true;
     }
     
@@ -4845,11 +4851,11 @@ function applyFiltersAndSort() {
     currentSort = sortBy;
     
     // Update table header visual indicators
-    updateSortIndicators(sortBy);
+    updateMyDealsSortIndicators(sortBy);
 }
 
-// Update sort indicators on table headers
-function updateSortIndicators(sortBy) {
+// Update sort indicators on My Deals table headers
+function updateMyDealsSortIndicators(sortBy) {
     // Parse sort value (e.g., "date-desc" -> column: "date", direction: "desc")
     const [column, direction] = sortBy.split('-');
     

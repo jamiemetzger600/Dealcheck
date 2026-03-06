@@ -8,19 +8,65 @@
 
 ## Step 1: Set Up Database
 
+### Install PostgreSQL
+
+**macOS (Homebrew):**
 ```bash
-# Install PostgreSQL (if not installed)
-# macOS:
+# Install PostgreSQL 15
 brew install postgresql@15
+
+# Start PostgreSQL service
 brew services start postgresql@15
 
-# Create database
+# Wait a few seconds for it to start, then verify it's running
+brew services list | grep postgresql
+# Should show "started"
+```
+
+**If you don't have Homebrew:**
+```bash
+# Install Homebrew first
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Then install PostgreSQL
+brew install postgresql@15
+brew services start postgresql@15
+```
+
+### Create Database
+
+```bash
+# Create the dealcheck database
 createdb dealcheck
 
 # Verify connection
 psql dealcheck
-# (you should see the psql prompt)
+# (you should see the psql prompt: dealcheck=#)
 # Type \q to exit
+```
+
+### Troubleshooting
+
+**If `createdb` says "command not found":**
+```bash
+# Add PostgreSQL to your PATH
+echo 'export PATH="/opt/homebrew/opt/postgresql@15/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# Try again
+createdb dealcheck
+```
+
+**If you get "could not connect to server":**
+```bash
+# Check if PostgreSQL is running
+brew services list | grep postgresql
+
+# If not started, start it
+brew services start postgresql@15
+
+# Wait 10 seconds, then try again
+createdb dealcheck
 ```
 
 ## Step 2: Set Up Backend

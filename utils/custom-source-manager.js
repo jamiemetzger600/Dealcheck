@@ -964,32 +964,53 @@ function parseOpensheetData(rows, columnMapping, sourceName) {
     return deals;
 }
 
-// Fetch data from Google Sheets via Opensheet API (no authentication required)
+// Fetch data from Google Sheets - tries authenticated API first (no row limit), falls back to Opensheet (~5K cap)
 async function fetchGoogleSheets(source) {
-    console.log('🌐 Fetching Google Sheets via Opensheet API:', source.name);
+    console.log('🌐 Fetching Google Sheets:', source.name);
     console.log('📋 Sheet URL:', source.url);
 
+    const sheetInfo = extractSheetInfo(source.url);
+
+    // Try authenticated Google Sheets API first (no row limit)
     try {
-        const sheetInfo = extractSheetInfo(source.url);
-        // Use sheet tab name/number if provided, otherwise default to first sheet (tab 1)
+        const token = await getGoogleSheetsAuthToken(false);
+        console.log('🔑 Got auth token, using Google Sheets API v4 (unlimited rows)');
+
+        const sheetTitle = await resolveSheetTitle(sheetInfo, token, source.sheetName || source.sheetTab);
+        console.log(`📄 Resolved sheet tab: "${sheetTitle}"`);
+
+        const response = await fetchSheetsGridData(sheetInfo.id, sheetTitle, token);
+        if (!response.ok) {
+            throw new Error(`Google Sheets API error (${response.status})`);
+        }
+
+        const data = await response.json();
+        const rows = data.sheets?.[0]?.data?.[0]?.rowData || [];
+        console.log(`✅ Fetched ${rows.length} rows via Google Sheets API`);
+
+        return parseSheetsRowData(rows, source.columnMapping || {});
+    } catch (authError) {
+        console.warn('⚠️ Authenticated API unavailable, falling back to Opensheet:', authError.message);
+    }
+
+    // Fallback: Opensheet API (no auth needed, but capped at ~5,000 rows)
+    try {
         const sheetName = source.sheetName || source.sheetTab || '1';
-        
-        // Opensheet API endpoint - no authentication needed for public sheets
         const opensheetUrl = `https://opensheet.elk.sh/${sheetInfo.id}/${encodeURIComponent(sheetName)}`;
         console.log('🌐 Opensheet URL:', opensheetUrl);
-        
+        console.log('⚠️ Note: Opensheet API may cap results at ~5,000 rows');
+
         const response = await fetch(opensheetUrl);
         if (!response.ok) {
             throw new Error(`Opensheet API error (${response.status}): ${response.statusText}`);
         }
-        
+
         const jsonData = await response.json();
         console.log(`✅ Fetched ${jsonData.length} rows from Opensheet API`);
-        
-        // Convert Opensheet JSON format to internal deal format
+
         return parseOpensheetData(jsonData, source.columnMapping || {}, source.name);
     } catch (error) {
-        console.error('❌ Error fetching Google Sheets via Opensheet API:', error);
+        console.error('❌ Error fetching Google Sheets:', error);
         throw error;
     }
 }

@@ -1,0 +1,10 @@
+{
+  "name": "dealcheck-shared",
+  "version": "4.0.0",
+  "description": "Shared business logic for Dealcheck (buy box matching, filtering)",
+  "main": "index.js",
+  "type": "module",
+  "keywords": ["dealcheck", "shared", "business-logic"],
+  "author": "",
+  "license": "ISC"
+}

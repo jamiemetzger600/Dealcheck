@@ -1,0 +1,133 @@
+import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { userAPI, dealsAPI } from '../utils/api';
+import DealAggregator from '../components/DealAggregator';
+import SavedDeals from '../components/SavedDeals';
+import Navigation from '../components/Navigation';
+import BuyBoxModal from '../components/BuyBoxModal';
+import SourceManagerModal from '../components/SourceManagerModal';
+import ManualDealModal from '../components/ManualDealModal';
+
+export default function DashboardPage() {
+  const { user, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState('aggregator');
+  const [settings, setSettings] = useState(null);
+  const [savedDeals, setSavedDeals] = useState([]);
+  const [matchCount, setMatchCount] = useState(0);
+  const [totalDeals, setTotalDeals] = useState(0);
+  const [newTodayCount, setNewTodayCount] = useState(0);
+  const [showingCount, setShowingCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [showBuyBoxModal, setShowBuyBoxModal] = useState(false);
+  const [showSourceModal, setShowSourceModal] = useState(false);
+  const [showManualDealModal, setShowManualDealModal] = useState(false);
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const [settingsData, dealsData] = await Promise.all([
+        userAPI.getSettings(),
+        dealsAPI.getSavedDeals()
+      ]);
+      
+      setSettings(settingsData);
+      setSavedDeals(dealsData.deals || []);
+      
+      // Calculate match count (will be updated when deals are fetched in DealAggregator)
+      setMatchCount(0);
+      
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMatchCountUpdate = (count) => {
+    setMatchCount(count);
+  };
+
+  const handleDealsStatsUpdate = ({ total = 0, newToday = 0, showing = 0 }) => {
+    setTotalDeals(total);
+    setNewTodayCount(newToday);
+    setShowingCount(showing);
+  };
+
+  const handleFetchDeals = () => {
+    setRefreshKey((current) => current + 1);
+    setActiveTab('aggregator');
+  };
+
+  if (loading) {
+    return <div className="loading-screen">Loading your dashboard...</div>;
+  }
+
+  return (
+    <div className="app-page-shell">
+      <Navigation
+        user={user}
+        logout={logout}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        pageTitle="Deal Acquisition Platform"
+        pageSubtitle="From discovery to closing: Data → Information → Knowledge → Insight → Wisdom"
+        aggregatorCount={totalDeals}
+        myDealsCount={savedDeals.length}
+        onFetchDeals={handleFetchDeals}
+        onManageSources={() => setShowSourceModal(true)}
+        onAddDeal={() => setShowManualDealModal(true)}
+        onConfigureBuyBox={() => setShowBuyBoxModal(true)}
+      />
+
+      <div className="dashboard-content">
+        {activeTab === 'aggregator' && (
+          <DealAggregator 
+            key={refreshKey}
+            settings={settings}
+            manualRefreshToken={refreshKey}
+            matchCount={matchCount}
+            onMatchCountUpdate={handleMatchCountUpdate}
+            onDealsStatsUpdate={handleDealsStatsUpdate}
+            onSaveDeal={loadUserData}
+            onSettingsUpdate={loadUserData}
+          />
+        )}
+
+        {activeTab === 'saved-deals' && (
+          <SavedDeals 
+            deals={savedDeals}
+            onUpdate={loadUserData}
+          />
+        )}
+      </div>
+
+      <BuyBoxModal
+        isOpen={showBuyBoxModal}
+        settings={settings}
+        onClose={() => setShowBuyBoxModal(false)}
+        onSaved={loadUserData}
+      />
+      <SourceManagerModal
+        isOpen={showSourceModal}
+        settings={settings}
+        onClose={() => setShowSourceModal(false)}
+        onSaved={() => {
+          loadUserData();
+          handleFetchDeals();
+        }}
+      />
+      <ManualDealModal
+        isOpen={showManualDealModal}
+        onClose={() => setShowManualDealModal(false)}
+        onSaved={() => {
+          loadUserData();
+          handleFetchDeals();
+        }}
+      />
+    </div>
+  );
+}

@@ -197,7 +197,7 @@ async function initializeDashboard() {
     // Verify required functions are available
     console.log('📦 Checking dependencies...');
     console.log('  ℹ️  RSS feeds disabled - Google Sheets only mode');
-    console.log('  ℹ️  Storage limit: 6000 most recent deals');
+    console.log('  ℹ️  Storage limit: 100,000 most recent deals');
     console.log('  addDealsToPool:', typeof addDealsToPool !== 'undefined' ? '✅' : '❌');
     console.log('  loadAggregatedDeals:', typeof loadAggregatedDeals !== 'undefined' ? '✅' : '❌');
     console.log('  getCustomSources:', typeof getCustomSources !== 'undefined' ? '✅' : '❌');
@@ -358,7 +358,7 @@ async function initializeDashboard() {
                     if (stats.unchanged > 0) parts.push(`${stats.unchanged} unchanged`);
                     
                     const summary = parts.length > 0 ? parts.join(', ') : 'No changes';
-                    showToast(`✅ ${summary}. Total: ${stats.total} deals (max 6000)`, 'success', 5000);
+                    showToast(`✅ ${summary}. Total: ${stats.total} deals`, 'success', 5000);
                 }
             } else {
                 if (!silentMode) {

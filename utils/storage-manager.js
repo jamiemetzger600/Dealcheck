@@ -1,5 +1,5 @@
 // Storage Manager for Aggregated Deals
-// Manages local cache with LRU eviction for chrome.storage.local 10MB limit
+// Uses unlimitedStorage permission - no Chrome quota restrictions
 
 console.log('💾 Storage Manager module loaded');
 
@@ -11,8 +11,8 @@ const STORAGE_KEYS = {
     LAST_SYNC: 'lastSyncTimestamp'
 };
 
-const MAX_AGGREGATED_DEALS = 6000; // Keep top 6K most recent deals
-const STORAGE_LIMIT_MB = 10;
+const MAX_AGGREGATED_DEALS = 100000; // 100K deals (unlimitedStorage enabled)
+const STORAGE_LIMIT_MB = 500; // Reference limit for usage reporting
 const BYTES_PER_MB = 1048576;
 
 // Calculate storage usage
@@ -106,10 +106,9 @@ async function saveAggregatedDeals(deals) {
         const estimatedSizeMB = (jsonString.length * 2) / BYTES_PER_MB; // UTF-16 = 2 bytes per char
         console.log(`📦 Estimated data size: ${estimatedSizeMB.toFixed(2)} MB`);
         
-        if (estimatedSizeMB > 8) {
-            console.warn('⚠️ Data too large, reducing deal count...');
-            // Reduce to fit within limits
-            const targetCount = Math.floor(dealsToSave.length * (7 / estimatedSizeMB));
+        if (estimatedSizeMB > 400) {
+            console.warn('⚠️ Data exceeds 400MB, reducing deal count...');
+            const targetCount = Math.floor(dealsToSave.length * (350 / estimatedSizeMB));
             dealsToSave = pruneDealsByRelevance(dealsToSave, targetCount);
             console.log(`📉 Reduced to ${dealsToSave.length} deals`);
         }

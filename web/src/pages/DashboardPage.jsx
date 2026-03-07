@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { userAPI, dealsAPI } from '../utils/api';
-import { filterDeals, countMatchingDeals } from '../../../shared/buyBoxMatcher.js';
 import DealAggregator from '../components/DealAggregator';
 import SavedDeals from '../components/SavedDeals';
 import Navigation from '../components/Navigation';
+import BuyBoxModal from '../components/BuyBoxModal';
+import SourceManagerModal from '../components/SourceManagerModal';
+import ManualDealModal from '../components/ManualDealModal';
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
@@ -12,8 +14,14 @@ export default function DashboardPage() {
   const [settings, setSettings] = useState(null);
   const [savedDeals, setSavedDeals] = useState([]);
   const [matchCount, setMatchCount] = useState(0);
+  const [totalDeals, setTotalDeals] = useState(0);
+  const [newTodayCount, setNewTodayCount] = useState(0);
+  const [showingCount, setShowingCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [showGreeting, setShowGreeting] = useState(true);
+  const [showBuyBoxModal, setShowBuyBoxModal] = useState(false);
+  const [showSourceModal, setShowSourceModal] = useState(false);
+  const [showManualDealModal, setShowManualDealModal] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -43,45 +51,49 @@ export default function DashboardPage() {
     setMatchCount(count);
   };
 
+  const handleDealsStatsUpdate = ({ total = 0, newToday = 0, showing = 0 }) => {
+    setTotalDeals(total);
+    setNewTodayCount(newToday);
+    setShowingCount(showing);
+  };
+
+  const handleFetchDeals = () => {
+    setRefreshKey((current) => current + 1);
+    setActiveTab('aggregator');
+  };
+
   if (loading) {
     return <div className="loading-screen">Loading your dashboard...</div>;
   }
 
   return (
-    <div className="dashboard">
-      <Navigation user={user} logout={logout} activeTab={activeTab} setActiveTab={setActiveTab} />
+    <div className="app-page-shell">
+      <Navigation
+        user={user}
+        logout={logout}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        pageTitle="Deal Acquisition Platform"
+        pageSubtitle="From discovery to closing: Data → Information → Knowledge → Insight → Wisdom"
+        aggregatorCount={totalDeals}
+        myDealsCount={savedDeals.length}
+        onFetchDeals={handleFetchDeals}
+        onManageSources={() => setShowSourceModal(true)}
+        onAddDeal={() => setShowManualDealModal(true)}
+        onConfigureBuyBox={() => setShowBuyBoxModal(true)}
+      />
 
       <div className="dashboard-content">
-        {/* Post-login greeting with match count */}
-        {showGreeting && activeTab === 'aggregator' && (
-          <div className="greeting-banner">
-            <div className="greeting-content">
-              <h2>
-                {matchCount > 0 
-                  ? `You have ${matchCount} deal${matchCount !== 1 ? 's' : ''} matching your criteria` 
-                  : 'Welcome back! Loading deals...'}
-              </h2>
-              <p>
-                {matchCount > 0 
-                  ? 'Review them below and save promising opportunities to My Deals.' 
-                  : 'Set your buy box to filter deals that match your investment criteria.'}
-              </p>
-            </div>
-            <button 
-              className="close-greeting" 
-              onClick={() => setShowGreeting(false)}
-              aria-label="Close"
-            >
-              ×
-            </button>
-          </div>
-        )}
-
         {activeTab === 'aggregator' && (
           <DealAggregator 
+            key={refreshKey}
             settings={settings}
+            manualRefreshToken={refreshKey}
+            matchCount={matchCount}
             onMatchCountUpdate={handleMatchCountUpdate}
+            onDealsStatsUpdate={handleDealsStatsUpdate}
             onSaveDeal={loadUserData}
+            onSettingsUpdate={loadUserData}
           />
         )}
 
@@ -92,6 +104,30 @@ export default function DashboardPage() {
           />
         )}
       </div>
+
+      <BuyBoxModal
+        isOpen={showBuyBoxModal}
+        settings={settings}
+        onClose={() => setShowBuyBoxModal(false)}
+        onSaved={loadUserData}
+      />
+      <SourceManagerModal
+        isOpen={showSourceModal}
+        settings={settings}
+        onClose={() => setShowSourceModal(false)}
+        onSaved={() => {
+          loadUserData();
+          handleFetchDeals();
+        }}
+      />
+      <ManualDealModal
+        isOpen={showManualDealModal}
+        onClose={() => setShowManualDealModal(false)}
+        onSaved={() => {
+          loadUserData();
+          handleFetchDeals();
+        }}
+      />
     </div>
   );
 }

@@ -47,10 +47,16 @@ export default function BillingPage() {
   if (loading) return <div className="loading-screen">Loading billing...</div>;
 
   return (
-    <div className="dashboard">
-      <Navigation user={user} logout={logout} />
+    <div className="app-page-shell">
+      <Navigation
+        user={user}
+        logout={logout}
+        showTabs={false}
+        pageTitle="Dealcheck"
+        pageSubtitle="Subscription and billing"
+      />
       
-      <div className="billing-page">
+      <div className="billing-page dashboard-content">
         <h1>Billing & Subscription</h1>
 
         <div className="current-plan">

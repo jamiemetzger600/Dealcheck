@@ -1,33 +1,114 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
-export default function Navigation({ user, logout, activeTab, setActiveTab }) {
+export default function Navigation({
+  user,
+  logout,
+  activeTab,
+  setActiveTab,
+  pageTitle = 'Deal Acquisition Platform',
+  pageSubtitle = 'From discovery to closing: Data → Information → Knowledge → Insight → Wisdom',
+  showTabs = true,
+  aggregatorCount = 0,
+  myDealsCount = 0,
+  onFetchDeals,
+  onManageSources,
+  onAddDeal,
+  onConfigureBuyBox
+}) {
+  const navigate = useNavigate();
+  const currentStage = activeTab === 'saved-deals' ? 'wisdom' : 'data';
+  const stageOrder = ['data', 'information', 'knowledge', 'insight', 'wisdom'];
+
   return (
-    <nav className="navigation">
-      <div className="nav-header">
-        <h1>📊 Dealcheck</h1>
-        <p className="nav-user">{user?.email}</p>
-      </div>
+    <>
+      <nav className="app-header">
+        <div className="app-header-copy">
+          <h1>📊 {pageTitle}</h1>
+          <p>{pageSubtitle}</p>
+        </div>
 
-      <div className="nav-tabs">
-        <button
-          className={`nav-tab ${activeTab === 'aggregator' ? 'active' : ''}`}
-          onClick={() => setActiveTab('aggregator')}
-        >
-          Deal Aggregator
-        </button>
-        <button
-          className={`nav-tab ${activeTab === 'saved-deals' ? 'active' : ''}`}
-          onClick={() => setActiveTab('saved-deals')}
-        >
-          My Deals
-        </button>
-      </div>
+        <div className="app-header-actions">
+          <span className="nav-user-pill">{user?.email}</span>
+          <Link to="/settings" className="header-link">Settings</Link>
+          <Link to="/billing" className="header-link">Billing</Link>
+          <button onClick={logout} className="header-link">Logout</button>
+        </div>
+      </nav>
 
-      <div className="nav-footer">
-        <Link to="/settings" className="nav-link">Settings</Link>
-        <Link to="/billing" className="nav-link">Billing</Link>
-        <button onClick={logout} className="nav-link">Logout</button>
-      </div>
-    </nav>
+      {showTabs && (
+        <>
+          <div className="global-action-row">
+            <button type="button" className="aggregator-filter-btn active" onClick={onFetchDeals}>
+              <span>🔄</span>
+              <span>Fetch Deals</span>
+            </button>
+            <button type="button" className="aggregator-filter-btn" onClick={onManageSources}>
+              <span>📥</span>
+              <span>Manage Sources</span>
+            </button>
+            <button type="button" className="aggregator-filter-btn" onClick={onAddDeal}>
+              <span>➕</span>
+              <span>Add Deal</span>
+            </button>
+            <button type="button" className="aggregator-filter-btn" onClick={onConfigureBuyBox}>
+              <span>⚙️</span>
+              <span>Configure Buy Box</span>
+            </button>
+            <button type="button" className="aggregator-filter-btn" onClick={() => navigate('/settings')}>
+              <span>⚙️</span>
+              <span>Settings</span>
+            </button>
+          </div>
+
+          <div className="journey-indicator">
+            {[
+              { key: 'data', icon: '📊', label: 'DATA' },
+              { key: 'information', icon: '🎯', label: 'INFORMATION' },
+              { key: 'knowledge', icon: '🧠', label: 'KNOWLEDGE' },
+              { key: 'insight', icon: '💡', label: 'INSIGHT' },
+              { key: 'wisdom', icon: '🎓', label: 'WISDOM' }
+            ].map((stage, index) => {
+              const currentIndex = stageOrder.indexOf(currentStage);
+              const stageIndex = stageOrder.indexOf(stage.key);
+              const stageClass =
+                stageIndex === currentIndex
+                  ? 'active'
+                  : stageIndex < currentIndex
+                    ? 'completed'
+                    : '';
+
+              return (
+                <div key={stage.key} className="journey-stage-wrap">
+                  <div className={`journey-stage ${stageClass}`}>
+                    <span>{stage.icon}</span>
+                    <span>{stage.label}</span>
+                  </div>
+                  {index < 4 && <div className="journey-arrow">→</div>}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="tab-navigation">
+            <button
+              className={`tab-btn ${activeTab === 'aggregator' ? 'active' : ''}`}
+              onClick={() => setActiveTab('aggregator')}
+            >
+              <span>🔍</span>
+              <span>Deal Aggregator</span>
+              <span className="tab-badge">{aggregatorCount}</span>
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'saved-deals' ? 'active' : ''}`}
+              onClick={() => setActiveTab('saved-deals')}
+            >
+              <span>💼</span>
+              <span>My Deals</span>
+              <span className="tab-badge">{myDealsCount}</span>
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 }

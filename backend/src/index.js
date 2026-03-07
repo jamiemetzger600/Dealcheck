@@ -32,6 +32,33 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', version: '4.0.0' });
 });
 
+app.get('/api/default-deals-csv', async (req, res) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const response = await fetch(
+      'https://docs.google.com/spreadsheets/d/1RKab4UHut6SvVjjCtSeCGL0xT__WTLNwsACFRmSXYyM/gviz/tq?tqx=out:csv&sheet=1',
+      {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        signal: controller.signal
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Google Sheets CSV error (${response.status})`);
+    }
+
+    const csv = await response.text();
+    res.type('text/csv').send(csv);
+  } catch (error) {
+    console.error('Default deals CSV fetch failed:', error.message);
+    res.status(502).json({ error: 'Failed to fetch default deals feed' });
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);

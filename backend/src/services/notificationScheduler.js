@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import pool from '../db/pool.js';
 import { sendEmail } from './emailService.js';
-import { dealMatchesBuyBox } from '../../shared/buyBoxMatcher.js';
+import { dealMatchesBuyBox } from '../../../shared/buyBoxMatcher.js';
 
 // Simulated deal fetching (in production, fetch from Opensheet/sources)
 async function fetchDealsForMatching() {

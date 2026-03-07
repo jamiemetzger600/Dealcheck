@@ -5,25 +5,46 @@
  */
 
 /**
- * Check if a deal matches the user's buy box criteria
+ * Apply "near match" slack to numeric limits (e.g. 10% = show deals slightly over max or under min).
+ * @param {number} limit - The user's limit (min or max)
+ * @param {number} dealValue - The deal's value
+ * @param {'min'|'max'} type - For 'max': allow dealValue up to limit * (1 + pct/100). For 'min': allow dealValue down to limit * (1 - pct/100).
+ * @param {number} pct - Percent slack (0 = strict)
+ * @returns {boolean} - True if deal value is within the relaxed limit
+ */
+function withinSlack(limit, dealValue, type, pct) {
+  if (pct <= 0) return type === 'max' ? dealValue <= limit : dealValue >= limit;
+  if (type === 'max') {
+    const cap = limit * (1 + pct / 100);
+    return dealValue <= cap;
+  }
+  const floor = limit * (1 - pct / 100);
+  return dealValue >= floor;
+}
+
+/**
+ * Check if a deal matches the user's buy box criteria.
+ * Optional includeNearMatchesPercent (0–100) relaxes numeric limits so slightly over-max or under-min deals still show (e.g. negotiable listings).
  * @param {Object} deal - Deal object
- * @param {Object} buyBox - Buy box configuration
+ * @param {Object} buyBox - Buy box configuration (may include includeNearMatchesPercent)
  * @returns {boolean} - True if deal matches
  */
 export function dealMatchesBuyBox(deal, buyBox) {
   if (!buyBox) return true;
 
-  // Price filters
-  if (buyBox.minPrice && deal.askingPrice < buyBox.minPrice) return false;
-  if (buyBox.maxPrice && deal.askingPrice > buyBox.maxPrice) return false;
+  const pct = Math.min(100, Math.max(0, Number(buyBox.includeNearMatchesPercent) || 0));
+
+  // Price filters (with optional slack)
+  if (buyBox.minPrice != null && deal.askingPrice != null && !withinSlack(buyBox.minPrice, deal.askingPrice, 'min', pct)) return false;
+  if (buyBox.maxPrice != null && deal.askingPrice != null && !withinSlack(buyBox.maxPrice, deal.askingPrice, 'max', pct)) return false;
 
   // EBITDA filters
-  if (buyBox.minEbitda && deal.ebitda < buyBox.minEbitda) return false;
-  if (buyBox.maxEbitda && deal.ebitda > buyBox.maxEbitda) return false;
+  if (buyBox.minEbitda != null && deal.ebitda != null && !withinSlack(buyBox.minEbitda, deal.ebitda, 'min', pct)) return false;
+  if (buyBox.maxEbitda != null && deal.ebitda != null && !withinSlack(buyBox.maxEbitda, deal.ebitda, 'max', pct)) return false;
 
   // Revenue filters
-  if (buyBox.minRevenue && deal.revenue < buyBox.minRevenue) return false;
-  if (buyBox.maxRevenue && deal.revenue > buyBox.maxRevenue) return false;
+  if (buyBox.minRevenue != null && deal.revenue != null && !withinSlack(buyBox.minRevenue, deal.revenue, 'min', pct)) return false;
+  if (buyBox.maxRevenue != null && deal.revenue != null && !withinSlack(buyBox.maxRevenue, deal.revenue, 'max', pct)) return false;
 
   // State filters (target states)
   if (buyBox.targetStates && buyBox.targetStates.length > 0) {
@@ -52,10 +73,10 @@ export function dealMatchesBuyBox(deal, buyBox) {
     if (!hasTargetIndustry) return false;
   }
 
-  // Revenue multiple filter
-  if (buyBox.revenueMultiple && deal.revenue && deal.askingPrice) {
+  // Revenue multiple filter (treated as max multiple; slack allows slightly higher)
+  if (buyBox.revenueMultiple != null && deal.revenue && deal.askingPrice) {
     const actualMultiple = deal.askingPrice / deal.revenue;
-    if (actualMultiple > buyBox.revenueMultiple) return false;
+    if (!withinSlack(buyBox.revenueMultiple, actualMultiple, 'max', pct)) return false;
   }
 
   return true;

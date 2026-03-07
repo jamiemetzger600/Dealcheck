@@ -181,9 +181,10 @@ npm run dev
    - Toggle "Show all deals" checkbox
    - Greeting banner should be visible
 
-2. **Optional**: To see actual deals, update `web/src/components/DealAggregator.jsx`:
-   - Line 23: Replace the fetch URL with a real Opensheet URL from the extension
-   - Or use the extension's default sheet ID
+2. **Real deals are enabled by default**:
+   - The web app now uses the same default Opensheet feed as the extension
+   - Refresh the page and the Deal Aggregator should load live deals automatically
+   - If the list is empty, try toggling **"Show all deals"** in case your current buy box filters everything out
 
 ## Step 7: Test Saving Deals (Manual)
 

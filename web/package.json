@@ -1,6 +1,6 @@
 {
   "name": "dealcheck-web",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Dealcheck mobile web app (PWA)",
   "type": "module",
   "scripts": {

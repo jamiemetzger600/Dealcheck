@@ -37,6 +37,15 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved }) {
     }
   }, [isOpen, settings]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
@@ -117,7 +126,7 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved }) {
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-card buybox-modal">
+      <div className="modal-card buybox-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>⚙️ Configure Buy Box</h2>
           <button type="button" className="column-close-btn" onClick={onClose}>×</button>

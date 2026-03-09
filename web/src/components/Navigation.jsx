@@ -16,8 +16,6 @@ export default function Navigation({
   onConfigureBuyBox
 }) {
   const navigate = useNavigate();
-  const currentStage = activeTab === 'saved-deals' ? 'wisdom' : 'data';
-  const stageOrder = ['data', 'information', 'knowledge', 'insight', 'wisdom'];
 
   return (
     <>
@@ -58,35 +56,6 @@ export default function Navigation({
               <span>⚙️</span>
               <span>Settings</span>
             </button>
-          </div>
-
-          <div className="journey-indicator">
-            {[
-              { key: 'data', icon: '📊', label: 'DATA' },
-              { key: 'information', icon: '🎯', label: 'INFORMATION' },
-              { key: 'knowledge', icon: '🧠', label: 'KNOWLEDGE' },
-              { key: 'insight', icon: '💡', label: 'INSIGHT' },
-              { key: 'wisdom', icon: '🎓', label: 'WISDOM' }
-            ].map((stage, index) => {
-              const currentIndex = stageOrder.indexOf(currentStage);
-              const stageIndex = stageOrder.indexOf(stage.key);
-              const stageClass =
-                stageIndex === currentIndex
-                  ? 'active'
-                  : stageIndex < currentIndex
-                    ? 'completed'
-                    : '';
-
-              return (
-                <div key={stage.key} className="journey-stage-wrap">
-                  <div className={`journey-stage ${stageClass}`}>
-                    <span>{stage.icon}</span>
-                    <span>{stage.label}</span>
-                  </div>
-                  {index < 4 && <div className="journey-arrow">→</div>}
-                </div>
-              );
-            })}
           </div>
 
           <div className="tab-navigation">

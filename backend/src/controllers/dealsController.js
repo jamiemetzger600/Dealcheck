@@ -64,7 +64,7 @@ export const saveDeal = async (req, res) => {
         brokerEmail, brokerPhone, source, sourceType, discoveredAt,
         askingPrice, ebitda, revenue, location, city, state, county, country,
         industry, yearsEstablished, franchise, remote, listingId,
-        notes, status || 'new', progressStage
+        notes, status || 'none', progressStage
       ]
     );
 
@@ -83,7 +83,10 @@ export const saveDeal = async (req, res) => {
 // Update a saved deal
 export const updateSavedDeal = async (req, res) => {
   const { id } = req.params;
-  const { notes, status, progressStage, progressHistory } = req.body;
+  const { 
+    notes, status, progressStage, progressHistory,
+    brokerName, brokerCompany, brokerPhone, brokerEmail
+  } = req.body;
 
   try {
     const updateFields = [];
@@ -105,6 +108,22 @@ export const updateSavedDeal = async (req, res) => {
     if (progressHistory !== undefined) {
       updateFields.push(`progress_history = $${paramIndex++}`);
       values.push(JSON.stringify(progressHistory));
+    }
+    if (brokerName !== undefined) {
+      updateFields.push(`broker_name = $${paramIndex++}`);
+      values.push(brokerName);
+    }
+    if (brokerCompany !== undefined) {
+      updateFields.push(`broker_company = $${paramIndex++}`);
+      values.push(brokerCompany);
+    }
+    if (brokerPhone !== undefined) {
+      updateFields.push(`broker_phone = $${paramIndex++}`);
+      values.push(brokerPhone);
+    }
+    if (brokerEmail !== undefined) {
+      updateFields.push(`broker_email = $${paramIndex++}`);
+      values.push(brokerEmail);
     }
 
     if (updateFields.length === 0) {

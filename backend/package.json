@@ -1,6 +1,6 @@
 {
   "name": "dealcheck-backend",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Backend API for Dealcheck mobile web and native apps",
   "main": "src/index.js",
   "type": "module",

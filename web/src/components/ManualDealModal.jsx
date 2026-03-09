@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { userAPI } from '../utils/api';
 
 export default function ManualDealModal({ isOpen, onClose, onSaved }) {
@@ -6,6 +6,15 @@ export default function ManualDealModal({ isOpen, onClose, onSaved }) {
     name: '', description: '', city: '', state: '', industry: '', askingPrice: '', revenue: '', ebitda: '', brokerName: '', brokerPhone: '', brokerEmail: '', notes: ''
   });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -62,7 +71,7 @@ export default function ManualDealModal({ isOpen, onClose, onSaved }) {
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-card manual-deal-modal">
+      <div className="modal-card manual-deal-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>➕ Add Deal</h2>
           <button type="button" className="column-close-btn" onClick={onClose}>×</button>

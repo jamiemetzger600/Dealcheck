@@ -98,6 +98,8 @@ export default function DealAggregator({
   const [showExcludeSection, setShowExcludeSection] = useState(true);
   const [dealViewStyle, setDealViewStyle] = useState(settings?.dealViewStyle || 'table');
   const [customFlexibilityInput, setCustomFlexibilityInput] = useState('');
+  const [saveToast, setSaveToast] = useState(null);
+  const [savingDealId, setSavingDealId] = useState(null);
 
   useEffect(() => {
     setExcludeKeywords(settings?.excludeKeywords || []);
@@ -195,15 +197,19 @@ export default function DealAggregator({
       });
     }
 
-    // Apply search
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(deal =>
-        (deal.name || '').toLowerCase().includes(query) ||
-        (deal.description || '').toLowerCase().includes(query) ||
-        (deal.location || '').toLowerCase().includes(query) ||
-        (deal.industry || '').toLowerCase().includes(query)
-      );
+    // Apply search (multiple keywords with & = all must match, e.g. "Relocatable & Fedex & HVAC")
+    if (searchQuery.trim()) {
+      const keywords = searchQuery.split(/\s*&\s*/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+      if (keywords.length > 0) {
+        filtered = filtered.filter((deal) => {
+          const name = (deal.name || '').toLowerCase();
+          const desc = (deal.description || '').toLowerCase();
+          const location = (deal.location || '').toLowerCase();
+          const industry = (deal.industry || '').toLowerCase();
+          const searchable = `${name} ${desc} ${location} ${industry}`;
+          return keywords.every((kw) => searchable.includes(kw));
+        });
+      }
     }
 
     filtered = sortAggregatorDeals(filtered, sortConfig);
@@ -242,6 +248,7 @@ export default function DealAggregator({
   };
 
   const handleSaveDeal = async (deal) => {
+    setSavingDealId(deal.id);
     try {
       await dealsAPI.saveDeal({
         dealId: deal.id,
@@ -254,18 +261,36 @@ export default function DealAggregator({
         location: deal.location,
         city: deal.city,
         state: deal.state,
+        county: deal.county,
+        country: deal.country,
         industry: deal.industry,
+        yearsEstablished: deal.yearsEstablished,
+        franchise: deal.franchise,
+        remote: deal.remote,
+        listingId: deal.listingId,
         source: deal.source,
         sourceType: deal.sourceType,
-        discoveredAt: deal.discoveredAt
+        discoveredAt: deal.discoveredAt,
+        broker: deal.broker,
+        brokerName: deal.brokerName,
+        brokerCompany: deal.brokerCompany,
+        brokerEmail: deal.brokerEmail,
+        brokerPhone: deal.brokerPhone
       });
-      
-      alert('Deal saved successfully!');
+      setSaveToast('Deal saved to My Deals');
       onSaveDeal();
     } catch (error) {
       alert('Failed to save deal: ' + error.message);
+    } finally {
+      setSavingDealId(null);
     }
   };
+
+  useEffect(() => {
+    if (!saveToast) return;
+    const t = setTimeout(() => setSaveToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [saveToast]);
 
   if (loading) {
     return <div className="loading">Loading deals...</div>;
@@ -404,6 +429,22 @@ export default function DealAggregator({
     }
   };
 
+  const handleSaveCalculatorDefaults = async (calculatorDefaults) => {
+    try {
+      await userAPI.updateSettings({
+        preferences: {
+          ...(settings?.preferences || {}),
+          calculatorDefaults
+        }
+      });
+      if (typeof onSettingsUpdate === 'function') {
+        await onSettingsUpdate();
+      }
+    } catch (error) {
+      console.error('Failed to save calculator defaults:', error);
+    }
+  };
+
   const handleViewStyleChange = async (style) => {
     if (style === dealViewStyle) return;
     setDealViewStyle(style);
@@ -536,10 +577,11 @@ export default function DealAggregator({
             <div className="aggregator-search">
               <input
                 type="text"
-                placeholder="Search deals by name, location, or industry..."
+                placeholder="Search: name, location, industry… Use & for AND (e.g. Relocatable & Fedex & HVAC)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input"
+                aria-label="Search deals; use & to require multiple keywords"
               />
             </div>
 
@@ -845,15 +887,15 @@ export default function DealAggregator({
                       <p className="deal-card__subtitle">{subtitle}{subtitle.length >= 80 ? '...' : ''}</p>
                       <div className="deal-card__metrics">
                         <div className="deal-card__metric">
-                          <span className="deal-card__metric-value">{formatMoney(deal.askingPrice)}</span>
+                          <span className="deal-card__metric-value" title={formatMoney(deal.askingPrice)}>{formatMoneyShort(deal.askingPrice)}</span>
                           <span className="deal-card__metric-label">Asking Price</span>
                         </div>
                         <div className="deal-card__metric">
-                          <span className="deal-card__metric-value">{formatMoney(deal.revenue)}</span>
+                          <span className="deal-card__metric-value" title={formatMoney(deal.revenue)}>{formatMoneyShort(deal.revenue)}</span>
                           <span className="deal-card__metric-label">Gross Revenue</span>
                         </div>
                         <div className="deal-card__metric">
-                          <span className="deal-card__metric-value">{formatMoney(deal.ebitda)}</span>
+                          <span className="deal-card__metric-value" title={formatMoney(deal.ebitda)}>{formatMoneyShort(deal.ebitda)}</span>
                           <span className="deal-card__metric-label">Adj. Cash Flow</span>
                         </div>
                         <div className="deal-card__metric">
@@ -875,8 +917,16 @@ export default function DealAggregator({
         position={dealPanelPosition}
         onClose={() => setSelectedDeal(null)}
         onSaveDeal={handleSaveDeal}
+        isSavingDeal={savingDealId != null && selectedDeal?.id === savingDealId}
         onPositionChange={handleDealPanelPositionChange}
+        settings={settings}
+        onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
       />
+      {saveToast && (
+        <div className="save-toast" role="status" aria-live="polite">
+          {saveToast}
+        </div>
+      )}
     </div>
   );
 }
@@ -884,6 +934,22 @@ export default function DealAggregator({
 function formatMoney(value) {
   if (!value) return '—';
   return `$${value.toLocaleString()}`;
+}
+
+/** Compact form for card metrics: e.g. 1100000 → $1.1M, 399000 → $399K */
+function formatMoneyShort(value) {
+  if (value == null || value === '') return '—';
+  const n = Number(value);
+  if (Number.isNaN(n)) return '—';
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return m % 1 === 0 ? `$${m}M` : `$${m.toFixed(1)}M`;
+  }
+  if (n >= 1_000) {
+    const k = n / 1_000;
+    return k % 1 === 0 ? `$${k}K` : `$${k.toFixed(1)}K`;
+  }
+  return `$${n.toLocaleString()}`;
 }
 
 function formatRatio(value) {

@@ -1063,6 +1063,43 @@ a {
   font-size: 15px;
 }
 
+/* Swipeable card wrapper (Tinder-style): transform applied here */
+.aggregator-cards-grid .swipeable-card-outer {
+  position: relative;
+  touch-action: pan-y;
+}
+
+/* Nope / Like overlays shown during swipe */
+.aggregator-cards-grid .swipeable-card-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 28%;
+  max-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 12px;
+  pointer-events: none;
+  border: 3px solid currentColor;
+  transition: opacity 0.1s ease;
+}
+.aggregator-cards-grid .swipeable-card-overlay--nope {
+  left: 12px;
+  color: #e53935;
+  transform: rotate(-18deg);
+}
+.aggregator-cards-grid .swipeable-card-overlay--like {
+  right: 12px;
+  left: auto;
+  color: #43a047;
+  transform: rotate(18deg);
+}
+
 /* Deal cards: site palette, clear metrics (no overlap) – scoped to aggregator grid */
 .aggregator-cards-grid .deal-card {
   background: var(--bg-secondary);

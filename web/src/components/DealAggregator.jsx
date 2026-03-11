@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { filterDeals } from '../../../shared/buyBoxMatcher.js';
 import { dealsAPI, userAPI } from '../utils/api';
 import DealDetailsPanel from './DealDetailsPanel';
@@ -68,6 +68,125 @@ const FLEXIBILITY_OPTIONS = [
   { value: 20, label: '20%' },
   { value: 'custom', label: 'Custom' }
 ];
+
+const SWIPE_THRESHOLD = 80;
+const DRAG_CLICK_THRESHOLD = 8;
+const MAX_DRAG = 320;
+
+/** Tinder-style swipeable wrapper for card view: swipe left = hide, swipe right = heart/save */
+function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, children }) {
+  const [dragX, setDragX] = useState(0);
+  const startXRef = useRef(0);
+  const isDragRef = useRef(false);
+  const dragXRef = useRef(0);
+
+  const handleStart = useCallback((clientX) => {
+    startXRef.current = clientX;
+    isDragRef.current = false;
+  }, []);
+
+  const handleMove = useCallback((clientX) => {
+    const dx = clientX - startXRef.current;
+    if (!isDragRef.current && Math.abs(dx) > DRAG_CLICK_THRESHOLD) {
+      isDragRef.current = true;
+    }
+    const clamped = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, dx));
+    dragXRef.current = clamped;
+    setDragX(clamped);
+  }, []);
+
+  const handleEnd = useCallback(() => {
+    const x = dragXRef.current;
+    if (x < -SWIPE_THRESHOLD) {
+      onHide(deal.id);
+    } else if (x > SWIPE_THRESHOLD) {
+      onLike(deal);
+    }
+    setDragX(0);
+    dragXRef.current = 0;
+  }, [deal, onHide, onLike]);
+
+  const onMouseMove = useCallback((e) => handleMove(e.clientX), [handleMove]);
+  const onMouseUp = useCallback(() => {
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    handleEnd();
+  }, [handleEnd, onMouseMove]);
+
+  const onTouchStart = useCallback((e) => {
+    handleStart(e.touches[0].clientX);
+  }, [handleStart]);
+
+  const onTouchMove = useCallback((e) => {
+    handleMove(e.touches[0].clientX);
+    if (isDragRef.current) {
+      e.preventDefault();
+    }
+  }, [handleMove]);
+
+  const onTouchEnd = useCallback(() => {
+    handleEnd();
+  }, [handleEnd]);
+
+  const onMouseDown = useCallback((e) => {
+    if (e.button !== 0) return;
+    handleStart(e.clientX);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [handleStart, onMouseMove, onMouseUp]);
+
+  const onClick = useCallback((e) => {
+    if (isDragRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    onTap(deal);
+  }, [deal, onTap]);
+
+  const onKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onTap(deal);
+    }
+  }, [deal, onTap]);
+
+  const rotate = (dragX / MAX_DRAG) * 12;
+  const nopeOpacity = dragX < 0 ? Math.min(1, Math.abs(dragX) / SWIPE_THRESHOLD) * 0.9 : 0;
+  const likeOpacity = dragX > 0 ? Math.min(1, dragX / SWIPE_THRESHOLD) * 0.9 : 0;
+
+  return (
+    <div
+      className="swipeable-card-outer"
+      style={{
+        transform: `translateX(${dragX}px) rotate(${rotate}deg)`,
+        transition: dragX === 0 ? 'transform 0.25s ease-out' : 'none'
+      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+      onMouseDown={onMouseDown}
+    >
+      <div
+        className={`deal-card ${isHidden ? 'deal-card--hidden' : ''}`}
+        onClick={onClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={onKeyDown}
+        style={{ touchAction: 'pan-y' }}
+      >
+        <div className="swipeable-card-overlay swipeable-card-overlay--nope" style={{ opacity: nopeOpacity }} aria-hidden="true">
+          Nope
+        </div>
+        <div className="swipeable-card-overlay swipeable-card-overlay--like" style={{ opacity: likeOpacity }} aria-hidden="true">
+          ♡ Like
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function DealAggregator({
   settings,
@@ -869,13 +988,13 @@ export default function DealAggregator({
                   const isHidden = hiddenDealIds.includes(deal.id);
                   const subtitle = [deal.industry, deal.location].filter(Boolean).join(' in ') || deal.description?.slice(0, 80) || '—';
                   return (
-                    <div
+                    <SwipeableDealCard
                       key={deal.id}
-                      className={`deal-card ${isHidden ? 'deal-card--hidden' : ''}`}
-                      onClick={() => setSelectedDeal(deal)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDeal(deal); } }}
+                      deal={deal}
+                      isHidden={isHidden}
+                      onHide={handleToggleHidden}
+                      onLike={handleSaveDeal}
+                      onTap={setSelectedDeal}
                     >
                       <div className="deal-card__header">
                         <h3 className="deal-card__name">{deal.name || 'Unnamed Business'}</h3>
@@ -903,7 +1022,7 @@ export default function DealAggregator({
                           <span className="deal-card__metric-label">C.F. Multiple</span>
                         </div>
                       </div>
-                    </div>
+                    </SwipeableDealCard>
                   );
                 })
               )}

@@ -27,7 +27,7 @@ const NEAR_MATCH_OPTIONS = [
 
 const INDUSTRIES = ['Healthcare', 'SaaS', 'Manufacturing', 'Restaurant', 'Retail', 'E-commerce', 'Services', 'Real Estate'];
 
-export default function BuyBoxModal({ isOpen, settings, onClose, onSaved }) {
+export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnboarding = false }) {
   const [form, setForm] = useState(DEFAULT_BUYBOX);
   const [saving, setSaving] = useState(false);
 
@@ -38,13 +38,13 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved }) {
   }, [isOpen, settings]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isOnboarding) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isOnboarding, onClose]);
 
   if (!isOpen) return null;
 
@@ -125,12 +125,20 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className="modal-overlay buybox-modal-overlay"
+      onClick={(e) => !isOnboarding && e.target === e.currentTarget && onClose()}
+    >
       <div className="modal-card buybox-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>⚙️ Configure Buy Box</h2>
-          <button type="button" className="column-close-btn" onClick={onClose}>×</button>
+          {!isOnboarding && (
+            <button type="button" className="column-close-btn" onClick={onClose}>×</button>
+          )}
         </div>
+        {isOnboarding && (
+          <p className="buybox-onboarding-intro">Set your deal criteria to get started. Deals are loading in the background.</p>
+        )}
 
         <div className="modal-grid two-col">
           <div className="form-group"><label>Min Price</label><input value={formatWithCommas(form.minPrice)} onChange={(e) => handleNumberChange('minPrice', e.target.value)} placeholder="$500,000" /></div>
@@ -179,8 +187,8 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved }) {
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={handleReset}>Reset</button>
-          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+          {!isOnboarding && <button type="button" className="btn-secondary" onClick={handleReset}>Reset</button>}
+          {!isOnboarding && <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>}
           <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Buy Box'}</button>
         </div>
       </div>

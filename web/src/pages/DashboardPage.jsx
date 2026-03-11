@@ -9,6 +9,21 @@ import BuyBoxModal from '../components/BuyBoxModal';
 import SourceManagerModal from '../components/SourceManagerModal';
 import ManualDealModal from '../components/ManualDealModal';
 
+function isBuyBoxEmpty(buyBox) {
+  if (!buyBox || typeof buyBox !== 'object') return true;
+  const has = (v) => v != null && v !== '' && (Array.isArray(v) ? v.length > 0 : true);
+  return (
+    !has(buyBox.minPrice) &&
+    !has(buyBox.maxPrice) &&
+    !has(buyBox.minEbitda) &&
+    !has(buyBox.maxEbitda) &&
+    !has(buyBox.minRevenue) &&
+    !has(buyBox.revenueMultiple) &&
+    !has(buyBox.targetStates) &&
+    !has(buyBox.targetIndustries)
+  );
+}
+
 export default function DashboardPage({ feedSource = 'airtable' }) {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('aggregator');
@@ -40,7 +55,10 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       const normalized = (dealsData.deals || []).map(normalizeDeal);
       setSavedDeals(normalized);
       
-      // Calculate match count (will be updated when deals are fetched in DealAggregator)
+      if (settingsData && isBuyBoxEmpty(settingsData.buyBox)) {
+        setShowBuyBoxModal(true);
+      }
+      
       setMatchCount(0);
       
     } catch (error) {
@@ -98,7 +116,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       <div className="dashboard-content">
         {activeTab === 'aggregator' && (
           <DealAggregator 
-            key={refreshKey}
             settings={settings}
             manualRefreshToken={refreshKey}
             matchCount={matchCount}
@@ -126,6 +143,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         settings={settings}
         onClose={() => setShowBuyBoxModal(false)}
         onSaved={loadUserData}
+        isOnboarding={showBuyBoxModal && settings && isBuyBoxEmpty(settings.buyBox)}
       />
       <SourceManagerModal
         isOpen={showSourceModal}

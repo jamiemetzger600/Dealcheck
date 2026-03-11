@@ -225,6 +225,13 @@ const migrations = [
       CREATE TRIGGER update_subscriptions_updated_at BEFORE UPDATE ON subscriptions
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
     `
+  },
+  {
+    name: 'idx_airtable_deals_updated_added_at',
+    up: `
+      CREATE INDEX IF NOT EXISTS idx_airtable_deals_airtable_updated_at ON airtable_deals(airtable_updated_at);
+      CREATE INDEX IF NOT EXISTS idx_airtable_deals_airtable_added_at ON airtable_deals(airtable_added_at);
+    `
   }
 ];
 

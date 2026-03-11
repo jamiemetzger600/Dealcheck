@@ -1563,6 +1563,17 @@ a {
   flex-wrap: wrap;
 }
 
+.buybox-onboarding-intro {
+  margin: -8px 0 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.buybox-modal-overlay {
+  align-items: center;
+  justify-content: center;
+}
+
 .buybox-near-matches {
   margin-top: 20px;
   padding-top: 16px;

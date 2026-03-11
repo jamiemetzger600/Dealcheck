@@ -4,7 +4,7 @@ import { scrapeAirtable, getScraperStatus } from '../services/airtableScraper.js
 
 const router = express.Router();
 
-// GET /api/airtable-deals — paginated list with optional filters
+// GET /api/airtable-deals — paginated list with optional filters; or delta (updated_after)
 router.get('/', async (req, res) => {
   try {
     const {
@@ -16,6 +16,7 @@ router.get('/', async (req, res) => {
       industry,
       sort = 'airtable_added_at',
       order = 'desc',
+      updated_after: updatedAfter,
     } = req.query;
 
     const conditions = [];
@@ -39,6 +40,16 @@ router.get('/', async (req, res) => {
       params.push(industry);
     }
 
+    // Delta mode: only rows added or updated after this timestamp (ISO 8601)
+    if (updatedAfter) {
+      const ts = new Date(updatedAfter);
+      if (!Number.isNaN(ts.getTime())) {
+        conditions.push(`(airtable_added_at > $${idx} OR airtable_updated_at > $${idx})`);
+        params.push(ts.toISOString());
+        idx += 1;
+      }
+    }
+
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // Whitelist sortable columns
@@ -50,8 +61,11 @@ router.get('/', async (req, res) => {
     const sortCol = allowedSorts.includes(sort) ? sort : 'airtable_added_at';
     const sortDir = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
-    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 500);
-    const safeOffset = Math.max(Number(offset) || 0, 0);
+    const isDelta = Boolean(updatedAfter);
+    const safeLimit = isDelta
+      ? Math.min(Math.max(Number(limit) || 500, 1), 2000)
+      : Math.min(Math.max(Number(limit) || 50, 1), 500);
+    const safeOffset = isDelta ? 0 : Math.max(Number(offset) || 0, 0);
 
     const countResult = await pool.query(
       `SELECT COUNT(*) FROM airtable_deals ${where}`,
@@ -68,11 +82,23 @@ router.get('/', async (req, res) => {
       params
     );
 
+    const total = parseInt(countResult.rows[0].count, 10);
+    let maxUpdatedAt = null;
+    if (result.rows.length > 0) {
+      const dates = result.rows
+        .map((r) => [r.airtable_added_at, r.airtable_updated_at].filter(Boolean))
+        .flat()
+        .map((d) => new Date(d).getTime());
+      if (dates.length) maxUpdatedAt = new Date(Math.max(...dates)).toISOString();
+    }
+
+    res.set('Cache-Control', 'public, max-age=60');
     res.json({
       deals: result.rows,
-      total: parseInt(countResult.rows[0].count, 10),
+      total,
       limit: safeLimit,
       offset: safeOffset,
+      ...(maxUpdatedAt && { maxUpdatedAt }),
     });
   } catch (err) {
     console.error('Airtable deals list error:', err);

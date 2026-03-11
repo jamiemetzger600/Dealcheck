@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { filterDeals } from '../../../shared/buyBoxMatcher.js';
 import { dealsAPI, userAPI } from '../utils/api';
-import { fetchFirstPageAirtableDeals, fetchAirtableDealsPage } from '../utils/normalizeAirtableDeal';
+import { fetchFirstPageAirtableDeals, fetchAirtableDealsPage, fetchAirtableDealsDelta } from '../utils/normalizeAirtableDeal';
 import DealDetailsPanel from './DealDetailsPanel';
 
-const FIRST_PAGE_SIZE = 100;
-const BACKGROUND_PAGE_SIZE = 100;
+const FIRST_PAGE_SIZE = 500;
+const BACKGROUND_PAGE_SIZE = 500;
+const LAST_SYNC_KEY = 'vettr_airtable_deals_last_sync';
 /** Deals per page in the list; pagination advances by this. */
 const RENDER_PAGE_SIZE = 100;
 
@@ -271,6 +272,7 @@ export default function DealAggregator({
   const [showCardColsPopup, setShowCardColsPopup] = useState(false);
   const cardColsPopupRef = useRef(null);
   const fetchAbortRef = useRef(null);
+  const dealsCountRef = useRef(0);
   const [isMobileViewport, setIsMobileViewport] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
   );
@@ -297,7 +299,7 @@ export default function DealAggregator({
 
   useEffect(() => {
     fetchDeals({ refreshCustomSources: manualRefreshToken > 0 });
-  }, []);
+  }, [manualRefreshToken]);
 
   useEffect(() => {
     if (!settings) return undefined;
@@ -316,6 +318,10 @@ export default function DealAggregator({
 
     return () => window.clearInterval(intervalId);
   }, [settings, customSources]);
+
+  useEffect(() => {
+    dealsCountRef.current = deals.length;
+  }, [deals]);
 
   useEffect(() => {
     if (settings) {
@@ -348,8 +354,30 @@ export default function DealAggregator({
 
     try {
       if (feedSource === 'airtable') {
+        const lastSync = typeof localStorage !== 'undefined' ? localStorage.getItem(LAST_SYNC_KEY) : null;
+        const useDelta = Boolean(lastSync && dealsCountRef.current > 0 && !background);
+
+        if (useDelta) {
+          const delta = await fetchAirtableDealsDelta(API_BASE_URL, lastSync, signal);
+          if (signal?.aborted) return;
+          if (delta.maxUpdatedAt) {
+            try { localStorage.setItem(LAST_SYNC_KEY, delta.maxUpdatedAt); } catch (_) {}
+          }
+          setDeals((prev) => {
+            const byId = new Map(prev.map((d) => [d.id, d]));
+            delta.deals.forEach((d) => byId.set(d.id, d));
+            return dedupeDeals([...byId.values()]);
+          });
+          setFeedError(null);
+          if (!background) setLoading(false);
+          return;
+        }
+
         const first = await fetchFirstPageAirtableDeals(API_BASE_URL, FIRST_PAGE_SIZE, signal);
         if (signal?.aborted) return;
+        if (first.maxUpdatedAt) {
+          try { localStorage.setItem(LAST_SYNC_KEY, first.maxUpdatedAt); } catch (_) {}
+        }
         const firstDeduped = dedupeDeals(first.deals);
         setDeals(firstDeduped);
         setTotalFromAPI(first.total);
@@ -358,13 +386,22 @@ export default function DealAggregator({
 
         if (first.total > first.deals.length) {
           setLoadingMore(true);
+          const PARALLEL = 5;
           let offset = first.deals.length;
           while (offset < first.total && !signal?.aborted) {
-            const next = await fetchAirtableDealsPage(API_BASE_URL, offset, BACKGROUND_PAGE_SIZE, signal);
+            const batchOffsets = [];
+            for (let i = 0; i < PARALLEL && offset < first.total; i++) {
+              batchOffsets.push(offset);
+              offset += BACKGROUND_PAGE_SIZE;
+            }
+            const pages = await Promise.all(
+              batchOffsets.map((off) => fetchAirtableDealsPage(API_BASE_URL, off, BACKGROUND_PAGE_SIZE, signal))
+            );
             if (signal?.aborted) return;
-            setDeals((prev) => dedupeDeals([...prev, ...next.deals]));
-            offset += next.deals.length;
-            if (next.deals.length < BACKGROUND_PAGE_SIZE) break;
+            setDeals((prev) => {
+              const next = pages.flatMap((p) => p.deals);
+              return dedupeDeals([...prev, ...next]);
+            });
           }
         }
         setLoadingMore(false);
@@ -390,6 +427,7 @@ export default function DealAggregator({
         setDeals(dedupeDeals([...defaultDeals, ...cachedCustomDeals]));
       }
     } catch (error) {
+      if (error?.name === 'AbortError' || signal?.aborted) return;
       const apiUrl = `${API_BASE_URL}/airtable-deals`;
       console.error('Failed to fetch deals:', error);
       if (!background) {

@@ -76,7 +76,33 @@ export async function fetchAirtableDealsPage(apiBaseUrl, offset = 0, limit = PAG
     deals: rows.map(normalizeAirtableDeal),
     total: typeof data.total === 'number' ? data.total : rows.length,
     limit: data.limit || limit,
-    offset: data.offset ?? offset
+    offset: data.offset ?? offset,
+    maxUpdatedAt: data.maxUpdatedAt || null
+  };
+}
+
+/**
+ * Fetches only deals added or updated after the given ISO timestamp (delta/incremental).
+ * @param {string} apiBaseUrl - Base API URL (e.g. /api).
+ * @param {string} updatedAfter - ISO 8601 timestamp.
+ * @param {AbortSignal} [signal] - Optional abort signal.
+ * @returns {{ deals: Array, total: number, maxUpdatedAt: string|null }}
+ */
+export async function fetchAirtableDealsDelta(apiBaseUrl, updatedAfter, signal = undefined) {
+  const encoded = encodeURIComponent(updatedAfter);
+  const url = `${apiBaseUrl}/airtable-deals?updated_after=${encoded}&limit=2000`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    const err = new Error(`Airtable deals API error (${res.status})`);
+    err.url = url;
+    throw err;
+  }
+  const data = await res.json();
+  const rows = data.deals || [];
+  return {
+    deals: rows.map(normalizeAirtableDeal),
+    total: rows.length,
+    maxUpdatedAt: data.maxUpdatedAt || null
   };
 }
 

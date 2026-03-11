@@ -37,7 +37,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '4.2.1' });
+  res.json({ status: 'ok', version: '4.2.2' });
 });
 
 app.get('/api/default-deals-csv', async (req, res) => {

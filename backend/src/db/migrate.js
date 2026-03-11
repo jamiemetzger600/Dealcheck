@@ -12,7 +12,7 @@ const migrations = [
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       
-      CREATE INDEX idx_users_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     `
   },
   {
@@ -57,7 +57,7 @@ const migrations = [
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       
-      CREATE INDEX idx_user_settings_user_id ON user_settings(user_id);
+      CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);
     `
   },
   {
@@ -113,8 +113,8 @@ const migrations = [
         UNIQUE(user_id, deal_id)
       );
       
-      CREATE INDEX idx_saved_deals_user_id ON saved_deals(user_id);
-      CREATE INDEX idx_saved_deals_status ON saved_deals(status);
+      CREATE INDEX IF NOT EXISTS idx_saved_deals_user_id ON saved_deals(user_id);
+      CREATE INDEX IF NOT EXISTS idx_saved_deals_status ON saved_deals(status);
     `
   },
   {
@@ -142,21 +142,60 @@ const migrations = [
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       
-      CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
-      CREATE INDEX idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
+      CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
     `
   },
   {
     name: 'harmonize_deal_statuses',
     up: `
-      -- Update legacy status values to match extension format
       UPDATE saved_deals SET status = 'none' WHERE status = 'new';
       UPDATE saved_deals SET status = 'pass' WHERE status = 'passed';
       UPDATE saved_deals SET status = 'warm' WHERE status IN ('reviewing', 'contacted');
       UPDATE saved_deals SET status = 'hot' WHERE status IN ('due-diligence', 'offer');
-      
-      -- Update the default for future inserts
-      ALTER TABLE saved_deals ALTER COLUMN status SET DEFAULT 'none';
+      DO $$ BEGIN
+        ALTER TABLE saved_deals ALTER COLUMN status SET DEFAULT 'none';
+      EXCEPTION WHEN others THEN NULL;
+      END $$;
+    `
+  },
+  {
+    name: 'create_airtable_deals_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS airtable_deals (
+        id SERIAL PRIMARY KEY,
+        airtable_id INTEGER UNIQUE,
+        name TEXT,
+        description TEXT,
+        industries TEXT[],
+        listing_url TEXT,
+        asking_price NUMERIC,
+        annual_revenue NUMERIC,
+        annual_profit NUMERIC,
+        profit_multiple NUMERIC,
+        revenue_multiple NUMERIC,
+        city TEXT,
+        county TEXT,
+        state TEXT,
+        country TEXT,
+        years_established INTEGER,
+        remote_relocatable TEXT,
+        franchise TEXT,
+        five_plus_years TEXT,
+        broker_name TEXT,
+        broker_company TEXT,
+        broker_contact TEXT,
+        broker_email TEXT,
+        airtable_updated_at TIMESTAMP,
+        airtable_added_at TIMESTAMP,
+        first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_airtable_deals_airtable_id ON airtable_deals(airtable_id);
+      CREATE INDEX IF NOT EXISTS idx_airtable_deals_state ON airtable_deals(state);
+      CREATE INDEX IF NOT EXISTS idx_airtable_deals_asking_price ON airtable_deals(asking_price);
+      CREATE INDEX IF NOT EXISTS idx_airtable_deals_last_scraped ON airtable_deals(last_scraped_at);
     `
   },
   {
@@ -170,15 +209,19 @@ const migrations = [
       END;
       $$ language 'plpgsql';
       
+      DROP TRIGGER IF EXISTS update_users_updated_at ON users;
       CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-        
+
+      DROP TRIGGER IF EXISTS update_user_settings_updated_at ON user_settings;
       CREATE TRIGGER update_user_settings_updated_at BEFORE UPDATE ON user_settings
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-        
+
+      DROP TRIGGER IF EXISTS update_saved_deals_updated_at ON saved_deals;
       CREATE TRIGGER update_saved_deals_updated_at BEFORE UPDATE ON saved_deals
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-        
+
+      DROP TRIGGER IF EXISTS update_subscriptions_updated_at ON subscriptions;
       CREATE TRIGGER update_subscriptions_updated_at BEFORE UPDATE ON subscriptions
         FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
     `

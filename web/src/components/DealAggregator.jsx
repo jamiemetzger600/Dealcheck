@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { filterDeals } from '../../../shared/buyBoxMatcher.js';
 import { dealsAPI, userAPI } from '../utils/api';
+import { fetchAllAirtableDeals } from '../utils/normalizeAirtableDeal';
 import DealDetailsPanel from './DealDetailsPanel';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -210,7 +211,8 @@ export default function DealAggregator({
   onMatchCountUpdate,
   onDealsStatsUpdate,
   onSaveDeal,
-  onSettingsUpdate
+  onSettingsUpdate,
+  feedSource = 'airtable'
 }) {
   const [deals, setDeals] = useState([]);
   const [filteredDeals, setFilteredDeals] = useState([]);
@@ -298,25 +300,30 @@ export default function DealAggregator({
     }
 
     try {
-      const response = await fetch(DEFAULT_DEALS_URL);
-      if (!response.ok) throw new Error(`Default deals feed error (${response.status})`);
+      if (feedSource === 'airtable') {
+        const airtableDeals = await fetchAllAirtableDeals(API_BASE_URL);
+        setDeals(dedupeDeals(airtableDeals));
+      } else {
+        const response = await fetch(DEFAULT_DEALS_URL);
+        if (!response.ok) throw new Error(`Default deals feed error (${response.status})`);
 
-      const csvText = await response.text();
-      const rows = parseCSV(csvText);
-      const defaultDeals = normalizeRows(rows, {
-        sourceName: 'Business Listings Database (100+ Real Deals)',
-        sourceType: 'google_sheets'
-      });
+        const csvText = await response.text();
+        const rows = parseCSV(csvText);
+        const defaultDeals = normalizeRows(rows, {
+          sourceName: 'Business Listings Database (100+ Real Deals)',
+          sourceType: 'google_sheets'
+        });
 
-      let nextCustomSources = [...customSources];
-      if (refreshCustomSources) {
-        nextCustomSources = await refreshCachedCustomSources(customSources);
-        setCustomSources(nextCustomSources);
-        await persistCustomSources(nextCustomSources, onSettingsUpdate);
+        let nextCustomSources = [...customSources];
+        if (refreshCustomSources) {
+          nextCustomSources = await refreshCachedCustomSources(customSources);
+          setCustomSources(nextCustomSources);
+          await persistCustomSources(nextCustomSources, onSettingsUpdate);
+        }
+
+        const cachedCustomDeals = getCachedCustomDeals(nextCustomSources);
+        setDeals(dedupeDeals([...defaultDeals, ...cachedCustomDeals]));
       }
-
-      const cachedCustomDeals = getCachedCustomDeals(nextCustomSources);
-      setDeals(dedupeDeals([...defaultDeals, ...cachedCustomDeals]));
     } catch (error) {
       console.error('Failed to fetch deals:', error);
       if (!background) {

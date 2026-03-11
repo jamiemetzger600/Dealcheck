@@ -44,6 +44,14 @@ function App() {
             } 
           />
           <Route 
+            path="/dashboard/airtable" 
+            element={
+              <ProtectedRoute>
+                <DashboardPage feedSource="airtable" />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
             path="/billing" 
             element={
               <ProtectedRoute>

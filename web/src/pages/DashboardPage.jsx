@@ -9,7 +9,7 @@ import BuyBoxModal from '../components/BuyBoxModal';
 import SourceManagerModal from '../components/SourceManagerModal';
 import ManualDealModal from '../components/ManualDealModal';
 
-export default function DashboardPage() {
+export default function DashboardPage({ feedSource = 'airtable' }) {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('aggregator');
   const [settings, setSettings] = useState(null);
@@ -111,6 +111,7 @@ export default function DashboardPage() {
             onDealsStatsUpdate={handleDealsStatsUpdate}
             onSaveDeal={loadUserData}
             onSettingsUpdate={loadUserData}
+            feedSource={feedSource}
           />
         )}
 

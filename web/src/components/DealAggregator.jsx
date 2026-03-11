@@ -236,6 +236,7 @@ export default function DealAggregator({
   const [customFlexibilityInput, setCustomFlexibilityInput] = useState('');
   const [saveToast, setSaveToast] = useState(null);
   const [savingDealId, setSavingDealId] = useState(null);
+  const [feedError, setFeedError] = useState(null);
   const [isMobileViewport, setIsMobileViewport] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
   );
@@ -297,12 +298,14 @@ export default function DealAggregator({
   const fetchDeals = async ({ refreshCustomSources = false, background = false } = {}) => {
     if (!background) {
       setLoading(true);
+      setFeedError(null);
     }
 
     try {
       if (feedSource === 'airtable') {
         const airtableDeals = await fetchAllAirtableDeals(API_BASE_URL);
         setDeals(dedupeDeals(airtableDeals));
+        setFeedError(null);
       } else {
         const response = await fetch(DEFAULT_DEALS_URL);
         if (!response.ok) throw new Error(`Default deals feed error (${response.status})`);
@@ -328,6 +331,7 @@ export default function DealAggregator({
       console.error('Failed to fetch deals:', error);
       if (!background) {
         setDeals([]);
+        setFeedError(error?.message || 'Failed to load deals');
       }
     } finally {
       if (!background) {
@@ -665,6 +669,14 @@ export default function DealAggregator({
 
   return (
     <div className="deal-aggregator">
+      {feedError && (
+        <div className="aggregator-feed-error" role="alert">
+          {feedError}
+          {(feedError.includes('404') || feedError.includes('Failed to fetch')) && (
+            <span> Redeploy the <strong>backend</strong> on Koyeb from the latest main so it has the <code>/api/airtable-deals</code> route. Test: <a href={`${API_BASE_URL}/airtable-deals?limit=5`} target="_blank" rel="noopener noreferrer">open API URL</a></span>
+          )}
+        </div>
+      )}
       <div className="aggregator-welcome">
         <div className="aggregator-welcome__main">
           <h2>🔍 Discover Business Deals</h2>

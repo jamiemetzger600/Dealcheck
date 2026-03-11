@@ -66,9 +66,13 @@ export async function fetchAllAirtableDeals(apiBaseUrl) {
 
   while (hasMore) {
     const url = `${apiBaseUrl}/airtable-deals?limit=${PAGE_SIZE}&offset=${offset}`;
-    console.log(`[Airtable feed] Fetching offset=${offset}...`);
+    console.log(`[Airtable feed] Fetching offset=${offset}...`, url);
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`Airtable deals API error (${res.status})`);
+    if (!res.ok) {
+      const err = new Error(`Airtable deals API error (${res.status})`);
+      err.url = url;
+      throw err;
+    }
 
     const data = await res.json();
     const rows = data.deals || [];

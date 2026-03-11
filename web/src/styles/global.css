@@ -470,6 +470,16 @@ a {
   font-size: 14px;
 }
 
+.aggregator-feed-error {
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
 .aggregator-welcome {
   display: flex;
   flex-wrap: wrap;

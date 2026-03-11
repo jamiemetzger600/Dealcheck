@@ -26,8 +26,9 @@
    - **Root directory:** `web`
    - **Build command:** `npm run build`
    - **Output directory:** `dist`
-4. Environment variables:
+4. Environment variables (required for deals to load):
    - `VITE_API_URL` = your Koyeb backend URL **including** `/api` (e.g. `https://your-app.koyeb.app/api`)
+   - Without this, the app will show "Total: 0 Deals" because it will request `/api/airtable-deals` on the Pages host (which has no API). Set the variable in Cloudflare Pages → your project → Settings → Environment variables, then trigger a new build.
 5. Deploy — your app will be live at `https://your-project.pages.dev`
 
 ---

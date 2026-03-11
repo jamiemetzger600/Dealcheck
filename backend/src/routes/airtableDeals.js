@@ -89,7 +89,11 @@ router.get('/status', (_req, res) => {
 router.post('/scrape', async (_req, res) => {
   try {
     const result = await scrapeAirtable();
-    res.json(result);
+    if (result == null) {
+      res.json({ status: 'skipped', message: 'Scrape already in progress or no previous run yet. Check /api/airtable-deals/status for lastResult.' });
+      return;
+    }
+    res.json({ status: 'ok', ...result });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

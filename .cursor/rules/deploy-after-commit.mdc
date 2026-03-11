@@ -1,0 +1,33 @@
+---
+description: After commits that affect backend or frontend, redeploy Koyeb and/or Cloudflare so the live site reflects changes.
+alwaysApply: false
+---
+
+# Redeploy After Commit (Koyeb & Cloudflare)
+
+When planning or completing work that touches the **backend** or **database**, or the **web** app, ensure the right deployment step runs so the live site is updated.
+
+## Koyeb (backend + DB)
+
+- **Service:** `database/vettr` (app-name/service-name).
+- **When:** Any commit that changes `backend/` or that requires DB migrations (e.g. after changing `backend/src/db/migrate.js`).
+- **Redeploy command (run from project root):**
+  ```bash
+  koyeb services redeploy database/vettr
+  ```
+- **Prereqs:** [Koyeb CLI](https://github.com/koyeb/koyeb-cli) installed and logged in (`koyeb login --token YOUR_API_TOKEN`). Config in `~/.koyeb.yaml`.
+- **After backend redeploy:** If you added a migration, run migrations on the Koyeb DB (e.g. via Koyeb shell or one-off run: `npm run migrate`).
+
+## Cloudflare Pages (web)
+
+- **When:** Any commit that changes `web/` and is pushed to the branch connected to Cloudflare (usually `main`).
+- **Default:** Cloudflare Pages is connected to the GitHub repo; pushing to `main` triggers an automatic build and deploy. No extra step if you push.
+- **If auto-deploy is off or you need a manual deploy:** Cloudflare dashboard → your Pages project → Deployments → “Retry deployment” or “Create deployment” from the branch.
+
+## Workflow after commit
+
+1. **Backend-only or DB change:** Commit and push, then run `koyeb services redeploy database/vettr` (and run migrations on Koyeb if needed).
+2. **Web-only change:** Commit and push to `main`; Cloudflare will deploy if connected.
+3. **Backend and web change:** Commit and push; run `koyeb services redeploy database/vettr`; Cloudflare will deploy from the push.
+
+When completing a commit that affects backend or DB, offer to run the Koyeb redeploy command (user must have `koyeb` CLI logged in). When the commit affects `web/`, remind that pushing to `main` will trigger Cloudflare if auto-deploy is enabled.

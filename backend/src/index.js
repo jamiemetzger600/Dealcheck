@@ -77,7 +77,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Dealcheck API server running on port ${PORT}`);
+  console.log(`🚀 Vettr API server running on port ${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 Web app URL: ${process.env.WEB_APP_URL || 'http://localhost:3000'}`);
 });

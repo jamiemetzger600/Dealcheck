@@ -1,5 +1,5 @@
 /**
- * Dealcheck Shared Module
+ * Vettr Shared Module
  * Business logic used across extension, web, and backend
  */
 

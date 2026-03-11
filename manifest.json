@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Max Price Deal Analyzer",
+  "name": "Vettr - Find it.Vet it. Save it.",
   "version": "4.0.0",
   "description": "Complete deal acquisition platform: Aggregate deals from 10+ sources, filter with AI-powered buy box, analyze with scenario calculator, and track through due diligence. Data → Information → Knowledge → Insight → Wisdom.",
   "permissions": ["storage", "unlimitedStorage", "activeTab", "tabs", "alarms", "notifications", "downloads", "identity"],
@@ -12,7 +12,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Toggle Deal Analyzer",
+    "default_title": "Open Vettr",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

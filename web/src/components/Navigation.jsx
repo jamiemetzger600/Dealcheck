@@ -1,4 +1,9 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import pkg from '../../package.json';
+
+const HEADER_HIDE_AFTER_MS = 3000;
+const SCROLL_TOP_THRESHOLD = 80;
 
 export default function Navigation({
   user,
@@ -16,10 +21,33 @@ export default function Navigation({
   onConfigureBuyBox
 }) {
   const navigate = useNavigate();
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const hideTimerRef = useRef(null);
+
+  const scheduleHide = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setHeaderVisible(false), HEADER_HIDE_AFTER_MS);
+  };
+
+  useEffect(() => {
+    scheduleHide();
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.scrollY < SCROLL_TOP_THRESHOLD) {
+        setHeaderVisible(true);
+        scheduleHide();
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   return (
     <>
-      <nav className="app-header">
+      <nav className={`app-header ${headerVisible ? '' : 'app-header--hidden'}`}>
         <div className="app-header-copy">
           <h1>📊 {pageTitle}</h1>
           <p>{pageSubtitle}</p>
@@ -56,6 +84,7 @@ export default function Navigation({
               <span>⚙️</span>
               <span>Settings</span>
             </button>
+            <span className="app-header-version app-header-version--in-row" title="App version">v{pkg.version}</span>
           </div>
 
           <div className="tab-navigation">

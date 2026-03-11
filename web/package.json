@@ -1,7 +1,7 @@
 {
-  "name": "dealcheck-web",
+  "name": "vettr-web",
   "version": "4.1.0",
-  "description": "Dealcheck mobile web app (PWA)",
+  "description": "Vettr mobile web app (PWA)",
   "type": "module",
   "scripts": {
     "dev": "vite",

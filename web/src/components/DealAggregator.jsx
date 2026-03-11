@@ -140,11 +140,11 @@ export default function DealAggregator({
   }, [deals, settings, searchQuery, excludeKeywords, hiddenDealIds, showHiddenDeals, sortConfig]);
 
   useEffect(() => {
-    localStorage.setItem('dealcheck_visible_columns', JSON.stringify(visibleColumns));
+    localStorage.setItem('vettr_visible_columns', JSON.stringify(visibleColumns));
   }, [visibleColumns]);
 
   useEffect(() => {
-    localStorage.setItem('dealcheck_aggregator_sort', JSON.stringify(sortConfig));
+    localStorage.setItem('vettr_aggregator_sort', JSON.stringify(sortConfig));
   }, [sortConfig]);
 
   const fetchDeals = async ({ refreshCustomSources = false, background = false } = {}) => {
@@ -1215,7 +1215,7 @@ function generateDealId(str) {
 
 function loadVisibleColumns() {
   try {
-    const saved = localStorage.getItem('dealcheck_visible_columns');
+    const saved = localStorage.getItem('vettr_visible_columns');
     return saved ? { ...DEFAULT_VISIBLE_COLUMNS, ...JSON.parse(saved) } : DEFAULT_VISIBLE_COLUMNS;
   } catch {
     return DEFAULT_VISIBLE_COLUMNS;
@@ -1224,7 +1224,7 @@ function loadVisibleColumns() {
 
 function loadSavedSortConfig() {
   try {
-    const saved = localStorage.getItem('dealcheck_aggregator_sort');
+    const saved = localStorage.getItem('vettr_aggregator_sort');
     return saved ? JSON.parse(saved) : DEFAULT_SORT;
   } catch {
     return DEFAULT_SORT;

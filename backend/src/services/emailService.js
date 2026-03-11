@@ -37,7 +37,7 @@ export async function sendEmail({ to, subject, html }) {
 
   try {
     const info = await transporter.sendMail({
-      from: `"Dealcheck" <${process.env.SMTP_USER}>`,
+      from: `"Vettr" <${process.env.SMTP_USER}>`,
       to,
       subject,
       html
@@ -58,7 +58,7 @@ export async function sendEmail({ to, subject, html }) {
 export async function sendTestEmail(to) {
   return sendEmail({
     to,
-    subject: 'Dealcheck Email Test',
+    subject: 'Vettr Email Test',
     html: '<h1>Email service is working!</h1><p>You can now receive deal-matching notifications.</p>'
   });
 }

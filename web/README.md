@@ -1,4 +1,4 @@
-# Dealcheck Web App v4.0.0
+# Vettr Web App v4.0.0
 
 Mobile-accessible PWA (Progressive Web App) for business acquisition deal analysis.
 

@@ -2,20 +2,20 @@
 
 ## iOS (Safari)
 
-1. Open Dealcheck in Safari
+1. Open Vettr in Safari
 2. Tap the **Share** button (box with arrow pointing up)
 3. Scroll down and tap **"Add to Home Screen"**
 4. Edit the name if desired
 5. Tap **"Add"**
-6. The Dealcheck icon will appear on your home screen
+6. The Vettr icon will appear on your home screen
 
 ## Android (Chrome)
 
-1. Open Dealcheck in Chrome
+1. Open Vettr in Chrome
 2. Tap the **menu** (three dots) in the top-right corner
 3. Tap **"Add to Home screen"** or **"Install app"**
 4. Confirm by tapping **"Add"** or **"Install"**
-5. The Dealcheck icon will appear on your home screen
+5. The Vettr icon will appear on your home screen
 
 ## Features When Installed
 

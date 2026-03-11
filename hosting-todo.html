@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vettr Hosting Deploy — Checklist</title>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy-deep:  #1a3a50;
+      --navy-mid:   #28405a;
+      --steel-blue: #3d5a78;
+      --teal:       #4a8fa8;
+      --ice-blue:   #8ca0b4;
+      --silver:     #c8c8c8;
+      --off-white:  #dde2e7;
+      --page-bg:    #f0f2f4;
+      --card-bg:    #f5f6f7;
+      --white:      #ffffff;
+      --charcoal:   #2a2a2a;
+      --red:        #c0392b;
+      --green:      #2e7d52;
+      --amber:      #c07a1a;
+    }
+
+    body {
+      font-family: 'Oswald', sans-serif;
+      background: var(--page-bg);
+      color: var(--charcoal);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    header {
+      background: var(--navy-deep);
+      color: var(--white);
+      padding: 16px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    header .brand  { font-size: 15px; font-weight: 700; letter-spacing: 0.07em; }
+    header .sub    { font-size: 12px; font-weight: 300; color: var(--ice-blue); margin-top: 2px; }
+    header .title  { font-size: 20px; font-weight: 600; text-align: right; }
+    header .title span { display: block; font-size: 12px; font-weight: 300; color: var(--ice-blue); margin-top: 2px; }
+
+    .page { max-width: 960px; margin: 0 auto; padding: 28px 20px 60px; }
+
+    /* ── Overall Progress ── */
+    .overall-progress {
+      background: var(--navy-mid);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
+      color: var(--white);
+      box-shadow: 0 2px 8px rgba(26,58,80,0.18);
+    }
+    .op-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .op-header h2 { font-size: 16px; font-weight: 600; }
+    .op-count { font-size: 22px; font-weight: 700; color: var(--teal); }
+    .op-label { font-size: 11px; color: var(--ice-blue); text-align: right; }
+    .progress-bar-bg {
+      background: rgba(255,255,255,0.15);
+      border-radius: 6px; height: 10px; overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%; border-radius: 6px;
+      background: linear-gradient(90deg, var(--teal), #5eb8d0);
+      transition: width 0.4s ease;
+    }
+    .stage-chips {
+      display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;
+    }
+    .stage-chip {
+      font-size: 11px; font-weight: 500;
+      padding: 4px 14px; border-radius: 14px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .chip-0 { background: rgba(74,143,168,0.25); border: 1px solid var(--teal); color: #8fd0e8; }
+    .chip-1 { background: rgba(200,200,200,0.15); border: 1px solid var(--ice-blue); color: var(--ice-blue); }
+    .chip-2 { background: rgba(200,200,200,0.15); border: 1px solid var(--ice-blue); color: var(--ice-blue); }
+    .chip-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+    /* ── Reset Button ── */
+    .top-actions { display: flex; justify-content: flex-end; margin-bottom: 14px; gap: 10px; }
+    .btn-reset {
+      font-family: 'Oswald', sans-serif;
+      font-size: 12px; font-weight: 500;
+      padding: 6px 16px; border-radius: 4px;
+      border: 1px solid var(--ice-blue);
+      background: transparent; color: var(--steel-blue);
+      cursor: pointer; letter-spacing: 0.04em;
+      transition: all 0.15s;
+    }
+    .btn-reset:hover { background: var(--off-white); color: var(--navy-deep); }
+
+    /* ── Sections ── */
+    .section { margin-bottom: 20px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(26,58,80,0.10); }
+
+    .section-header {
+      background: var(--navy-deep);
+      color: var(--white);
+      padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; user-select: none;
+      transition: background 0.15s;
+    }
+    .section-header:hover { background: var(--navy-mid); }
+    .section-header-left { display: flex; align-items: center; gap: 12px; }
+    .section-icon { font-size: 20px; }
+    .section-title-block h3 { font-size: 15px; font-weight: 600; }
+    .section-title-block .section-sub { font-size: 11px; font-weight: 300; color: var(--ice-blue); margin-top: 1px; }
+    .section-header-right { display: flex; align-items: center; gap: 14px; }
+    .section-progress-text { font-size: 12px; font-weight: 500; color: var(--teal); white-space: nowrap; }
+    .section-mini-bar {
+      width: 80px; height: 6px; border-radius: 3px;
+      background: rgba(255,255,255,0.2); overflow: hidden;
+    }
+    .section-mini-fill {
+      height: 100%; border-radius: 3px;
+      background: var(--teal);
+      transition: width 0.35s ease;
+    }
+    .chevron { font-size: 12px; color: var(--ice-blue); transition: transform 0.2s; }
+    .section.collapsed .chevron { transform: rotate(-90deg); }
+
+    .section-body {
+      background: var(--card-bg);
+      border: 1px solid var(--silver);
+      border-top: none;
+    }
+    .section.collapsed .section-body { display: none; }
+
+    /* ── Sub-groups ── */
+    .sub-group { padding: 0; }
+    .sub-group-label {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--ice-blue);
+      padding: 12px 18px 4px;
+      border-bottom: 1px solid var(--off-white);
+      background: var(--white);
+    }
+
+    /* ── Task Items ── */
+    .task-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 11px 18px;
+      border-bottom: 1px solid var(--off-white);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .task-item:last-child { border-bottom: none; }
+    .task-item:hover { background: #eef1f4; }
+    .task-item.done { opacity: 0.6; }
+    .task-item.done .task-text { text-decoration: line-through; color: var(--ice-blue); }
+
+    /* Custom checkbox */
+    .task-cb {
+      width: 18px; height: 18px; border-radius: 4px;
+      border: 2px solid var(--silver);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 1px;
+      transition: all 0.15s;
+      background: var(--white);
+    }
+    .task-item.done .task-cb {
+      background: var(--teal); border-color: var(--teal);
+    }
+    .task-cb::after {
+      content: '✓';
+      font-size: 11px; font-weight: 700; color: var(--white);
+      display: none;
+    }
+    .task-item.done .task-cb::after { display: block; }
+
+    .task-content { flex: 1; }
+    .task-text { font-size: 13px; font-weight: 400; color: var(--charcoal); }
+    .task-detail {
+      font-size: 11px; font-weight: 300; color: var(--steel-blue);
+      margin-top: 3px; font-style: italic;
+    }
+    .task-code {
+      display: inline-block;
+      background: var(--navy-deep);
+      color: var(--teal);
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      padding: 1px 7px; border-radius: 3px;
+      margin-top: 4px;
+    }
+    .task-badge {
+      font-size: 10px; font-weight: 600;
+      padding: 1px 8px; border-radius: 10px;
+      letter-spacing: 0.06em; white-space: nowrap;
+      flex-shrink: 0; margin-top: 2px;
+    }
+    .badge-warn  { background: #fff3cd; color: var(--amber); border: 1px solid #f0c060; }
+    .badge-info  { background: #e0f0f7; color: var(--teal); border: 1px solid var(--teal); }
+    .badge-crit  { background: #fdecea; color: var(--red); border: 1px solid #e88; }
+
+    /* ── Completion Banner ── */
+    .done-banner {
+      display: none;
+      background: linear-gradient(135deg, var(--teal), var(--navy-mid));
+      color: var(--white);
+      border-radius: 8px;
+      padding: 22px 24px;
+      text-align: center;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(74,143,168,0.3);
+    }
+    .done-banner.show { display: block; }
+    .done-banner h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .done-banner p  { font-size: 13px; font-weight: 300; color: #d0edf5; }
+
+    footer {
+      background: var(--navy-deep);
+      color: var(--ice-blue);
+      text-align: center;
+      padding: 12px;
+      font-size: 11px; font-weight: 300;
+      letter-spacing: 0.04em;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand">ALPINE COAST INVESTMENTS</div>
+    <div class="sub">Vettr App · Deployment Checklist</div>
+  </div>
+  <div class="title">Hosting Launch Plan
+    <span>Cloudflare Pages + Koyeb · Free Tier</span>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- ── Done Banner ── -->
+  <div class="done-banner" id="doneBanner">
+    <h2>🚀 You're Live!</h2>
+    <p>All deployment steps complete. Vettr is running on a free, always-on, production-ready stack.</p>
+  </div>
+
+  <!-- ── Overall Progress ── -->
+  <div class="overall-progress">
+    <div class="op-header">
+      <h2>Overall Deployment Progress</h2>
+      <div style="text-align:right">
+        <div class="op-count" id="overallCount">0 / 0</div>
+        <div class="op-label">tasks complete</div>
+      </div>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="overallBar" style="width:0%"></div>
+    </div>
+    <div class="stage-chips">
+      <div class="stage-chip chip-0">
+        <span class="chip-dot" style="background:var(--teal)"></span>
+        Stage 1 — Free ($0/mo)
+      </div>
+      <div class="stage-chip chip-1">
+        <span class="chip-dot" style="background:var(--ice-blue)"></span>
+        Stage 2 — Growth (~$5/mo)
+      </div>
+      <div class="stage-chip chip-2">
+        <span class="chip-dot" style="background:var(--silver)"></span>
+        Stage 3 — Scale (~$40–65/mo)
+      </div>
+    </div>
+  </div>
+
+  <div class="top-actions">
+    <button class="btn-reset" onclick="resetAll()">↺ Reset All</button>
+  </div>
+
+  <!-- ═══ SECTION 1: CODE PREP ═══ -->
+  <div class="section" id="sec-codeprep">
+    <div class="section-header" onclick="toggleSection('sec-codeprep')">
+      <div class="section-header-left">
+        <span class="section-icon">🛠</span>
+        <div class="section-title-block">
+          <h3>Step 1 — Code Prep (Run in Cursor)</h3>
+          <div class="section-sub">Apply the Cursor prompt to configure the codebase for production</div>
+        </div>
+      </div>
+      <div class="section-header-right">
+        <span class="section-progress-text" id="prog-codeprep">0/0</span>
+        <div class="section-mini-bar"><div class="section-mini-fill" id="bar-codeprep" style="width:0%"></div></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="sub-group-label">In Cursor IDE — paste the Cursor prompt and let it run</div>
+
+      <div class="task-item" data-id="cp1" onclick="toggle('cp1')">
+        <div class="task-cb" id="cb-cp1"></div>
+        <div class="task-content">
+          <div class="task-text">Open Cursor and paste the <strong>CURSOR_DEPLOY_PROMPT.md</strong> into a new chat</div>
+          <div class="task-detail">The prompt is in your project root. Use Cursor's "Chat" mode (not "Edit") for the initial pass.</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cp2" onclick="toggle('cp2')">
+        <div class="task-cb" id="cb-cp2"></div>
+        <div class="task-content">
+          <div class="task-text">Cursor creates <code class="task-code">web/.env.example</code> with all frontend variables</div>
+          <div class="task-detail">Confirms VITE_API_URL is documented and .env is in .gitignore</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cp3" onclick="toggle('cp3')">
+        <div class="task-cb" id="cb-cp3"></div>
+        <div class="task-content">
+          <div class="task-text">Cursor creates <code class="task-code">backend/.env.example</code> with all backend variables</div>
+          <div class="task-detail">DATABASE_URL, JWT_SECRET, STRIPE keys, WEB_APP_URL, email settings, NODE_ENV</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cp4" onclick="toggle('cp4')">
+        <div class="task-cb" id="cb-cp4"></div>
+        <div class="task-content">
+          <div class="task-text">Cursor creates <code class="task-code">web/public/_redirects</code> for Cloudflare Pages SPA routing</div>
+          <div class="task-detail">Required so that direct URL access (e.g. /login) doesn't 404 on Cloudflare. Content: /* /index.html 200</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cp5" onclick="toggle('cp5')">
+        <div class="task-cb" id="cb-cp5"></div>
+        <div class="task-content">
+          <div class="task-text">Verify <code class="task-code">backend/src/db/pool.js</code> SSL config looks correct</div>
+          <div class="task-detail">Already set to use SSL in production — confirm rejectUnauthorized: false is present for hosted DBs</div>
+        </div>
+        <span class="task-badge badge-info">ALREADY DONE</span>
+      </div>
+
+      <div class="task-item" data-id="cp6" onclick="toggle('cp6')">
+        <div class="task-cb" id="cb-cp6"></div>
+        <div class="task-content">
+          <div class="task-text">Commit all code changes and push to GitHub</div>
+          <div class="task-detail">Both Cloudflare Pages and Koyeb will deploy from your GitHub repo automatically</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 2: CLOUDFLARE PAGES ═══ -->
+  <div class="section" id="sec-cf">
+    <div class="section-header" onclick="toggleSection('sec-cf')">
+      <div class="section-header-left">
+        <span class="section-icon">☁️</span>
+        <div class="section-title-block">
+          <h3>Step 2 — Cloudflare Pages (Frontend)</h3>
+          <div class="section-sub">Free · Unlimited bandwidth · Commercial use OK · ~5 min</div>
+        </div>
+      </div>
+      <div class="section-header-right">
+        <span class="section-progress-text" id="prog-cf">0/0</span>
+        <div class="section-mini-bar"><div class="section-mini-fill" id="bar-cf" style="width:0%"></div></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="sub-group-label">Account Setup</div>
+
+      <div class="task-item" data-id="cf1" onclick="toggle('cf1')">
+        <div class="task-cb" id="cb-cf1"></div>
+        <div class="task-content">
+          <div class="task-text">Go to <strong>cloudflare.com</strong> → Create a free account</div>
+          <div class="task-detail">No credit card required for Pages free tier</div>
+        </div>
+      </div>
+
+      <div class="sub-group-label">Create Pages Project</div>
+
+      <div class="task-item" data-id="cf2" onclick="toggle('cf2')">
+        <div class="task-cb" id="cb-cf2"></div>
+        <div class="task-content">
+          <div class="task-text">In Cloudflare dashboard → <strong>Workers & Pages</strong> → <strong>Create</strong> → <strong>Pages</strong></div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cf3" onclick="toggle('cf3')">
+        <div class="task-cb" id="cb-cf3"></div>
+        <div class="task-content">
+          <div class="task-text">Click <strong>Connect to Git</strong> → authorize GitHub → select your repo (e.g. <code class="task-code">Dealcheck-main</code> or <code class="task-code">Vettr</code>)</div>
+        </div>
+      </div>
+
+      <div class="sub-group-label">Configure Build Settings</div>
+
+      <div class="task-item" data-id="cf4" onclick="toggle('cf4')">
+        <div class="task-cb" id="cb-cf4"></div>
+        <div class="task-content">
+          <div class="task-text">Set <strong>Root Directory</strong></div>
+          <div class="task-code">web</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cf5" onclick="toggle('cf5')">
+        <div class="task-cb" id="cb-cf5"></div>
+        <div class="task-content">
+          <div class="task-text">Set <strong>Framework Preset</strong> to <em>Vite</em> (auto-detects build command)</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cf6" onclick="toggle('cf6')">
+        <div class="task-cb" id="cb-cf6"></div>
+        <div class="task-content">
+          <div class="task-text">Confirm <strong>Build command</strong> and <strong>Output directory</strong></div>
+          <div class="task-code">npm run build</div>
+          <div class="task-code">dist</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cf7" onclick="toggle('cf7')">
+        <div class="task-cb" id="cb-cf7"></div>
+        <div class="task-content">
+          <div class="task-text">Add environment variable: <code class="task-code">VITE_API_URL</code></div>
+          <div class="task-detail">Leave the value as your Koyeb backend URL — come back to fill this after Step 3. For now, set a placeholder.</div>
+        </div>
+        <span class="task-badge badge-warn">FILL LATER</span>
+      </div>
+
+      <div class="task-item" data-id="cf8" onclick="toggle('cf8')">
+        <div class="task-cb" id="cb-cf8"></div>
+        <div class="task-content">
+          <div class="task-text">Click <strong>Save and Deploy</strong> — wait for build to complete (~1–2 min)</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cf9" onclick="toggle('cf9')">
+        <div class="task-cb" id="cb-cf9"></div>
+        <div class="task-content">
+          <div class="task-text">✅ Note your Cloudflare Pages URL (e.g. <code class="task-code">vettr.pages.dev</code>)</div>
+          <div class="task-detail">You'll need this for the backend's WEB_APP_URL (CORS) setting in Step 3</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="cf10" onclick="toggle('cf10')">
+        <div class="task-cb" id="cb-cf10"></div>
+        <div class="task-content">
+          <div class="task-text">(Optional) Add a custom domain under <strong>Pages → Custom Domains</strong></div>
+          <div class="task-detail">Free on Cloudflare — takes ~5 min with automatic HTTPS</div>
+        </div>
+        <span class="task-badge badge-info">OPTIONAL</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 3: KOYEB ═══ -->
+  <div class="section" id="sec-koyeb">
+    <div class="section-header" onclick="toggleSection('sec-koyeb')">
+      <div class="section-header-left">
+        <span class="section-icon">🟣</span>
+        <div class="section-title-block">
+          <h3>Step 3 — Koyeb (Backend + PostgreSQL)</h3>
+          <div class="section-sub">Free · Always-on · No cold starts · Commercial use OK · ~10 min</div>
+        </div>
+      </div>
+      <div class="section-header-right">
+        <span class="section-progress-text" id="prog-koyeb">0/0</span>
+        <div class="section-mini-bar"><div class="section-mini-fill" id="bar-koyeb" style="width:0%"></div></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="sub-group-label">Account & Database</div>
+
+      <div class="task-item" data-id="kb1" onclick="toggle('kb1')">
+        <div class="task-cb" id="cb-kb1"></div>
+        <div class="task-content">
+          <div class="task-text">Go to <strong>koyeb.com</strong> → Sign up (no credit card required)</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="kb2" onclick="toggle('kb2')">
+        <div class="task-cb" id="cb-kb2"></div>
+        <div class="task-content">
+          <div class="task-text">In dashboard → <strong>Databases</strong> → <strong>Create Database</strong> → select <strong>PostgreSQL (Free)</strong></div>
+          <div class="task-detail">Name it something like <code class="task-code">vettr-db</code></div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="kb3" onclick="toggle('kb3')">
+        <div class="task-cb" id="cb-kb3"></div>
+        <div class="task-content">
+          <div class="task-text">Copy the <strong>DATABASE_URL</strong> connection string from the DB dashboard</div>
+          <div class="task-detail">Save it somewhere secure — you'll paste it as an env variable in the next steps</div>
+        </div>
+        <span class="task-badge badge-crit">SAVE THIS</span>
+      </div>
+
+      <div class="sub-group-label">Deploy the Backend Service</div>
+
+      <div class="task-item" data-id="kb4" onclick="toggle('kb4')">
+        <div class="task-cb" id="cb-kb4"></div>
+        <div class="task-content">
+          <div class="task-text">In Koyeb → <strong>Services</strong> → <strong>Create Service</strong> → <strong>GitHub</strong></div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="kb5" onclick="toggle('kb5')">
+        <div class="task-cb" id="cb-kb5"></div>
+        <div class="task-content">
+          <div class="task-text">Authorize GitHub → select your repo</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="kb6" onclick="toggle('kb6')">
+        <div class="task-cb" id="cb-kb6"></div>
+        <div class="task-content">
+          <div class="task-text">Set <strong>Root Directory</strong></div>
+          <div class="task-code">backend</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="kb7" onclick="toggle('kb7')">
+        <div class="task-cb" id="cb-kb7"></div>
+        <div class="task-content">
+          <div class="task-text">Set <strong>Build Command</strong> and <strong>Run Command</strong></div>
+          <div class="task-code">npm install</div>
+          <div class="task-code">npm start</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="kb8" onclick="toggle('kb8')">
+        <div class="task-cb" id="cb-kb8"></div>
+        <div class="task-content">
+          <div class="task-text">Set <strong>Port</strong> to <code class="task-code">3001</code></div>
+          <div class="task-detail">Matches the PORT env var default in your index.js</div>
+        </div>
+      </div>
+
+      <div class="sub-group-label">Environment Variables — Add All of These</div>
+
+      <div class="task-item" data-id="kb9" onclick="toggle('kb9')">
+        <div class="task-cb" id="cb-kb9"></div>
+        <div class="task-content">
+          <div class="task-text">Add <code class="task-code">DATABASE_URL</code> → paste the connection string from Step 3c</div>
+        </div>
+        <span class="task-badge badge-crit">REQUIRED</span>
+      </div>
+
+      <div class="task-item" data-id="kb10" onclick="toggle('kb10')">
+        <div class="task-cb" id="cb-kb10"></div>
+        <div class="task-content">
+          <div class="task-text">Add <code class="task-code">JWT_SECRET</code> → generate a strong random string (32+ chars)</div>
+          <div class="task-detail">Use: openssl rand -base64 32 in terminal, or a password manager</div>
+        </div>
+        <span class="task-badge badge-crit">REQUIRED</span>
+      </div>
+
+      <div class="task-item" data-id="kb11" onclick="toggle('kb11')">
+        <div class="task-cb" id="cb-kb11"></div>
+        <div class="task-content">
+          <div class="task-text">Add <code class="task-code">NODE_ENV=production</code></div>
+        </div>
+        <span class="task-badge badge-crit">REQUIRED</span>
+      </div>
+
+      <div class="task-item" data-id="kb12" onclick="toggle('kb12')">
+        <div class="task-cb" id="cb-kb12"></div>
+        <div class="task-content">
+          <div class="task-text">Add <code class="task-code">WEB_APP_URL</code> → your Cloudflare Pages URL from Step 2i</div>
+          <div class="task-detail">This controls which origins are allowed by CORS. Example: https://vettr.pages.dev</div>
+        </div>
+        <span class="task-badge badge-crit">REQUIRED</span>
+      </div>
+
+      <div class="task-item" data-id="kb13" onclick="toggle('kb13')">
+        <div class="task-cb" id="cb-kb13"></div>
+        <div class="task-content">
+          <div class="task-text">Add <code class="task-code">STRIPE_SECRET_KEY</code> → from Stripe Dashboard (use test key first)</div>
+        </div>
+        <span class="task-badge badge-crit">REQUIRED</span>
+      </div>
+
+      <div class="task-item" data-id="kb14" onclick="toggle('kb14')">
+        <div class="task-cb" id="cb-kb14"></div>
+        <div class="task-content">
+          <div class="task-text">Add <code class="task-code">STRIPE_WEBHOOK_SECRET</code> → will get this from Stripe in Step 5</div>
+        </div>
+        <span class="task-badge badge-warn">FILL LATER</span>
+      </div>
+
+      <div class="task-item" data-id="kb15" onclick="toggle('kb15')">
+        <div class="task-cb" id="cb-kb15"></div>
+        <div class="task-content">
+          <div class="task-text">Add email environment variables for Nodemailer</div>
+          <div class="task-code">EMAIL_HOST · EMAIL_PORT · EMAIL_USER · EMAIL_PASS</div>
+          <div class="task-detail">Use Gmail App Password, Mailgun, or Resend (free tiers available)</div>
+        </div>
+        <span class="task-badge badge-warn">IF USING EMAIL</span>
+      </div>
+
+      <div class="sub-group-label">Deploy & Verify</div>
+
+      <div class="task-item" data-id="kb16" onclick="toggle('kb16')">
+        <div class="task-cb" id="cb-kb16"></div>
+        <div class="task-content">
+          <div class="task-text">Click <strong>Deploy</strong> — wait for the service to go live (~2–3 min)</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="kb17" onclick="toggle('kb17')">
+        <div class="task-cb" id="cb-kb17"></div>
+        <div class="task-content">
+          <div class="task-text">✅ Note your Koyeb backend URL (e.g. <code class="task-code">vettr-api.koyeb.app</code>)</div>
+        </div>
+        <span class="task-badge badge-crit">SAVE THIS</span>
+      </div>
+
+      <div class="task-item" data-id="kb18" onclick="toggle('kb18')">
+        <div class="task-cb" id="cb-kb18"></div>
+        <div class="task-content">
+          <div class="task-text">Test the health check endpoint in your browser</div>
+          <div class="task-code">https://&lt;your-koyeb-url&gt;/health</div>
+          <div class="task-detail">Should return: {"status":"ok","version":"4.1.0"}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 4: DB MIGRATION ═══ -->
+  <div class="section" id="sec-db">
+    <div class="section-header" onclick="toggleSection('sec-db')">
+      <div class="section-header-left">
+        <span class="section-icon">🗄</span>
+        <div class="section-title-block">
+          <h3>Step 4 — Run Database Migrations</h3>
+          <div class="section-sub">Initialize the PostgreSQL schema on Koyeb</div>
+        </div>
+      </div>
+      <div class="section-header-right">
+        <span class="section-progress-text" id="prog-db">0/0</span>
+        <div class="section-mini-bar"><div class="section-mini-fill" id="bar-db" style="width:0%"></div></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="task-item" data-id="db1" onclick="toggle('db1')">
+        <div class="task-cb" id="cb-db1"></div>
+        <div class="task-content">
+          <div class="task-text">In Koyeb dashboard → open your backend service → click <strong>Console</strong></div>
+          <div class="task-detail">This gives you a shell inside your running container</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="db2" onclick="toggle('db2')">
+        <div class="task-cb" id="cb-db2"></div>
+        <div class="task-content">
+          <div class="task-text">Run the migration script in the Koyeb console</div>
+          <div class="task-code">npm run migrate</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="db3" onclick="toggle('db3')">
+        <div class="task-cb" id="cb-db3"></div>
+        <div class="task-content">
+          <div class="task-text">Verify migration output shows no errors — all tables created successfully</div>
+          <div class="task-detail">Alternatively, run the migration locally pointing at the Koyeb DATABASE_URL in a .env file</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 5: WIRE UP ═══ -->
+  <div class="section" id="sec-wire">
+    <div class="section-header" onclick="toggleSection('sec-wire')">
+      <div class="section-header-left">
+        <span class="section-icon">🔗</span>
+        <div class="section-title-block">
+          <h3>Step 5 — Wire Everything Together</h3>
+          <div class="section-sub">Connect frontend → backend, configure Stripe webhooks</div>
+        </div>
+      </div>
+      <div class="section-header-right">
+        <span class="section-progress-text" id="prog-wire">0/0</span>
+        <div class="section-mini-bar"><div class="section-mini-fill" id="bar-wire" style="width:0%"></div></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="sub-group-label">Update Frontend → Backend URL</div>
+
+      <div class="task-item" data-id="w1" onclick="toggle('w1')">
+        <div class="task-cb" id="cb-w1"></div>
+        <div class="task-content">
+          <div class="task-text">In Cloudflare Pages → <strong>Settings → Environment Variables</strong> → update <code class="task-code">VITE_API_URL</code></div>
+          <div class="task-detail">Set to your full Koyeb backend URL: https://vettr-api.koyeb.app</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="w2" onclick="toggle('w2')">
+        <div class="task-cb" id="cb-w2"></div>
+        <div class="task-content">
+          <div class="task-text">Trigger a new Cloudflare Pages deployment (push an empty commit or click Retry)</div>
+          <div class="task-detail">The VITE_ env var is baked into the build, so a rebuild is required</div>
+        </div>
+      </div>
+
+      <div class="sub-group-label">Configure Stripe Webhooks</div>
+
+      <div class="task-item" data-id="w3" onclick="toggle('w3')">
+        <div class="task-cb" id="cb-w3"></div>
+        <div class="task-content">
+          <div class="task-text">Go to <strong>Stripe Dashboard → Webhooks → Add Endpoint</strong></div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="w4" onclick="toggle('w4')">
+        <div class="task-cb" id="cb-w4"></div>
+        <div class="task-content">
+          <div class="task-text">Set the webhook endpoint URL</div>
+          <div class="task-code">https://&lt;your-koyeb-url&gt;/api/payments/webhook</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="w5" onclick="toggle('w5')">
+        <div class="task-cb" id="cb-w5"></div>
+        <div class="task-content">
+          <div class="task-text">Copy the <strong>Webhook Signing Secret</strong> from Stripe</div>
+        </div>
+        <span class="task-badge badge-crit">SAVE THIS</span>
+      </div>
+
+      <div class="task-item" data-id="w6" onclick="toggle('w6')">
+        <div class="task-cb" id="cb-w6"></div>
+        <div class="task-content">
+          <div class="task-text">In Koyeb → update <code class="task-code">STRIPE_WEBHOOK_SECRET</code> env var → service will auto-restart</div>
+        </div>
+      </div>
+
+      <div class="sub-group-label">Update Chrome Extension (if backend URL is hardcoded)</div>
+
+      <div class="task-item" data-id="w7" onclick="toggle('w7')">
+        <div class="task-cb" id="cb-w7"></div>
+        <div class="task-content">
+          <div class="task-text">Search extension code for any hardcoded <code class="task-code">localhost:3001</code> or API base URLs</div>
+          <div class="task-detail">If found, update to your production Koyeb URL and republish to Chrome Web Store</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 6: TEST ═══ -->
+  <div class="section" id="sec-test">
+    <div class="section-header" onclick="toggleSection('sec-test')">
+      <div class="section-header-left">
+        <span class="section-icon">✅</span>
+        <div class="section-title-block">
+          <h3>Step 6 — End-to-End Testing</h3>
+          <div class="section-sub">Verify every critical flow before going live</div>
+        </div>
+      </div>
+      <div class="section-header-right">
+        <span class="section-progress-text" id="prog-test">0/0</span>
+        <div class="section-mini-bar"><div class="section-mini-fill" id="bar-test" style="width:0%"></div></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+
+      <div class="task-item" data-id="t1" onclick="toggle('t1')">
+        <div class="task-cb" id="cb-t1"></div>
+        <div class="task-content">
+          <div class="task-text">Register a new account via the web app — confirm user is created in DB</div>
+        </div>
+        <span class="task-badge badge-crit">CRITICAL</span>
+      </div>
+
+      <div class="task-item" data-id="t2" onclick="toggle('t2')">
+        <div class="task-cb" id="cb-t2"></div>
+        <div class="task-content">
+          <div class="task-text">Log in and verify JWT auth works (protected routes accessible)</div>
+        </div>
+        <span class="task-badge badge-crit">CRITICAL</span>
+      </div>
+
+      <div class="task-item" data-id="t3" onclick="toggle('t3')">
+        <div class="task-cb" id="cb-t3"></div>
+        <div class="task-content">
+          <div class="task-text">Save a deal — confirm it persists in the database</div>
+        </div>
+        <span class="task-badge badge-crit">CRITICAL</span>
+      </div>
+
+      <div class="task-item" data-id="t4" onclick="toggle('t4')">
+        <div class="task-cb" id="cb-t4"></div>
+        <div class="task-content">
+          <div class="task-text">Run a Stripe test checkout (use test card <code class="task-code">4242 4242 4242 4242</code>)</div>
+          <div class="task-detail">Verify the webhook fires successfully in Stripe Dashboard → Webhooks → Events</div>
+        </div>
+        <span class="task-badge badge-crit">CRITICAL</span>
+      </div>
+
+      <div class="task-item" data-id="t5" onclick="toggle('t5')">
+        <div class="task-cb" id="cb-t5"></div>
+        <div class="task-content">
+          <div class="task-text">Check Koyeb logs — confirm cron jobs are firing on schedule</div>
+          <div class="task-detail">In Koyeb → Service → Logs. Look for scheduled job output from notificationScheduler.js</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="t6" onclick="toggle('t6')">
+        <div class="task-cb" id="cb-t6"></div>
+        <div class="task-content">
+          <div class="task-text">Test email notifications are sending (check for delivery errors in Koyeb logs)</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="t7" onclick="toggle('t7')">
+        <div class="task-cb" id="cb-t7"></div>
+        <div class="task-content">
+          <div class="task-text">Install the web app as a PWA on mobile — confirm offline / add-to-home-screen works</div>
+        </div>
+      </div>
+
+      <div class="task-item" data-id="t8" onclick="toggle('t8')">
+        <div class="task-cb" id="cb-t8"></div>
+        <div class="task-content">
+          <div class="task-text">Test the Chrome Extension against the live backend URL</div>
+        </div>
+        <span class="task-badge badge-crit">CRITICAL</span>
+      </div>
+
+      <div class="task-item" data-id="t9" onclick="toggle('t9')">
+        <div class="task-cb" id="cb-t9"></div>
+        <div class="task-content">
+          <div class="task-text">Switch Stripe keys from test → live mode and repeat checkout test</div>
+          <div class="task-detail">Update STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in Koyeb with live keys when ready to launch</div>
+        </div>
+        <span class="task-badge badge-warn">LAUNCH DAY</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.page -->
+
+<footer>ALPINE COAST INVESTMENTS · Vettr Hosting Checklist · Progress saves automatically in your browser</footer>
+
+<script>
+  // ── Data ──────────────────────────────────────────────────────────────
+  const SECTIONS = {
+    'sec-codeprep': ['cp1','cp2','cp3','cp4','cp5','cp6'],
+    'sec-cf':       ['cf1','cf2','cf3','cf4','cf5','cf6','cf7','cf8','cf9','cf10'],
+    'sec-koyeb':    ['kb1','kb2','kb3','kb4','kb5','kb6','kb7','kb8','kb9','kb10','kb11','kb12','kb13','kb14','kb15','kb16','kb17','kb18'],
+    'sec-db':       ['db1','db2','db3'],
+    'sec-wire':     ['w1','w2','w3','w4','w5','w6','w7'],
+    'sec-test':     ['t1','t2','t3','t4','t5','t6','t7','t8','t9']
+  };
+
+  const STORAGE_KEY = 'vettr-deploy-todos';
+
+  // ── State ─────────────────────────────────────────────────────────────
+  let state = {};
+
+  function loadState() {
+    try { state = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+    catch(e) { state = {}; }
+  }
+
+  function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  // ── Toggle a task ─────────────────────────────────────────────────────
+  function toggle(id) {
+    state[id] = !state[id];
+    saveState();
+    renderItem(id);
+    renderProgress();
+  }
+
+  function renderItem(id) {
+    const item = document.querySelector(`[data-id="${id}"]`);
+    const cb   = document.getElementById(`cb-${id}`);
+    if (!item || !cb) return;
+    if (state[id]) {
+      item.classList.add('done');
+    } else {
+      item.classList.remove('done');
+    }
+  }
+
+  // ── Toggle section collapse ───────────────────────────────────────────
+  function toggleSection(id) {
+    const sec = document.getElementById(id);
+    sec.classList.toggle('collapsed');
+  }
+
+  // ── Progress rendering ────────────────────────────────────────────────
+  function renderProgress() {
+    let total = 0, done = 0;
+
+    for (const [secId, ids] of Object.entries(SECTIONS)) {
+      const secDone = ids.filter(id => state[id]).length;
+      const secTotal = ids.length;
+      total += secTotal;
+      done  += secDone;
+
+      const pct = secTotal > 0 ? Math.round((secDone / secTotal) * 100) : 0;
+      const progEl = document.getElementById(`prog-${secId.replace('sec-','')}`);
+      const barEl  = document.getElementById(`bar-${secId.replace('sec-','')}`);
+      if (progEl) progEl.textContent = `${secDone}/${secTotal}`;
+      if (barEl)  barEl.style.width  = `${pct}%`;
+    }
+
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    document.getElementById('overallCount').textContent = `${done} / ${total}`;
+    document.getElementById('overallBar').style.width   = `${pct}%`;
+
+    const banner = document.getElementById('doneBanner');
+    if (done === total && total > 0) {
+      banner.classList.add('show');
+    } else {
+      banner.classList.remove('show');
+    }
+  }
+
+  // ── Reset all ─────────────────────────────────────────────────────────
+  function resetAll() {
+    if (!confirm('Reset all checkboxes? This cannot be undone.')) return;
+    state = {};
+    saveState();
+    renderAll();
+  }
+
+  // ── Initial render ────────────────────────────────────────────────────
+  function renderAll() {
+    for (const ids of Object.values(SECTIONS)) {
+      for (const id of ids) {
+        renderItem(id);
+      }
+    }
+    renderProgress();
+  }
+
+  loadState();
+  renderAll();
+</script>
+</body>
+</html>

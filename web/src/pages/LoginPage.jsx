@@ -29,7 +29,7 @@ export default function LoginPage() {
     <div className="auth-page">
       <div className="auth-container">
         <div className="auth-header">
-          <h1>📊 Dealcheck</h1>
+          <h1>📊 Vettr</h1>
           <p>Business Acquisition Deal Analyzer</p>
         </div>
 

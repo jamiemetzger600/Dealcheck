@@ -1,4 +1,4 @@
-# Dealcheck v4.0.0 - Testing Guide
+# Vettr v4.0.0 - Testing Guide
 
 ## Prerequisites
 
@@ -36,12 +36,12 @@ brew services start postgresql@15
 ### Create Database
 
 ```bash
-# Create the dealcheck database
-createdb dealcheck
+# Create the vettr database
+createdb vettr
 
 # Verify connection
-psql dealcheck
-# (you should see the psql prompt: dealcheck=#)
+psql vettr
+# (you should see the psql prompt: vettr=#)
 # Type \q to exit
 ```
 
@@ -54,7 +54,7 @@ echo 'export PATH="/opt/homebrew/opt/postgresql@15/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 
 # Try again
-createdb dealcheck
+createdb vettr
 ```
 
 **If you get "could not connect to server":**
@@ -66,7 +66,7 @@ brew services list | grep postgresql
 brew services start postgresql@15
 
 # Wait 10 seconds, then try again
-createdb dealcheck
+createdb vettr
 ```
 
 ## Step 2: Set Up Backend
@@ -81,7 +81,7 @@ npm install
 cp .env.example .env
 
 # Edit .env and set:
-# - DATABASE_URL=postgresql://YOUR_USER@localhost:5432/dealcheck
+# - DATABASE_URL=postgresql://YOUR_USER@localhost:5432/vettr
 # - JWT_SECRET (generate with: openssl rand -base64 32)
 # - Leave STRIPE keys for now (test Stripe later)
 # - Leave SMTP settings for now (test email later)
@@ -100,7 +100,7 @@ npm run migrate
 npm run dev
 
 # You should see:
-# 🚀 Dealcheck API server running on port 3001
+# 🚀 Vettr API server running on port 3001
 # 📝 Environment: development
 # 🌐 Web app URL: http://localhost:3000
 # ✅ Database connected
@@ -235,7 +235,7 @@ Now refresh the web app and click **"My Deals"** - you should see your test deal
 
 **Backend check**: In database:
 ```bash
-psql dealcheck -c "SELECT notification_frequency FROM user_settings;"
+psql vettr -c "SELECT notification_frequency FROM user_settings;"
 # Should show your selected frequency
 ```
 
@@ -266,7 +266,7 @@ To fully test Stripe:
 ### On Desktop (Chrome/Edge):
 1. Open DevTools (F12)
 2. Click **Application** tab
-3. Click **Manifest** - should show Dealcheck manifest
+3. Click **Manifest** - should show Vettr manifest
 4. Click **Service Workers** - (optional, not yet implemented)
 
 ### On Mobile (Real Device):
@@ -314,7 +314,7 @@ View your data:
 
 ```bash
 # Connect to database
-psql dealcheck
+psql vettr
 
 # View users
 SELECT id, email, created_at FROM users;
@@ -346,7 +346,7 @@ SELECT user_id, status, plan FROM subscriptions;
 
 ### "Database error" messages
 - Run migrations again: `npm run migrate`
-- Check database exists: `psql -l | grep dealcheck`
+- Check database exists: `psql -l | grep vettr`
 
 ### Can't save deals (401 Unauthorized)
 - Check JWT_SECRET is set in backend/.env
@@ -388,6 +388,6 @@ Once MVP is tested and working:
 If you encounter issues:
 1. Check backend terminal for error logs
 2. Check browser DevTools Console for errors
-3. Check database with `psql dealcheck`
+3. Check database with `psql vettr`
 4. Verify .env files are configured correctly
 5. Ensure all dependencies are installed (`npm install`)

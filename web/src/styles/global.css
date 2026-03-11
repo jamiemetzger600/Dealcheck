@@ -237,16 +237,6 @@ a {
   overflow: hidden;
 }
 
-.app-header--hidden {
-  opacity: 0;
-  margin-bottom: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  max-height: 0;
-  min-height: 0;
-  pointer-events: none;
-}
-
 .app-header-copy h1 {
   font-size: 28px;
   margin-bottom: 8px;
@@ -1056,6 +1046,7 @@ a {
 .aggregator-cards-scroll {
   overflow-y: auto;
   margin-top: 12px;
+  width: 100%;
 }
 
 .aggregator-cards-grid {
@@ -1063,6 +1054,106 @@ a {
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 20px;
   padding: 4px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+/* Grid items fill column width (min-width: 0 lets 1fr share space equally) */
+.aggregator-cards-grid > * {
+  min-width: 0;
+}
+.aggregator-cards-grid[data-cols="2"] { grid-template-columns: repeat(2, 1fr); }
+.aggregator-cards-grid[data-cols="3"] { grid-template-columns: repeat(3, 1fr); }
+.aggregator-cards-grid[data-cols="4"] { grid-template-columns: repeat(4, 1fr); }
+.aggregator-cards-grid[data-cols="6"] { grid-template-columns: repeat(6, 1fr); }
+.aggregator-cards-grid[data-cols="8"] { grid-template-columns: repeat(8, 1fr); }
+
+/* Card columns popup */
+.card-cols-wrapper {
+  position: relative;
+  display: inline-block;
+}
+.card-cols-trigger {
+  white-space: nowrap;
+}
+.card-cols-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  z-index: 200;
+  white-space: nowrap;
+}
+.card-cols-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--bg-secondary, #f3f4f6);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  min-width: 44px;
+  min-height: 44px;
+}
+.card-cols-option:hover {
+  background: rgba(102, 126, 234, 0.12);
+  border-color: var(--primary, #667eea);
+}
+.card-cols-option.active {
+  background: rgba(102, 126, 234, 0.18);
+  border-color: var(--primary, #667eea);
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+}
+.card-cols-option-blocks {
+  display: flex;
+  gap: 2px;
+}
+.card-cols-block {
+  display: inline-block;
+  width: 6px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--text-secondary, #6b7280);
+}
+.card-cols-option.active .card-cols-block {
+  background: var(--primary, #667eea);
+}
+.card-cols-option-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+}
+.card-cols-option.active .card-cols-option-label {
+  color: var(--primary, #667eea);
+}
+
+@media (max-width: 767px) {
+  .card-cols-popup {
+    left: auto;
+    right: 0;
+    transform: none;
+    max-width: min(320px, calc(100vw - 24px));
+    padding: 10px;
+    gap: 4px;
+  }
+  .card-cols-option {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 8px;
+  }
+  .aggregator-cards-grid[data-cols="6"],
+  .aggregator-cards-grid[data-cols="8"] {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .aggregator-cards-empty {
@@ -1073,10 +1164,116 @@ a {
   font-size: 15px;
 }
 
+.aggregator-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+  margin-top: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.aggregator-load-more .btn-load-more {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  background: rgba(102, 126, 234, 0.15);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.aggregator-load-more .btn-load-more:hover {
+  background: rgba(102, 126, 234, 0.25);
+}
+
+.aggregator-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  margin-top: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.aggregator-pagination-btn {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  background: rgba(102, 126, 234, 0.15);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.aggregator-pagination-btn:hover:not(:disabled) {
+  background: rgba(102, 126, 234, 0.25);
+}
+
+.aggregator-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.aggregator-pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.aggregator-pagination-num {
+  min-width: 36px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.aggregator-pagination-num:hover {
+  color: var(--text-primary);
+  background: rgba(102, 126, 234, 0.15);
+  border-color: var(--primary);
+}
+
+.aggregator-pagination-num.active {
+  color: var(--primary);
+  background: rgba(102, 126, 234, 0.25);
+  border-color: var(--primary);
+}
+
+.aggregator-pagination-ellipsis {
+  padding: 0 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.aggregator-pagination-label {
+  margin-left: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 /* Swipeable card wrapper (Tinder-style): transform applied here */
 .aggregator-cards-grid .swipeable-card-outer {
   position: relative;
   touch-action: pan-y;
+  min-width: 0;
+  width: 100%;
 }
 
 /* Nope / Like overlays shown during swipe */
@@ -1115,17 +1312,34 @@ a {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 18px 20px;
+  padding: 0;
   cursor: pointer;
-  transition: box-shadow 0.2s ease, transform 0.15s ease;
+  transition: box-shadow 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
   position: relative;
   box-shadow: 0 1px 3px var(--shadow);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Subtle top accent for visual polish */
+.aggregator-cards-grid .deal-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+  opacity: 0.85;
 }
 
 .aggregator-cards-grid .deal-card:hover {
   background: rgba(255, 255, 255, 0.03);
   box-shadow: 0 0 20px var(--card-glow), 0 4px 16px var(--shadow-hover);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  border-color: rgba(102, 126, 234, 0.35);
 }
 
 .aggregator-cards-grid .deal-card--hidden {
@@ -1137,96 +1351,112 @@ a {
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
-  padding-left: 0;
+  padding: 16px 16px 0;
   min-height: 2.5em;
 }
 
 .aggregator-cards-grid .deal-card__name {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
   line-height: 1.35;
   flex: 1;
   min-width: 0;
-  padding-right: 52px;
+  padding-right: 48px;
+  padding-top: 2px;
   -webkit-line-clamp: 3;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
+  letter-spacing: 0.01em;
 }
 
 .aggregator-cards-grid .deal-card__actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
 .aggregator-cards-grid .deal-card__btn {
-  background: none;
-  border: none;
-  padding: 4px 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  padding: 6px 8px;
   cursor: pointer;
   color: var(--text-secondary);
-  font-size: 14px;
-  border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
+  font-size: 13px;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 
 .aggregator-cards-grid .deal-card__btn:hover {
   color: var(--primary);
-  background: var(--bg-tertiary);
+  background: rgba(102, 126, 234, 0.15);
+  border-color: rgba(102, 126, 234, 0.3);
 }
 
 .aggregator-cards-grid .deal-card__btn-save {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .aggregator-cards-grid .deal-card__subtitle {
   font-size: 0.8rem;
   color: var(--text-secondary);
-  margin: 8px 0 14px;
+  margin: 10px 16px 0;
+  padding-bottom: 12px;
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
+  border-bottom: 1px solid var(--border);
 }
 
-/* Four metrics: value on top, label below; no overlap – each column gets space */
+/* Metrics block: distinct panel for scanability */
 .aggregator-cards-grid .deal-card__metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px 20px;
+  gap: 10px 12px;
+  padding: 12px 16px 16px;
+  background: rgba(0, 0, 0, 0.15);
+  margin: 0;
 }
 
 .aggregator-cards-grid .deal-card__metric {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   overflow: hidden;
 }
 
 .aggregator-cards-grid .deal-card__metric-value {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Slight emphasis on first metric (asking price) */
+.aggregator-cards-grid .deal-card__metric:first-child .deal-card__metric-value {
+  color: var(--primary);
+  font-size: 0.95rem;
 }
 
 .aggregator-cards-grid .deal-card__metric-label {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--text-secondary);
   font-weight: 500;
-  line-height: 1.25;
-  letter-spacing: 0.04em;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  opacity: 0.9;
 }
 
 .url-col {

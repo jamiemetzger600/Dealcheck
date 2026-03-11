@@ -107,6 +107,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onSaveDeal={loadUserData}
             onSettingsUpdate={loadUserData}
             feedSource={feedSource}
+            savedDealIds={savedDeals.map((d) => d.dealId ?? d.id).filter(Boolean)}
           />
         )}
 

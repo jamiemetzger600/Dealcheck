@@ -1,0 +1,3 @@
+# Ensure version.json is never cached so PWA update check sees new deployments
+/version.json
+  Cache-Control: no-store

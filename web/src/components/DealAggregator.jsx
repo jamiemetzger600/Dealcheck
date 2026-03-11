@@ -235,7 +235,8 @@ export default function DealAggregator({
   onDealsStatsUpdate,
   onSaveDeal,
   onSettingsUpdate,
-  feedSource = 'airtable'
+  feedSource = 'airtable',
+  savedDealIds = []
 }) {
   const [deals, setDeals] = useState([]);
   const [filteredDeals, setFilteredDeals] = useState([]);
@@ -320,7 +321,7 @@ export default function DealAggregator({
     if (settings) {
       applyFilters();
     }
-  }, [deals, settings, searchQuery, excludeKeywords, hiddenDealIds, showHiddenDeals, sortConfig]);
+  }, [deals, settings, searchQuery, excludeKeywords, hiddenDealIds, showHiddenDeals, sortConfig, savedDealIds]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -409,6 +410,12 @@ export default function DealAggregator({
 
   const applyFilters = () => {
     let filtered = [...deals];
+
+    // Exclude deals already saved to My Deals (remove from aggregator once saved)
+    const savedIdSet = new Set((savedDealIds || []).map((id) => String(id)));
+    if (savedIdSet.size > 0) {
+      filtered = filtered.filter((deal) => !savedIdSet.has(String(deal.id)));
+    }
 
     if (viewMode === 'hidden' || showHiddenDeals) {
       filtered = filtered.filter((deal) => hiddenDealIds.includes(deal.id));
@@ -852,22 +859,7 @@ export default function DealAggregator({
             <div className="view-style-toggle" role="group" aria-label="View style">
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'table' ? 'active' : ''}`} onClick={() => handleViewStyleChange('table')}>Table</button>
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'card' ? 'active' : ''}`} onClick={() => handleViewStyleChange('card')}>Card</button>
-            </div>
-            {dealViewStyle === 'card' && (
-              <>
-                <label className="card-sort-label">
-                  <span className="card-sort-label-text">Sort:</span>
-                  <select
-                    className="card-sort-select"
-                    value={getCardSortValue(sortConfig)}
-                    onChange={handleCardSortChange}
-                    aria-label="Sort cards by"
-                  >
-                    {CARD_SORT_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </label>
+              {dealViewStyle === 'card' && (
                 <div className="card-cols-wrapper" ref={cardColsPopupRef}>
                   <button
                     type="button"
@@ -898,7 +890,22 @@ export default function DealAggregator({
                     </div>
                   )}
                 </div>
-              </>
+              )}
+            </div>
+            {dealViewStyle === 'card' && (
+              <label className="card-sort-label">
+                <span className="card-sort-label-text">Sort:</span>
+                <select
+                  className="card-sort-select"
+                  value={getCardSortValue(sortConfig)}
+                  onChange={handleCardSortChange}
+                  aria-label="Sort cards by"
+                >
+                  {CARD_SORT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </label>
             )}
             <button type="button" className="toolbar-btn" onClick={() => setShowColumnsPanel((current) => !current)}>
               Columns

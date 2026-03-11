@@ -1,17 +1,23 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 const appVersion = pkg.version || '0.0.0';
 
 function versionPlugin() {
+  let buildOutDir = 'dist';
   return {
     name: 'version-json',
     apply: 'build',
-    writeBundle(options) {
-      const outDir = options.dir || join(process.cwd(), 'dist');
+    configResolved(config) {
+      buildOutDir = join(config.root, config.build.outDir);
+    },
+    writeBundle(outputOptions) {
+      const outDir = outputOptions.dir || buildOutDir;
       writeFileSync(
         join(outDir, 'version.json'),
         JSON.stringify({ version: appVersion }) + '\n',

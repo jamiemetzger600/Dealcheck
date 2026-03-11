@@ -55,31 +55,53 @@ export function normalizeAirtableDeal(row) {
   };
 }
 
+const PAGE_SIZE = 500;
+
 /**
- * Fetches all pages from /api/airtable-deals and returns normalized deals.
+ * Fetches a single page from /api/airtable-deals.
+ * @param {AbortSignal} [signal] - Optional abort signal to cancel the request.
+ * @returns {{ deals: Array, total: number, limit: number, offset: number }}
+ */
+export async function fetchAirtableDealsPage(apiBaseUrl, offset = 0, limit = PAGE_SIZE, signal = undefined) {
+  const url = `${apiBaseUrl}/airtable-deals?limit=${limit}&offset=${offset}`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    const err = new Error(`Airtable deals API error (${res.status})`);
+    err.url = url;
+    throw err;
+  }
+  const data = await res.json();
+  const rows = data.deals || [];
+  return {
+    deals: rows.map(normalizeAirtableDeal),
+    total: typeof data.total === 'number' ? data.total : rows.length,
+    limit: data.limit || limit,
+    offset: data.offset ?? offset
+  };
+}
+
+/**
+ * Fetches first page only for fast initial paint. Use with appendPage for progressive load.
+ */
+export async function fetchFirstPageAirtableDeals(apiBaseUrl, limit = 400, signal = undefined) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 400, 1), 500);
+  const page = await fetchAirtableDealsPage(apiBaseUrl, 0, safeLimit, signal);
+  console.log(`[Airtable feed] First page: ${page.deals.length} of ${page.total}`);
+  return page;
+}
+
+/**
+ * Fetches all pages from /api/airtable-deals (used for non-airtable or fallback).
  */
 export async function fetchAllAirtableDeals(apiBaseUrl) {
-  const PAGE_SIZE = 500;
   let offset = 0;
   let allDeals = [];
   let hasMore = true;
 
   while (hasMore) {
-    const url = `${apiBaseUrl}/airtable-deals?limit=${PAGE_SIZE}&offset=${offset}`;
-    console.log(`[Airtable feed] Fetching offset=${offset}...`, url);
-    const res = await fetch(url);
-    if (!res.ok) {
-      const err = new Error(`Airtable deals API error (${res.status})`);
-      err.url = url;
-      throw err;
-    }
-
-    const data = await res.json();
-    const rows = data.deals || [];
-    const normalized = rows.map(normalizeAirtableDeal);
-    allDeals = allDeals.concat(normalized);
-
-    if (rows.length < PAGE_SIZE) {
+    const { deals, total } = await fetchAirtableDealsPage(apiBaseUrl, offset, PAGE_SIZE);
+    allDeals = allDeals.concat(deals);
+    if (deals.length < PAGE_SIZE || allDeals.length >= total) {
       hasMore = false;
     } else {
       offset += PAGE_SIZE;

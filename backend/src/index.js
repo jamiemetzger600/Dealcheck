@@ -8,15 +8,21 @@ import paymentsRoutes from './routes/payments.js';
 import airtableDealsRoutes from './routes/airtableDeals.js';
 import './services/notificationScheduler.js'; // Start notification jobs
 import './services/airtableScraper.js';
+import { validateConfig } from './config.js';
 
 dotenv.config();
+validateConfig(); // Exits in production if required env vars missing (see CONFIG.md)
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
-// CORS configuration
+// CORS: in development allow both Vite (5173) and legacy (3000) so it works regardless of .env
+const webAppUrl = process.env.WEB_APP_URL || 'http://localhost:5173';
+const corsOrigin = process.env.NODE_ENV === 'production'
+  ? webAppUrl
+  : [webAppUrl, 'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
 app.use(cors({
-  origin: process.env.WEB_APP_URL || 'http://localhost:3000',
+  origin: corsOrigin,
   credentials: true
 }));
 
@@ -31,7 +37,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '4.2.0' });
+  res.json({ status: 'ok', version: '4.2.1' });
 });
 
 app.get('/api/default-deals-csv', async (req, res) => {
@@ -82,5 +88,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`🚀 Vettr API server running on port ${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 Web app URL: ${process.env.WEB_APP_URL || 'http://localhost:3000'}`);
+  console.log(`🌐 Web app URL: ${process.env.WEB_APP_URL || 'http://localhost:5173'}`);
 });

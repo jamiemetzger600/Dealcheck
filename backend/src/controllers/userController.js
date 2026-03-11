@@ -74,6 +74,24 @@ export const getUserSettings = async (req, res) => {
   }
 };
 
+/** Merge incoming preferences into existing (never overwrite entire object). One-level deep for nested objects like calculatorDefaults. */
+function mergePreferences(existing, incoming) {
+  if (!incoming || typeof incoming !== 'object') return existing || {};
+  const existingObj = existing && typeof existing === 'object' ? existing : {};
+  const merged = { ...existingObj };
+  for (const key of Object.keys(incoming)) {
+    const existingVal = merged[key];
+    const incomingVal = incoming[key];
+    if (incomingVal !== null && typeof incomingVal === 'object' && !Array.isArray(incomingVal) &&
+        existingVal !== null && typeof existingVal === 'object' && !Array.isArray(existingVal)) {
+      merged[key] = { ...existingVal, ...incomingVal };
+    } else {
+      merged[key] = incomingVal;
+    }
+  }
+  return merged;
+}
+
 // Update user settings
 export const updateUserSettings = async (req, res) => {
   const {
@@ -82,7 +100,7 @@ export const updateUserSettings = async (req, res) => {
     excludeLists,
     currentExcludeList,
     hiddenDealIds,
-    preferences,
+    preferences: incomingPreferences,
     customSources,
     autoRefreshEnabled,
     refreshInterval,
@@ -94,6 +112,16 @@ export const updateUserSettings = async (req, res) => {
   } = req.body;
 
   try {
+    let preferencesToWrite = null;
+    if (incomingPreferences !== undefined) {
+      const current = await pool.query(
+        'SELECT preferences FROM user_settings WHERE user_id = $1',
+        [req.user.userId]
+      );
+      const existing = (current.rows[0] && current.rows[0].preferences) || {};
+      preferencesToWrite = mergePreferences(existing, incomingPreferences);
+    }
+
     const updateFields = [];
     const values = [req.user.userId];
     let paramIndex = 2;
@@ -118,9 +146,9 @@ export const updateUserSettings = async (req, res) => {
       updateFields.push(`hidden_deal_ids = $${paramIndex++}`);
       values.push(JSON.stringify(hiddenDealIds));
     }
-    if (preferences !== undefined) {
+    if (preferencesToWrite !== null) {
       updateFields.push(`preferences = $${paramIndex++}`);
-      values.push(JSON.stringify(preferences));
+      values.push(JSON.stringify(preferencesToWrite));
     }
     if (customSources !== undefined) {
       updateFields.push(`custom_sources = $${paramIndex++}`);

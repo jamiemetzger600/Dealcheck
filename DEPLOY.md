@@ -1,5 +1,7 @@
 # Vettr — Production Deployment Guide
 
+For a single list of all environment variables (backend, web, CLI), see **[CONFIG.md](CONFIG.md)**.
+
 ## Stack
 
 | Layer    | Service           | Cost  |
@@ -43,7 +45,7 @@
    - **Build command:** `npm install`
    - **Run command:** `npm start`
    - **Port:** `3001` — if not on the Build step, set it in a later step (Resources / Service configuration) or add env var `PORT=3001`.
-5. Environment variables (see `backend/.env.example` for reference):
+5. Environment variables (see [CONFIG.md](CONFIG.md) and `backend/.env.example`):
    - `NODE_ENV` = `production`
    - `DATABASE_URL` (from Koyeb PostgreSQL)
    - `JWT_SECRET` (generate with: `openssl rand -base64 32`)

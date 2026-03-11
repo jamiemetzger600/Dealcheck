@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { filterDeals } from '../../../shared/buyBoxMatcher.js';
 import { dealsAPI, userAPI } from '../utils/api';
-import { fetchAllAirtableDeals } from '../utils/normalizeAirtableDeal';
+import { fetchFirstPageAirtableDeals, fetchAirtableDealsPage } from '../utils/normalizeAirtableDeal';
 import DealDetailsPanel from './DealDetailsPanel';
+
+const FIRST_PAGE_SIZE = 100;
+const BACKGROUND_PAGE_SIZE = 100;
+/** Deals per page in the list; pagination advances by this. */
+const RENDER_PAGE_SIZE = 100;
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const DEFAULT_DEALS_URL = `${API_BASE_URL}/default-deals-csv`;
@@ -39,6 +44,8 @@ const DEFAULT_VISIBLE_COLUMNS = Object.fromEntries(
 const DEFAULT_SORT = [{ field: 'date', direction: 'desc' }];
 
 const CARD_SORT_OPTIONS = [
+  { value: 'date_desc', label: 'Date Added (newest first)', field: 'date', direction: 'desc' },
+  { value: 'date_asc', label: 'Date Added (oldest first)', field: 'date', direction: 'asc' },
   { value: 'state_asc', label: 'State (A–Z)', field: 'state', direction: 'asc' },
   { value: 'state_desc', label: 'State (Z–A)', field: 'state', direction: 'desc' },
   { value: 'price_desc', label: 'Asking Price (high to low)', field: 'price', direction: 'desc' },
@@ -74,6 +81,22 @@ const SWIPE_THRESHOLD = 80;
 const DRAG_CLICK_THRESHOLD = 8;
 const MAX_DRAG = 320;
 const MOBILE_BREAKPOINT_PX = 768;
+
+/** Returns page numbers to show: e.g. [1, 2, 3, 4, 5, '…', 50] for currentPage 3, totalPages 50. */
+function getPaginationPages(currentPage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const pages = [];
+  pages.push(1);
+  const left = Math.max(2, currentPage - 2);
+  const right = Math.min(totalPages - 1, currentPage + 2);
+  if (left > 2) pages.push('…');
+  for (let p = left; p <= right; p += 1) pages.push(p);
+  if (right < totalPages - 1) pages.push('…');
+  if (totalPages > 1) pages.push(totalPages);
+  return pages;
+}
 
 /** Card in list view. When enableSwipe (mobile only): swipe left = hide, swipe right = heart/save. Desktop: plain click. */
 function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, enableSwipe, children }) {
@@ -237,6 +260,16 @@ export default function DealAggregator({
   const [saveToast, setSaveToast] = useState(null);
   const [savingDealId, setSavingDealId] = useState(null);
   const [feedError, setFeedError] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalFromAPI, setTotalFromAPI] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [cardColumnsPerRow, setCardColumnsPerRow] = useState(() => {
+    const v = settings?.preferences?.cardColumnsPerRow;
+    return [2, 3, 4, 6, 8].includes(v) ? v : 4;
+  });
+  const [showCardColsPopup, setShowCardColsPopup] = useState(false);
+  const cardColsPopupRef = useRef(null);
+  const fetchAbortRef = useRef(null);
   const [isMobileViewport, setIsMobileViewport] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
   );
@@ -257,6 +290,8 @@ export default function DealAggregator({
     setCustomSources(settings?.customSources || []);
     setDealPanelPosition(settings?.preferences?.dealPanelPosition || 'center');
     setDealViewStyle(settings?.dealViewStyle || 'table');
+    const cols = settings?.preferences?.cardColumnsPerRow;
+    setCardColumnsPerRow([2, 3, 4, 6, 8].includes(cols) ? cols : 4);
   }, [settings]);
 
   useEffect(() => {
@@ -288,6 +323,10 @@ export default function DealAggregator({
   }, [deals, settings, searchQuery, excludeKeywords, hiddenDealIds, showHiddenDeals, sortConfig]);
 
   useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, sortConfig, viewMode, showHiddenDeals]);
+
+  useEffect(() => {
     localStorage.setItem('vettr_visible_columns', JSON.stringify(visibleColumns));
   }, [visibleColumns]);
 
@@ -299,13 +338,35 @@ export default function DealAggregator({
     if (!background) {
       setLoading(true);
       setFeedError(null);
+      setLoadingMore(false);
+      setTotalFromAPI(null);
+      if (fetchAbortRef.current) fetchAbortRef.current.abort();
+      fetchAbortRef.current = new AbortController();
     }
+    const signal = fetchAbortRef.current?.signal;
 
     try {
       if (feedSource === 'airtable') {
-        const airtableDeals = await fetchAllAirtableDeals(API_BASE_URL);
-        setDeals(dedupeDeals(airtableDeals));
+        const first = await fetchFirstPageAirtableDeals(API_BASE_URL, FIRST_PAGE_SIZE, signal);
+        if (signal?.aborted) return;
+        const firstDeduped = dedupeDeals(first.deals);
+        setDeals(firstDeduped);
+        setTotalFromAPI(first.total);
         setFeedError(null);
+        if (!background) setLoading(false);
+
+        if (first.total > first.deals.length) {
+          setLoadingMore(true);
+          let offset = first.deals.length;
+          while (offset < first.total && !signal?.aborted) {
+            const next = await fetchAirtableDealsPage(API_BASE_URL, offset, BACKGROUND_PAGE_SIZE, signal);
+            if (signal?.aborted) return;
+            setDeals((prev) => dedupeDeals([...prev, ...next.deals]));
+            offset += next.deals.length;
+            if (next.deals.length < BACKGROUND_PAGE_SIZE) break;
+          }
+        }
+        setLoadingMore(false);
       } else {
         const response = await fetch(DEFAULT_DEALS_URL);
         if (!response.ok) throw new Error(`Default deals feed error (${response.status})`);
@@ -328,10 +389,16 @@ export default function DealAggregator({
         setDeals(dedupeDeals([...defaultDeals, ...cachedCustomDeals]));
       }
     } catch (error) {
+      const apiUrl = `${API_BASE_URL}/airtable-deals`;
       console.error('Failed to fetch deals:', error);
       if (!background) {
         setDeals([]);
-        setFeedError(error?.message || 'Failed to load deals');
+        const msg = error?.message || 'Failed to load deals';
+        setFeedError(
+          msg === 'Failed to fetch'
+            ? `Failed to fetch (cannot reach ${apiUrl}). Check backend is running and CORS allows this origin.`
+            : msg
+        );
       }
     } finally {
       if (!background) {
@@ -447,6 +514,24 @@ export default function DealAggregator({
     const t = setTimeout(() => setSaveToast(null), 3000);
     return () => clearTimeout(t);
   }, [saveToast]);
+
+  useEffect(() => {
+    if (!showCardColsPopup) return;
+    const handleClickOutside = (e) => {
+      if (cardColsPopupRef.current && !cardColsPopupRef.current.contains(e.target)) {
+        setShowCardColsPopup(false);
+      }
+    };
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setShowCardColsPopup(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showCardColsPopup]);
 
   if (loading) {
     return <div className="loading">Loading deals...</div>;
@@ -571,12 +656,7 @@ export default function DealAggregator({
   const handleDealPanelPositionChange = async (position) => {
     setDealPanelPosition(position);
     try {
-      await userAPI.updateSettings({
-        preferences: {
-          ...(settings?.preferences || {}),
-          dealPanelPosition: position
-        }
-      });
+      await userAPI.updateSettings({ preferences: { dealPanelPosition: position } });
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
@@ -587,12 +667,7 @@ export default function DealAggregator({
 
   const handleSaveCalculatorDefaults = async (calculatorDefaults) => {
     try {
-      await userAPI.updateSettings({
-        preferences: {
-          ...(settings?.preferences || {}),
-          calculatorDefaults
-        }
-      });
+      await userAPI.updateSettings({ preferences: { calculatorDefaults } });
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
@@ -601,9 +676,26 @@ export default function DealAggregator({
     }
   };
 
+  const handleCardColumnsPerRowChange = async (value) => {
+    const num = [2, 3, 4, 6, 8].includes(value) ? value : 4;
+    setCardColumnsPerRow(num);
+    setShowCardColsPopup(false);
+    try {
+      await userAPI.updateSettings({ preferences: { cardColumnsPerRow: num } });
+      if (typeof onSettingsUpdate === 'function') {
+        await onSettingsUpdate();
+      }
+    } catch (error) {
+      console.error('Failed to save card columns preference:', error);
+    }
+  };
+
   const handleViewStyleChange = async (style) => {
     if (style === dealViewStyle) return;
     setDealViewStyle(style);
+    if (style === 'card') {
+      setSortConfig([{ field: 'date', direction: 'desc' }]);
+    }
     try {
       await updateUserFilterSettings({ dealViewStyle: style });
     } catch (error) {
@@ -667,6 +759,13 @@ export default function DealAggregator({
   const fmt = (n) => (n != null ? `$${Number(n).toLocaleString()}` : null);
   const fmtMult = (n) => (n != null ? `${Number(n)}×` : null);
 
+  const totalPages = Math.max(1, Math.ceil(filteredDeals.length / RENDER_PAGE_SIZE));
+  const dealsToShow = filteredDeals.slice(
+    (currentPage - 1) * RENDER_PAGE_SIZE,
+    currentPage * RENDER_PAGE_SIZE
+  );
+  const hasMultiplePages = totalPages > 1;
+
   return (
     <div className="deal-aggregator">
       {feedError && (
@@ -687,9 +786,10 @@ export default function DealAggregator({
           </p>
           <div className="aggregator-stats">
             <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'matches' ? 'active' : ''}`} onClick={handleShowMatches}>Matches: {matchCount.toLocaleString()}</button>
-            <div className="aggregator-stat">Total: {deals.length.toLocaleString()} Deals</div>
+            <div className="aggregator-stat">Total: {totalFromAPI != null ? `${deals.length.toLocaleString()} of ${totalFromAPI.toLocaleString()}` : deals.length.toLocaleString()} Deals</div>
             <div className="aggregator-stat">New: {newTodayCount.toLocaleString()} Added Today</div>
             <div className="aggregator-stat">Showing: {filteredDeals.length.toLocaleString()} of {deals.length.toLocaleString()}</div>
+            {loadingMore && <div className="aggregator-stat aggregator-stat--loading" aria-live="polite">Loading more…</div>}
             <div className="aggregator-stat">Sources: {(1 + customSources.filter((source) => source.enabled !== false).length).toLocaleString()} Active</div>
             <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'hidden' ? 'active' : ''}`} onClick={handleShowHidden}>Hidden: {hiddenDealIds.length.toLocaleString()}</button>
           </div>
@@ -754,19 +854,51 @@ export default function DealAggregator({
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'card' ? 'active' : ''}`} onClick={() => handleViewStyleChange('card')}>Card</button>
             </div>
             {dealViewStyle === 'card' && (
-              <label className="card-sort-label">
-                <span className="card-sort-label-text">Sort:</span>
-                <select
-                  className="card-sort-select"
-                  value={getCardSortValue(sortConfig)}
-                  onChange={handleCardSortChange}
-                  aria-label="Sort cards by"
-                >
-                  {CARD_SORT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <label className="card-sort-label">
+                  <span className="card-sort-label-text">Sort:</span>
+                  <select
+                    className="card-sort-select"
+                    value={getCardSortValue(sortConfig)}
+                    onChange={handleCardSortChange}
+                    aria-label="Sort cards by"
+                  >
+                    {CARD_SORT_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="card-cols-wrapper" ref={cardColsPopupRef}>
+                  <button
+                    type="button"
+                    className="toolbar-btn card-cols-trigger"
+                    onClick={() => setShowCardColsPopup((v) => !v)}
+                    aria-expanded={showCardColsPopup}
+                    aria-label="Cards per row"
+                  >
+                    ⊞ {cardColumnsPerRow} cols
+                  </button>
+                  {showCardColsPopup && (
+                    <div className="card-cols-popup" role="listbox" aria-label="Cards per row">
+                      {[2, 3, 4, 6, 8].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          role="option"
+                          aria-selected={cardColumnsPerRow === n}
+                          className={`card-cols-option${cardColumnsPerRow === n ? ' active' : ''}`}
+                          onClick={() => handleCardColumnsPerRowChange(n)}
+                        >
+                          <span className="card-cols-option-blocks" aria-hidden="true">
+                            {Array.from({ length: n }, (_, i) => <span key={i} className="card-cols-block" />)}
+                          </span>
+                          <span className="card-cols-option-label">{n}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
             <button type="button" className="toolbar-btn" onClick={() => setShowColumnsPanel((current) => !current)}>
               Columns
@@ -965,7 +1097,7 @@ export default function DealAggregator({
                   <td colSpan={Object.keys(COLUMN_CONFIG).filter((columnId) => visibleColumns[columnId] !== false).length + 1} className="table-empty-cell">No deals found. Try adjusting your filters or search.</td>
                 </tr>
               ) : (
-                filteredDeals.map((deal) => {
+                dealsToShow.map((deal) => {
                   const isHidden = hiddenDealIds.includes(deal.id);
                   return (
                   <tr key={deal.id} className={isHidden ? 'deal-row-hidden' : ''} onClick={() => setSelectedDeal(deal)}>
@@ -1020,16 +1152,45 @@ export default function DealAggregator({
               )}
             </tbody>
           </table>
+          {hasMultiplePages && (
+            <div className="aggregator-pagination">
+              <button type="button" className="aggregator-pagination-btn" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)} aria-label="Previous page">
+                Previous
+              </button>
+              <div className="aggregator-pagination-pages" role="navigation" aria-label="Page navigation">
+                {getPaginationPages(currentPage, totalPages).map((page, i) =>
+                  page === '…' ? (
+                    <span key={`ellipsis-${i}`} className="aggregator-pagination-ellipsis">…</span>
+                  ) : (
+                    <button
+                      key={page}
+                      type="button"
+                      className={`aggregator-pagination-num ${currentPage === page ? 'active' : ''}`}
+                      onClick={() => setCurrentPage(page)}
+                      aria-label={`Page ${page}`}
+                      aria-current={currentPage === page ? 'page' : undefined}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+              </div>
+              <button type="button" className="aggregator-pagination-btn" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)} aria-label="Next page">
+                Next
+              </button>
+              <span className="aggregator-pagination-label">Page {currentPage.toLocaleString()} of {totalPages.toLocaleString()}</span>
+            </div>
+          )}
         </div>
         )}
 
         {dealViewStyle === 'card' && (
           <div className="aggregator-cards-scroll">
-            <div className="aggregator-cards-grid">
+            <div className="aggregator-cards-grid" data-cols={cardColumnsPerRow}>
               {filteredDeals.length === 0 ? (
                 <div className="aggregator-cards-empty">No deals found. Try adjusting your filters or search.</div>
               ) : (
-                filteredDeals.map((deal) => {
+                dealsToShow.map((deal) => {
                   const isHidden = hiddenDealIds.includes(deal.id);
                   const subtitle = [deal.industry, deal.location].filter(Boolean).join(' in ') || deal.description?.slice(0, 80) || '—';
                   return (
@@ -1073,6 +1234,35 @@ export default function DealAggregator({
                 })
               )}
             </div>
+            {hasMultiplePages && (
+              <div className="aggregator-pagination">
+                <button type="button" className="aggregator-pagination-btn" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)} aria-label="Previous page">
+                  Previous
+                </button>
+                <div className="aggregator-pagination-pages" role="navigation" aria-label="Page navigation">
+                  {getPaginationPages(currentPage, totalPages).map((page, i) =>
+                    page === '…' ? (
+                      <span key={`ellipsis-${i}`} className="aggregator-pagination-ellipsis">…</span>
+                    ) : (
+                      <button
+                        key={page}
+                        type="button"
+                        className={`aggregator-pagination-num ${currentPage === page ? 'active' : ''}`}
+                        onClick={() => setCurrentPage(page)}
+                        aria-label={`Page ${page}`}
+                        aria-current={currentPage === page ? 'page' : undefined}
+                      >
+                        {page}
+                      </button>
+                    )
+                  )}
+                </div>
+                <button type="button" className="aggregator-pagination-btn" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)} aria-label="Next page">
+                  Next
+                </button>
+                <span className="aggregator-pagination-label">Page {currentPage.toLocaleString()} of {totalPages.toLocaleString()}</span>
+              </div>
+            )}
           </div>
         )}
       </div>

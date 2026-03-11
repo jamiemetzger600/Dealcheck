@@ -67,12 +67,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
 
   const handleSaveCalculatorDefaults = async (calculatorDefaults) => {
     try {
-      await userAPI.updateSettings({
-        preferences: {
-          ...(settings?.preferences || {}),
-          calculatorDefaults
-        }
-      });
+      await userAPI.updateSettings({ preferences: { calculatorDefaults } });
       await loadUserData();
     } catch (error) {
       console.error('Failed to save calculator defaults:', error);

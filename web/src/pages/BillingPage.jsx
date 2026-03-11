@@ -52,7 +52,7 @@ export default function BillingPage() {
         user={user}
         logout={logout}
         showTabs={false}
-        pageTitle="Dealcheck"
+        pageTitle="Vettr"
         pageSubtitle="Subscription and billing"
       />
       

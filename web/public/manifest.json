@@ -1,6 +1,6 @@
 {
-  "name": "Dealcheck - Business Acquisition Deal Analyzer",
-  "short_name": "Dealcheck",
+  "name": "Vettr - Business Acquisition Deal Analyzer",
+  "short_name": "Vettr",
   "description": "Find and analyze business acquisition deals",
   "start_url": "/",
   "display": "standalone",

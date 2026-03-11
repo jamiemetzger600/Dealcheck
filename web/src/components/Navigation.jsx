@@ -1,4 +1,9 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import pkg from '../../package.json';
+
+const HEADER_HIDE_AFTER_MS = 3000;
+const SCROLL_TOP_THRESHOLD = 80;
 
 export default function Navigation({
   user,
@@ -16,12 +21,33 @@ export default function Navigation({
   onConfigureBuyBox
 }) {
   const navigate = useNavigate();
-  const currentStage = activeTab === 'saved-deals' ? 'wisdom' : 'data';
-  const stageOrder = ['data', 'information', 'knowledge', 'insight', 'wisdom'];
+  const [headerVisible, setHeaderVisible] = useState(true);
+  const hideTimerRef = useRef(null);
+
+  const scheduleHide = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setHeaderVisible(false), HEADER_HIDE_AFTER_MS);
+  };
+
+  useEffect(() => {
+    scheduleHide();
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.scrollY < SCROLL_TOP_THRESHOLD) {
+        setHeaderVisible(true);
+        scheduleHide();
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   return (
     <>
-      <nav className="app-header">
+      <nav className={`app-header ${headerVisible ? '' : 'app-header--hidden'}`}>
         <div className="app-header-copy">
           <h1>📊 {pageTitle}</h1>
           <p>{pageSubtitle}</p>
@@ -58,35 +84,7 @@ export default function Navigation({
               <span>⚙️</span>
               <span>Settings</span>
             </button>
-          </div>
-
-          <div className="journey-indicator">
-            {[
-              { key: 'data', icon: '📊', label: 'DATA' },
-              { key: 'information', icon: '🎯', label: 'INFORMATION' },
-              { key: 'knowledge', icon: '🧠', label: 'KNOWLEDGE' },
-              { key: 'insight', icon: '💡', label: 'INSIGHT' },
-              { key: 'wisdom', icon: '🎓', label: 'WISDOM' }
-            ].map((stage, index) => {
-              const currentIndex = stageOrder.indexOf(currentStage);
-              const stageIndex = stageOrder.indexOf(stage.key);
-              const stageClass =
-                stageIndex === currentIndex
-                  ? 'active'
-                  : stageIndex < currentIndex
-                    ? 'completed'
-                    : '';
-
-              return (
-                <div key={stage.key} className="journey-stage-wrap">
-                  <div className={`journey-stage ${stageClass}`}>
-                    <span>{stage.icon}</span>
-                    <span>{stage.label}</span>
-                  </div>
-                  {index < 4 && <div className="journey-arrow">→</div>}
-                </div>
-              );
-            })}
+            <span className="app-header-version app-header-version--in-row" title="App version">v{pkg.version}</span>
           </div>
 
           <div className="tab-navigation">

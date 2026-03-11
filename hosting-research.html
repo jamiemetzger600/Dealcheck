@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vettr Hosting Research — Alpine Coast Investments</title>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy-deep:  #1a3a50;
+      --navy-mid:   #28405a;
+      --steel-blue: #3d5a78;
+      --teal:       #4a8fa8;
+      --ice-blue:   #8ca0b4;
+      --silver:     #c8c8c8;
+      --off-white:  #dde2e7;
+      --page-bg:    #f0f2f4;
+      --card-bg:    #f5f6f7;
+      --white:      #ffffff;
+      --charcoal:   #2a2a2a;
+      --red:        #c0392b;
+      --green:      #2e7d52;
+      --amber:      #c07a1a;
+    }
+
+    body {
+      font-family: 'Oswald', sans-serif;
+      background: var(--page-bg);
+      color: var(--charcoal);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--navy-deep);
+      color: var(--white);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header .brand { font-size: 18px; font-weight: 700; letter-spacing: 0.07em; }
+    header .subtitle { font-size: 13px; font-weight: 300; color: var(--ice-blue); }
+    header .doc-title { font-size: 22px; font-weight: 600; text-align: right; }
+
+    /* ── Layout ── */
+    .page { max-width: 1200px; margin: 0 auto; padding: 32px 24px 64px; }
+
+    /* ── Section headers ── */
+    .section-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+      color: var(--ice-blue); text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-size: 22px; font-weight: 700;
+      color: var(--navy-deep);
+      border-left: 4px solid var(--teal);
+      padding-left: 12px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Stack Overview ── */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .stack-card {
+      background: var(--navy-mid);
+      color: var(--white);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(26,58,80,0.18);
+    }
+    .stack-card .icon { font-size: 26px; margin-bottom: 8px; }
+    .stack-card h3 { font-size: 15px; font-weight: 600; color: var(--ice-blue); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .stack-card p { font-size: 13px; font-weight: 300; color: #d0dae4; line-height: 1.6; }
+    .stack-card .tech { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .tech-pill {
+      background: rgba(74,143,168,0.25);
+      border: 1px solid var(--teal);
+      color: var(--teal);
+      font-size: 11px; font-weight: 500;
+      padding: 2px 10px; border-radius: 12px;
+    }
+
+    /* ── Hosting comparison tables ── */
+    .options-section { margin-bottom: 44px; }
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .option-card {
+      background: var(--card-bg);
+      border: 1px solid var(--silver);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(26,58,80,0.10);
+      display: flex;
+      flex-direction: column;
+    }
+    .option-card.recommended {
+      border: 2px solid var(--teal);
+      box-shadow: 0 4px 16px rgba(74,143,168,0.22);
+    }
+    .option-card.warning {
+      border: 2px solid var(--amber);
+    }
+
+    .option-header {
+      background: var(--navy-deep);
+      color: var(--white);
+      padding: 14px 18px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .option-header h3 { font-size: 16px; font-weight: 600; }
+    .option-header .badge {
+      font-size: 10px; font-weight: 600; padding: 2px 10px;
+      border-radius: 12px; letter-spacing: 0.07em;
+    }
+    .badge-rec   { background: var(--teal);  color: var(--white); }
+    .badge-warn  { background: var(--amber); color: var(--white); }
+    .badge-paid  { background: var(--steel-blue); color: var(--white); }
+    .badge-gone  { background: var(--red);   color: var(--white); }
+
+    .option-body { padding: 16px 18px; flex: 1; }
+    .option-body .price {
+      font-size: 28px; font-weight: 700; color: var(--navy-deep); margin-bottom: 2px;
+    }
+    .option-body .price-label {
+      font-size: 11px; color: var(--ice-blue); text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 14px;
+    }
+
+    .feature-list { list-style: none; }
+    .feature-list li {
+      font-size: 13px; font-weight: 400;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--off-white);
+      display: flex; align-items: flex-start; gap: 8px;
+      color: var(--charcoal);
+    }
+    .feature-list li:last-child { border-bottom: none; }
+    .feature-list .icon-yes  { color: var(--green);  font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+    .feature-list .icon-no   { color: var(--red);    font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+    .feature-list .icon-warn { color: var(--amber);  font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+
+    .option-footer {
+      background: var(--off-white);
+      border-top: 1px solid var(--silver);
+      padding: 10px 18px;
+      font-size: 12px; font-weight: 400; color: var(--steel-blue);
+      font-style: italic;
+    }
+
+    /* ── Alert boxes ── */
+    .alert {
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .alert-warning { background: #fff8ee; border: 1px solid #f0c060; color: #7a5000; }
+    .alert-info    { background: #eaf4f8; border: 1px solid var(--teal); color: var(--navy-deep); }
+    .alert strong  { font-weight: 600; }
+
+    /* ── Growth Path Timeline ── */
+    .growth-section { margin-bottom: 44px; }
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      position: relative;
+      margin-top: 8px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      top: 36px;
+      left: 16.5%;
+      right: 16.5%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--teal), var(--navy-mid));
+      z-index: 0;
+    }
+    .stage {
+      background: var(--card-bg);
+      border: 1px solid var(--silver);
+      border-radius: 8px;
+      padding: 20px 18px 18px;
+      position: relative;
+      z-index: 1;
+      box-shadow: 0 2px 8px rgba(26,58,80,0.10);
+    }
+    .stage:not(:first-child) { margin-left: 2px; }
+    .stage-num {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700;
+      margin: 0 auto 14px;
+    }
+    .stage-1 .stage-num { background: var(--teal); color: var(--white); }
+    .stage-2 .stage-num { background: var(--navy-mid); color: var(--white); }
+    .stage-3 .stage-num { background: var(--navy-deep); color: var(--white); }
+    .stage h3 { font-size: 15px; font-weight: 600; color: var(--navy-deep); text-align: center; margin-bottom: 6px; }
+    .stage .stage-label { font-size: 11px; color: var(--ice-blue); text-align: center; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 14px; }
+    .stage-row {
+      font-size: 12px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--off-white);
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .stage-row:last-child { border-bottom: none; }
+    .stage-row .row-label { font-size: 10px; color: var(--ice-blue); text-transform: uppercase; letter-spacing: 0.06em; }
+    .stage-row .row-value { font-size: 13px; font-weight: 500; color: var(--charcoal); }
+    .stage-cost {
+      margin-top: 14px;
+      text-align: center;
+      background: var(--navy-deep);
+      color: var(--white);
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 14px; font-weight: 600;
+    }
+
+    /* ── Divider ── */
+    .divider { border: none; border-top: 1px solid var(--silver); margin: 36px 0; }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--navy-deep);
+      color: var(--ice-blue);
+      text-align: center;
+      padding: 14px 24px;
+      font-size: 12px; font-weight: 300;
+      letter-spacing: 0.04em;
+    }
+
+    @media (max-width: 768px) {
+      .stack-grid  { grid-template-columns: 1fr; }
+      .timeline    { grid-template-columns: 1fr; }
+      .timeline::before { display: none; }
+      .options-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand">ALPINE COAST INVESTMENTS</div>
+    <div class="subtitle">Technology Research · Vettr App</div>
+  </div>
+  <div class="doc-title">Hosting Strategy<br><span style="font-weight:300;font-size:14px;color:var(--ice-blue)">March 2026 · Research Only</span></div>
+</header>
+
+<div class="page">
+
+  <!-- ═══ PROJECT OVERVIEW ═══ -->
+  <div class="section-label">Project Overview</div>
+  <div class="section-title">Vettr — What You've Built</div>
+
+  <div class="stack-grid">
+    <div class="stack-card">
+      <div class="icon">🧩</div>
+      <h3>Chrome Extension</h3>
+      <p>The core tool — Manifest V3 extension for deal sourcing, financial calculations, and pipeline management. Distributed via the Chrome Web Store.</p>
+      <div class="tech">
+        <span class="tech-pill">Manifest V3</span>
+        <span class="tech-pill">Vanilla JS</span>
+        <span class="tech-pill">Chrome Store</span>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="icon">🌐</div>
+      <h3>Web App (PWA)</h3>
+      <p>A Progressive Web App companion — already connected to Vercel for hosting. Built with React + Vite, mobile-ready with service worker support.</p>
+      <div class="tech">
+        <span class="tech-pill">React 18</span>
+        <span class="tech-pill">Vite</span>
+        <span class="tech-pill">PWA</span>
+        <span class="tech-pill">react-router-dom</span>
+      </div>
+    </div>
+    <div class="stack-card">
+      <div class="icon">⚙️</div>
+      <h3>Backend API</h3>
+      <p>A full REST API handling auth, user settings, saved deals, Stripe subscriptions, cron jobs, and email notifications.</p>
+      <div class="tech">
+        <span class="tech-pill">Node.js / Express</span>
+        <span class="tech-pill">PostgreSQL</span>
+        <span class="tech-pill">JWT Auth</span>
+        <span class="tech-pill">Stripe</span>
+        <span class="tech-pill">Nodemailer</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-info">
+    <div class="alert-icon">ℹ️</div>
+    <div>
+      <strong>Chrome Extension needs no hosting.</strong> It's packaged and distributed through the Chrome Web Store. The hosting decisions below cover only your <strong>Web App (PWA)</strong> and <strong>Backend API</strong>.
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ═══ FRONTEND ═══ -->
+  <div class="options-section">
+    <div class="section-label">Frontend Hosting</div>
+    <div class="section-title">Web App (React + Vite PWA)</div>
+
+    <div class="alert alert-warning">
+      <div class="alert-icon">⚠️</div>
+      <div>
+        <strong>Important — Vercel Commercial Use:</strong> Your project already has Vercel configured (<code>web/.vercel/</code>). However, Vercel's Hobby (free) plan <strong>explicitly prohibits commercial use</strong> in their Terms of Service. Since Vettr has paid tiers via Stripe, you would technically need to upgrade to Vercel Pro ($20/mo) once you start earning revenue. Cloudflare Pages is the stronger free-forever alternative.
+      </div>
+    </div>
+
+    <div class="options-grid">
+
+      <!-- Cloudflare Pages -->
+      <div class="option-card recommended">
+        <div class="option-header">
+          <h3>☁️ Cloudflare Pages</h3>
+          <span class="badge badge-rec">RECOMMENDED</span>
+        </div>
+        <div class="option-body">
+          <div class="price">$0</div>
+          <div class="price-label">Free — Forever (Commercial OK)</div>
+          <ul class="feature-list">
+            <li><span class="icon-yes">✔</span> Unlimited bandwidth — no caps, ever</li>
+            <li><span class="icon-yes">✔</span> 500 builds/month (plenty for solo)</li>
+            <li><span class="icon-yes">✔</span> <strong>Commercial use explicitly allowed</strong></li>
+            <li><span class="icon-yes">✔</span> Git-connected CI/CD (auto-deploy on push)</li>
+            <li><span class="icon-yes">✔</span> Global CDN — among the fastest in the world</li>
+            <li><span class="icon-yes">✔</span> Automatic HTTPS / SSL</li>
+            <li><span class="icon-yes">✔</span> Custom domains included</li>
+            <li><span class="icon-yes">✔</span> React + Vite builds supported out-of-the-box</li>
+          </ul>
+        </div>
+        <div class="option-footer">Paid tier: ~$20/mo (Workers Paid) — only needed at very high scale</div>
+      </div>
+
+      <!-- Vercel -->
+      <div class="option-card warning">
+        <div class="option-header">
+          <h3>▲ Vercel</h3>
+          <span class="badge badge-warn">ALREADY CONFIGURED</span>
+        </div>
+        <div class="option-body">
+          <div class="price">$0 → $20</div>
+          <div class="price-label">Hobby Free / Pro $20/seat/mo</div>
+          <ul class="feature-list">
+            <li><span class="icon-warn">⚠</span> <strong>Free tier = non-commercial use only</strong> (violates ToS with paid product)</li>
+            <li><span class="icon-yes">✔</span> 100 GB bandwidth/month on free</li>
+            <li><span class="icon-yes">✔</span> 1 TB bandwidth/month on Pro</li>
+            <li><span class="icon-yes">✔</span> Already integrated with your project</li>
+            <li><span class="icon-yes">✔</span> Excellent DX — instant previews per PR</li>
+            <li><span class="icon-yes">✔</span> React + Vite first-class support</li>
+            <li><span class="icon-no">✗</span> Free tier suspended if limits exceeded</li>
+          </ul>
+        </div>
+        <div class="option-footer">Best choice if you're ready to pay $20/mo — great developer experience</div>
+      </div>
+
+      <!-- Netlify -->
+      <div class="option-card">
+        <div class="option-header">
+          <h3>🟩 Netlify</h3>
+          <span class="badge badge-paid">ALTERNATIVE</span>
+        </div>
+        <div class="option-body">
+          <div class="price">$0 → $19</div>
+          <div class="price-label">Free / Pro $19/seat/mo</div>
+          <ul class="feature-list">
+            <li><span class="icon-yes">✔</span> 100 GB bandwidth/month free</li>
+            <li><span class="icon-yes">✔</span> 300 build minutes/month</li>
+            <li><span class="icon-no">✗</span> Suspends ALL projects if any one hits limit</li>
+            <li><span class="icon-warn">⚠</span> Commercial use technically allowed, but unclear for revenue-generating apps</li>
+            <li><span class="icon-yes">✔</span> Good DX, branch deploy previews</li>
+            <li><span class="icon-no">✗</span> No team seats on free tier</li>
+          </ul>
+        </div>
+        <div class="option-footer">Solid option but the "all sites paused" limit behavior is risky for production</div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ═══ BACKEND ═══ -->
+  <div class="options-section">
+    <div class="section-label">Backend Hosting</div>
+    <div class="section-title">Node.js / Express API Server</div>
+
+    <div class="alert alert-warning">
+      <div class="alert-icon">⚠️</div>
+      <div>
+        <strong>Cold starts matter for your app.</strong> Your backend handles Stripe webhooks, JWT auth, and cron jobs — none of these tolerate a 30-second cold start. Avoid any platform that "spins down" free tier services (like Render's free tier). Prioritize always-on services.
+      </div>
+    </div>
+
+    <div class="options-grid">
+
+      <!-- Koyeb -->
+      <div class="option-card recommended">
+        <div class="option-header">
+          <h3>🟣 Koyeb</h3>
+          <span class="badge badge-rec">RECOMMENDED FREE</span>
+        </div>
+        <div class="option-body">
+          <div class="price">$0</div>
+          <div class="price-label">Starter Free — Always On, Commercial OK</div>
+          <ul class="feature-list">
+            <li><span class="icon-yes">✔</span> <strong>Always-on — zero cold starts</strong> (restarts only if unresponsive)</li>
+            <li><span class="icon-yes">✔</span> 1 vCPU, 512 MB RAM — sufficient for Express</li>
+            <li><span class="icon-yes">✔</span> 1 GB bandwidth/month</li>
+            <li><span class="icon-yes">✔</span> <strong>Includes a free PostgreSQL database</strong></li>
+            <li><span class="icon-yes">✔</span> No credit card required</li>
+            <li><span class="icon-yes">✔</span> Commercial use allowed</li>
+            <li><span class="icon-yes">✔</span> Git-connected auto-deploys</li>
+            <li><span class="icon-warn">⚠</span> Limited to 1 free service + 1 DB</li>
+          </ul>
+        </div>
+        <div class="option-footer">Best free starting point — truly persistent, no surprises, handles your full stack</div>
+      </div>
+
+      <!-- Railway -->
+      <div class="option-card">
+        <div class="option-header">
+          <h3>🚂 Railway</h3>
+          <span class="badge badge-paid">$5/MO HOBBY</span>
+        </div>
+        <div class="option-body">
+          <div class="price">$5/mo</div>
+          <div class="price-label">Hobby Plan (includes $5 credit) — No true free tier</div>
+          <ul class="feature-list">
+            <li><span class="icon-yes">✔</span> Always-on, no cold starts</li>
+            <li><span class="icon-yes">✔</span> One-click PostgreSQL add-on</li>
+            <li><span class="icon-yes">✔</span> Usage-based — pay only for what you use</li>
+            <li><span class="icon-yes">✔</span> Great DX, easy to scale</li>
+            <li><span class="icon-no">✗</span> No permanent free tier (30-day trial only)</li>
+            <li><span class="icon-warn">⚠</span> PostgreSQL can cost ~$18/mo standalone if heavy usage</li>
+            <li><span class="icon-warn">⚠</span> Light usage typically stays well under $1/mo for DB</li>
+          </ul>
+        </div>
+        <div class="option-footer">Best "almost free" option — great scaling path, well-suited for your stack</div>
+      </div>
+
+      <!-- Render -->
+      <div class="option-card warning">
+        <div class="option-header">
+          <h3>🟡 Render</h3>
+          <span class="badge badge-warn">AVOID FREE TIER</span>
+        </div>
+        <div class="option-body">
+          <div class="price">$0 → $7/mo</div>
+          <div class="price-label">Free (unusable) / Starter $7/mo</div>
+          <ul class="feature-list">
+            <li><span class="icon-no">✗</span> <strong>Free tier spins down after 15 min idle</strong></li>
+            <li><span class="icon-no">✗</span> Cold start: 30 seconds to 2 minutes — breaks Stripe webhooks</li>
+            <li><span class="icon-warn">⚠</span> PostgreSQL free for 90 days only, then paid</li>
+            <li><span class="icon-yes">✔</span> Starter at $7/mo is always-on with 512 MB RAM</li>
+            <li><span class="icon-yes">✔</span> Good documentation, easy Node.js deploy</li>
+          </ul>
+        </div>
+        <div class="option-footer">Avoid the free tier. The $7/mo Starter plan is a reasonable paid option</div>
+      </div>
+
+      <!-- Fly.io -->
+      <div class="option-card">
+        <div class="option-header">
+          <h3>🪁 Fly.io</h3>
+          <span class="badge badge-gone">NO FREE TIER</span>
+        </div>
+        <div class="option-body">
+          <div class="price">~$2/mo</div>
+          <div class="price-label">Usage-based — free tier removed in 2024</div>
+          <ul class="feature-list">
+            <li><span class="icon-no">✗</span> Free tier removed for new users (2024)</li>
+            <li><span class="icon-warn">⚠</span> 2-hour trial only for new signups</li>
+            <li><span class="icon-yes">✔</span> Very cheap — ~$1.94/mo for shared 256 MB VM</li>
+            <li><span class="icon-yes">✔</span> Global edge deployment</li>
+            <li><span class="icon-no">✗</span> Managed PostgreSQL starts at $38/mo</li>
+            <li><span class="icon-warn">⚠</span> More ops complexity than Railway/Render</li>
+          </ul>
+        </div>
+        <div class="option-footer">Very cheap compute but no free tier and expensive managed Postgres</div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ═══ DATABASE ═══ -->
+  <div class="options-section">
+    <div class="section-label">Database</div>
+    <div class="section-title">PostgreSQL — Standalone Options</div>
+    <p style="font-size:13px; color:var(--steel-blue); margin-bottom:20px;">If you use Koyeb free tier, its included PostgreSQL may be enough to start. These options are relevant if you need a separate or more scalable DB host.</p>
+
+    <div class="options-grid">
+
+      <!-- Neon -->
+      <div class="option-card recommended">
+        <div class="option-header">
+          <h3>🌿 Neon (Serverless Postgres)</h3>
+          <span class="badge badge-rec">BEST FREE DB</span>
+        </div>
+        <div class="option-body">
+          <div class="price">$0</div>
+          <div class="price-label">Free Plan — Never Pauses (active region)</div>
+          <ul class="feature-list">
+            <li><span class="icon-yes">✔</span> 0.5 GB storage free (enough for early users)</li>
+            <li><span class="icon-yes">✔</span> 100 CU-hours compute/month (doubled in 2025)</li>
+            <li><span class="icon-yes">✔</span> 5 GB egress/month</li>
+            <li><span class="icon-yes">✔</span> Up to 20 free projects</li>
+            <li><span class="icon-yes">✔</span> Full PostgreSQL — drop-in compatible with <code>pg</code> npm package</li>
+            <li><span class="icon-yes">✔</span> Scales to zero (cost-efficient)</li>
+            <li><span class="icon-warn">⚠</span> Serverless — connection pooling needed for Express (use <code>@neondatabase/serverless</code> or pgBouncer)</li>
+          </ul>
+        </div>
+        <div class="option-footer">Pro plan: $19/mo — scales very gracefully from free to production</div>
+      </div>
+
+      <!-- Supabase -->
+      <div class="option-card">
+        <div class="option-header">
+          <h3>⚡ Supabase</h3>
+          <span class="badge badge-warn">PAUSES AFTER 7 DAYS</span>
+        </div>
+        <div class="option-body">
+          <div class="price">$0</div>
+          <div class="price-label">Free / Pro $25/mo</div>
+          <ul class="feature-list">
+            <li><span class="icon-yes">✔</span> 500 MB storage, 2 GB egress</li>
+            <li><span class="icon-yes">✔</span> 50,000 monthly active users (Auth included)</li>
+            <li><span class="icon-no">✗</span> <strong>Project pauses after 7 days inactivity</strong></li>
+            <li><span class="icon-warn">⚠</span> Resuming requires manual action or Pro upgrade</li>
+            <li><span class="icon-yes">✔</span> Full PostgreSQL + Auth + Storage + Realtime</li>
+            <li><span class="icon-yes">✔</span> Great if you replace your custom auth with Supabase Auth</li>
+          </ul>
+        </div>
+        <div class="option-footer">Better suited as a BaaS replacement — great if you adopt its auth/storage features</div>
+      </div>
+
+      <!-- Railway Postgres -->
+      <div class="option-card">
+        <div class="option-header">
+          <h3>🚂 Railway PostgreSQL</h3>
+          <span class="badge badge-paid">USAGE-BASED</span>
+        </div>
+        <div class="option-body">
+          <div class="price">&lt;$1/mo</div>
+          <div class="price-label">Light usage — requires Railway account ($5/mo base)</div>
+          <ul class="feature-list">
+            <li><span class="icon-yes">✔</span> One-click add-on inside Railway</li>
+            <li><span class="icon-yes">✔</span> Very cheap for light workloads (&lt;$1/mo)</li>
+            <li><span class="icon-yes">✔</span> Private networking — DB and app in same environment</li>
+            <li><span class="icon-warn">⚠</span> Can reach ~$18/mo for heavy traffic</li>
+            <li><span class="icon-yes">✔</span> Automatic backups</li>
+          </ul>
+        </div>
+        <div class="option-footer">Natural pairing with Railway backend — bundled usage billing is convenient</div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ═══ GROWTH PATH ═══ -->
+  <div class="growth-section">
+    <div class="section-label">Recommended Growth Path</div>
+    <div class="section-title">3-Stage Scaling Strategy</div>
+
+    <div class="timeline">
+
+      <div class="stage stage-1">
+        <div class="stage-num">1</div>
+        <h3>Launch Stage</h3>
+        <div class="stage-label">$0/mo · Beta → First Paid Users</div>
+        <div class="stage-row">
+          <span class="row-label">Frontend</span>
+          <span class="row-value">☁️ Cloudflare Pages (Free)</span>
+        </div>
+        <div class="stage-row">
+          <span class="row-label">Backend</span>
+          <span class="row-value">🟣 Koyeb Free (Always-On)</span>
+        </div>
+        <div class="stage-row">
+          <span class="row-label">Database</span>
+          <span class="row-value">Koyeb Included PostgreSQL or Neon Free</span>
+        </div>
+        <div class="stage-row">
+          <span class="row-label">Why</span>
+          <span class="row-value">Zero cost, no cold starts, commercial use OK on both platforms</span>
+        </div>
+        <div class="stage-cost">$0 / month</div>
+      </div>
+
+      <div class="stage stage-2">
+        <div class="stage-num">2</div>
+        <h3>Growth Stage</h3>
+        <div class="stage-label">~$5–$20/mo · First Revenue</div>
+        <div class="stage-row">
+          <span class="row-label">Frontend</span>
+          <span class="row-value">☁️ Cloudflare Pages (still free)</span>
+        </div>
+        <div class="stage-row">
+          <span class="row-label">Backend</span>
+          <span class="row-value">🚂 Railway Hobby ($5/mo)</span>
+        </div>
+        <div class="stage-row">
+          <span class="row-label">Database</span>
+          <span class="row-value">Railway PostgreSQL (&lt;$1/mo) or Neon Free</span>
+        </div>
+        <div class="stage-row">
+          <span class="row-label">Why</span>
+          <span class="row-value">Railway's DX is excellent, usage-based means you only pay as you grow</span>
+        </div>
+        <div class="stage-cost">~$5–$10 / month</div>
+      </div>
+
+      <div class="stage stage-3">
+        <div class="stage-num">3</div>
+        <h3>Scale Stage</h3>
+        <div class="stage-label">~$30–$60/mo · Meaningful MRR</div>
+        <div class="stage-row">
+          <span class="row-label">Frontend</span>
+          <span class="row-value">▲ Vercel Pro ($20/mo) for team + analytics</span>
+        </div>
+        <div class="stage-row">
+          <span class="row-label">Backend</span>
+          <span class="row-value">🟡 Render Starter+ ($7–$25/mo) or Railway Pro</span>
+        </div>
+        <div class="stage-row">
+          <span class="row-label">Database</span>
+          <span class="row-value">🌿 Neon Pro ($19/mo) — autoscale, branching, backups</span>
+        </div>
+        <div class="stage-row">
+          <span class="row-label">Why</span>
+          <span class="row-value">Enterprise-grade reliability, team collaboration, SLA-backed uptime</span>
+        </div>
+        <div class="stage-cost">~$40–$65 / month</div>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ═══ SUMMARY TABLE ═══ -->
+  <div class="section-label">Quick Reference</div>
+  <div class="section-title">All Options at a Glance</div>
+
+  <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:32px;">
+    <thead>
+      <tr style="background:var(--navy-deep); color:var(--white);">
+        <th style="padding:10px 14px; text-align:left; font-weight:600;">Platform</th>
+        <th style="padding:10px 14px; text-align:left; font-weight:600;">Type</th>
+        <th style="padding:10px 14px; text-align:left; font-weight:600;">Free Tier</th>
+        <th style="padding:10px 14px; text-align:left; font-weight:600;">Commercial OK</th>
+        <th style="padding:10px 14px; text-align:left; font-weight:600;">Cold Start</th>
+        <th style="padding:10px 14px; text-align:left; font-weight:600;">Next Tier</th>
+        <th style="padding:10px 14px; text-align:left; font-weight:600;">Best For</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background:var(--card-bg);">
+        <td style="padding:10px 14px; font-weight:600; color:var(--teal);">☁️ Cloudflare Pages</td>
+        <td style="padding:10px 14px;">Frontend</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ Unlimited BW</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ Yes</td>
+        <td style="padding:10px 14px;">N/A (static)</td>
+        <td style="padding:10px 14px;">~$20/mo</td>
+        <td style="padding:10px 14px;">Best free frontend — forever</td>
+      </tr>
+      <tr style="background:var(--white);">
+        <td style="padding:10px 14px; font-weight:600;">▲ Vercel</td>
+        <td style="padding:10px 14px;">Frontend</td>
+        <td style="padding:10px 14px; color:var(--amber);">⚠ 100 GB BW</td>
+        <td style="padding:10px 14px; color:var(--red);">✗ No (ToS)</td>
+        <td style="padding:10px 14px;">N/A (static)</td>
+        <td style="padding:10px 14px;">$20/seat/mo</td>
+        <td style="padding:10px 14px;">Best paid DX (already configured)</td>
+      </tr>
+      <tr style="background:var(--card-bg);">
+        <td style="padding:10px 14px; font-weight:600;">🟩 Netlify</td>
+        <td style="padding:10px 14px;">Frontend</td>
+        <td style="padding:10px 14px; color:var(--amber);">⚠ 100 GB BW</td>
+        <td style="padding:10px 14px; color:var(--amber);">⚠ Unclear</td>
+        <td style="padding:10px 14px;">N/A (static)</td>
+        <td style="padding:10px 14px;">$19/seat/mo</td>
+        <td style="padding:10px 14px;">Alternative to Vercel</td>
+      </tr>
+      <tr style="background:var(--white);">
+        <td style="padding:10px 14px; font-weight:600; color:var(--teal);">🟣 Koyeb</td>
+        <td style="padding:10px 14px;">Backend + DB</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ 1 svc + 1 DB</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ Yes</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ None</td>
+        <td style="padding:10px 14px;">Usage-based</td>
+        <td style="padding:10px 14px;">Best free backend — always on</td>
+      </tr>
+      <tr style="background:var(--card-bg);">
+        <td style="padding:10px 14px; font-weight:600;">🚂 Railway</td>
+        <td style="padding:10px 14px;">Backend + DB</td>
+        <td style="padding:10px 14px; color:var(--red);">✗ Trial only</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ Yes</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ None</td>
+        <td style="padding:10px 14px;">$5/mo hobby</td>
+        <td style="padding:10px 14px;">Best paid starting backend</td>
+      </tr>
+      <tr style="background:var(--white);">
+        <td style="padding:10px 14px; font-weight:600;">🟡 Render</td>
+        <td style="padding:10px 14px;">Backend + DB</td>
+        <td style="padding:10px 14px; color:var(--red);">✗ Spins down</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ Yes</td>
+        <td style="padding:10px 14px; color:var(--red);">✗ 30s–2 min</td>
+        <td style="padding:10px 14px;">$7/mo starter</td>
+        <td style="padding:10px 14px;">OK at $7/mo+ only</td>
+      </tr>
+      <tr style="background:var(--card-bg);">
+        <td style="padding:10px 14px; font-weight:600; color:var(--teal);">🌿 Neon</td>
+        <td style="padding:10px 14px;">Database Only</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ 0.5 GB</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ Yes</td>
+        <td style="padding:10px 14px;">N/A</td>
+        <td style="padding:10px 14px;">$19/mo</td>
+        <td style="padding:10px 14px;">Best standalone free PostgreSQL</td>
+      </tr>
+      <tr style="background:var(--white);">
+        <td style="padding:10px 14px; font-weight:600;">⚡ Supabase</td>
+        <td style="padding:10px 14px;">Database + BaaS</td>
+        <td style="padding:10px 14px; color:var(--amber);">⚠ Pauses 7d</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ Yes</td>
+        <td style="padding:10px 14px;">N/A</td>
+        <td style="padding:10px 14px;">$25/mo</td>
+        <td style="padding:10px 14px;">If you want auth + DB bundled</td>
+      </tr>
+      <tr style="background:var(--card-bg);">
+        <td style="padding:10px 14px; font-weight:600;">🪁 Fly.io</td>
+        <td style="padding:10px 14px;">Backend + DB</td>
+        <td style="padding:10px 14px; color:var(--red);">✗ Removed 2024</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ Yes</td>
+        <td style="padding:10px 14px; color:var(--green);">✔ None</td>
+        <td style="padding:10px 14px;">~$2/mo compute</td>
+        <td style="padding:10px 14px;">Cheap compute, expensive managed DB</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="alert alert-info">
+    <div class="alert-icon">💡</div>
+    <div>
+      <strong>Bottom line:</strong> Start with <strong>Cloudflare Pages</strong> (frontend) + <strong>Koyeb Free</strong> (backend + PostgreSQL) — that's a fully functional, always-on, zero-cost production stack with no ToS issues. Migrate to Railway ($5/mo) as your first user-driven upgrade, and graduate to Vercel Pro + Neon Pro once your MRR justifies it.
+    </div>
+  </div>
+
+</div><!-- /.page -->
+
+<footer>
+  ALPINE COAST INVESTMENTS · Vettr Hosting Research · March 2026 · For internal planning use only
+</footer>
+
+</body>
+</html>

@@ -1,6 +1,6 @@
-# Dealcheck Shared Module
+# Vettr Shared Module
 
-Shared business logic for Dealcheck v4.0.0+ (extension, web app, backend).
+Shared business logic for Vettr v4.0.0+ (extension, web app, backend).
 
 ## Features
 

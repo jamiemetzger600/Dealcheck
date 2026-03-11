@@ -31,7 +31,10 @@ export default function RegisterPage() {
       await register(email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      const msg = err.message || 'Registration failed';
+      setError(msg.includes('fetch') || msg === 'Request failed' || msg === 'Failed to fetch'
+        ? 'Unable to reach the server. If this persists, the app may be misconfigured (missing API URL).'
+        : msg);
     } finally {
       setLoading(false);
     }
@@ -41,7 +44,7 @@ export default function RegisterPage() {
     <div className="auth-page">
       <div className="auth-container">
         <div className="auth-header">
-          <h1>📊 Dealcheck</h1>
+          <h1>📊 Vettr</h1>
           <p>Business Acquisition Deal Analyzer</p>
         </div>
 

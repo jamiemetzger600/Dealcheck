@@ -1,6 +1,6 @@
-# Dealcheck Backend API
+# Vettr Backend API
 
-Backend server for Dealcheck mobile web and native apps (v4.0.0+).
+Backend server for Vettr mobile web and native apps (v4.0.0+).
 
 ## Features
 
@@ -28,7 +28,7 @@ brew install postgresql@15
 brew services start postgresql@15
 
 # Create database
-createdb dealcheck
+createdb vettr
 ```
 
 ### 3. Configure environment

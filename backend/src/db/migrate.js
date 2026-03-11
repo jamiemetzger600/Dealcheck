@@ -102,7 +102,7 @@ const migrations = [
         
         -- User-added fields
         notes TEXT,
-        status VARCHAR(50) DEFAULT 'new',
+        status VARCHAR(50) DEFAULT 'none',
         progress_stage VARCHAR(50),
         progress_history JSONB DEFAULT '[]'::jsonb,
         
@@ -144,6 +144,19 @@ const migrations = [
       
       CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
       CREATE INDEX idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
+    `
+  },
+  {
+    name: 'harmonize_deal_statuses',
+    up: `
+      -- Update legacy status values to match extension format
+      UPDATE saved_deals SET status = 'none' WHERE status = 'new';
+      UPDATE saved_deals SET status = 'pass' WHERE status = 'passed';
+      UPDATE saved_deals SET status = 'warm' WHERE status IN ('reviewing', 'contacted');
+      UPDATE saved_deals SET status = 'hot' WHERE status IN ('due-diligence', 'offer');
+      
+      -- Update the default for future inserts
+      ALTER TABLE saved_deals ALTER COLUMN status SET DEFAULT 'none';
     `
   },
   {

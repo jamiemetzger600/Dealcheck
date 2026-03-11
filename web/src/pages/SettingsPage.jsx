@@ -93,7 +93,7 @@ export default function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dealcheck-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `vettr-settings-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     setExportResetMessage('Settings exported.');
@@ -176,7 +176,7 @@ export default function SettingsPage() {
         user={user}
         logout={logout}
         showTabs={false}
-        pageTitle="Dealcheck"
+        pageTitle="Vettr"
         pageSubtitle="Settings and notification preferences"
       />
       

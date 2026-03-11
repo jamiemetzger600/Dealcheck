@@ -1,4 +1,4 @@
-# Dealcheck v4.0.0 - Mobile Web MVP
+# Vettr v4.0.0 - Mobile Web MVP
 
 ## Summary
 
@@ -110,7 +110,7 @@ See `TESTING_v4.0.0.md` for complete setup and testing instructions.
 Quick start:
 ```bash
 # 1. Set up database
-createdb dealcheck
+createdb vettr
 
 # 2. Backend
 cd backend

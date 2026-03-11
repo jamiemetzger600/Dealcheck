@@ -1,10 +1,10 @@
 {
-  "name": "dealcheck-shared",
+  "name": "vettr-shared",
   "version": "4.0.0",
-  "description": "Shared business logic for Dealcheck (buy box matching, filtering)",
+  "description": "Shared business logic for Vettr (buy box matching, filtering)",
   "main": "index.js",
   "type": "module",
-  "keywords": ["dealcheck", "shared", "business-logic"],
+  "keywords": ["vettr", "shared", "business-logic"],
   "author": "",
   "license": "ISC"
 }

@@ -1,0 +1,144 @@
+/**
+ * Normalizes saved deal data from API (snake_case) to frontend format (camelCase)
+ * Maps legacy status values to extension-compatible status values
+ */
+
+const STATUS_MAP = {
+  'new': 'none',
+  'reviewing': 'warm',
+  'contacted': 'warm',
+  'due-diligence': 'hot',
+  'offer': 'hot',
+  'passed': 'pass',
+  'hot': 'hot',
+  'warm': 'warm',
+  'cold': 'cold',
+  'pass': 'pass',
+  'none': 'none'
+};
+
+export function normalizeDeal(deal) {
+  if (!deal) return null;
+
+  return {
+    // Identity
+    id: deal.id,
+    dealId: deal.deal_id || deal.dealId,
+    
+    // Basic info
+    name: deal.name,
+    url: deal.url,
+    description: deal.description,
+    
+    // Broker info
+    broker: deal.broker,
+    brokerName: deal.broker_name || deal.brokerName,
+    brokerCompany: deal.broker_company || deal.brokerCompany,
+    brokerEmail: deal.broker_email || deal.brokerEmail,
+    brokerPhone: deal.broker_phone || deal.brokerPhone,
+    
+    // Source info
+    source: deal.source,
+    sourceType: deal.source_type || deal.sourceType,
+    listingId: deal.listing_id || deal.listingId,
+    
+    // Dates
+    discoveredAt: deal.discovered_at || deal.discoveredAt,
+    savedAt: deal.saved_at || deal.savedAt,
+    updatedAt: deal.updated_at || deal.updatedAt,
+    
+    // Financial data
+    askingPrice: deal.asking_price || deal.askingPrice,
+    ebitda: deal.ebitda,
+    revenue: deal.revenue,
+    
+    // Location
+    location: deal.location,
+    city: deal.city,
+    state: deal.state,
+    county: deal.county,
+    country: deal.country,
+    
+    // Business details
+    industry: deal.industry,
+    yearsEstablished: deal.years_established || deal.yearsEstablished,
+    franchise: deal.franchise,
+    remote: deal.remote,
+    
+    // Status and tracking
+    status: normalizeStatus(deal.status),
+    notes: deal.notes || '',
+    progressStage: deal.progress_stage || deal.progressStage,
+    progressHistory: parseProgressHistory(deal.progress_history || deal.progressHistory),
+    
+    // Computed fields (if available)
+    qualityScore: deal.quality_score || deal.qualityScore,
+    cocReturn: deal.coc_return || deal.cocReturn
+  };
+}
+
+export function normalizeStatus(status) {
+  if (!status) return 'none';
+  return STATUS_MAP[status.toLowerCase()] || 'none';
+}
+
+export function denormalizeStatus(status) {
+  // For API calls, keep the normalized status (extension format)
+  return status;
+}
+
+function parseProgressHistory(history) {
+  if (!history) return [];
+  if (Array.isArray(history)) return history;
+  if (typeof history === 'string') {
+    try {
+      return JSON.parse(history);
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+}
+
+export function formatDate(dateString) {
+  if (!dateString) return '—';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  });
+}
+
+export function formatMoney(value) {
+  if (!value || value === 0) return '$0';
+  if (value >= 1000000) {
+    return `$${(value / 1000000).toFixed(2)}M`;
+  }
+  if (value >= 1000) {
+    return `$${(value / 1000).toFixed(0)}K`;
+  }
+  return `$${Math.round(value).toLocaleString()}`;
+}
+
+export function getStatusBadgeClass(status) {
+  const classes = {
+    'hot': 'hot',
+    'warm': 'warm',
+    'cold': 'cold',
+    'pass': 'pass',
+    'none': 'none'
+  };
+  return classes[status] || 'none';
+}
+
+export function getStatusLabel(status) {
+  const labels = {
+    'hot': '🔥 Hot',
+    'warm': '🌡️ Warm',
+    'cold': '❄️ Cold',
+    'pass': '❌ Pass',
+    'none': '—'
+  };
+  return labels[status] || '—';
+}

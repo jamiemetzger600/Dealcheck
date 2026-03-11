@@ -55,6 +55,7 @@ build-temp/
 .env
 .env.local
 .env.*.local
+.env.cli
 
 # OS generated files
 Thumbs.db

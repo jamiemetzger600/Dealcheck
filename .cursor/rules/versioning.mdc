@@ -1,0 +1,36 @@
+---
+description: Version number policy — use 4.1.x for ongoing work; only bump 4.x.x when the user explicitly requests it
+alwaysApply: true
+---
+
+# Version Number Policy
+
+## Current line: 4.1.x
+
+- **Default:** Every change that ships (fix, feature, or config) must increment the **patch** version: **4.1.x** (e.g. 4.1.0 → 4.1.1 → 4.1.2).
+- **Do not** change the middle number (4.**2**.x or 4.**0**.x) or the major number (**5**.x.x) unless the user **explicitly** asks for a "4.2.0", "4.x.x", or "major" bump.
+
+## When to bump
+
+- Bump the patch (4.1.x) when:
+  - Fixing a bug, tweaking copy, changing styles, adding a small feature, or updating config/docs that affect the app.
+- Only bump minor (4.x.0) or major (x.0.0) when:
+  - The user says something like "bump to 4.2.0", "release 4.2", "next minor version", or "major version".
+
+## Where to update the version
+
+After incrementing, update **all** of these so the app and docs stay in sync:
+
+| Location | Purpose |
+|----------|---------|
+| `web/package.json` | Web app version; **also shown in the nav bar** (Navigation component). |
+| `backend/package.json` | Backend API version. |
+| `backend/src/index.js` | Health response `version` field (use same value as backend package.json). |
+| `version.js` (repo root) | Extension version; run `update-version.sh` to propagate to `manifest.json` if the extension is being released. |
+
+If only the **web app** is being changed, at minimum update `web/package.json` so the nav bar shows the new 4.1.x. If both web and backend ship together, update web + backend package.json and the health endpoint. If the extension is part of the release, update `version.js` and run the update script.
+
+## Summary
+
+- **Normal work:** Increment **4.1.x** everywhere that applies; the nav displays the web app version.
+- **Different line (4.x.x or 5.x.x):** Only when the user explicitly requests it.

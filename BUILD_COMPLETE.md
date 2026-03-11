@@ -1,4 +1,4 @@
-# ✅ Dealcheck v4.0.0 - Build Complete!
+# ✅ Vettr v4.0.0 - Build Complete!
 
 All tasks have been completed successfully. Here's what was built:
 
@@ -41,7 +41,7 @@ Follow the comprehensive testing guide in **`TESTING_v4.0.0.md`**
 
 #### 1. Set up database
 ```bash
-createdb dealcheck
+createdb vettr
 ```
 
 #### 2. Start backend
@@ -243,7 +243,7 @@ If you run into issues:
 2. Verify `.env` files are configured correctly
 3. Check terminal logs for errors
 4. Inspect browser DevTools Console
-5. Query database with `psql dealcheck`
+5. Query database with `psql vettr`
 
 ## ✨ Success!
 

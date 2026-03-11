@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { userAPI, dealsAPI } from '../utils/api';
+import { normalizeDeal } from '../utils/normalizeDeal';
 import DealAggregator from '../components/DealAggregator';
 import SavedDeals from '../components/SavedDeals';
 import Navigation from '../components/Navigation';
@@ -35,7 +36,9 @@ export default function DashboardPage() {
       ]);
       
       setSettings(settingsData);
-      setSavedDeals(dealsData.deals || []);
+      // Normalize deals from API (snake_case) to frontend format (camelCase)
+      const normalized = (dealsData.deals || []).map(normalizeDeal);
+      setSavedDeals(normalized);
       
       // Calculate match count (will be updated when deals are fetched in DealAggregator)
       setMatchCount(0);
@@ -100,6 +103,7 @@ export default function DashboardPage() {
         {activeTab === 'saved-deals' && (
           <SavedDeals 
             deals={savedDeals}
+            settings={settings}
             onUpdate={loadUserData}
           />
         )}

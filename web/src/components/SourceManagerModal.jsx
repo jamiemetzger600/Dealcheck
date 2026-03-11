@@ -17,6 +17,15 @@ export default function SourceManagerModal({ isOpen, settings, onClose, onSaved 
     if (isOpen) setSources(settings?.customSources || []);
   }, [isOpen, settings]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const hint = useMemo(() => SOURCE_TYPES.find((type) => type.id === selectedType)?.hint || '', [selectedType]);
   if (!isOpen) return null;
 
@@ -76,7 +85,7 @@ export default function SourceManagerModal({ isOpen, settings, onClose, onSaved 
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-card source-modal">
+      <div className="modal-card source-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>📥 Manage Sources</h2>
           <button type="button" className="column-close-btn" onClick={onClose}>×</button>

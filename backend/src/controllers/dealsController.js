@@ -1,5 +1,13 @@
 import pool from '../db/pool.js';
 
+/** Normalize URL for matching: same listing may appear with different fragments/casing. */
+function normalizeUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const u = url.trim();
+  const withoutHash = u.split('#')[0];
+  return withoutHash.toLowerCase();
+}
+
 // Get all saved deals for user
 export const getSavedDeals = async (req, res) => {
   try {
@@ -25,7 +33,7 @@ export const getSavedDeals = async (req, res) => {
   }
 };
 
-// Save a new deal
+// Save a new deal (or update existing saved deal when same listing by URL — keeps one saved deal per listing, never removes)
 export const saveDeal = async (req, res) => {
   const {
     dealId, name, url, description, broker, brokerName, brokerCompany,
@@ -40,7 +48,47 @@ export const saveDeal = async (req, res) => {
   }
 
   try {
-    // Check if already saved
+    const normalizedUrl = normalizeUrl(url);
+
+    // If we have a URL, check for existing saved deal with same listing (same normalized URL).
+    // Update that row with new listing data instead of creating a duplicate; never remove saved deals.
+    if (normalizedUrl) {
+      const byUrl = await pool.query(
+        `SELECT id, saved_at FROM saved_deals
+         WHERE user_id = $1 AND url IS NOT NULL AND url != ''
+         AND LOWER(TRIM(SPLIT_PART(url, '#', 1))) = $2`,
+        [req.user.userId, normalizedUrl]
+      );
+
+      if (byUrl.rows.length > 0) {
+        const existingId = byUrl.rows[0].id;
+        await pool.query(
+          `UPDATE saved_deals SET
+            deal_id = $1, name = $2, url = $3, description = $4, broker = $5, broker_name = $6,
+            broker_company = $7, broker_email = $8, broker_phone = $9, source = $10, source_type = $11,
+            discovered_at = $12, asking_price = $13, ebitda = $14, revenue = $15,
+            location = $16, city = $17, state = $18, county = $19, country = $20,
+            industry = $21, years_established = $22, franchise = $23, remote = $24, listing_id = $25,
+            updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = $26 AND id = $27`,
+          [
+            dealId, name, url || null, description || null, broker || null, brokerName || null, brokerCompany || null,
+            brokerEmail || null, brokerPhone || null, source || null, sourceType || null, discoveredAt || null,
+            askingPrice ?? null, ebitda ?? null, revenue ?? null,
+            location || null, city || null, state || null, county || null, country || null,
+            industry || null, yearsEstablished || null, franchise || null, remote || null, listingId || null,
+            req.user.userId, existingId
+          ]
+        );
+        return res.status(200).json({
+          message: 'Deal already saved; listing info updated',
+          dealId: existingId,
+          savedAt: byUrl.rows[0].saved_at
+        });
+      }
+    }
+
+    // No existing row by URL; check by deal_id (avoid duplicate by id)
     const existing = await pool.query(
       'SELECT id FROM saved_deals WHERE user_id = $1 AND deal_id = $2',
       [req.user.userId, dealId]

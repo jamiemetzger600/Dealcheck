@@ -72,9 +72,10 @@ const FLEXIBILITY_OPTIONS = [
 const SWIPE_THRESHOLD = 80;
 const DRAG_CLICK_THRESHOLD = 8;
 const MAX_DRAG = 320;
+const MOBILE_BREAKPOINT_PX = 768;
 
-/** Tinder-style swipeable wrapper for card view: swipe left = hide, swipe right = heart/save */
-function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, children }) {
+/** Card in list view. When enableSwipe (mobile only): swipe left = hide, swipe right = heart/save. Desktop: plain click. */
+function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, enableSwipe, children }) {
   const [dragX, setDragX] = useState(0);
   const startXRef = useRef(0);
   const isDragRef = useRef(false);
@@ -136,13 +137,13 @@ function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, children }) 
   }, [handleStart, onMouseMove, onMouseUp]);
 
   const onClick = useCallback((e) => {
-    if (isDragRef.current) {
+    if (enableSwipe && isDragRef.current) {
       e.preventDefault();
       e.stopPropagation();
       return;
     }
     onTap(deal);
-  }, [deal, onTap]);
+  }, [deal, onTap, enableSwipe]);
 
   const onKeyDown = useCallback((e) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -150,6 +151,20 @@ function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, children }) 
       onTap(deal);
     }
   }, [deal, onTap]);
+
+  if (!enableSwipe) {
+    return (
+      <div
+        className={`deal-card ${isHidden ? 'deal-card--hidden' : ''}`}
+        onClick={() => onTap(deal)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={onKeyDown}
+      >
+        {children}
+      </div>
+    );
+  }
 
   const rotate = (dragX / MAX_DRAG) * 12;
   const nopeOpacity = dragX < 0 ? Math.min(1, Math.abs(dragX) / SWIPE_THRESHOLD) * 0.9 : 0;
@@ -219,6 +234,17 @@ export default function DealAggregator({
   const [customFlexibilityInput, setCustomFlexibilityInput] = useState('');
   const [saveToast, setSaveToast] = useState(null);
   const [savingDealId, setSavingDealId] = useState(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX - 1}px)`);
+    const handler = () => setIsMobileViewport(mql.matches);
+    handler();
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
 
   useEffect(() => {
     setExcludeKeywords(settings?.excludeKeywords || []);
@@ -995,6 +1021,7 @@ export default function DealAggregator({
                       onHide={handleToggleHidden}
                       onLike={handleSaveDeal}
                       onTap={setSelectedDeal}
+                      enableSwipe={isMobileViewport}
                     >
                       <div className="deal-card__header">
                         <h3 className="deal-card__name">{deal.name || 'Unnamed Business'}</h3>
@@ -1243,14 +1270,35 @@ function parseGoogleSheetsUrl(url) {
   return `https://docs.google.com/spreadsheets/d/${sheetMatch[1]}/export?format=csv&gid=${gid}`;
 }
 
+/** Normalize URL for dedupe: same listing may appear with different fragments or casing. */
+function normalizeUrlForDedupe(url) {
+  if (!url || typeof url !== 'string') return '';
+  const u = url.trim();
+  const withoutHash = u.split('#')[0];
+  return withoutHash.toLowerCase();
+}
+
+/** Dedupe key: prefer normalized URL (same listing = same URL), fallback to id. */
+function getDealDedupeKey(deal) {
+  const norm = normalizeUrlForDedupe(deal.url);
+  if (norm) return `url:${norm}`;
+  return `id:${deal.id}`;
+}
+
+/** Dedupe the aggregator feed by listing identity (URL or id); keep the newest by discoveredAt.
+ *  Does not touch saved deals storage — saved deals are stored and matched separately (backend). */
 function dedupeDeals(items) {
-  const map = new Map();
+  const byKey = new Map();
   items.forEach((deal) => {
-    if (!map.has(deal.id) || (deal.discoveredAt || 0) > (map.get(deal.id).discoveredAt || 0)) {
-      map.set(deal.id, deal);
+    const key = getDealDedupeKey(deal);
+    const existing = byKey.get(key);
+    const dealTime = deal.discoveredAt ? new Date(deal.discoveredAt).getTime() : 0;
+    const existingTime = existing?.discoveredAt ? new Date(existing.discoveredAt).getTime() : 0;
+    if (!existing || dealTime >= existingTime) {
+      byKey.set(key, deal);
     }
   });
-  return Array.from(map.values());
+  return Array.from(byKey.values());
 }
 
 function parseCSV(csvText) {

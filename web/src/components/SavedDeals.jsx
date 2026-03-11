@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { dealsAPI } from '../utils/api';
 import { formatDate, formatMoney, getStatusBadgeClass, getStatusLabel } from '../utils/normalizeDeal';
-import DealCalculator from './DealCalculator';
+import DealDetailsPanel from './DealDetailsPanel';
+import { InfoCard } from './DealDetailsPanel';
 
-export default function SavedDeals({ deals, settings = null, onUpdate }) {
+export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCalculatorDefaults = null }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [sortField, setSortField] = useState('savedAt');
@@ -428,6 +429,7 @@ export default function SavedDeals({ deals, settings = null, onUpdate }) {
           onDelete={handleDelete}
           onExport={() => handleExportCSV([selectedDeal])}
           onUpdate={onUpdate}
+          onSaveCalculatorDefaults={onSaveCalculatorDefaults}
         />,
         document.body
       )}
@@ -435,14 +437,11 @@ export default function SavedDeals({ deals, settings = null, onUpdate }) {
   );
 }
 
-// Modal component for saved deal details - structure matches DealDetailsPanel 1:1
-function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpdateNotes, onDelete, onExport, onUpdate }) {
+// Modal component for saved deal details - uses DealDetailsPanel so layout matches aggregator panel exactly
+function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpdateNotes, onDelete, onExport, onUpdate, onSaveCalculatorDefaults = null }) {
   const [status, setStatus] = useState(deal.status || 'none');
   const [notes, setNotes] = useState(deal.notes || '');
   const [notesTimeout, setNotesTimeout] = useState(null);
-  const [isDescriptionOpen, setIsDescriptionOpen] = useState(true);
-  const [isOverviewOpen, setIsOverviewOpen] = useState(true);
-  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [brokerInfo, setBrokerInfo] = useState({
     name: deal.brokerName || '',
     company: deal.brokerCompany || '',
@@ -522,287 +521,139 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpda
 
   const handleShareDeal = () => {
     const shareText = `Deal: ${deal.name}\nAsking: ${formatMoney(deal.askingPrice)}\nEBITDA: ${formatMoney(deal.ebitda)}\n${deal.url || ''}`;
-    
     if (navigator.share) {
-      navigator.share({
-        title: deal.name,
-        text: shareText,
-        url: deal.url || ''
-      }).catch(() => {});
+      navigator.share({ title: deal.name, text: shareText, url: deal.url || '' }).catch(() => {});
     } else {
       navigator.clipboard.writeText(shareText);
       alert('Deal details copied to clipboard!');
     }
   };
 
-  const listedDate = deal.discoveredAt ? new Date(deal.discoveredAt).toLocaleDateString() : '-';
-  const multiple = deal.askingPrice && deal.ebitda ? `${(deal.askingPrice / deal.ebitda).toFixed(2)}x` : '-';
-  const brokerName = brokerInfo.name || deal.brokerName || deal.broker || '-';
-  const brokerCompany = brokerInfo.company || deal.brokerCompany || '-';
-  const brokerEmail = brokerInfo.email || deal.brokerEmail || '-';
-  const brokerPhone = brokerInfo.phone || deal.brokerPhone || '-';
+  const overviewAdditions = (
+    <>
+      <div className="deal-overview-card">
+        <div className="deal-overview-label">Status</div>
+        <div className="deal-overview-value">
+          <select value={status} onChange={(e) => handleStatusChange(e.target.value)} className="status-select-inline">
+            <option value="none">No Status</option>
+            <option value="hot">🔥 Hot</option>
+            <option value="warm">🌡️ Warm</option>
+            <option value="cold">❄️ Cold</option>
+            <option value="pass">❌ Pass</option>
+          </select>
+        </div>
+      </div>
+      <InfoCard label="Saved Date" value={formatDate(deal.savedAt)} />
+      {deal.county && <InfoCard label="County" value={deal.county} />}
+      {deal.country && <InfoCard label="Country" value={deal.country} />}
+      {deal.yearsEstablished != null && deal.yearsEstablished !== '' && <InfoCard label="Years Established" value={deal.yearsEstablished} />}
+      {deal.franchise != null && deal.franchise !== '' && <InfoCard label="Franchise" value={deal.franchise} />}
+      {deal.remote != null && deal.remote !== '' && <InfoCard label="Remote / Relocatable" value={deal.remote} wide />}
+    </>
+  );
+
+  const extraSections = (
+    <>
+      <section className="deal-details-section deal-notes-section">
+        <button type="button" className="calc-section-header"><span>▼ Notes</span></button>
+        <div className="deal-notes-content">
+          <textarea value={notes} onChange={(e) => handleNotesChange(e.target.value)} placeholder="Add notes about this deal..." rows={6} className="modal-notes" />
+          <p className="notes-hint">Notes are auto-saved as you type</p>
+        </div>
+      </section>
+      <section className="deal-details-section deal-edit-broker-section">
+        <button type="button" className="calc-section-header"><span>▼ Edit Broker &amp; Progress</span></button>
+        <div className="broker-form-grid">
+          <div className="input-group">
+            <label>Broker Name</label>
+            <input type="text" value={brokerInfo.name} onChange={(e) => setBrokerInfo({ ...brokerInfo, name: e.target.value })} placeholder="John Smith" className="modal-input" />
+          </div>
+          <div className="input-group">
+            <label>Company</label>
+            <input type="text" value={brokerInfo.company} onChange={(e) => setBrokerInfo({ ...brokerInfo, company: e.target.value })} placeholder="ABC Brokers Inc." className="modal-input" />
+          </div>
+          <div className="input-group">
+            <label>Phone</label>
+            <input type="tel" value={brokerInfo.phone} onChange={(e) => setBrokerInfo({ ...brokerInfo, phone: e.target.value })} placeholder="(555) 123-4567" className="modal-input" />
+          </div>
+          <div className="input-group">
+            <label>Email</label>
+            <input type="email" value={brokerInfo.email} onChange={(e) => setBrokerInfo({ ...brokerInfo, email: e.target.value })} placeholder="broker@example.com" className="modal-input" />
+          </div>
+        </div>
+        <button type="button" className="btn-secondary" onClick={handleSaveBrokerInfo}>💾 Save Broker Info</button>
+        <div className="progress-tracking">
+          <div className="input-group">
+            <label>Current Progress Status</label>
+            <select value={progressStage} onChange={(e) => setProgressStage(e.target.value)} className="modal-input">
+              <option value="">Select Progress Status</option>
+              <option value="Requested NDA">Requested NDA</option>
+              <option value="Signed NDA">Signed NDA</option>
+              <option value="Deal Room Access">Deal Room Access</option>
+              <option value="Underwriting Began">Underwriting Began</option>
+              <option value="Underwriting Complete">Underwriting Complete</option>
+              <option value="Bank Pre-Approval">Bank Pre-Approval</option>
+              <option value="IOI Sent">IOI Sent</option>
+              <option value="IOI Accepted">IOI Accepted</option>
+              <option value="IOI Declined">IOI Declined</option>
+              <option value="LOI Sent">LOI Sent</option>
+              <option value="LOI Accepted">LOI Accepted</option>
+              <option value="LOI Declined">LOI Declined</option>
+              <option value="Awaiting Seller Response">Awaiting Seller Response</option>
+            </select>
+          </div>
+          <button type="button" className="btn-secondary" onClick={handleAddProgressStage}>+ Add Progress Update</button>
+          {progressHistory.length > 0 && (
+            <div className="progress-history">
+              <div className="section-title">Progress History</div>
+              <div className="progress-list">
+                {progressHistory.map((item, index) => (
+                  <div key={index} className="progress-item">
+                    <div className="progress-stage">{item.stage}</div>
+                    <div className="progress-timestamp">
+                      {new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+
+  const savedFooter = (
+    <>
+      {deal.url ? (
+        <a href={deal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary">View Original Listing</a>
+      ) : (
+        <button type="button" className="btn-secondary" disabled aria-label="No listing URL">No Listing URL Available</button>
+      )}
+      <button type="button" className="btn-secondary" onClick={handleShareDeal}>📤 Share</button>
+      <button type="button" className="btn-secondary" onClick={onExport}>📊 Export CSV</button>
+      <button type="button" className="btn-danger" onClick={() => onDelete(deal.id)}>🗑️ Delete</button>
+      <button type="button" className="btn-primary" onClick={onClose}>Close</button>
+    </>
+  );
 
   return (
-    <div className="modal-overlay saved-deal-modal-overlay" onClick={onClose}>
-      <div className="modal-content saved-deal-modal saved-deal-modal-content deal-details-panel panel-center" onClick={(e) => e.stopPropagation()}>
-        <div className="deal-details-header">
-          <div>
-            <h2>{deal.name || 'Deal Details'}</h2>
-          </div>
-          <div className="deal-details-header-actions">
-            <button type="button" className="deal-details-close" onClick={onClose} aria-label="Close">×</button>
-          </div>
-        </div>
-
-        <div className="deal-details-body saved-deal-modal-body">
-          {/* Description - matches DealDetailsPanel */}
-          <section className="deal-details-section deal-description-section">
-            <button type="button" className={`calc-section-header ${isDescriptionOpen ? '' : 'collapsed'}`} onClick={() => setIsDescriptionOpen((c) => !c)}>
-              <span>{isDescriptionOpen ? '▼' : '▶'} Description</span>
-            </button>
-            {isDescriptionOpen && (
-              <div className="deal-details-description">
-                {deal.description || 'No description available.'}
-              </div>
-            )}
-          </section>
-
-          {/* Deal Overview - matches DealDetailsPanel (Overview + Broker), plus Status/Saved Date for saved deals */}
-          <section className="deal-details-section deal-overview-section">
-            <button type="button" className={`calc-section-header ${isOverviewOpen ? '' : 'collapsed'}`} onClick={() => setIsOverviewOpen((c) => !c)}>
-              <span>{isOverviewOpen ? '▼' : '▶'} Deal Overview</span>
-            </button>
-            {isOverviewOpen && (
-              <div className="deal-overview-section-content">
-                <div className="deal-overview-condensed">
-                  <h3>Deal Overview</h3>
-                  <div className="deal-overview-grid">
-                    <div className="deal-overview-card">
-                      <div className="deal-overview-label">Status</div>
-                      <div className="deal-overview-value">
-                        <select
-                          value={status}
-                          onChange={(e) => handleStatusChange(e.target.value)}
-                          className="status-select-inline"
-                        >
-                          <option value="none">No Status</option>
-                          <option value="hot">🔥 Hot</option>
-                          <option value="warm">🌡️ Warm</option>
-                          <option value="cold">❄️ Cold</option>
-                          <option value="pass">❌ Pass</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="deal-overview-card">
-                      <div className="deal-overview-label">Saved Date</div>
-                      <div className="deal-overview-value">{formatDate(deal.savedAt)}</div>
-                    </div>
-                    <div className="deal-overview-card accent">
-                      <div className="deal-overview-label">Asking Price</div>
-                      <div className="deal-overview-value">{formatMoney(deal.askingPrice)}</div>
-                    </div>
-                    <div className="deal-overview-card accent">
-                      <div className="deal-overview-label">EBITDA/SDE</div>
-                      <div className="deal-overview-value">{formatMoney(deal.ebitda)}</div>
-                    </div>
-                    <div className="deal-overview-card">
-                      <div className="deal-overview-label">Revenue</div>
-                      <div className="deal-overview-value">{formatMoney(deal.revenue)}</div>
-                    </div>
-                    <div className="deal-overview-card">
-                      <div className="deal-overview-label">Multiple</div>
-                      <div className="deal-overview-value">{multiple}</div>
-                    </div>
-                    <div className="deal-overview-card">
-                      <div className="deal-overview-label">Location</div>
-                      <div className="deal-overview-value">{deal.location || deal.city || '–'}</div>
-                    </div>
-                    <div className="deal-overview-card">
-                      <div className="deal-overview-label">State</div>
-                      <div className="deal-overview-value">{deal.state || '–'}</div>
-                    </div>
-                    <div className="deal-overview-card wide">
-                      <div className="deal-overview-label">Industry</div>
-                      <div className="deal-overview-value">{deal.industry || '–'}</div>
-                    </div>
-                    <div className="deal-overview-card wide">
-                      <div className="deal-overview-label">Source</div>
-                      <div className="deal-overview-value">{deal.source || deal.sourceType || '–'}</div>
-                    </div>
-                    {(deal.county || deal.country || deal.yearsEstablished || deal.franchise || deal.remote) && (
-                      <>
-                        {deal.county && (
-                          <div className="deal-overview-card">
-                            <div className="deal-overview-label">County</div>
-                            <div className="deal-overview-value">{deal.county}</div>
-                          </div>
-                        )}
-                        {deal.country && (
-                          <div className="deal-overview-card">
-                            <div className="deal-overview-label">Country</div>
-                            <div className="deal-overview-value">{deal.country}</div>
-                          </div>
-                        )}
-                        {deal.yearsEstablished != null && deal.yearsEstablished !== '' && (
-                          <div className="deal-overview-card">
-                            <div className="deal-overview-label">Years Established</div>
-                            <div className="deal-overview-value">{deal.yearsEstablished}</div>
-                          </div>
-                        )}
-                        {deal.franchise != null && deal.franchise !== '' && (
-                          <div className="deal-overview-card">
-                            <div className="deal-overview-label">Franchise</div>
-                            <div className="deal-overview-value">{deal.franchise}</div>
-                          </div>
-                        )}
-                        {deal.remote != null && deal.remote !== '' && (
-                          <div className="deal-overview-card wide">
-                            <div className="deal-overview-label">Remote / Relocatable</div>
-                            <div className="deal-overview-value">{deal.remote}</div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="deal-broker-condensed">
-                  <h3>Broker Information</h3>
-                  <div className="deal-broker-grid">
-                    <div className="deal-broker-item">
-                      <div className="deal-broker-label">Broker Name</div>
-                      <div className="deal-broker-value">{brokerName}</div>
-                    </div>
-                    <div className="deal-broker-item">
-                      <div className="deal-broker-label">Company</div>
-                      <div className="deal-broker-value">{brokerCompany}</div>
-                    </div>
-                    <div className="deal-broker-item">
-                      <div className="deal-broker-label">Email</div>
-                      <div className="deal-broker-value">{brokerEmail !== '-' ? <a href={`mailto:${brokerEmail}`}>{brokerEmail}</a> : '–'}</div>
-                    </div>
-                    <div className="deal-broker-item">
-                      <div className="deal-broker-label">Phone</div>
-                      <div className="deal-broker-value">{brokerPhone !== '-' ? <a href={`tel:${brokerPhone}`}>{brokerPhone}</a> : '–'}</div>
-                    </div>
-                    <div className="deal-broker-item wide">
-                      <div className="deal-broker-label">Listed</div>
-                      <div className="deal-broker-value">{listedDate}</div>
-                    </div>
-                  </div>
-                </div>
-                {deal.url && (
-                  <div className="deal-overview-url">
-                    <a href={deal.url} target="_blank" rel="noopener noreferrer" className="modal-url">View original listing</a>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Deal Analyzer Calculator - matches DealDetailsPanel 1:1 */}
-          <section className="deal-details-section deal-calculator-section">
-            <button type="button" className={`calc-section-header ${isCalculatorOpen ? '' : 'collapsed'}`} onClick={() => setIsCalculatorOpen((c) => !c)}>
-              <span>{isCalculatorOpen ? '▼' : '▶'} Deal Analyzer Calculator</span>
-            </button>
-            {isCalculatorOpen && (
-              <DealCalculator
-                deal={deal}
-                calculatorDefaults={settings?.preferences?.calculatorDefaults || {}}
-                className="saved-deal-modal-calculator"
-              />
-            )}
-          </section>
-
-          {/* Notes - saved deal specific, same data as panel would show */}
-          <section className="deal-details-section deal-notes-section">
-            <button type="button" className="calc-section-header">
-              <span>▼ Notes</span>
-            </button>
-            <div className="deal-notes-content">
-              <textarea
-                value={notes}
-                onChange={(e) => handleNotesChange(e.target.value)}
-                placeholder="Add notes about this deal..."
-                rows={6}
-                className="modal-notes"
-              />
-              <p className="notes-hint">Notes are auto-saved as you type</p>
-            </div>
-          </section>
-
-          {/* Edit Broker + Progress - saved deal specific */}
-          <section className="deal-details-section deal-edit-broker-section">
-            <button type="button" className="calc-section-header">
-              <span>▼ Edit Broker &amp; Progress</span>
-            </button>
-            <div className="broker-form-grid">
-              <div className="input-group">
-                <label>Broker Name</label>
-                <input type="text" value={brokerInfo.name} onChange={(e) => setBrokerInfo({ ...brokerInfo, name: e.target.value })} placeholder="John Smith" className="modal-input" />
-              </div>
-              <div className="input-group">
-                <label>Company</label>
-                <input type="text" value={brokerInfo.company} onChange={(e) => setBrokerInfo({ ...brokerInfo, company: e.target.value })} placeholder="ABC Brokers Inc." className="modal-input" />
-              </div>
-              <div className="input-group">
-                <label>Phone</label>
-                <input type="tel" value={brokerInfo.phone} onChange={(e) => setBrokerInfo({ ...brokerInfo, phone: e.target.value })} placeholder="(555) 123-4567" className="modal-input" />
-              </div>
-              <div className="input-group">
-                <label>Email</label>
-                <input type="email" value={brokerInfo.email} onChange={(e) => setBrokerInfo({ ...brokerInfo, email: e.target.value })} placeholder="broker@example.com" className="modal-input" />
-              </div>
-            </div>
-            <button type="button" className="btn-secondary" onClick={handleSaveBrokerInfo}>💾 Save Broker Info</button>
-            <div className="progress-tracking">
-              <div className="input-group">
-                <label>Current Progress Status</label>
-                <select value={progressStage} onChange={(e) => setProgressStage(e.target.value)} className="modal-input">
-                  <option value="">Select Progress Status</option>
-                  <option value="Requested NDA">Requested NDA</option>
-                  <option value="Signed NDA">Signed NDA</option>
-                  <option value="Deal Room Access">Deal Room Access</option>
-                  <option value="Underwriting Began">Underwriting Began</option>
-                  <option value="Underwriting Complete">Underwriting Complete</option>
-                  <option value="Bank Pre-Approval">Bank Pre-Approval</option>
-                  <option value="IOI Sent">IOI Sent</option>
-                  <option value="IOI Accepted">IOI Accepted</option>
-                  <option value="IOI Declined">IOI Declined</option>
-                  <option value="LOI Sent">LOI Sent</option>
-                  <option value="LOI Accepted">LOI Accepted</option>
-                  <option value="LOI Declined">LOI Declined</option>
-                  <option value="Awaiting Seller Response">Awaiting Seller Response</option>
-                </select>
-              </div>
-              <button type="button" className="btn-secondary" onClick={handleAddProgressStage}>+ Add Progress Update</button>
-              {progressHistory.length > 0 && (
-                <div className="progress-history">
-                  <div className="section-title">Progress History</div>
-                  <div className="progress-list">
-                    {progressHistory.map((item, index) => (
-                      <div key={index} className="progress-item">
-                        <div className="progress-stage">{item.stage}</div>
-                        <div className="progress-timestamp">
-                          {new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
-
-        <div className="deal-details-footer saved-deal-modal-footer">
-          {deal.url && (
-            <a href={deal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary">View Original Listing</a>
-          )}
-          <button type="button" className="btn-secondary" onClick={handleShareDeal}>📤 Share</button>
-          <button type="button" className="btn-secondary" onClick={onExport}>📊 Export CSV</button>
-          <button type="button" className="btn-danger" onClick={() => onDelete(deal.id)}>🗑️ Delete</button>
-          <button type="button" className="btn-primary" onClick={onClose}>Close</button>
-        </div>
+    <div className="modal-overlay saved-deal-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content saved-deal-modal saved-deal-modal-content" onClick={(e) => e.stopPropagation()}>
+        <DealDetailsPanel
+          isOpen
+          deal={deal}
+          position="center"
+          onClose={onClose}
+          settings={settings}
+          onSaveCalculatorDefaults={onSaveCalculatorDefaults}
+          panelOnly
+          showPositionToggle={false}
+          showSaveButton={false}
+          overviewAdditions={overviewAdditions}
+          extraSectionsAfterCalculator={extraSections}
+          renderFooter={savedFooter}
+        />
       </div>
     </div>
   );

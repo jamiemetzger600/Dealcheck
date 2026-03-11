@@ -65,6 +65,20 @@ export default function DashboardPage() {
     setActiveTab('aggregator');
   };
 
+  const handleSaveCalculatorDefaults = async (calculatorDefaults) => {
+    try {
+      await userAPI.updateSettings({
+        preferences: {
+          ...(settings?.preferences || {}),
+          calculatorDefaults
+        }
+      });
+      await loadUserData();
+    } catch (error) {
+      console.error('Failed to save calculator defaults:', error);
+    }
+  };
+
   if (loading) {
     return <div className="loading-screen">Loading your dashboard...</div>;
   }
@@ -105,6 +119,7 @@ export default function DashboardPage() {
             deals={savedDeals}
             settings={settings}
             onUpdate={loadUserData}
+            onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
           />
         )}
       </div>

@@ -1,6 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const DEFAULT_SBA_RATE = '9.25';
+const CALC_STORAGE_KEY_PREFIX = 'vettr_calc_';
+const PER_DEAL_PERSIST_DEBOUNCE_MS = 400;
+
+function getCalcStorageKey(dealId) {
+  return `${CALC_STORAGE_KEY_PREFIX}${dealId}`;
+}
+
+function loadPerDealCalcState(dealId) {
+  if (!dealId) return null;
+  try {
+    const raw = localStorage.getItem(getCalcStorageKey(dealId));
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.scenarios) || data.scenarios.length < 1) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function savePerDealCalcState(dealId, state) {
+  if (!dealId) return;
+  try {
+    localStorage.setItem(getCalcStorageKey(dealId), JSON.stringify(state));
+  } catch (e) {
+    console.warn('DealCalculator: failed to persist per-deal state', e);
+  }
+}
 
 export default function DealCalculator({
   deal,
@@ -13,13 +41,24 @@ export default function DealCalculator({
   const [targetCOC, setTargetCOC] = useState('25');
   const [targetOfferResult, setTargetOfferResult] = useState(null);
   const persistTimerRef = useRef(null);
+  const perDealPersistTimerRef = useRef(null);
 
   useEffect(() => {
     if (!deal) return;
-    setActiveScenario(0);
     setTargetOfferResult(null);
-    setScenarios(createDefaultScenarios(deal, calculatorDefaults));
-  }, [deal]);
+    const defaults = createDefaultScenarios(deal, calculatorDefaults);
+    const stored = loadPerDealCalcState(deal.id);
+    if (stored && Array.isArray(stored.scenarios) && stored.scenarios.length === defaults.length) {
+      const merged = stored.scenarios.map((s, i) => ({ ...defaults[i], ...s }));
+      setScenarios(merged);
+      setActiveScenario(Math.min(Number(stored.activeScenario) || 0, merged.length - 1));
+      setTargetCOC(typeof stored.targetCOC === 'string' ? stored.targetCOC : '25');
+    } else {
+      setActiveScenario(0);
+      setScenarios(defaults);
+      setTargetCOC('25');
+    }
+  }, [deal?.id]);
 
   const currentScenario = scenarios[activeScenario] || {};
   const results = useMemo(() => calculateScenario(currentScenario), [currentScenario]);
@@ -27,6 +66,21 @@ export default function DealCalculator({
   useEffect(() => {
     setTargetOfferResult(null);
   }, [activeScenario]);
+
+  useEffect(() => {
+    if (!deal?.id || scenarios.length === 0) return;
+    if (perDealPersistTimerRef.current) clearTimeout(perDealPersistTimerRef.current);
+    perDealPersistTimerRef.current = setTimeout(() => {
+      savePerDealCalcState(deal.id, {
+        scenarios,
+        activeScenario,
+        targetCOC
+      });
+    }, PER_DEAL_PERSIST_DEBOUNCE_MS);
+    return () => {
+      if (perDealPersistTimerRef.current) clearTimeout(perDealPersistTimerRef.current);
+    };
+  }, [deal?.id, scenarios, activeScenario, targetCOC]);
 
   const updateScenario = (field, value) => {
     const PERSISTED_CALC_FIELDS = ['sbaRate', 'dscr', 'sbaPercent', 'sbaTerm', 'equityPercent', 'salary'];

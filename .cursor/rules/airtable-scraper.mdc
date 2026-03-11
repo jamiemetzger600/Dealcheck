@@ -1,0 +1,156 @@
+---
+description: Airtable scraper service — architecture, file map, and implementation rules for the BizBuySell/Airtable shared-view pipeline
+alwaysApply: false
+---
+
+# Airtable Scraper Service
+
+This project includes a background service that scrapes a public Airtable shared view on a configurable cron schedule and stores the results in a dedicated PostgreSQL table.
+
+---
+
+## File Map
+
+| File | Role |
+|------|------|
+| `backend/src/services/airtableScraper.js` | Core scraper: fetch HTML → extract params → call API → parse → upsert DB |
+| `backend/src/routes/airtableDeals.js` | REST API for reading scraped deals + triggering manual scrapes |
+| `backend/src/db/migrate.js` | Contains `create_airtable_deals_table` migration (already added) |
+| `backend/src/index.js` | Imports scraper service (side-effect import) and mounts route |
+| `backend/.env.example` | Documents the 3 scraper env vars |
+
+---
+
+## How the Scraper Works (4 Steps)
+
+### Step 1 — Fetch the shared-view HTML
+```
+GET https://airtable.com/appEGxhjno0HTpEco/shrUhtbnzZTPaR4Lk/tblACIQ9QNiVmoWSK
+```
+- Uses a real browser `User-Agent` to avoid bot detection
+- Collects all `Set-Cookie` headers (needed for Step 3 auth)
+
+### Step 2 — Extract API parameters from embedded JS
+Parses the HTML for three values:
+- **`urlWithParams`** — internal API path containing the view ID + access-policy token
+  Pattern: `urlWithParams:\s*["']([^"']*readSharedViewData[^"']*)["']`
+  Unicode-escapes (`\u002F`) are decoded to `/`
+- **`x-airtable-application-id`** — e.g. `appEGxhjno0HTpEco`
+- **`x-airtable-page-load-id`** — e.g. `pglXXXXXXX`
+
+### Step 3 — Call `readSharedViewData` internal API
+```
+GET https://airtable.com/v0.3/view/{viewId}/readSharedViewData?{accessPolicy}
+```
+Required headers: `Cookie`, `X-Requested-With: XMLHttpRequest`, `x-airtable-application-id`, `x-airtable-page-load-id`, `x-airtable-inter-service-client: webClient`, `x-user-locale: en`, `x-time-zone: America/New_York`
+
+Returns JSON with `data.table.columns` (column definitions + select choices) and `data.table.rows` (all rows in one response — no pagination).
+
+### Step 4 — Parse and upsert
+- Build a `columnId → { dbField, type, choices }` lookup from `COLUMN_MAP`
+- For each row, resolve cell values (number, text, select, multiSelect, button, date)
+- Bulk-upsert via `ON CONFLICT (airtable_id) DO UPDATE` — safe to re-run at any frequency
+
+---
+
+## Database Table: `airtable_deals`
+
+```sql
+CREATE TABLE IF NOT EXISTS airtable_deals (
+  id SERIAL PRIMARY KEY,
+  airtable_id INTEGER UNIQUE,
+  name TEXT, description TEXT, industries TEXT[], listing_url TEXT,
+  asking_price NUMERIC, annual_revenue NUMERIC, annual_profit NUMERIC,
+  profit_multiple NUMERIC, revenue_multiple NUMERIC,
+  city TEXT, county TEXT, state TEXT, country TEXT,
+  years_established INTEGER, remote_relocatable TEXT, franchise TEXT, five_plus_years TEXT,
+  broker_name TEXT, broker_company TEXT, broker_contact TEXT, broker_email TEXT,
+  airtable_updated_at TIMESTAMP, airtable_added_at TIMESTAMP,
+  first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+## Column Map (Airtable → DB)
+
+| Airtable Column | DB Field | Type |
+|---|---|---|
+| ID | `airtable_id` | number |
+| Name | `name` | text |
+| Description | `description` | text |
+| Industry | `industries` | multiSelect → `TEXT[]` |
+| Asking Price | `asking_price` | number |
+| Annual Revenue | `annual_revenue` | number |
+| Annual Profit | `annual_profit` | number |
+| Profit Multiple | `profit_multiple` | number |
+| Revenue Multiple | `revenue_multiple` | number |
+| Years Established | `years_established` | number |
+| City | `city` | text |
+| County | `county` | text |
+| State | `state` | text |
+| Country | `country` | text |
+| Remote/Relocatable/Absentee-Run | `remote_relocatable` | select → text |
+| Franchise | `franchise` | select → text |
+| 5+ Years In Business | `five_plus_years` | select → text |
+| Broker Name | `broker_name` | text |
+| Broker Company | `broker_company` | text |
+| Broker Contact | `broker_contact` | text |
+| Broker Email | `broker_email` | text |
+| Listing | `listing_url` | button → extract URL |
+| Last Updated | `airtable_updated_at` | date |
+| Date Added | `airtable_added_at` | date |
+
+---
+
+## Environment Variables
+
+Add to `backend/.env` (already documented in `.env.example`):
+
+```env
+AIRTABLE_SHARE_URL=https://airtable.com/appEGxhjno0HTpEco/shrUhtbnzZTPaR4Lk/tblACIQ9QNiVmoWSK
+AIRTABLE_SCRAPE_CRON=*/30 * * * *
+AIRTABLE_SCRAPE_ENABLED=true
+```
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/airtable-deals` | Paginated list; query params: `state`, `min_price`, `max_price`, `industry`, `sort`, `order`, `limit`, `offset` |
+| `GET` | `/api/airtable-deals/status` | Scraper health: `{ enabled, cron, isRunning, lastRun, lastResult }` |
+| `POST` | `/api/airtable-deals/scrape` | Trigger a manual scrape immediately |
+
+---
+
+## Implementation Rules
+
+1. **Never modify** the 4-step fetch flow — Airtable's internal API requires cookies + page-load ID extracted from the HTML; skipping steps will result in auth failures.
+
+2. **Always upsert** via `ON CONFLICT (airtable_id) DO UPDATE` — never `INSERT` without conflict handling. The scraper runs every 30 min and must be idempotent.
+
+3. **Concurrent-run guard** — the exported `scrapeAirtable()` function checks `_isRunning` and returns early if a scrape is already in progress. Preserve this guard if refactoring.
+
+4. **Column additions** — if new Airtable columns need to be scraped, add them to `COLUMN_MAP` in `airtableScraper.js` AND add the corresponding column to the `airtable_deals` table via a new named migration entry in `migrate.js`.
+
+5. **Cron pattern** — follows the same `node-cron` pattern as `notificationScheduler.js`. Any new scheduled jobs should use the same pattern.
+
+6. **Startup scrape** — the service runs one scrape 5 seconds after boot (`setTimeout 5000`). This is intentional so the table is populated immediately on first deploy. Do not remove.
+
+7. **Route file** — `airtableDeals.js` uses the shared `pool` from `../db/pool.js` for queries and imports `scrapeAirtable` + `getScraperStatus` from the service. Keep these imports; do not duplicate the DB logic.
+
+8. **No auth on read endpoint** — `/api/airtable-deals` is intentionally public (no `authMiddleware`) so the frontend can fetch deals for unauthenticated users. The `/scrape` endpoint should remain unprotected for internal tooling but can be gated if needed.
+
+---
+
+## Running the Migration
+
+After pulling these changes, run the migration once:
+```bash
+cd backend && npm run migrate
+```
+
+This creates the `airtable_deals` table. The scraper will populate it automatically on next server start.

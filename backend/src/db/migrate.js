@@ -160,6 +160,59 @@ const migrations = [
     `
   },
   {
+    name: 'create_airtable_deals_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS airtable_deals (
+        id SERIAL PRIMARY KEY,
+        airtable_id INTEGER UNIQUE,
+
+        -- Core listing data
+        name TEXT,
+        description TEXT,
+        industries TEXT[],
+        listing_url TEXT,
+
+        -- Financials
+        asking_price NUMERIC,
+        annual_revenue NUMERIC,
+        annual_profit NUMERIC,
+        profit_multiple NUMERIC,
+        revenue_multiple NUMERIC,
+
+        -- Location
+        city TEXT,
+        county TEXT,
+        state TEXT,
+        country TEXT,
+
+        -- Business attributes
+        years_established INTEGER,
+        remote_relocatable TEXT,
+        franchise TEXT,
+        five_plus_years TEXT,
+
+        -- Broker info
+        broker_name TEXT,
+        broker_company TEXT,
+        broker_contact TEXT,
+        broker_email TEXT,
+
+        -- Airtable timestamps
+        airtable_updated_at TIMESTAMP,
+        airtable_added_at TIMESTAMP,
+
+        -- Our metadata
+        first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX idx_airtable_deals_airtable_id ON airtable_deals(airtable_id);
+      CREATE INDEX idx_airtable_deals_state ON airtable_deals(state);
+      CREATE INDEX idx_airtable_deals_asking_price ON airtable_deals(asking_price);
+      CREATE INDEX idx_airtable_deals_last_scraped ON airtable_deals(last_scraped_at);
+    `
+  },
+  {
     name: 'create_updated_at_trigger',
     up: `
       CREATE OR REPLACE FUNCTION update_updated_at_column()

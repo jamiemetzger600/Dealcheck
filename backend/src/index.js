@@ -5,7 +5,9 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import dealsRoutes from './routes/deals.js';
 import paymentsRoutes from './routes/payments.js';
+import airtableDealsRoutes from './routes/airtableDeals.js';
 import './services/notificationScheduler.js'; // Start notification jobs
+import './services/airtableScraper.js';       // Start Airtable deal scraper
 
 dotenv.config();
 
@@ -64,6 +66,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/airtable-deals', airtableDealsRoutes);
 
 // 404 handler
 app.use((req, res) => {

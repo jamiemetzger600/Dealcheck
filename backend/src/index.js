@@ -16,13 +16,22 @@ validateConfig(); // Exits in production if required env vars missing (see CONFI
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-// CORS: in development allow both Vite (5173) and legacy (3000) so it works regardless of .env
-const webAppUrl = process.env.WEB_APP_URL || 'http://localhost:5173';
-const corsOrigin = process.env.NODE_ENV === 'production'
-  ? webAppUrl
-  : [webAppUrl, 'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
+// CORS: use a function so we always send exactly one Access-Control-Allow-Origin value (required by spec)
+const webAppUrlRaw = process.env.WEB_APP_URL || 'http://localhost:5173';
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? webAppUrlRaw.split(',').map(s => s.trim()).filter(Boolean).map(url => url.replace(/\/+$/, ''))
+  : [webAppUrlRaw, 'http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
+if (process.env.NODE_ENV === 'production') {
+  console.log('[cors] Allowed origins:', allowedOrigins.length ? allowedOrigins : '(none – check WEB_APP_URL)');
+}
 app.use(cors({
-  origin: corsOrigin,
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
+  },
   credentials: true
 }));
 
@@ -37,7 +46,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '4.2.2' });
+  res.json({ status: 'ok', version: '4.2.3' });
 });
 
 app.get('/api/default-deals-csv', async (req, res) => {

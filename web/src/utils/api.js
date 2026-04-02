@@ -24,10 +24,18 @@ async function apiRequest(endpoint, options = {}) {
     ...options.headers
   };
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers
+    });
+  } catch (err) {
+    const hint = err.message === 'Failed to fetch'
+      ? ' Start the backend (default port 3001). Open the app at http://localhost:5173. If the API uses another port, set VITE_API_PROXY in web/.env (e.g. VITE_API_PROXY=http://localhost:3002) and restart npm run dev.'
+      : '';
+    throw new Error(err.message + hint);
+  }
 
   if (response.status === 401) {
     removeToken();

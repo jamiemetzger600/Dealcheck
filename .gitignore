@@ -45,6 +45,12 @@ logs
 coverage/
 .nyc_output/
 
+# Vite pre-bundled deps (local cache)
+web/.vite/
+
+# Wrangler local cache
+.wrangler/
+
 # Build outputs (if applicable in future)
 dist/
 build/

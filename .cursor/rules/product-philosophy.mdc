@@ -1,0 +1,23 @@
+---
+description: Vettr product philosophy — signal over noise, buy-box-first approach
+alwaysApply: true
+---
+
+# Vettr Product Philosophy
+
+## Signal Over Noise
+
+Vettr's core value is **reducing noise** so buyers can concentrate on the **signal** — deals that actually match their criteria.
+
+## Buy-Box-First Data Loading
+
+- **Never** load the full deal database into the browser. Users should only see deals matching their buy box criteria.
+- All filtering, sorting, searching, and pagination happen **server-side** in PostgreSQL.
+- The frontend requests only the deals needed for the current page/view (typically 50–100 per request).
+- When adding new features, ask: "Does this help the user focus on relevant deals, or does it add noise?"
+
+## Multi-Source Architecture
+
+- All deal data lives in a single **`market_deals`** table with a `source` column, not per-source tables.
+- Each source (Airtable, BizQuest, BizBuySell, etc.) has its own scraper module but writes to the shared table.
+- Deduplication is by composite key `(source, source_id)`.

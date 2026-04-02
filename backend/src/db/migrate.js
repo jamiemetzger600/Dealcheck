@@ -232,6 +232,160 @@ const migrations = [
       CREATE INDEX IF NOT EXISTS idx_airtable_deals_airtable_updated_at ON airtable_deals(airtable_updated_at);
       CREATE INDEX IF NOT EXISTS idx_airtable_deals_airtable_added_at ON airtable_deals(airtable_added_at);
     `
+  },
+  {
+    name: 'create_market_deals_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS market_deals (
+        id SERIAL PRIMARY KEY,
+        source VARCHAR(50) NOT NULL,
+        source_id VARCHAR(255) NOT NULL,
+        name TEXT,
+        description TEXT,
+        listing_url TEXT,
+        industries TEXT[],
+        asking_price NUMERIC,
+        annual_revenue NUMERIC,
+        annual_profit NUMERIC,
+        profit_multiple NUMERIC,
+        revenue_multiple NUMERIC,
+        city TEXT,
+        county TEXT,
+        state TEXT,
+        country TEXT,
+        years_established INTEGER,
+        remote_relocatable TEXT,
+        franchise TEXT,
+        five_plus_years TEXT,
+        broker_name TEXT,
+        broker_company TEXT,
+        broker_contact TEXT,
+        broker_email TEXT,
+        source_added_at TIMESTAMP,
+        source_updated_at TIMESTAMP,
+        first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE,
+        UNIQUE(source, source_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_market_deals_source ON market_deals(source);
+      CREATE INDEX IF NOT EXISTS idx_market_deals_source_id ON market_deals(source, source_id);
+      CREATE INDEX IF NOT EXISTS idx_market_deals_state ON market_deals(state);
+      CREATE INDEX IF NOT EXISTS idx_market_deals_asking_price ON market_deals(asking_price);
+      CREATE INDEX IF NOT EXISTS idx_market_deals_source_added_at ON market_deals(source_added_at);
+      CREATE INDEX IF NOT EXISTS idx_market_deals_source_updated_at ON market_deals(source_updated_at);
+      CREATE INDEX IF NOT EXISTS idx_market_deals_is_active ON market_deals(is_active);
+      CREATE INDEX IF NOT EXISTS idx_market_deals_annual_profit ON market_deals(annual_profit);
+      CREATE INDEX IF NOT EXISTS idx_market_deals_annual_revenue ON market_deals(annual_revenue);
+    `
+  },
+  {
+    name: 'create_deal_sources_table',
+    up: `
+      CREATE TABLE IF NOT EXISTS deal_sources (
+        id SERIAL PRIMARY KEY,
+        source_key VARCHAR(50) UNIQUE NOT NULL,
+        display_name VARCHAR(255),
+        source_type VARCHAR(50),
+        config JSONB DEFAULT '{}',
+        scrape_enabled BOOLEAN DEFAULT TRUE,
+        scrape_cron VARCHAR(50),
+        last_scrape_at TIMESTAMP,
+        last_scrape_result JSONB,
+        deal_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      INSERT INTO deal_sources (source_key, display_name, source_type, scrape_cron, scrape_enabled)
+      VALUES ('airtable_bizbuysell', 'Airtable (BizBuySell)', 'airtable', '0 */12 * * *', true)
+      ON CONFLICT (source_key) DO NOTHING;
+    `
+  },
+  {
+    name: 'migrate_airtable_deals_to_market_deals',
+    up: `
+      INSERT INTO market_deals (
+        source, source_id, name, description, listing_url, industries,
+        asking_price, annual_revenue, annual_profit, profit_multiple, revenue_multiple,
+        city, county, state, country, years_established,
+        remote_relocatable, franchise, five_plus_years,
+        broker_name, broker_company, broker_contact, broker_email,
+        source_added_at, source_updated_at, first_seen_at, last_scraped_at, is_active
+      )
+      SELECT
+        'airtable_bizbuysell',
+        airtable_id::text,
+        name, description, listing_url, industries,
+        asking_price, annual_revenue, annual_profit, profit_multiple, revenue_multiple,
+        city, county, state, country, years_established,
+        remote_relocatable, franchise, five_plus_years,
+        broker_name, broker_company, broker_contact, broker_email,
+        airtable_added_at, airtable_updated_at, first_seen_at, last_scraped_at, true
+      FROM airtable_deals
+      WHERE airtable_id IS NOT NULL
+      ON CONFLICT (source, source_id) DO NOTHING;
+
+      UPDATE deal_sources
+      SET deal_count = (SELECT COUNT(*) FROM market_deals WHERE source = 'airtable_bizbuysell')
+      WHERE source_key = 'airtable_bizbuysell';
+    `
+  },
+  {
+    name: 'market_deals_search_indexes',
+    up: `
+      CREATE EXTENSION IF NOT EXISTS pg_trgm;
+      CREATE INDEX IF NOT EXISTS idx_market_deals_name_trgm ON market_deals USING gin (name gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_market_deals_desc_trgm ON market_deals USING gin (description gin_trgm_ops);
+    `
+  },
+  {
+    name: 'market_deals_dedupe_and_unique',
+    up: `
+      UPDATE market_deals SET source_id = trim(both from source_id)
+      WHERE source_id IS NOT NULL AND source_id <> trim(both from source_id);
+
+      DELETE FROM market_deals md
+      WHERE md.id IN (
+        SELECT id FROM (
+          SELECT id,
+            ROW_NUMBER() OVER (PARTITION BY source, source_id ORDER BY id DESC) AS rn
+          FROM market_deals
+        ) sub WHERE rn > 1
+      );
+
+      DELETE FROM market_deals md
+      WHERE md.id IN (
+        SELECT id FROM (
+          SELECT id,
+            ROW_NUMBER() OVER (
+              PARTITION BY source, lower(trim(listing_url))
+              ORDER BY id DESC
+            ) AS rn
+          FROM market_deals
+          WHERE listing_url IS NOT NULL AND trim(listing_url) <> ''
+        ) sub WHERE rn > 1
+      );
+
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conrelid = 'market_deals'::regclass
+            AND conname = 'market_deals_source_source_id_key'
+        ) THEN
+          ALTER TABLE market_deals ADD CONSTRAINT market_deals_source_source_id_key UNIQUE (source, source_id);
+        END IF;
+      END $$;
+    `
+  },
+  {
+    name: 'deal_sources_airtable_cron_12h',
+    up: `
+      UPDATE deal_sources
+      SET scrape_cron = '0 */12 * * *'
+      WHERE source_key = 'airtable_bizbuysell'
+        AND (scrape_cron IS NULL OR scrape_cron = '0 */4 * * *' OR scrape_cron = '*/30 * * * *');
+    `
   }
 ];
 

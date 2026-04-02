@@ -6,6 +6,7 @@ import userRoutes from './routes/user.js';
 import dealsRoutes from './routes/deals.js';
 import paymentsRoutes from './routes/payments.js';
 import airtableDealsRoutes from './routes/airtableDeals.js';
+import marketDealsRoutes from './routes/marketDeals.js';
 import './services/notificationScheduler.js'; // Start notification jobs
 import './services/airtableScraper.js';
 import { validateConfig } from './config.js';
@@ -46,7 +47,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '4.2.3' });
+  res.json({ status: 'ok', version: '4.2.18' });
 });
 
 app.get('/api/default-deals-csv', async (req, res) => {
@@ -82,6 +83,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/airtable-deals', airtableDealsRoutes);
+app.use('/api/market-deals', marketDealsRoutes);
 
 // 404 handler
 app.use((req, res) => {

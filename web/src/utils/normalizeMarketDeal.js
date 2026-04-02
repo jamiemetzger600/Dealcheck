@@ -1,0 +1,182 @@
+/**
+ * Maps a row from /api/market-deals (snake_case) into the camelCase deal shape
+ * used by DealAggregator. Works for any source in the market_deals table.
+ */
+
+function computeMultiple(price, base) {
+  if (!price || !base) return null;
+  return Number((price / base).toFixed(2));
+}
+
+export function normalizeMarketDeal(row) {
+  const city = row.city || '';
+  const state = row.state || '';
+  const location = (city && state) ? `${city}, ${state}` : (city || state || '');
+  const brokerName = row.broker_name || '';
+  const brokerCompany = row.broker_company || '';
+  const broker = brokerName && brokerCompany
+    ? `${brokerName} (${brokerCompany})`
+    : (brokerName || brokerCompany);
+
+  const ebitda = row.annual_profit != null ? Number(row.annual_profit) : null;
+  const revenue = row.annual_revenue != null ? Number(row.annual_revenue) : null;
+  const askingPrice = row.asking_price != null ? Number(row.asking_price) : null;
+
+  const industries = Array.isArray(row.industries)
+    ? row.industries.join(', ')
+    : (row.industries || '');
+
+  return {
+    id: `${row.source}_${row.source_id || row.id}`,
+    dbId: row.id,
+    name: row.name || 'Unnamed Business',
+    url: row.listing_url || '',
+    industry: industries,
+    description: row.description || '',
+    location,
+    city,
+    state,
+    county: row.county || '',
+    country: row.country || '',
+    yearsEstablished: row.years_established != null ? String(row.years_established) : '',
+    ebitda,
+    revenue,
+    askingPrice,
+    profitMultiple: row.profit_multiple != null ? Number(row.profit_multiple) : computeMultiple(askingPrice, ebitda),
+    revenueMultiple: row.revenue_multiple != null ? Number(row.revenue_multiple) : computeMultiple(askingPrice, revenue),
+    remote: row.remote_relocatable || '',
+    franchise: row.franchise || '',
+    fiveYearsInBusiness: row.five_plus_years || '',
+    broker,
+    brokerName,
+    brokerCompany,
+    brokerPhone: row.broker_contact || '',
+    brokerEmail: row.broker_email || '',
+    source: row.source || 'unknown',
+    sourceType: row.source || 'unknown',
+    discoveredAt: row.source_added_at ? new Date(row.source_added_at).getTime() : Date.now(),
+  };
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+/**
+ * Build query string from buy box, search, sort, pagination, and exclusions.
+ * Flexibility % is pre-applied to the numeric ranges before sending.
+ */
+export function buildMarketDealsParams({
+  page = 1,
+  perPage = 50,
+  search,
+  buyBox,
+  flexibilityPct = 0,
+  sort,
+  order,
+  hiddenDealDbIds,
+  excludeKeywords,
+  showHidden = false,
+} = {}) {
+  const params = new URLSearchParams();
+  params.set('page', String(page));
+  params.set('per_page', String(perPage));
+
+  if (search && search.trim()) {
+    params.set('search', search.trim());
+  }
+
+  if (buyBox && !showHidden) {
+    const flex = Math.max(0, Math.min(100, flexibilityPct)) / 100;
+    const applyMin = (val) => val != null && val !== '' ? Math.round(Number(val) * (1 - flex)) : undefined;
+    const applyMax = (val) => val != null && val !== '' ? Math.round(Number(val) * (1 + flex)) : undefined;
+
+    const minPrice = applyMin(buyBox.minPrice);
+    const maxPrice = applyMax(buyBox.maxPrice);
+    if (minPrice != null) params.set('min_price', String(minPrice));
+    if (maxPrice != null) params.set('max_price', String(maxPrice));
+
+    const minProfit = applyMin(buyBox.minEbitda);
+    const maxProfit = applyMax(buyBox.maxEbitda);
+    if (minProfit != null) params.set('min_profit', String(minProfit));
+    if (maxProfit != null) params.set('max_profit', String(maxProfit));
+
+    const minRevenue = applyMin(buyBox.minRevenue);
+    const maxRevenue = applyMax(buyBox.maxRevenue);
+    if (minRevenue != null) params.set('min_revenue', String(minRevenue));
+    if (maxRevenue != null) params.set('max_revenue', String(maxRevenue));
+
+    if (buyBox.targetStates && buyBox.targetStates.length > 0) {
+      params.set('state', buyBox.targetStates.join(','));
+    }
+
+    if (buyBox.targetIndustries && buyBox.targetIndustries.length > 0) {
+      params.set('industry', buyBox.targetIndustries.join(','));
+    }
+  }
+
+  if (sort) params.set('sort', sort);
+  if (order) params.set('order', order);
+
+  if (!showHidden && hiddenDealDbIds && hiddenDealDbIds.length > 0) {
+    params.set('exclude_ids', hiddenDealDbIds.join(','));
+  }
+
+  if (excludeKeywords && excludeKeywords.length > 0) {
+    const cleaned = excludeKeywords
+      .map((k) => String(k).trim())
+      .filter(Boolean);
+    if (cleaned.length > 0) {
+      params.set('exclude_keywords', JSON.stringify(cleaned));
+    }
+  }
+
+  return params;
+}
+
+/** Map frontend sort field names to backend column names */
+const SORT_FIELD_MAP = {
+  date: 'source_added_at',
+  price: 'asking_price',
+  ebitda: 'annual_profit',
+  revenue: 'annual_revenue',
+  name: 'name',
+  state: 'state',
+  industry: 'name',
+  profitMultiple: 'profit_multiple',
+  revenueMultiple: 'revenue_multiple',
+  yearsEstablished: 'years_established',
+  source_added_at: 'source_added_at',
+  source_updated_at: 'source_updated_at',
+};
+
+export function mapSortField(frontendField) {
+  return SORT_FIELD_MAP[frontendField] || 'source_added_at';
+}
+
+/**
+ * Fetch one page of market deals from the backend.
+ */
+export async function fetchMarketDeals(queryParams, signal) {
+  const url = `${API_BASE_URL}/market-deals?${queryParams.toString()}`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    const err = new Error(`Market deals API error (${res.status})`);
+    err.url = url;
+    throw err;
+  }
+  const data = await res.json();
+  return {
+    deals: (data.deals || []).map(normalizeMarketDeal),
+    pagination: data.pagination || { page: 1, per_page: 50, total: 0, total_pages: 0 },
+    maxUpdatedAt: data.max_updated_at || null,
+  };
+}
+
+/**
+ * Fetch market deal stats for dashboard header.
+ */
+export async function fetchMarketDealsStats(signal) {
+  const url = `${API_BASE_URL}/market-deals/stats`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) return null;
+  return res.json();
+}

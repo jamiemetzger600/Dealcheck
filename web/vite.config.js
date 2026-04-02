@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -27,23 +27,28 @@ function versionPlugin() {
   };
 }
 
-export default defineConfig({
-  define: {
-    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion)
-  },
-  plugins: [react(), versionPlugin()],
-  server: {
-    port: 5173,
-    strictPort: true,
-    proxy: {
-      '/api': {
-        target: process.env.VITE_API_PROXY || 'http://localhost:3001',
-        changeOrigin: true
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, __dirname, '');
+  const apiProxyTarget = env.VITE_API_PROXY || process.env.VITE_API_PROXY || 'http://localhost:3001';
+
+  return {
+    define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion)
+    },
+    plugins: [react(), versionPlugin()],
+    server: {
+      port: 5173,
+      strictPort: true,
+      proxy: {
+        '/api': {
+          target: apiProxyTarget,
+          changeOrigin: true
+        }
       }
+    },
+    build: {
+      outDir: 'dist',
+      sourcemap: true
     }
-  },
-  build: {
-    outDir: 'dist',
-    sourcemap: true
-  }
+  };
 });

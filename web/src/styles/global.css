@@ -460,6 +460,19 @@ a {
   font-size: 14px;
 }
 
+.aggregator-loading-bar {
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--accent, #60a5fa) 50%, var(--primary) 100%);
+  background-size: 200% 100%;
+  animation: aggregator-loading-slide 1.2s ease-in-out infinite;
+  border-radius: 2px;
+  margin-bottom: 4px;
+}
+@keyframes aggregator-loading-slide {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .aggregator-feed-error {
   background: rgba(239, 68, 68, 0.2);
   border: 1px solid rgba(239, 68, 68, 0.5);
@@ -541,6 +554,31 @@ a {
   opacity: 0.9;
   font-size: 14px;
   margin-bottom: 16px;
+}
+
+.aggregator-welcome__buybox-text-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  opacity: 1;
+}
+
+.aggregator-welcome__buybox-text-link:hover {
+  opacity: 1;
+  text-decoration-thickness: 2px;
+}
+
+.aggregator-welcome__buybox-text-link:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.95);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .aggregator-stats {
@@ -1553,6 +1591,16 @@ a {
 .modal-grid.two-col .full-width,
 .modal-grid .full-width {
   grid-column: 1 / -1;
+}
+
+.modal-grid.three-col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .modal-grid.three-col {
+    grid-template-columns: 1fr;
+  }
 }
 
 .modal-actions {

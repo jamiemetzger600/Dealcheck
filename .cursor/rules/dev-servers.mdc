@@ -1,0 +1,36 @@
+---
+description: Agent starts/stops local backend and web dev servers when testing or debugging
+alwaysApply: true
+---
+
+# Local dev servers (agent-managed)
+
+When work requires a running API, web UI, or verification after changes, **the agent should start and stop servers** instead of only telling the user to run commands.
+
+## Defaults
+
+| App     | Directory | Command           | Port (default) |
+|---------|-----------|-------------------|----------------|
+| Backend | `backend` | `npm run dev`     | `3001`         |
+| Web     | `web`     | `npm run dev`     | `5173`         |
+
+Use **`npm run dev`** for the backend during development (nodemon). Use **`npm start`** only if mimicking production or the user asks.
+
+## Before starting
+
+1. Check the **terminals** folder metadata (or `lsof -i :3001` / `lsof -i :5173`) to see if the port is already in use or a dev server is already running.
+2. Do **not** start a duplicate listener on the same port.
+3. Run long-lived servers in the **background** (`block_until_ms: 0` or equivalent) from the correct **`backend`** / **`web`** working directory.
+
+## After starting
+
+- Note the URL(s) for the user when relevant (e.g. `http://localhost:5173`, API `http://localhost:3001`).
+
+## Stopping
+
+- When a session of testing is done, or the user asks to stop servers, stop processes the agent started (terminate the background shell / process for that server).
+- If the server was started outside this session, prefer telling the user which terminal to stop rather than killing unknown PIDs.
+
+## Scope
+
+- This applies to **local** development on this machine, not Koyeb/Cloudflare production.

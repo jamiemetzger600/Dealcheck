@@ -1,18 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { filterDeals } from '../../../shared/buyBoxMatcher.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dealsAPI, userAPI } from '../utils/api';
-import { fetchFirstPageAirtableDeals, fetchAirtableDealsPage, fetchAirtableDealsDelta } from '../utils/normalizeAirtableDeal';
+import { fetchMarketDeals, fetchMarketDealsStats, buildMarketDealsParams, mapSortField } from '../utils/normalizeMarketDeal';
 import DealDetailsPanel from './DealDetailsPanel';
 
-const FIRST_PAGE_SIZE = 500;
-const BACKGROUND_PAGE_SIZE = 500;
-const LAST_SYNC_KEY = 'vettr_airtable_deals_last_sync';
-/** Deals per page in the list; pagination advances by this. */
-const RENDER_PAGE_SIZE = 100;
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
-const DEFAULT_DEALS_URL = `${API_BASE_URL}/default-deals-csv`;
-const CUSTOM_SOURCE_REFRESH_MS = 4 * 60 * 60 * 1000;
+const PER_PAGE = 50;
+const SEARCH_DEBOUNCE_MS = 300;
 const COLUMN_CONFIG = {
   name: { label: 'Name', default: true, required: true, sortable: true },
   date: { label: 'Date Added', default: true, sortable: true },
@@ -236,18 +228,19 @@ export default function DealAggregator({
   onDealsStatsUpdate,
   onSaveDeal,
   onSettingsUpdate,
+  onConfigureBuyBox,
   feedSource = 'airtable',
   savedDealIds = []
 }) {
   const [deals, setDeals] = useState([]);
-  const [filteredDeals, setFilteredDeals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [excludeKeywords, setExcludeKeywords] = useState(settings?.excludeKeywords || []);
   const [savedExcludeLists, setSavedExcludeLists] = useState(settings?.excludeLists || {});
   const [currentSelectedList, setCurrentSelectedList] = useState(settings?.currentExcludeList || '');
   const [hiddenDealIds, setHiddenDealIds] = useState(settings?.hiddenDealIds || []);
-  const [customSources, setCustomSources] = useState(settings?.customSources || []);
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [dealPanelPosition, setDealPanelPosition] = useState(settings?.preferences?.dealPanelPosition || 'center');
   const [showHiddenDeals, setShowHiddenDeals] = useState(false);
@@ -262,9 +255,9 @@ export default function DealAggregator({
   const [saveToast, setSaveToast] = useState(null);
   const [savingDealId, setSavingDealId] = useState(null);
   const [feedError, setFeedError] = useState(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [totalFromAPI, setTotalFromAPI] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalFromAPI, setTotalFromAPI] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [cardColumnsPerRow, setCardColumnsPerRow] = useState(() => {
     const v = settings?.preferences?.cardColumnsPerRow;
     return [2, 3, 4, 6, 8].includes(v) ? v : 4;
@@ -272,9 +265,13 @@ export default function DealAggregator({
   const [showCardColsPopup, setShowCardColsPopup] = useState(false);
   const cardColsPopupRef = useRef(null);
   const fetchAbortRef = useRef(null);
-  const dealsCountRef = useRef(0);
   const [isMobileViewport, setIsMobileViewport] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
+  );
+
+  const excludeKeywordsFingerprint = useMemo(
+    () => JSON.stringify(settings?.excludeKeywords ?? []),
+    [settings]
   );
 
   useEffect(() => {
@@ -290,219 +287,115 @@ export default function DealAggregator({
     setSavedExcludeLists(settings?.excludeLists || {});
     setCurrentSelectedList(settings?.currentExcludeList || '');
     setHiddenDealIds(settings?.hiddenDealIds || []);
-    setCustomSources(settings?.customSources || []);
     setDealPanelPosition(settings?.preferences?.dealPanelPosition || 'center');
     setDealViewStyle(settings?.dealViewStyle || 'table');
     const cols = settings?.preferences?.cardColumnsPerRow;
     setCardColumnsPerRow([2, 3, 4, 6, 8].includes(cols) ? cols : 4);
   }, [settings]);
 
+  // Debounce search input
   useEffect(() => {
-    fetchDeals({ refreshCustomSources: manualRefreshToken > 0 });
-  }, [manualRefreshToken]);
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-  useEffect(() => {
-    if (!settings) return undefined;
-
-    const maybeRefreshStaleSources = async () => {
-      if (shouldRefreshCustomSources(customSources)) {
-        await fetchDeals({ refreshCustomSources: true, background: true });
-      }
-    };
-
-    maybeRefreshStaleSources();
-
-    const intervalId = window.setInterval(() => {
-      fetchDeals({ refreshCustomSources: true, background: true });
-    }, CUSTOM_SOURCE_REFRESH_MS);
-
-    return () => window.clearInterval(intervalId);
-  }, [settings, customSources]);
-
-  useEffect(() => {
-    dealsCountRef.current = deals.length;
-  }, [deals]);
-
-  useEffect(() => {
-    if (settings) {
-      applyFilters();
-    }
-  }, [deals, settings, searchQuery, excludeKeywords, hiddenDealIds, showHiddenDeals, sortConfig, savedDealIds]);
-
+  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, sortConfig, viewMode, showHiddenDeals]);
+  }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint]);
 
+  // Persist column/sort preferences
   useEffect(() => {
     localStorage.setItem('vettr_visible_columns', JSON.stringify(visibleColumns));
   }, [visibleColumns]);
-
   useEffect(() => {
     localStorage.setItem('vettr_aggregator_sort', JSON.stringify(sortConfig));
   }, [sortConfig]);
 
-  const fetchDeals = async ({ refreshCustomSources = false, background = false } = {}) => {
-    if (!background) {
-      setLoading(true);
-      setFeedError(null);
-      setLoadingMore(false);
-      setTotalFromAPI(null);
-      if (fetchAbortRef.current) fetchAbortRef.current.abort();
-      fetchAbortRef.current = new AbortController();
-    }
-    const signal = fetchAbortRef.current?.signal;
+  // ---------------------------------------------------------------------------
+  // Server-side fetch: single API call per page/filter change
+  // ---------------------------------------------------------------------------
+  const fetchServerDeals = useCallback(async (pageOverride) => {
+    if (fetchAbortRef.current) fetchAbortRef.current.abort();
+    fetchAbortRef.current = new AbortController();
+    const signal = fetchAbortRef.current.signal;
+
+    setIsFetching(true);
+    setFeedError(null);
+
+    const buyBox = settings?.buyBox || {};
+    const flexPct = Math.min(100, Math.max(0, Number(buyBox.includeNearMatchesPercent) || 0));
+    const primary = sortConfig[0] || { field: 'date', direction: 'desc' };
+
+    // Map hidden deal IDs: we stored them as "airtable_<id>" style strings,
+    // but the server needs DB integer ids. For now, pass the string IDs and
+    // let the server ignore non-numeric ones. We also store dbId on normalized deals.
+    const hiddenDbIds = hiddenDealIds
+      .map((id) => {
+        const match = typeof id === 'string' && id.match(/_(\d+)$/);
+        return match ? Number(match[1]) : null;
+      })
+      .filter(Boolean);
+
+    const excludeKw = settings?.excludeKeywords || [];
+
+    const params = buildMarketDealsParams({
+      page: pageOverride ?? currentPage,
+      perPage: PER_PAGE,
+      search: debouncedSearch,
+      buyBox: showHiddenDeals ? null : buyBox,
+      flexibilityPct: flexPct,
+      sort: mapSortField(primary.field),
+      order: primary.direction,
+      hiddenDealDbIds: showHiddenDeals ? [] : hiddenDbIds,
+      showHidden: showHiddenDeals,
+      excludeKeywords: excludeKw,
+    });
 
     try {
-      if (feedSource === 'airtable') {
-        const lastSync = typeof localStorage !== 'undefined' ? localStorage.getItem(LAST_SYNC_KEY) : null;
-        const useDelta = Boolean(lastSync && dealsCountRef.current > 0 && !background);
+      const result = await fetchMarketDeals(params, signal);
+      if (signal.aborted) return;
 
-        if (useDelta) {
-          const delta = await fetchAirtableDealsDelta(API_BASE_URL, lastSync, signal);
-          if (signal?.aborted) return;
-          if (delta.maxUpdatedAt) {
-            try { localStorage.setItem(LAST_SYNC_KEY, delta.maxUpdatedAt); } catch (_) {}
-          }
-          setDeals((prev) => {
-            const byId = new Map(prev.map((d) => [d.id, d]));
-            delta.deals.forEach((d) => byId.set(d.id, d));
-            return dedupeDeals([...byId.values()]);
-          });
-          setFeedError(null);
-          if (!background) setLoading(false);
-          return;
-        }
+      setDeals(result.deals);
+      setTotalFromAPI(result.pagination.total);
+      setTotalPages(result.pagination.total_pages);
 
-        const first = await fetchFirstPageAirtableDeals(API_BASE_URL, FIRST_PAGE_SIZE, signal);
-        if (signal?.aborted) return;
-        if (first.maxUpdatedAt) {
-          try { localStorage.setItem(LAST_SYNC_KEY, first.maxUpdatedAt); } catch (_) {}
-        }
-        const firstDeduped = dedupeDeals(first.deals);
-        setDeals(firstDeduped);
-        setTotalFromAPI(first.total);
-        setFeedError(null);
-        if (!background) setLoading(false);
+      onMatchCountUpdate(result.pagination.total);
 
-        if (first.total > first.deals.length) {
-          setLoadingMore(true);
-          const PARALLEL = 5;
-          let offset = first.deals.length;
-          while (offset < first.total && !signal?.aborted) {
-            const batchOffsets = [];
-            for (let i = 0; i < PARALLEL && offset < first.total; i++) {
-              batchOffsets.push(offset);
-              offset += BACKGROUND_PAGE_SIZE;
-            }
-            const pages = await Promise.all(
-              batchOffsets.map((off) => fetchAirtableDealsPage(API_BASE_URL, off, BACKGROUND_PAGE_SIZE, signal))
-            );
-            if (signal?.aborted) return;
-            setDeals((prev) => {
-              const next = pages.flatMap((p) => p.deals);
-              return dedupeDeals([...prev, ...next]);
+      if (typeof onDealsStatsUpdate === 'function') {
+        fetchMarketDealsStats(signal).then((stats) => {
+          if (stats && !signal.aborted) {
+            onDealsStatsUpdate({
+              total: stats.total_deals,
+              newToday: stats.new_today,
+              showing: result.pagination.total,
+              sources: (stats.by_source || []).length || 1,
             });
           }
-        }
-        setLoadingMore(false);
-      } else {
-        const response = await fetch(DEFAULT_DEALS_URL);
-        if (!response.ok) throw new Error(`Default deals feed error (${response.status})`);
-
-        const csvText = await response.text();
-        const rows = parseCSV(csvText);
-        const defaultDeals = normalizeRows(rows, {
-          sourceName: 'Business Listings Database (100+ Real Deals)',
-          sourceType: 'google_sheets'
-        });
-
-        let nextCustomSources = [...customSources];
-        if (refreshCustomSources) {
-          nextCustomSources = await refreshCachedCustomSources(customSources);
-          setCustomSources(nextCustomSources);
-          await persistCustomSources(nextCustomSources, onSettingsUpdate);
-        }
-
-        const cachedCustomDeals = getCachedCustomDeals(nextCustomSources);
-        setDeals(dedupeDeals([...defaultDeals, ...cachedCustomDeals]));
+        }).catch(() => {});
       }
     } catch (error) {
       if (error?.name === 'AbortError' || signal?.aborted) return;
-      const apiUrl = `${API_BASE_URL}/airtable-deals`;
       console.error('Failed to fetch deals:', error);
-      if (!background) {
-        setDeals([]);
-        const msg = error?.message || 'Failed to load deals';
-        setFeedError(
-          msg === 'Failed to fetch'
-            ? `Failed to fetch (cannot reach ${apiUrl}). Check backend is running and CORS allows this origin.`
-            : msg
-        );
-      }
+      setDeals([]);
+      const msg = error?.message || 'Failed to load deals';
+      setFeedError(
+        msg === 'Failed to fetch'
+          ? 'Failed to reach the API. Check that the backend is running.'
+          : msg
+      );
     } finally {
-      if (!background) {
+      if (!signal.aborted) {
         setLoading(false);
+        setIsFetching(false);
       }
     }
-  };
+  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, onMatchCountUpdate, onDealsStatsUpdate]);
 
-  const applyFilters = () => {
-    let filtered = [...deals];
-
-    // Exclude deals already saved to My Deals (remove from aggregator once saved)
-    const savedIdSet = new Set((savedDealIds || []).map((id) => String(id)));
-    if (savedIdSet.size > 0) {
-      filtered = filtered.filter((deal) => !savedIdSet.has(String(deal.id)));
-    }
-
-    if (viewMode === 'hidden' || showHiddenDeals) {
-      filtered = filtered.filter((deal) => hiddenDealIds.includes(deal.id));
-    } else {
-      filtered = filterDeals(filtered, {
-        buyBox: settings?.buyBox || {},
-        excludeKeywords,
-        hiddenIds: hiddenDealIds
-      });
-    }
-
-    // Apply search (multiple keywords with & = all must match, e.g. "Relocatable & Fedex & HVAC")
-    if (searchQuery.trim()) {
-      const keywords = searchQuery.split(/\s*&\s*/).map((s) => s.trim().toLowerCase()).filter(Boolean);
-      if (keywords.length > 0) {
-        filtered = filtered.filter((deal) => {
-          const name = (deal.name || '').toLowerCase();
-          const desc = (deal.description || '').toLowerCase();
-          const location = (deal.location || '').toLowerCase();
-          const industry = (deal.industry || '').toLowerCase();
-          const searchable = `${name} ${desc} ${location} ${industry}`;
-          return keywords.every((kw) => searchable.includes(kw));
-        });
-      }
-    }
-
-    filtered = sortAggregatorDeals(filtered, sortConfig);
-
-    setFilteredDeals(filtered);
-    
-    onMatchCountUpdate(filtered.length);
-
-    if (typeof onDealsStatsUpdate === 'function') {
-      const today = new Date();
-      const newToday = deals.filter((deal) => {
-        const date = new Date(deal.discoveredAt);
-        return date.toDateString() === today.toDateString();
-      }).length;
-
-      const activeSourceCount = 1 + customSources.filter((source) => source.enabled !== false).length;
-
-      onDealsStatsUpdate({
-        total: deals.length,
-        newToday,
-        showing: filtered.length,
-        sources: activeSourceCount
-      });
-    }
-  };
+  // Fetch on mount, filter/sort/page/search change, and manual refresh
+  useEffect(() => {
+    if (settings) fetchServerDeals();
+  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, settings, manualRefreshToken]);
 
   const updateUserFilterSettings = async (nextValues) => {
     try {
@@ -581,12 +474,6 @@ export default function DealAggregator({
   if (loading) {
     return <div className="loading">Loading deals...</div>;
   }
-
-  const today = new Date();
-  const newTodayCount = deals.filter((deal) => {
-    const date = new Date(deal.discoveredAt);
-    return date.toDateString() === today.toDateString();
-  }).length;
 
   const handleAddExcludeKeyword = async () => {
     const nextKeywords = Array.from(new Set(
@@ -804,11 +691,7 @@ export default function DealAggregator({
   const fmt = (n) => (n != null ? `$${Number(n).toLocaleString()}` : null);
   const fmtMult = (n) => (n != null ? `${Number(n)}×` : null);
 
-  const totalPages = Math.max(1, Math.ceil(filteredDeals.length / RENDER_PAGE_SIZE));
-  const dealsToShow = filteredDeals.slice(
-    (currentPage - 1) * RENDER_PAGE_SIZE,
-    currentPage * RENDER_PAGE_SIZE
-  );
+  const dealsToShow = deals;
   const hasMultiplePages = totalPages > 1;
 
   return (
@@ -816,26 +699,37 @@ export default function DealAggregator({
       {feedError && (
         <div className="aggregator-feed-error" role="alert">
           {feedError}
-          {(feedError.includes('404') || feedError.includes('Failed to fetch')) && (
-            <span> Redeploy the <strong>backend</strong> on Koyeb from the latest main so it has the <code>/api/airtable-deals</code> route. Test: <a href={`${API_BASE_URL}/airtable-deals?limit=5`} target="_blank" rel="noopener noreferrer">open API URL</a></span>
-          )}
         </div>
       )}
+      {isFetching && <div className="aggregator-loading-bar" aria-live="polite" />}
       <div className="aggregator-welcome">
         <div className="aggregator-welcome__main">
-          <h2>🔍 Discover Business Deals</h2>
+          <h2>Discover Business Deals</h2>
           <p>
-            {matchCount > 0
-              ? `You have ${matchCount} deal${matchCount !== 1 ? 's' : ''} matching your criteria. Review them below and save promising opportunities to My Deals.`
-              : 'Explore the same matching, hiding, sorting, and source workflows that power the extension.'}
+            {totalFromAPI > 0 ? (
+              <>
+                {totalFromAPI.toLocaleString()} deal{totalFromAPI !== 1 ? 's' : ''} match your{' '}
+                {onConfigureBuyBox ? (
+                  <button
+                    type="button"
+                    className="aggregator-welcome__buybox-text-link"
+                    onClick={onConfigureBuyBox}
+                  >
+                    buy box
+                  </button>
+                ) : (
+                  'buy box'
+                )}
+                {' '}criteria.
+              </>
+            ) : (
+              'Configure your Buy Box to see matching deals.'
+            )}
           </p>
           <div className="aggregator-stats">
-            <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'matches' ? 'active' : ''}`} onClick={handleShowMatches}>Matches: {matchCount.toLocaleString()}</button>
-            <div className="aggregator-stat">Total: {totalFromAPI != null ? `${deals.length.toLocaleString()} of ${totalFromAPI.toLocaleString()}` : deals.length.toLocaleString()} Deals</div>
-            <div className="aggregator-stat">New: {newTodayCount.toLocaleString()} Added Today</div>
-            <div className="aggregator-stat">Showing: {filteredDeals.length.toLocaleString()} of {deals.length.toLocaleString()}</div>
-            {loadingMore && <div className="aggregator-stat aggregator-stat--loading" aria-live="polite">Loading more…</div>}
-            <div className="aggregator-stat">Sources: {(1 + customSources.filter((source) => source.enabled !== false).length).toLocaleString()} Active</div>
+            <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'matches' ? 'active' : ''}`} onClick={handleShowMatches}>Matches: {totalFromAPI.toLocaleString()}</button>
+            <div className="aggregator-stat">Showing: {deals.length.toLocaleString()} of {totalFromAPI.toLocaleString()}</div>
+            <div className="aggregator-stat">Page {currentPage} of {totalPages || 1}</div>
             <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'hidden' ? 'active' : ''}`} onClick={handleShowHidden}>Hidden: {hiddenDealIds.length.toLocaleString()}</button>
           </div>
         </div>
@@ -1137,7 +1031,7 @@ export default function DealAggregator({
               </tr>
             </thead>
             <tbody>
-              {filteredDeals.length === 0 ? (
+              {deals.length === 0 ? (
                 <tr>
                   <td colSpan={Object.keys(COLUMN_CONFIG).filter((columnId) => visibleColumns[columnId] !== false).length + 1} className="table-empty-cell">No deals found. Try adjusting your filters or search.</td>
                 </tr>
@@ -1232,7 +1126,7 @@ export default function DealAggregator({
         {dealViewStyle === 'card' && (
           <div className="aggregator-cards-scroll">
             <div className="aggregator-cards-grid" data-cols={cardColumnsPerRow}>
-              {filteredDeals.length === 0 ? (
+              {deals.length === 0 ? (
                 <div className="aggregator-cards-empty">No deals found. Try adjusting your filters or search.</div>
               ) : (
                 dealsToShow.map((deal) => {
@@ -1365,274 +1259,6 @@ function formatDate(value) {
   return date.toLocaleDateString();
 }
 
-function normalizeRows(rows, { sourceName, sourceType }) {
-  return rows
-    .filter((row) => Object.values(row || {}).some((value) => value && String(value).trim()))
-    .map((row, index) => normalizeRow(row, index, sourceName, sourceType));
-}
-
-function normalizeRow(row, index, sourceName, sourceType) {
-  const url = row['Parsed URL'] || row['View Listing'] || row['URL'] || row['Link'] || row['Listing URL'] || row.url || '';
-  const name = row['Name'] || row['Business Name'] || row['Deal Name'] || row['Title'] || row.name || `Deal ${index + 1}`;
-  const city = row['City'] || row.city || '';
-  const state = row['State'] || row.state || '';
-  const location = (city && state) ? `${city}, ${state}` : (city || state || row['Location'] || row.location || '');
-  const brokerName = row['Broker Name'] || row.brokerName || '';
-  const brokerCompany = row['Broker Company'] || row.brokerCompany || '';
-  const broker = brokerName && brokerCompany ? `${brokerName} (${brokerCompany})` : (brokerName || brokerCompany);
-  const ebitda = parsePrice(row['Annual Profit'] || row.ebitda);
-  const revenue = parsePrice(row['Annual Revenue'] || row.revenue);
-  const askingPrice = parsePrice(row['Asking Price'] || row.askingPrice);
-
-  return {
-    id: row.id || generateDealId(url || name || `${sourceType}_${index}`),
-    name,
-    url,
-    industry: row['Industry'] || row.industry || '',
-    description: row['Description'] || row.description || '',
-    location,
-    city,
-    state,
-    county: row['County'] || row.county || '',
-    country: row['Country'] || row.country || '',
-    yearsEstablished: row['Years Established'] || row.yearsEstablished || '',
-    ebitda,
-    revenue,
-    askingPrice,
-    profitMultiple: row['Profit Multiple'] ? parseFloat(row['Profit Multiple']) : computeMultiple(askingPrice, ebitda),
-    revenueMultiple: row['Revenue Multiple'] ? parseFloat(row['Revenue Multiple']) : computeMultiple(askingPrice, revenue),
-    remote: row['Remote/Relocatable/Absentee-Run'] || row.remote || '',
-    franchise: row['Franchise'] || row.franchise || '',
-    fiveYearsInBusiness: row['5+ Years In Business'] || row.fiveYearsInBusiness || '',
-    broker,
-    brokerName,
-    brokerCompany,
-    brokerPhone: row['Broker Contact'] || row.brokerPhone || '',
-    brokerEmail: row['Broker Email'] || row.brokerEmail || '',
-    source: row.Source || row.source || sourceName,
-    sourceType,
-    discoveredAt: row['Date Added'] ? new Date(row['Date Added']).getTime() : (row.discoveredAt || Date.now()),
-    rawColumns: row
-  };
-}
-
-async function persistCustomSources(customSources, onSettingsUpdate) {
-  await userAPI.updateSettings({ customSources });
-  if (typeof onSettingsUpdate === 'function') {
-    await onSettingsUpdate();
-  }
-}
-
-async function refreshCachedCustomSources(customSources) {
-  const enabledSources = customSources.filter((source) => source.enabled !== false);
-  const refreshedSources = await Promise.all(
-    enabledSources.map(async (source) => {
-      if (source.type === 'manual') {
-        return {
-          ...source,
-          lastFetchedAt: source.lastFetchedAt || Date.now(),
-          dealCount: source.deal ? 1 : (source.dealCount || 0)
-        };
-      }
-
-      try {
-        const deals = await fetchCustomSourceDeals(source);
-        return {
-          ...source,
-          cachedDeals: deals,
-          lastFetchedAt: Date.now(),
-          dealCount: deals.length,
-          lastError: null
-        };
-      } catch (error) {
-        console.error(`Failed to refresh ${source.name}:`, error);
-        return {
-          ...source,
-          lastError: error.message
-        };
-      }
-    })
-  );
-
-  const refreshedById = new Map(refreshedSources.map((source) => [source.id, source]));
-  return customSources.map((source) => refreshedById.get(source.id) || source);
-}
-
-function getCachedCustomDeals(customSources) {
-  return customSources
-    .filter((source) => source.enabled !== false)
-    .flatMap((source) => {
-      if (source.type === 'manual' && source.deal) {
-        return [normalizeRow(source.deal, 0, source.name, 'manual')];
-      }
-
-      if (!Array.isArray(source.cachedDeals)) {
-        return [];
-      }
-
-      return source.cachedDeals.map((deal, index) => normalizeRow(deal, index, source.name, source.type));
-    });
-}
-
-function shouldRefreshCustomSources(customSources) {
-  const refreshableSources = customSources.filter(
-    (source) => source.enabled !== false && source.type !== 'manual'
-  );
-
-  if (refreshableSources.length === 0) {
-    return false;
-  }
-
-  return refreshableSources.some((source) => {
-    if (!source.lastFetchedAt || !Array.isArray(source.cachedDeals)) {
-      return true;
-    }
-    return (Date.now() - source.lastFetchedAt) >= CUSTOM_SOURCE_REFRESH_MS;
-  });
-}
-
-async function fetchCustomSourceDeals(source) {
-  if (source.type === 'manual' && source.deal) {
-    return [normalizeRow(source.deal, 0, source.name, 'manual')];
-  }
-
-  if (source.type === 'google_sheets') {
-    const exportUrl = parseGoogleSheetsUrl(source.url);
-    const response = await fetch(exportUrl);
-    if (!response.ok) throw new Error(`Source fetch failed (${response.status})`);
-    return normalizeRows(parseCSV(await response.text()), { sourceName: source.name, sourceType: source.type });
-  }
-
-  if (source.type === 'csv_url') {
-    const response = await fetch(source.url);
-    if (!response.ok) throw new Error(`Source fetch failed (${response.status})`);
-    return normalizeRows(parseCSV(await response.text()), { sourceName: source.name, sourceType: source.type });
-  }
-
-  return [];
-}
-
-function parseGoogleSheetsUrl(url) {
-  const gidMatch = url.match(/[#&?]gid=([0-9]+)/);
-  const gid = gidMatch ? gidMatch[1] : '0';
-  const publishedMatch = url.match(/\/d\/e\/([a-zA-Z0-9-_]+)/);
-  if (publishedMatch) {
-    return `https://docs.google.com/spreadsheets/d/e/${publishedMatch[1]}/pub?gid=${gid}&single=true&output=csv`;
-  }
-  const sheetMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  if (!sheetMatch) throw new Error('Invalid Google Sheets URL');
-  return `https://docs.google.com/spreadsheets/d/${sheetMatch[1]}/export?format=csv&gid=${gid}`;
-}
-
-/** Normalize URL for dedupe: same listing may appear with different fragments or casing. */
-function normalizeUrlForDedupe(url) {
-  if (!url || typeof url !== 'string') return '';
-  const u = url.trim();
-  const withoutHash = u.split('#')[0];
-  return withoutHash.toLowerCase();
-}
-
-/** Dedupe key: prefer normalized URL (same listing = same URL), fallback to id. */
-function getDealDedupeKey(deal) {
-  const norm = normalizeUrlForDedupe(deal.url);
-  if (norm) return `url:${norm}`;
-  return `id:${deal.id}`;
-}
-
-/** Dedupe the aggregator feed by listing identity (URL or id); keep the newest by discoveredAt.
- *  Does not touch saved deals storage — saved deals are stored and matched separately (backend). */
-function dedupeDeals(items) {
-  const byKey = new Map();
-  items.forEach((deal) => {
-    const key = getDealDedupeKey(deal);
-    const existing = byKey.get(key);
-    const dealTime = deal.discoveredAt ? new Date(deal.discoveredAt).getTime() : 0;
-    const existingTime = existing?.discoveredAt ? new Date(existing.discoveredAt).getTime() : 0;
-    if (!existing || dealTime >= existingTime) {
-      byKey.set(key, deal);
-    }
-  });
-  return Array.from(byKey.values());
-}
-
-function parseCSV(csvText) {
-  const lines = csvText.split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 2) return [];
-
-  const headers = parseCSVLine(lines[0]);
-  const rows = [];
-
-  for (let i = 1; i < lines.length; i += 1) {
-    const values = parseCSVLine(lines[i]);
-    const row = {};
-    headers.forEach((header, index) => {
-      row[header] = values[index] || '';
-    });
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-function parseCSVLine(line) {
-  const values = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    const nextChar = line[i + 1];
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        current += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      values.push(current);
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-
-  values.push(current);
-  return values;
-}
-
-function parsePrice(priceStr) {
-  if (priceStr === null || priceStr === undefined || priceStr === '') return null;
-  if (typeof priceStr === 'number') return priceStr;
-
-  const cleaned = String(priceStr).replace(/[$,€£]/g, '').trim().toLowerCase();
-
-  let multiplier = 1;
-  if (cleaned.includes('k')) {
-    multiplier = 1000;
-  } else if (cleaned.includes('m')) {
-    multiplier = 1000000;
-  }
-
-  const number = parseFloat(cleaned.replace(/[km]/g, ''));
-  return Number.isNaN(number) ? null : number * multiplier;
-}
-
-function computeMultiple(price, base) {
-  if (!price || !base) return null;
-  return Number((price / base).toFixed(2));
-}
-
-function generateDealId(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i += 1) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash &= hash;
-  }
-  return `custom_${Math.abs(hash).toString(36)}`;
-}
 
 function loadVisibleColumns() {
   try {
@@ -1677,77 +1303,4 @@ function renderHeaderCell(columnId, label, visibleColumns, sortConfig, handleSor
   );
 }
 
-function sortAggregatorDeals(deals, sortConfig) {
-  const sorted = [...deals];
-
-  sorted.sort((a, b) => {
-    for (let i = 0; i < sortConfig.length; i += 1) {
-      const sort = sortConfig[i];
-      const aVal = getSortValue(a, sort.field);
-      const bVal = getSortValue(b, sort.field);
-
-      if (aVal < bVal) return sort.direction === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sort.direction === 'asc' ? 1 : -1;
-    }
-
-    return 0;
-  });
-
-  return sorted;
-}
-
-function getSortValue(deal, field) {
-  switch (field) {
-    case 'name':
-      return (deal.name || '').toLowerCase();
-    case 'price':
-      return deal.askingPrice || 0;
-    case 'ebitda':
-      return deal.ebitda || 0;
-    case 'revenue':
-      return deal.revenue || 0;
-    case 'location':
-      return (deal.location || deal.city || '').toLowerCase();
-    case 'industry':
-      return (deal.industry || '').toLowerCase();
-    case 'source':
-      return (deal.source || '').toLowerCase();
-    case 'date':
-      return deal.discoveredAt || 0;
-    case 'description':
-      return (deal.description || '').toLowerCase();
-    case 'city':
-      return (deal.city || '').toLowerCase();
-    case 'county':
-      return (deal.county || '').toLowerCase();
-    case 'state':
-      return (deal.state || '').toLowerCase();
-    case 'country':
-      return (deal.country || '').toLowerCase();
-    case 'yearsEstablished':
-      return parseInt(deal.yearsEstablished, 10) || 0;
-    case 'profitMultiple':
-      return deal.profitMultiple || 0;
-    case 'revenueMultiple':
-      return deal.revenueMultiple || 0;
-    case 'remote':
-      return (deal.remote || '').toLowerCase();
-    case 'franchise':
-      return (deal.franchise || '').toLowerCase();
-    case 'fiveYearsInBusiness':
-      return (deal.fiveYearsInBusiness || '').toLowerCase();
-    case 'broker':
-      return (deal.broker || deal.brokerName || '').toLowerCase();
-    case 'brokerCompany':
-      return (deal.brokerCompany || '').toLowerCase();
-    case 'brokerPhone':
-      return (deal.brokerPhone || '').toLowerCase();
-    case 'brokerEmail':
-      return (deal.brokerEmail || '').toLowerCase();
-    case 'url':
-      return (deal.url || '').toLowerCase();
-    default:
-      return (deal[field] || '').toString().toLowerCase();
-  }
-}
 

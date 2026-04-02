@@ -1,5 +1,5 @@
-import cron from 'node-cron';
 import pool from '../db/pool.js';
+import { register } from './scraperRegistry.js';
 
 // ---------------------------------------------------------------------------
 // Config — all tuneable via env vars
@@ -8,9 +8,9 @@ const AIRTABLE_SHARE_URL =
   process.env.AIRTABLE_SHARE_URL ||
   'https://airtable.com/appEGxhjno0HTpEco/shrUhtbnzZTPaR4Lk/tblACIQ9QNiVmoWSK';
 
-// Cron expression: default every 30 minutes
+// Cron expression: default every 12 hours (minute 0 of every 12th hour, server local time)
 const SCRAPE_CRON =
-  process.env.AIRTABLE_SCRAPE_CRON || '*/30 * * * *';
+  process.env.AIRTABLE_SCRAPE_CRON || '0 */12 * * *';
 
 // Toggle the scraper on/off without removing code
 const SCRAPE_ENABLED =
@@ -196,12 +196,39 @@ function parseRows(rows, colLookup) {
       if (!col) continue;
       record[col.dbField] = resolveCell(value, col.handleType, col.choices);
     }
+    // Stable per-row id from Airtable (e.g. recXXXXXXXX); avoids duplicate source_ids
+    // when the visible "ID" column is missing, reused, or not unique.
+    const rid = row.id || row.recordId;
+    if (rid) record.airtable_record_id = rid;
     return record;
   });
 }
 
+const SOURCE_KEY = 'airtable_bizbuysell';
+
+/** Collapse same-listing rows after switching source_id scheme (e.g. numeric → rec…). */
+async function dedupeAirtableRowsByListingUrl(client) {
+  await client.query(
+    `DELETE FROM market_deals md
+     WHERE md.source = $1 AND md.id IN (
+       SELECT id FROM (
+         SELECT id,
+           ROW_NUMBER() OVER (
+             PARTITION BY lower(trim(listing_url))
+             ORDER BY id DESC
+           ) AS rn
+         FROM market_deals
+         WHERE source = $1
+           AND listing_url IS NOT NULL
+           AND trim(listing_url) <> ''
+       ) t WHERE rn > 1
+     )`,
+    [SOURCE_KEY]
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Database upsert — bulk insert/update via airtable_id
+// Database upsert — bulk insert/update into market_deals via (source, source_id)
 // ---------------------------------------------------------------------------
 async function upsertDeals(deals) {
   if (deals.length === 0) return { inserted: 0, updated: 0 };
@@ -214,27 +241,29 @@ async function upsertDeals(deals) {
     await client.query('BEGIN');
 
     for (const deal of deals) {
-      if (!deal.airtable_id) continue;
+      const rawKey = deal.airtable_record_id ?? deal.airtable_id;
+      if (rawKey == null || String(rawKey).trim() === '') continue;
+      const sourceId = String(rawKey).trim();
 
       const result = await client.query(
-        `INSERT INTO airtable_deals (
-          airtable_id, name, description, industries, listing_url,
+        `INSERT INTO market_deals (
+          source, source_id, name, description, industries, listing_url,
           asking_price, annual_revenue, annual_profit, profit_multiple, revenue_multiple,
           city, county, state, country,
           years_established, remote_relocatable, franchise, five_plus_years,
           broker_name, broker_company, broker_contact, broker_email,
-          airtable_updated_at, airtable_added_at,
-          last_scraped_at
+          source_updated_at, source_added_at,
+          last_scraped_at, is_active
         ) VALUES (
-          $1, $2, $3, $4, $5,
-          $6, $7, $8, $9, $10,
-          $11, $12, $13, $14,
-          $15, $16, $17, $18,
-          $19, $20, $21, $22,
-          $23, $24,
-          NOW()
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10, $11,
+          $12, $13, $14, $15,
+          $16, $17, $18, $19,
+          $20, $21, $22, $23,
+          $24, $25,
+          NOW(), true
         )
-        ON CONFLICT (airtable_id) DO UPDATE SET
+        ON CONFLICT (source, source_id) DO UPDATE SET
           name              = EXCLUDED.name,
           description       = EXCLUDED.description,
           industries        = EXCLUDED.industries,
@@ -256,12 +285,14 @@ async function upsertDeals(deals) {
           broker_company    = EXCLUDED.broker_company,
           broker_contact    = EXCLUDED.broker_contact,
           broker_email      = EXCLUDED.broker_email,
-          airtable_updated_at = EXCLUDED.airtable_updated_at,
-          airtable_added_at   = EXCLUDED.airtable_added_at,
-          last_scraped_at     = NOW()
+          source_updated_at = EXCLUDED.source_updated_at,
+          source_added_at   = EXCLUDED.source_added_at,
+          last_scraped_at   = NOW(),
+          is_active         = true
         RETURNING (xmax = 0) AS is_insert`,
         [
-          deal.airtable_id,
+          SOURCE_KEY,
+          sourceId,
           deal.name || null,
           deal.description || null,
           deal.industries || null,
@@ -292,7 +323,23 @@ async function upsertDeals(deals) {
       else updated++;
     }
 
+    await dedupeAirtableRowsByListingUrl(client);
+
     await client.query('COMMIT');
+
+    // Update deal_sources metadata
+    try {
+      await pool.query(
+        `UPDATE deal_sources SET
+          last_scrape_at = NOW(),
+          last_scrape_result = $1,
+          deal_count = (SELECT COUNT(*) FROM market_deals WHERE source = $2 AND is_active = true)
+        WHERE source_key = $2`,
+        [JSON.stringify({ inserted, updated, ts: new Date().toISOString() }), SOURCE_KEY]
+      );
+    } catch (metaErr) {
+      console.warn('  Warning: failed to update deal_sources metadata:', metaErr.message);
+    }
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -369,25 +416,20 @@ export function getScraperStatus() {
 }
 
 // ---------------------------------------------------------------------------
-// Cron schedule
+// Register with scraper registry (handles cron scheduling)
 // ---------------------------------------------------------------------------
+register({
+  sourceKey: SOURCE_KEY,
+  scrape: scrapeAirtable,
+  getStatus: getScraperStatus,
+  cronExpr: SCRAPE_ENABLED ? SCRAPE_CRON : null,
+  enabled: SCRAPE_ENABLED,
+});
+
+// Run once on startup after a short delay so the server finishes booting
 if (SCRAPE_ENABLED) {
-  cron.schedule(SCRAPE_CRON, async () => {
-    console.log('🔄 [Airtable] Scheduled scrape starting...');
-    try {
-      await scrapeAirtable();
-    } catch {
-      // Error already logged inside scrapeAirtable
-    }
-  });
-
-  console.log(`✅ Airtable scraper scheduled (cron: ${SCRAPE_CRON})`);
-
-  // Run once on startup after a short delay so the server finishes booting
   setTimeout(() => {
     console.log('🔄 [Airtable] Initial scrape on startup...');
     scrapeAirtable().catch(() => {});
   }, 5000);
-} else {
-  console.log('⏸️  Airtable scraper disabled (AIRTABLE_SCRAPE_ENABLED=false)');
 }

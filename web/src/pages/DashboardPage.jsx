@@ -123,6 +123,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onDealsStatsUpdate={handleDealsStatsUpdate}
             onSaveDeal={loadUserData}
             onSettingsUpdate={loadUserData}
+            onConfigureBuyBox={() => setShowBuyBoxModal(true)}
             feedSource={feedSource}
             savedDealIds={savedDeals.map((d) => d.dealId ?? d.id).filter(Boolean)}
           />

@@ -610,6 +610,7 @@ a {
   padding: 16px 20px;
   background: var(--bg-tertiary);
   border-bottom: 2px solid var(--border);
+  border-radius: 12px 12px 0 0;
   display: flex;
   gap: 12px;
   align-items: center;
@@ -798,7 +799,8 @@ a {
   background: var(--bg-secondary);
   border-radius: 12px;
   box-shadow: 0 2px 8px var(--shadow);
-  overflow: hidden;
+  /* overflow: visible so thead position:sticky works with page scroll */
+  overflow: visible;
 }
 
 .exclude-keywords-section {
@@ -967,12 +969,22 @@ a {
 }
 
 .aggregator-table-scroll {
-  overflow-x: auto;
+  /* overflow-x:auto forces overflow-y to compute to auto (CSS overflow rules). That makes
+     this element the sticky scrollport while it’s as tall as the table, so vertical scroll
+     stays on the window and thead never sticks. Give this box a bounded height so vertical
+     scroll happens here and the header row stays frozen (spreadsheet-style). */
+  max-height: min(72dvh, calc(100dvh - 18rem));
+  min-height: 14rem;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+  border-radius: 0 0 12px 12px;
 }
 
 .aggregator-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   min-width: 980px;
 }
 
@@ -985,18 +997,24 @@ a {
   vertical-align: top;
 }
 
-.aggregator-table th {
-  font-size: 11px;
-  letter-spacing: 0.6px;
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
+.aggregator-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
   white-space: nowrap;
+  border-bottom: 2px solid var(--border);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.07);
+  vertical-align: middle;
 }
 
 .aggregator-table th.sortable {
   cursor: pointer;
   user-select: none;
-  position: relative;
 }
 
 .aggregator-table th.sortable:hover {
@@ -2955,6 +2973,31 @@ a {
   color: var(--success);
 }
 
+.my-deals-table .my-deals-quality-score {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.my-deals-table .my-deals-coc-value {
+  font-weight: 700;
+}
+
+.my-deals-table .my-deals-coc-value[data-tier='excellent'] {
+  color: #27ae60;
+}
+.my-deals-table .my-deals-coc-value[data-tier='very-good'] {
+  color: #2ecc71;
+}
+.my-deals-table .my-deals-coc-value[data-tier='good'] {
+  color: #f39c12;
+}
+.my-deals-table .my-deals-coc-value[data-tier='fair'] {
+  color: #e67e22;
+}
+.my-deals-table .my-deals-coc-value[data-tier='bad'] {
+  color: #e74c3c;
+}
+
 /* Modal Overlay */
 .modal-overlay {
   position: fixed;
@@ -3770,5 +3813,203 @@ a {
 
   .deal-actions {
     flex-direction: column;
+  }
+}
+
+/* ── Quick IOI Modal ── */
+.ioi-modal-overlay {
+  z-index: 1100;
+}
+
+.ioi-modal {
+  width: min(680px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.ioi-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.ioi-modal-header h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ioi-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ioi-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ioi-section-half {
+  flex: 1;
+  min-width: 0;
+}
+
+.ioi-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.ioi-field-row {
+  display: flex;
+  gap: 12px;
+}
+
+.ioi-scenario-selector {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ioi-scenario-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.ioi-scenario-check input[type="checkbox"] {
+  accent-color: var(--primary);
+}
+
+.ioi-input {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.ioi-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.ioi-textarea {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  width: 100%;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.ioi-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.ioi-preview-subject {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+
+.ioi-preview {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+  padding: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  width: 100%;
+  resize: vertical;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.ioi-preview:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.ioi-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.ioi-hint-inline {
+  margin-top: -4px;
+  margin-bottom: 4px;
+}
+
+.ioi-warn {
+  font-size: 12px;
+  color: var(--error);
+}
+
+.ioi-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.ioi-success {
+  font-size: 12px;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.calc-ioi-btn {
+  font-size: 13px;
+}
+
+.calc-footer-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .ioi-modal {
+    width: 98vw;
+  }
+
+  .ioi-field-row {
+    flex-direction: column;
+  }
+
+  .ioi-modal-footer {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

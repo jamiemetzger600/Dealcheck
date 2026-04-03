@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import DealCalculator from './DealCalculator';
+import IOIModal from './IOIModal';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
 
 const POSITION_OPTIONS = ['left', 'center', 'right'];
@@ -19,11 +20,14 @@ export default function DealDetailsPanel({
   showSaveButton = true,
   renderFooter = null,
   extraSectionsAfterCalculator = null,
-  overviewAdditions = null
+  overviewAdditions = null,
+  onIOISent = null,
+  onIOIPrefsSaved = null
 }) {
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(true);
   const [isOverviewOpen, setIsOverviewOpen] = useState(true);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [ioiData, setIoiData] = useState(null);
 
   useEffect(() => {
     if (!deal) return;
@@ -38,6 +42,14 @@ export default function DealDetailsPanel({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, panelOnly, onClose]);
+
+  const handleUseForIOI = useCallback((data) => {
+    setIoiData(data);
+  }, []);
+
+  const handleCloseIOI = useCallback(() => {
+    setIoiData(null);
+  }, []);
 
   if (!deal) return null;
   if (!panelOnly && !isOpen) return null;
@@ -130,11 +142,28 @@ export default function DealDetailsPanel({
               deal={deal}
               calculatorDefaults={calculatorDefaults}
               onSaveCalculatorDefaults={onSaveCalculatorDefaults}
+              onUseForIOI={handleUseForIOI}
             />
           )}
         </section>
         {extraSectionsAfterCalculator}
       </div>
+
+      {ioiData && (
+        <IOIModal
+          deal={deal}
+          scenarios={ioiData.scenarios}
+          activeScenario={ioiData.activeScenario}
+          qualityPrefs={{
+            targetCOC: parseFloat(calculatorDefaults.targetCOC) || 25,
+            targetPayback: parseFloat(calculatorDefaults.targetPayback) || 4
+          }}
+          settings={settings}
+          onClose={handleCloseIOI}
+          onIOISent={onIOISent ? (text) => { onIOISent(text); handleCloseIOI(); } : null}
+          onIOIPrefsSaved={onIOIPrefsSaved}
+        />
+      )}
 
       <div className="deal-details-footer">
         {renderFooter != null ? (typeof renderFooter === 'function' ? renderFooter() : renderFooter) : (

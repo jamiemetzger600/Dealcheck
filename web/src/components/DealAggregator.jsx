@@ -1221,6 +1221,7 @@ export default function DealAggregator({
         onPositionChange={handleDealPanelPositionChange}
         settings={settings}
         onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
+        onIOIPrefsSaved={onSettingsUpdate}
       />
       {saveToast && (
         <div className="save-toast" role="status" aria-live="polite">

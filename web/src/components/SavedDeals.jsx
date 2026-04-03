@@ -1,9 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { dealsAPI } from '../utils/api';
+import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
+import { getQualityPresentation } from '../utils/dealCalculatorMath';
 import { formatDate, formatMoney, getStatusBadgeClass, getStatusLabel } from '../utils/normalizeDeal';
+import { getSavedDealCalculatorSummary } from '../utils/savedDealCalculatorSummary';
 import DealDetailsPanel from './DealDetailsPanel';
 import { InfoCard } from './DealDetailsPanel';
+
+function cocReturnTier(coc) {
+  if (coc >= 100) return 'excellent';
+  if (coc >= 50) return 'very-good';
+  if (coc >= 25) return 'good';
+  if (coc >= 0) return 'fair';
+  return 'bad';
+}
 
 export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCalculatorDefaults = null }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,6 +88,16 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
     };
   }, [deals]);
 
+  const calculatorDefaults = useMemo(() => getCalculatorDefaultsFromSettings(settings), [settings]);
+
+  const calculatorSummaryByDealId = useMemo(() => {
+    const m = new Map();
+    for (const d of filteredDeals) {
+      m.set(d.id, getSavedDealCalculatorSummary(d, calculatorDefaults));
+    }
+    return m;
+  }, [filteredDeals, calculatorDefaults]);
+
   // Handle sort
   const handleSort = (field) => {
     if (sortField === field) {
@@ -119,17 +140,22 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
     if (exportDeals.length === 0) return;
 
     const headers = ['Name', 'Saved Date', 'Status', 'Asking Price', 'EBITDA', 'Quality', 'COC Return', 'URL', 'Notes'];
-    const rows = exportDeals.map(deal => [
-      deal.name || '',
-      formatDate(deal.savedAt),
-      deal.status || 'none',
-      deal.askingPrice || '',
-      deal.ebitda || '',
-      deal.qualityScore || '—',
-      deal.cocReturn ? `${deal.cocReturn.toFixed(1)}%` : '—',
-      deal.url || '',
-      (deal.notes || '').replace(/\n/g, ' ')
-    ]);
+    const rows = exportDeals.map((deal) => {
+      const { qualityScore: q, cocReturn: c } = getSavedDealCalculatorSummary(deal, calculatorDefaults);
+      const qDisp = q != null && Number.isFinite(q) ? q : '—';
+      const cDisp = c != null && Number.isFinite(c) ? `${c.toFixed(1)}%` : '—';
+      return [
+        deal.name || '',
+        formatDate(deal.savedAt),
+        deal.status || 'none',
+        deal.askingPrice || '',
+        deal.ebitda || '',
+        qDisp,
+        cDisp,
+        deal.url || '',
+        (deal.notes || '').replace(/\n/g, ' ')
+      ];
+    });
 
     const csv = [headers, ...rows].map(row => 
       row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
@@ -350,7 +376,14 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
               </tr>
             </thead>
             <tbody>
-              {filteredDeals.map(deal => (
+              {filteredDeals.map((deal) => {
+                const { qualityScore, cocReturn } = calculatorSummaryByDealId.get(deal.id) || {};
+                const qp =
+                  qualityScore != null && Number.isFinite(qualityScore)
+                    ? getQualityPresentation(qualityScore)
+                    : null;
+                const cocOk = cocReturn != null && Number.isFinite(cocReturn);
+                return (
                 <tr
                   key={deal.id}
                   className={selectedIds.has(deal.id) ? 'selected' : ''}
@@ -376,12 +409,25 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
                   <td>{formatMoney(deal.askingPrice)}</td>
                   <td>{formatMoney(deal.ebitda)}</td>
                   <td>
-                    {deal.qualityScore !== undefined ? (
-                      <span className="quality-score">{deal.qualityScore}</span>
-                    ) : '—'}
+                    {qp ? (
+                      <span className="my-deals-quality-score" style={{ color: qp.scoreColor }} title={qp.text}>
+                        <span aria-hidden>{qp.badge}</span> {qualityScore}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td>
-                    {deal.cocReturn !== undefined ? `${deal.cocReturn.toFixed(1)}%` : '—'}
+                    {cocOk ? (
+                      <span
+                        className="my-deals-coc-value"
+                        data-tier={cocReturnTier(cocReturn)}
+                      >
+                        {cocReturn.toFixed(1)}%
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <div className="actions">
@@ -409,7 +455,8 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -526,6 +573,33 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpda
     } else {
       navigator.clipboard.writeText(shareText);
       alert('Deal details copied to clipboard!');
+    }
+  };
+
+  const handleIOISent = async (ioiText) => {
+    const timestamp = new Date().toISOString();
+    const dateLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const separator = `\n\n--- IOI Sent ${dateLabel} ---\n`;
+    const updatedNotes = (notes ? notes + separator : `--- IOI Sent ${dateLabel} ---\n`) + ioiText;
+
+    const newHistory = [
+      ...progressHistory,
+      { stage: 'IOI Sent', timestamp }
+    ];
+
+    try {
+      await dealsAPI.updateDeal(deal.id, {
+        notes: updatedNotes,
+        progressStage: 'IOI Sent',
+        progressHistory: newHistory
+      });
+      setNotes(updatedNotes);
+      setProgressStage('IOI Sent');
+      setProgressHistory(newHistory);
+      onUpdate();
+    } catch (error) {
+      console.error('Failed to save IOI record:', error);
+      alert('IOI sent but failed to save record: ' + error.message);
     }
   };
 
@@ -653,6 +727,8 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpda
           overviewAdditions={overviewAdditions}
           extraSectionsAfterCalculator={extraSections}
           renderFooter={savedFooter}
+          onIOISent={handleIOISent}
+          onIOIPrefsSaved={onUpdate}
         />
       </div>
     </div>

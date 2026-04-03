@@ -3,8 +3,12 @@ import {
   analyzeDealScenario,
   buildFinancingCoefficients,
   calculateTargetOfferAnalytical,
+  createDefaultScenarios,
+  DEFAULT_CALC_SBA_RATE,
+  isValidCalculatorPayload,
   parseMoney,
-  SELLER_NOTE_TERM_YEARS
+  SELLER_NOTE_TERM_YEARS,
+  stringifyDealNumber
 } from '../utils/dealCalculatorMath';
 import { dealsAPI } from '../utils/api';
 import {
@@ -13,7 +17,6 @@ import {
   saveCalculatorState
 } from '../utils/dealCalculatorStorage';
 
-const DEFAULT_SBA_RATE = '9.25';
 const PER_DEAL_PERSIST_DEBOUNCE_MS = 400;
 
 const DEFAULT_UI = {
@@ -27,19 +30,11 @@ const DEFAULT_UI = {
   actualOpen: false
 };
 
-function isValidCalcPayload(data, scenarioCount) {
-  return (
-    data &&
-    typeof data === 'object' &&
-    Array.isArray(data.scenarios) &&
-    data.scenarios.length === scenarioCount
-  );
-}
-
 export default function DealCalculator({
   deal,
   calculatorDefaults = {},
   onSaveCalculatorDefaults = null,
+  onUseForIOI = null,
   className = ''
 }) {
   const [activeScenario, setActiveScenario] = useState(0);
@@ -70,9 +65,9 @@ export default function DealCalculator({
       deal.dealId != null && deal.dealId !== deal.id ? loadCalculatorState(deal.dealId) : null;
 
     let stored = null;
-    if (isValidCalcPayload(fromApi, n)) stored = fromApi;
-    else if (isValidCalcPayload(fromLs, n)) stored = fromLs;
-    else if (isValidCalcPayload(fromListingKey, n)) stored = fromListingKey;
+    if (isValidCalculatorPayload(fromApi, n)) stored = fromApi;
+    else if (isValidCalculatorPayload(fromLs, n)) stored = fromLs;
+    else if (isValidCalculatorPayload(fromListingKey, n)) stored = fromListingKey;
 
     if (stored) {
       const merged = stored.scenarios.map((s, i) => ({ ...defaults[i], ...s }));
@@ -109,9 +104,9 @@ export default function DealCalculator({
     const fromListingKey =
       deal.dealId != null && deal.dealId !== deal.id ? loadCalculatorState(deal.dealId) : null;
     const hasStored =
-      isValidCalcPayload(fromApi, n) ||
-      isValidCalcPayload(fromLs, n) ||
-      isValidCalcPayload(fromListingKey, n);
+      isValidCalculatorPayload(fromApi, n) ||
+      isValidCalculatorPayload(fromLs, n) ||
+      isValidCalculatorPayload(fromListingKey, n);
     if (hasStored) return;
     const cocDefault =
       calculatorDefaults.targetCOC != null && calculatorDefaults.targetCOC !== ''
@@ -130,9 +125,9 @@ export default function DealCalculator({
     const fromListingKey =
       deal.dealId != null && deal.dealId !== deal.id ? loadCalculatorState(deal.dealId) : null;
     const hasStored =
-      isValidCalcPayload(fromApi, n) ||
-      isValidCalcPayload(fromLs, n) ||
-      isValidCalcPayload(fromListingKey, n);
+      isValidCalculatorPayload(fromApi, n) ||
+      isValidCalculatorPayload(fromLs, n) ||
+      isValidCalculatorPayload(fromListingKey, n);
     if (hasStored) return;
     const sal =
       calculatorDefaults.salary != null && calculatorDefaults.salary !== ''
@@ -288,8 +283,8 @@ export default function DealCalculator({
         index === activeScenario
           ? {
               ...scenario,
-              ebitda: stringifyNumber(deal.ebitda),
-              askingPrice: stringifyNumber(deal.askingPrice),
+              ebitda: stringifyDealNumber(deal.ebitda),
+              askingPrice: stringifyDealNumber(deal.askingPrice),
               usePurchaseOverride: false,
               purchasePrice: ''
             }
@@ -374,7 +369,7 @@ export default function DealCalculator({
           open={uiOpen.sbaOpen}
           onToggle={() => toggleUi('sbaOpen')}
           title="A. SBA"
-          summary={`${finCoeff.sbaPercent}% • ${currentScenario.sbaRate || DEFAULT_SBA_RATE}% • ${currentScenario.sbaTerm || '10'}yr • ${currentScenario.dscr || '1.25'}x DSCR`}
+          summary={`${finCoeff.sbaPercent}% • ${currentScenario.sbaRate || DEFAULT_CALC_SBA_RATE}% • ${currentScenario.sbaTerm || '10'}yr • ${currentScenario.dscr || '1.25'}x DSCR`}
           nested
         >
           <div className="modal-grid two-col">
@@ -771,6 +766,15 @@ export default function DealCalculator({
       </CalcAccordion>
 
       <div className="calc-footer-actions">
+        {onUseForIOI && (
+          <button
+            type="button"
+            className="btn-primary calc-ioi-btn"
+            onClick={() => onUseForIOI({ scenarios, activeScenario })}
+          >
+            Use for IOI
+          </button>
+        )}
         <button type="button" className="btn-secondary" onClick={resetScenarioFromListing}>
           Refresh from listing
         </button>
@@ -837,10 +841,6 @@ function paybackTier(years) {
   return 'bad';
 }
 
-function stringifyNumber(value) {
-  return value ? String(Math.round(value)) : '';
-}
-
 function formatNumberWithCommas(val) {
   if (val == null || val === '') return '';
   const digits = String(val).replace(/[^0-9]/g, '');
@@ -869,28 +869,3 @@ function formatCompactMoney(n) {
   return `$${x}`;
 }
 
-function createDefaultScenarios(deal, calculatorDefaults = {}) {
-  const base = {
-    ebitda: stringifyNumber(deal.ebitda),
-    askingPrice: stringifyNumber(deal.askingPrice),
-    dscr: String(calculatorDefaults.dscr ?? '1.25'),
-    sbaPercent: String(calculatorDefaults.sbaPercent ?? '80'),
-    sbaRate: String(calculatorDefaults.sbaRate ?? DEFAULT_SBA_RATE),
-    sbaTerm: String(calculatorDefaults.sbaTerm ?? '10'),
-    equityPercent: String(calculatorDefaults.equityPercent ?? '10'),
-    salary: String(calculatorDefaults.salary ?? '150000'),
-    sellerEnabled: false,
-    sellerPercent: '10',
-    sellerRate: String(calculatorDefaults.sellerRate ?? '6'),
-    sellerStandby: calculatorDefaults.sellerStandby === 'yes' ? 'yes' : 'no',
-    sellerPaymentType: calculatorDefaults.sellerPaymentType === 'interest-only' ? 'interest-only' : 'amortizing',
-    usePurchaseOverride: false,
-    purchasePrice: '',
-    dismissDealOpportunity: false
-  };
-  return [
-    { ...base },
-    { ...base, sbaPercent: '70', equityPercent: '20', sellerEnabled: true, sellerPercent: '10' },
-    { ...base, sbaPercent: '60', equityPercent: '20', sellerEnabled: true, sellerPercent: '20' }
-  ];
-}

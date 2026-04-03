@@ -326,3 +326,48 @@ export function calculateTargetOfferAnalytical({
     }
   };
 }
+
+/** Matches extension / DealCalculator default SBA rate string. */
+export const DEFAULT_CALC_SBA_RATE = '9.25';
+
+export function stringifyDealNumber(value) {
+  return value ? String(Math.round(value)) : '';
+}
+
+export function isValidCalculatorPayload(data, scenarioCount) {
+  return (
+    data &&
+    typeof data === 'object' &&
+    Array.isArray(data.scenarios) &&
+    data.scenarios.length === scenarioCount
+  );
+}
+
+/**
+ * Three preset financing scenarios (aligned with DealCalculator).
+ */
+export function createDefaultScenarios(deal, calculatorDefaults = {}) {
+  const base = {
+    ebitda: stringifyDealNumber(deal.ebitda),
+    askingPrice: stringifyDealNumber(deal.askingPrice),
+    dscr: String(calculatorDefaults.dscr ?? '1.25'),
+    sbaPercent: String(calculatorDefaults.sbaPercent ?? '80'),
+    sbaRate: String(calculatorDefaults.sbaRate ?? DEFAULT_CALC_SBA_RATE),
+    sbaTerm: String(calculatorDefaults.sbaTerm ?? '10'),
+    equityPercent: String(calculatorDefaults.equityPercent ?? '10'),
+    salary: String(calculatorDefaults.salary ?? '150000'),
+    sellerEnabled: false,
+    sellerPercent: '10',
+    sellerRate: String(calculatorDefaults.sellerRate ?? '6'),
+    sellerStandby: calculatorDefaults.sellerStandby === 'yes' ? 'yes' : 'no',
+    sellerPaymentType: calculatorDefaults.sellerPaymentType === 'interest-only' ? 'interest-only' : 'amortizing',
+    usePurchaseOverride: false,
+    purchasePrice: '',
+    dismissDealOpportunity: false
+  };
+  return [
+    { ...base },
+    { ...base, sbaPercent: '70', equityPercent: '20', sellerEnabled: true, sellerPercent: '10' },
+    { ...base, sbaPercent: '60', equityPercent: '20', sellerEnabled: true, sellerPercent: '20' }
+  ];
+}

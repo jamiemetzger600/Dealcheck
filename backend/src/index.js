@@ -27,11 +27,16 @@ if (process.env.NODE_ENV === 'production') {
 }
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      cb(null, true);
-    } else {
-      cb(null, false);
+    if (!origin) {
+      return cb(null, true);
     }
+    if (allowedOrigins.includes(origin)) {
+      return cb(null, origin);
+    }
+    if (/^chrome-extension:\/\//i.test(origin)) {
+      return cb(null, origin);
+    }
+    cb(null, false);
   },
   credentials: true
 }));
@@ -47,7 +52,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '4.2.18' });
+  res.json({ status: 'ok', version: '4.2.24' });
 });
 
 app.get('/api/default-deals-csv', async (req, res) => {

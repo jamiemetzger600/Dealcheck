@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { dealsAPI, userAPI } from '../utils/api';
+import { loadCalculatorState, saveCalculatorState } from '../utils/dealCalculatorStorage';
 import { fetchMarketDeals, fetchMarketDealsStats, buildMarketDealsParams, mapSortField } from '../utils/normalizeMarketDeal';
 import DealDetailsPanel from './DealDetailsPanel';
 
@@ -411,7 +412,8 @@ export default function DealAggregator({
   const handleSaveDeal = async (deal) => {
     setSavingDealId(deal.id);
     try {
-      await dealsAPI.saveDeal({
+      const calculatorState = loadCalculatorState(deal.id);
+      const data = await dealsAPI.saveDeal({
         dealId: deal.id,
         name: deal.name,
         url: deal.url,
@@ -436,8 +438,12 @@ export default function DealAggregator({
         brokerName: deal.brokerName,
         brokerCompany: deal.brokerCompany,
         brokerEmail: deal.brokerEmail,
-        brokerPhone: deal.brokerPhone
+        brokerPhone: deal.brokerPhone,
+        ...(calculatorState ? { calculatorState } : {})
       });
+      if (calculatorState && data?.dealId != null) {
+        saveCalculatorState(data.dealId, calculatorState);
+      }
       setSaveToast('Deal saved to My Deals');
       onSaveDeal();
     } catch (error) {

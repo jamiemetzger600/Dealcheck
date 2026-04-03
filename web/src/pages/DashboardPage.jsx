@@ -20,7 +20,10 @@ function isBuyBoxEmpty(buyBox) {
     !has(buyBox.minRevenue) &&
     !has(buyBox.revenueMultiple) &&
     !has(buyBox.targetStates) &&
-    !has(buyBox.targetIndustries)
+    !has(buyBox.targetIndustries) &&
+    !has(buyBox.targetCOC) &&
+    !has(buyBox.targetPayback) &&
+    !has(buyBox.minBuyerSalary)
   );
 }
 

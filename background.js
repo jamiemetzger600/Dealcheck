@@ -1,5 +1,40 @@
 // Background script to handle extension icon clicks and auto-refresh
+importScripts('utils/vettr-cloud-sync.js');
 console.log('🔧 Background service worker starting...');
+
+async function postVettrSaveDeal(body) {
+  const { vettrApiBaseUrl, vettrAuthToken } = await chrome.storage.local.get([
+    'vettrApiBaseUrl',
+    'vettrAuthToken'
+  ]);
+  if (!vettrAuthToken || !vettrApiBaseUrl) {
+    throw new Error('Missing Vettr API URL or token (set in Deal Analyzer → Settings)');
+  }
+  const base = VettrCloudSync.normalizeApiBaseUrl(vettrApiBaseUrl);
+  if (!base) {
+    throw new Error('Invalid Vettr API URL');
+  }
+  const url = base + '/deals';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + vettrAuthToken
+    },
+    body: JSON.stringify(body)
+  });
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) {
+    throw new Error((data && data.error) || text || res.statusText);
+  }
+  return data;
+}
 
 // ====== AUTO-REFRESH SCHEDULER ======
 const ALARM_NAME = 'autoRefreshDeals';
@@ -195,14 +230,53 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   // Could open dashboard in new tab or focus existing tab
 });
 
-// Handle messages from dashboard
+// Vettr web app (logged-in tab) pushes session — no manual token paste for users
+chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'VETTR_SET_SESSION' && message.token && message.apiBaseUrl) {
+    const base = VettrCloudSync.normalizeApiBaseUrl(message.apiBaseUrl);
+    chrome.storage.local.set(
+      {
+        vettrAuthToken: message.token,
+        vettrApiBaseUrl: base || message.apiBaseUrl.trim()
+      },
+      () => {
+        console.log('☁️ Vettr session received from web app (My Deals sync enabled)');
+        sendResponse({ ok: true });
+      }
+    );
+    return true;
+  }
+  if (message?.type === 'VETTR_CLEAR_SESSION') {
+    chrome.storage.local.remove(['vettrAuthToken'], () => {
+      console.log('☁️ Vettr session cleared (logout on web)');
+      sendResponse({ ok: true });
+    });
+    return true;
+  }
+  return false;
+});
+
+// Handle messages from dashboard / content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'testNotification') {
     console.log('🧪 Test notification requested');
     showNewDealsNotification(3); // Show test with 3 deals
     sendResponse({ success: true });
+    return true;
   }
-  return true; // Keep channel open for async response
+  if (message.type === 'VETTR_SYNC_DEAL' && message.body) {
+    postVettrSaveDeal(message.body)
+      .then(() => {
+        console.log('☁️ Vettr Cloud: deal synced');
+        sendResponse({ ok: true });
+      })
+      .catch((err) => {
+        console.warn('☁️ Vettr Cloud sync failed:', err.message);
+        sendResponse({ ok: false, error: err.message });
+      });
+    return true;
+  }
+  return false;
 });
 
 // Listen for settings changes

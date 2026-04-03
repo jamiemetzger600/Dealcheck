@@ -376,7 +376,7 @@ const shareModalHTML = `
 // Settings Modal HTML
 const settingsModalHTML = `
 <div id="da-settings-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2147483646; align-items:center; justify-content:center;">
-  <div id="da-settings-modal-content" style="background:white; border-radius:8px; padding:24px; max-width:450px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+  <div id="da-settings-modal-content" style="background:white; border-radius:8px; padding:24px; max-width:520px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
       <h3 style="margin:0; font-size:calc(18px * var(--font-scale)); color:#2c3e50;">⚙️ Settings & Targets</h3>
       <span id="da-settings-close" style="cursor:pointer; font-size:calc(24px * var(--font-scale)); color:#999; line-height:1;">&times;</span>
@@ -393,6 +393,24 @@ const settingsModalHTML = `
         <label style="display:block; font-size:calc(12px * var(--font-scale)); color:#666; margin-bottom:4px; font-weight:600;">Target Payback Period (Years)</label>
         <input type="number" id="da-target-payback" class="da-input" value="4" step="0.5" min="1" max="20" style="width:100%;">
         <div style="font-size:calc(10px * var(--font-scale)); color:#999; margin-top:2px;">Maximum years to recover your initial equity investment</div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom:20px;">
+      <h4 style="font-size:calc(14px * var(--font-scale)); color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">My Deals (web sync)</h4>
+      <p style="font-size:calc(11px * var(--font-scale)); color:#666; margin:0 0 8px 0; line-height:1.45;">When you are signed in to <strong>Vettr in this browser</strong>, the extension connects automatically. Deals you save here sync to the same <strong>My Deals</strong> list as the website, including your calculator inputs. No codes or URLs to paste.</p>
+      <p style="font-size:calc(10px * var(--font-scale)); color:#999; margin:0 0 10px 0; line-height:1.4;">Tip: open your Vettr tab once after installing the extension (while logged in).</p>
+      <button type="button" id="da-vettr-advanced-toggle" class="da-btn" style="background:#ecf0f1; color:#2c3e50; font-size:calc(11px * var(--font-scale)); padding:6px 12px;">Manual setup (support only)</button>
+      <div id="da-vettr-advanced" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #eee;">
+        <p style="font-size:calc(10px * var(--font-scale)); color:#999; margin:0 0 8px 0;">Only if automatic linking does not work (e.g. unusual browser setup).</p>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:calc(12px * var(--font-scale)); color:#666; margin-bottom:4px; font-weight:600;">API base URL</label>
+          <input type="text" id="da-vettr-api-url" class="da-input" placeholder="https://your-api.example.com/api" style="width:100%;" autocomplete="off">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:calc(12px * var(--font-scale)); color:#666; margin-bottom:4px; font-weight:600;">Session token</label>
+          <input type="password" id="da-vettr-token" class="da-input" placeholder="From Vettr support only" style="width:100%;" autocomplete="off">
+        </div>
       </div>
     </div>
     
@@ -3433,7 +3451,7 @@ function openSettingsModal() {
   const formatCompactField = document.getElementById('da-format-compact');
   
   // Ensure preferences are loaded (in case page just loaded)
-  chrome.storage.local.get(['userPreferences'], (result) => {
+  chrome.storage.local.get(['userPreferences', 'vettrApiBaseUrl', 'vettrAuthToken'], (result) => {
     if (result.userPreferences) {
       userPreferences = result.userPreferences;
     }
@@ -3454,6 +3472,15 @@ function openSettingsModal() {
       if (autoOpenField) autoOpenField.checked = userPreferences.autoOpenOnBusinessSites || false;
       if (languageField) languageField.value = userPreferences.language || 'en';
       if (currencyField) currencyField.value = userPreferences.currency || 'USD';
+      const vettrApiField = document.getElementById('da-vettr-api-url');
+      const vettrTokenField = document.getElementById('da-vettr-token');
+      if (vettrApiField) vettrApiField.value = result.vettrApiBaseUrl || '';
+      if (vettrTokenField) vettrTokenField.value = result.vettrAuthToken || '';
+      const vettrAdv = document.getElementById('da-vettr-advanced');
+      const vettrAdvToggle = document.getElementById('da-vettr-advanced-toggle');
+      if (vettrAdv) vettrAdv.style.display = 'none';
+      if (vettrAdvToggle) vettrAdvToggle.textContent = 'Manual setup (support only)';
+
       if (fontSizeField) {
         const fontSize = userPreferences.fontSize || 100;
         fontSizeField.value = fontSize;
@@ -3521,6 +3548,19 @@ if (settingsModal) {
       e.stopPropagation();
     });
   }
+
+  if (settingsModal && !settingsModal.dataset.vettrAdvancedToggleBound) {
+    settingsModal.dataset.vettrAdvancedToggleBound = '1';
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target.id !== 'da-vettr-advanced-toggle') return;
+      const adv = document.getElementById('da-vettr-advanced');
+      const btn = document.getElementById('da-vettr-advanced-toggle');
+      if (!adv || !btn) return;
+      const open = adv.style.display !== 'block';
+      adv.style.display = open ? 'block' : 'none';
+      btn.textContent = open ? 'Hide manual setup' : 'Manual setup (support only)';
+    });
+  }
 }
 
 // Save settings
@@ -3535,6 +3575,8 @@ if (settingsSave && settingsModal) {
     const languageField = document.getElementById('da-language');
     const currencyField = document.getElementById('da-currency');
     const fontSizeField = document.getElementById('da-font-size');
+    const vettrApiField = document.getElementById('da-vettr-api-url');
+    const vettrTokenField = document.getElementById('da-vettr-token');
     
     // Validate and parse values
     const newTargetCOC = targetCocField ? (parseFloat(targetCocField.value) || 25) : 25;
@@ -3575,8 +3617,15 @@ if (settingsSave && settingsModal) {
       // For now, just save preferences - full i18n update would require more work
     }
     
+    const vettrApiUrl = vettrApiField ? vettrApiField.value.trim() : '';
+    const vettrAuthToken = vettrTokenField ? vettrTokenField.value.trim() : '';
+
     // Save to chrome storage (persistent)
-    chrome.storage.local.set({ userPreferences: userPreferences }, () => {
+    chrome.storage.local.set({
+      userPreferences: userPreferences,
+      vettrApiBaseUrl: vettrApiUrl,
+      vettrAuthToken: vettrAuthToken
+    }, () => {
       console.log('✅ Settings saved successfully:', userPreferences);
       
       // Check if we should auto-open after saving settings
@@ -4799,6 +4848,34 @@ document.addEventListener('keydown', (e) => {
 });
 
 // --- 10. SAVE & LOAD DEALS ---
+function tryVettrCloudSyncAfterSave(dealData) {
+  if (typeof VettrCloudSync === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) return;
+  chrome.storage.local.get(['vettrApiBaseUrl', 'vettrAuthToken', 'userPreferences', 'daState'], (cfg) => {
+    if (!cfg.vettrAuthToken || !cfg.vettrApiBaseUrl) {
+      console.log('☁️ My Deals sync: not linked yet — sign in on Vettr in this browser, or use Manual setup in extension Settings if support asked you to.');
+      return;
+    }
+    try {
+      var body = VettrCloudSync.buildSaveDealRequest(dealData, {
+        pageUrl: window.location.href,
+        lastScrapeData: lastScrapeData || {},
+        userPreferences: cfg.userPreferences || userPreferences,
+        overrides: (cfg.daState && cfg.daState.overrides) || {}
+      });
+      chrome.runtime.sendMessage({ type: 'VETTR_SYNC_DEAL', body: body }, function (res) {
+        if (chrome.runtime.lastError) {
+          console.warn('☁️ Vettr Cloud:', chrome.runtime.lastError.message);
+          return;
+        }
+        if (res && res.ok) console.log('☁️ Vettr Cloud: deal synced to web My Deals');
+        else if (res && res.error) console.warn('☁️ Vettr Cloud sync failed:', res.error);
+      });
+    } catch (e) {
+      console.warn('☁️ Vettr Cloud payload error:', e);
+    }
+  });
+}
+
 function saveDeal() {
   // Get or generate deal name
   let dealName = safeGetValue('da-deal-name', '').trim();
@@ -4868,6 +4945,7 @@ function saveDeal() {
     chrome.storage.local.set({ savedDeals: savedDeals }, () => {
       console.log('Deal saved:', dealName);
       updateSavedDealsList();
+      tryVettrCloudSyncAfterSave(dealData);
       
       // Visual feedback
       const saveBtn = document.getElementById('da-save-deal-btn');

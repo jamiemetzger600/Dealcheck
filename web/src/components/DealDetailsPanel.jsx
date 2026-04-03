@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import DealCalculator from './DealCalculator';
+import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
 
 const POSITION_OPTIONS = ['left', 'center', 'right'];
 
@@ -41,7 +42,7 @@ export default function DealDetailsPanel({
   if (!deal) return null;
   if (!panelOnly && !isOpen) return null;
 
-  const calculatorDefaults = settings?.preferences?.calculatorDefaults || {};
+  const calculatorDefaults = getCalculatorDefaultsFromSettings(settings);
   const listedDate = deal.discoveredAt ? new Date(deal.discoveredAt).toLocaleDateString() : '-';
   const multiple = deal.askingPrice && deal.ebitda ? `${(deal.askingPrice / deal.ebitda).toFixed(2)}x` : '-';
   const brokerName = deal.brokerName || deal.broker || '-';

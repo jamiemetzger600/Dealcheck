@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI, getToken } from '../utils/api';
+import { pushSessionToChromeExtension, clearChromeExtensionSession } from '../utils/extensionBridge';
 
 const AuthContext = createContext();
 
@@ -30,6 +31,14 @@ export function AuthProvider({ children }) {
     checkAuth();
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    const token = getToken();
+    if (token) {
+      pushSessionToChromeExtension(token);
+    }
+  }, [user]);
+
   const login = async (email, password) => {
     const data = await authAPI.login(email, password);
     setUser(data.user);
@@ -43,6 +52,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    clearChromeExtensionSession();
     authAPI.logout();
     setUser(null);
   };

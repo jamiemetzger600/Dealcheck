@@ -70,6 +70,8 @@ export function normalizeDeal(deal) {
     notes: deal.notes || '',
     progressStage: deal.progress_stage || deal.progressStage,
     progressHistory: parseProgressHistory(deal.progress_history || deal.progressHistory),
+
+    calculatorState: parseCalculatorState(deal.calculator_state ?? deal.calculatorState),
     
     // Computed fields (if available)
     qualityScore: deal.quality_score || deal.qualityScore,
@@ -85,6 +87,20 @@ export function normalizeStatus(status) {
 export function denormalizeStatus(status) {
   // For API calls, keep the normalized status (extension format)
   return status;
+}
+
+function parseCalculatorState(raw) {
+  if (raw == null) return null;
+  if (typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const v = JSON.parse(raw);
+      return typeof v === 'object' && v !== null ? v : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 function parseProgressHistory(history) {

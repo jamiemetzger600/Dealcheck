@@ -386,6 +386,12 @@ const migrations = [
       WHERE source_key = 'airtable_bizbuysell'
         AND (scrape_cron IS NULL OR scrape_cron = '0 */4 * * *' OR scrape_cron = '*/30 * * * *');
     `
+  },
+  {
+    name: 'saved_deals_calculator_state',
+    up: `
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS calculator_state JSONB DEFAULT NULL;
+    `
   }
 ];
 

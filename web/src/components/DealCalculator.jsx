@@ -6,9 +6,14 @@ import {
   parseMoney,
   SELLER_NOTE_TERM_YEARS
 } from '../utils/dealCalculatorMath';
+import { dealsAPI } from '../utils/api';
+import {
+  isSavedDealRowId,
+  loadCalculatorState,
+  saveCalculatorState
+} from '../utils/dealCalculatorStorage';
 
 const DEFAULT_SBA_RATE = '9.25';
-const CALC_STORAGE_KEY_PREFIX = 'vettr_calc_';
 const PER_DEAL_PERSIST_DEBOUNCE_MS = 400;
 
 const DEFAULT_UI = {
@@ -22,30 +27,13 @@ const DEFAULT_UI = {
   actualOpen: false
 };
 
-function getCalcStorageKey(dealId) {
-  return `${CALC_STORAGE_KEY_PREFIX}${dealId}`;
-}
-
-function loadPerDealCalcState(dealId) {
-  if (!dealId) return null;
-  try {
-    const raw = localStorage.getItem(getCalcStorageKey(dealId));
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (!data || !Array.isArray(data.scenarios) || data.scenarios.length < 1) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function savePerDealCalcState(dealId, state) {
-  if (!dealId) return;
-  try {
-    localStorage.setItem(getCalcStorageKey(dealId), JSON.stringify(state));
-  } catch (e) {
-    console.warn('DealCalculator: failed to persist per-deal state', e);
-  }
+function isValidCalcPayload(data, scenarioCount) {
+  return (
+    data &&
+    typeof data === 'object' &&
+    Array.isArray(data.scenarios) &&
+    data.scenarios.length === scenarioCount
+  );
 }
 
 export default function DealCalculator({
@@ -59,7 +47,6 @@ export default function DealCalculator({
   const [targetCOC, setTargetCOC] = useState('25');
   const [uiOpen, setUiOpen] = useState(() => ({ ...DEFAULT_UI }));
   const [targetOfferResult, setTargetOfferResult] = useState(null);
-  const [dismissOpportunity, setDismissOpportunity] = useState(false);
   const persistTimerRef = useRef(null);
   const perDealPersistTimerRef = useRef(null);
 
@@ -74,24 +61,87 @@ export default function DealCalculator({
   useEffect(() => {
     if (!deal) return;
     setTargetOfferResult(null);
-    setDismissOpportunity(false);
     const defaults = createDefaultScenarios(deal, calculatorDefaults);
-    const stored = loadPerDealCalcState(deal.id);
-    if (stored && Array.isArray(stored.scenarios) && stored.scenarios.length === defaults.length) {
+    const n = defaults.length;
+
+    const fromApi = deal.calculatorState;
+    const fromLs = loadCalculatorState(deal.id);
+    const fromListingKey =
+      deal.dealId != null && deal.dealId !== deal.id ? loadCalculatorState(deal.dealId) : null;
+
+    let stored = null;
+    if (isValidCalcPayload(fromApi, n)) stored = fromApi;
+    else if (isValidCalcPayload(fromLs, n)) stored = fromLs;
+    else if (isValidCalcPayload(fromListingKey, n)) stored = fromListingKey;
+
+    if (stored) {
       const merged = stored.scenarios.map((s, i) => ({ ...defaults[i], ...s }));
       setScenarios(merged);
       setActiveScenario(Math.min(Number(stored.activeScenario) || 0, merged.length - 1));
-      setTargetCOC(typeof stored.targetCOC === 'string' ? stored.targetCOC : '25');
+      setTargetCOC(
+        stored.targetCOC != null && stored.targetCOC !== ''
+          ? String(stored.targetCOC)
+          : calculatorDefaults.targetCOC != null && calculatorDefaults.targetCOC !== ''
+            ? String(calculatorDefaults.targetCOC)
+            : '25'
+      );
       setUiOpen({ ...DEFAULT_UI, ...(stored.ui && typeof stored.ui === 'object' ? stored.ui : {}) });
-      setDismissOpportunity(Boolean(stored.dismissOpportunity));
     } else {
+      const cocDefault =
+        calculatorDefaults.targetCOC != null && calculatorDefaults.targetCOC !== ''
+          ? String(calculatorDefaults.targetCOC)
+          : '25';
       setActiveScenario(0);
       setScenarios(defaults);
-      setTargetCOC('25');
+      setTargetCOC(cocDefault);
       setUiOpen({ ...DEFAULT_UI });
-      setDismissOpportunity(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset calculator state when switching deals; not when financing defaults sync from server
   }, [deal?.id]);
+
+  // No per-deal saved state: keep CoC target in sync when Buy Box / settings change (e.g. modal save while panel open).
+  useEffect(() => {
+    if (!deal?.id) return;
+    const defaults = createDefaultScenarios(deal, calculatorDefaults);
+    const n = defaults.length;
+    const fromApi = deal.calculatorState;
+    const fromLs = loadCalculatorState(deal.id);
+    const fromListingKey =
+      deal.dealId != null && deal.dealId !== deal.id ? loadCalculatorState(deal.dealId) : null;
+    const hasStored =
+      isValidCalcPayload(fromApi, n) ||
+      isValidCalcPayload(fromLs, n) ||
+      isValidCalcPayload(fromListingKey, n);
+    if (hasStored) return;
+    const cocDefault =
+      calculatorDefaults.targetCOC != null && calculatorDefaults.targetCOC !== ''
+        ? String(calculatorDefaults.targetCOC)
+        : '25';
+    setTargetCOC(cocDefault);
+  }, [deal?.id, calculatorDefaults.targetCOC]);
+
+  // No per-deal saved state: keep target salary in sync when Buy Box / settings change.
+  useEffect(() => {
+    if (!deal?.id) return;
+    const defaults = createDefaultScenarios(deal, calculatorDefaults);
+    const n = defaults.length;
+    const fromApi = deal.calculatorState;
+    const fromLs = loadCalculatorState(deal.id);
+    const fromListingKey =
+      deal.dealId != null && deal.dealId !== deal.id ? loadCalculatorState(deal.dealId) : null;
+    const hasStored =
+      isValidCalcPayload(fromApi, n) ||
+      isValidCalcPayload(fromLs, n) ||
+      isValidCalcPayload(fromListingKey, n);
+    if (hasStored) return;
+    const sal =
+      calculatorDefaults.salary != null && calculatorDefaults.salary !== ''
+        ? String(calculatorDefaults.salary)
+        : '150000';
+    setScenarios((current) =>
+      current.length > 0 ? current.map((s) => ({ ...s, salary: sal })) : current
+    );
+  }, [deal?.id, calculatorDefaults.salary]);
 
   const currentScenario = scenarios[activeScenario] || {};
   const analysis = useMemo(
@@ -107,18 +157,24 @@ export default function DealCalculator({
     if (!deal?.id || scenarios.length === 0) return;
     if (perDealPersistTimerRef.current) clearTimeout(perDealPersistTimerRef.current);
     perDealPersistTimerRef.current = setTimeout(() => {
-      savePerDealCalcState(deal.id, {
-        scenarios,
-        activeScenario,
-        targetCOC,
-        ui: uiOpen,
-        dismissOpportunity
-      });
+      const payload = { scenarios, activeScenario, targetCOC, ui: uiOpen };
+      saveCalculatorState(deal.id, payload);
+      if (isSavedDealRowId(deal.id)) {
+        dealsAPI.updateDeal(deal.id, { calculatorState: payload }).catch((err) => {
+          console.warn('DealCalculator: failed to sync calculator to server', err);
+        });
+      }
     }, PER_DEAL_PERSIST_DEBOUNCE_MS);
     return () => {
       if (perDealPersistTimerRef.current) clearTimeout(perDealPersistTimerRef.current);
     };
-  }, [deal?.id, scenarios, activeScenario, targetCOC, uiOpen, dismissOpportunity]);
+  }, [deal?.id, scenarios, activeScenario, targetCOC, uiOpen]);
+
+  const patchScenario = useCallback((patch) => {
+    setScenarios((current) =>
+      current.map((scenario, index) => (index === activeScenario ? { ...scenario, ...patch } : scenario))
+    );
+  }, [activeScenario]);
 
   const updateScenario = useCallback(
     (field, value) => {
@@ -503,12 +559,12 @@ export default function DealCalculator({
         </div>
       </CalcAccordion>
 
-      {analysis.isDealOpportunity && !dismissOpportunity && (
+      {analysis.isDealOpportunity && !currentScenario.dismissDealOpportunity && (
         <div className="calc-opportunity-banner">
           <button
             type="button"
             className="calc-opportunity-dismiss"
-            onClick={() => setDismissOpportunity(true)}
+            onClick={() => updateScenario('dismissDealOpportunity', true)}
             title="Dismiss"
           >
             ✕
@@ -680,10 +736,12 @@ export default function DealCalculator({
                 onChange={(e) => {
                   const on = e.target.checked;
                   if (on) {
-                    const base = stripNumberInput(currentScenario.askingPrice) || stripNumberInput(currentScenario.purchasePrice);
-                    updateScenario('purchasePrice', base);
+                    const base =
+                      stripNumberInput(currentScenario.askingPrice) || stripNumberInput(currentScenario.purchasePrice);
+                    patchScenario({ usePurchaseOverride: true, purchasePrice: base });
+                  } else {
+                    patchScenario({ usePurchaseOverride: false, purchasePrice: '' });
                   }
-                  updateScenario('usePurchaseOverride', on);
                 }}
               />
               <span>Separate from asking</span>
@@ -827,7 +885,8 @@ function createDefaultScenarios(deal, calculatorDefaults = {}) {
     sellerStandby: calculatorDefaults.sellerStandby === 'yes' ? 'yes' : 'no',
     sellerPaymentType: calculatorDefaults.sellerPaymentType === 'interest-only' ? 'interest-only' : 'amortizing',
     usePurchaseOverride: false,
-    purchasePrice: ''
+    purchasePrice: '',
+    dismissDealOpportunity: false
   };
   return [
     { ...base },

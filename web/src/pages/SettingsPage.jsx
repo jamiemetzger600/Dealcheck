@@ -57,6 +57,9 @@ export default function SettingsPage() {
   const [exportResetMessage, setExportResetMessage] = useState('');
   const fileInputRef = useRef(null);
 
+  const viteApiUrl = import.meta.env.VITE_API_URL || '';
+  const viteExtensionId = import.meta.env.VITE_EXTENSION_ID || '';
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -231,6 +234,32 @@ export default function SettingsPage() {
           <button onClick={handleSave} className="btn-primary" disabled={saving}>
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
+        </div>
+
+        <div className="settings-section">
+          <h2>Chrome extension (free tier)</h2>
+          <p>
+            Install the Vettr extension in the same Chrome profile you use here. When you are signed in on this site, your
+            session is sent to the extension automatically—saved deals and calculator inputs sync to{' '}
+            <strong>My Deals</strong> without copying tokens or URLs.
+          </p>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary, #666)' }}>
+            If you just installed the extension, open this tab once while logged in so linking can complete.
+          </p>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary, #666)' }}>
+            <strong>Deployers:</strong> set <code>VITE_EXTENSION_ID</code> to the extension ID (Chrome Web Store ID or
+            unpacked ID from <code>chrome://extensions</code>) and add your production web origin to{' '}
+            <code>externally_connectable.matches</code> in the extension <code>manifest.json</code>.
+            {viteExtensionId ? (
+              <> Extension ID is configured for this build.</>
+            ) : (
+              <> This build has no <code>VITE_EXTENSION_ID</code>; automatic linking from the hosted site will not run until it is set.</>
+            )}
+          </p>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary, #666)' }}>
+            <strong>API base URL</strong> (for reference):{' '}
+            {viteApiUrl || 'Use the same value as VITE_API_URL in production, or the Vite dev proxy at /api locally.'}
+          </p>
         </div>
 
         <div className="settings-section">

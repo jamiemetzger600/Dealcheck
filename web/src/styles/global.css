@@ -1622,6 +1622,12 @@ a {
   justify-content: center;
 }
 
+/* Full-width row: CoC, payback, salary — equal columns inside Buy Box modal */
+.buybox-modal .buybox-analyzer-defaults-row {
+  gap: 16px;
+  align-items: start;
+}
+
 .buybox-near-matches {
   margin-top: 20px;
   padding-top: 16px;
@@ -2209,6 +2215,448 @@ a {
 
 .use-target-btn {
   width: 100%;
+}
+
+/* Deal calculator — extension-aligned UI */
+.deal-calculator-extension-style .calc-quality-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  margin: -16px -16px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.deal-calculator-extension-style .calc-quality-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.deal-calculator-extension-style .calc-quality-badge {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.deal-calculator-extension-style .calc-quality-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.deal-calculator-extension-style .calc-quality-text {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.deal-calculator-extension-style .calc-quality-score {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.deal-calculator-extension-style .calc-top-inputs {
+  margin-bottom: 4px;
+}
+
+.deal-calculator-extension-style .calc-accordion {
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 10px;
+}
+
+.deal-calculator-extension-style .calc-accordion--nested {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-left: 0;
+}
+
+.deal-calculator-extension-style .calc-accordion--kicker .calc-accordion-header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.deal-calculator-extension-style .calc-accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.deal-calculator-extension-style .calc-accordion-header--seller {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+
+.deal-calculator-extension-style .calc-accordion-toggle {
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 0 4px 0 0;
+  font: inherit;
+  display: flex;
+  align-items: center;
+}
+
+.deal-calculator-extension-style .calc-seller-enable-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+}
+
+.deal-calculator-extension-style .calc-accordion-header.collapsed .calc-accordion-arrow,
+.deal-calculator-extension-style .calc-accordion-header--seller.collapsed .calc-accordion-arrow {
+  opacity: 0.85;
+}
+
+.deal-calculator-extension-style .calc-accordion-title {
+  font-weight: 600;
+}
+
+.deal-calculator-extension-style .calc-accordion-summary {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  text-align: right;
+  max-width: 55%;
+}
+
+.deal-calculator-extension-style .calc-accordion-summary--muted {
+  opacity: 0.45;
+}
+
+.deal-calculator-extension-style .calc-accordion-body {
+  padding-top: 8px;
+  padding-left: 4px;
+}
+
+.deal-calculator-extension-style .calc-readonly {
+  opacity: 0.9;
+  cursor: default;
+}
+
+.deal-calculator-extension-style .calc-dscr-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.deal-calculator-extension-style .calc-dscr-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.deal-calculator-extension-style .calc-stepper-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deal-calculator-extension-style .calc-stepper-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.deal-calculator-extension-style .calc-stepper-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.deal-calculator-extension-style .calc-inline-warning {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #e74c3c;
+}
+
+.deal-calculator-extension-style .calc-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 8px 0 0;
+}
+
+.deal-calculator-extension-style .calc-opportunity-banner {
+  position: relative;
+  padding: 12px 36px 12px 14px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: rgba(39, 174, 96, 0.12);
+  border: 1px solid rgba(39, 174, 96, 0.35);
+  font-size: 13px;
+}
+
+.deal-calculator-extension-style .calc-opportunity-banner strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.deal-calculator-extension-style .calc-opportunity-dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px;
+}
+
+.deal-calculator-extension-style .calc-result-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 560px) {
+  .deal-calculator-extension-style .calc-result-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+.deal-calculator-extension-style .calc-result-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.deal-calculator-extension-style .calc-result-box--muted {
+  border-left-color: #95a5a6;
+}
+
+.deal-calculator-extension-style .calc-result-box--coc {
+  border-left-color: #e67e22;
+}
+
+.deal-calculator-extension-style .calc-result-box--payback {
+  border-left-color: #9b59b6;
+}
+
+.deal-calculator-extension-style .calc-result-box-title {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.deal-calculator-extension-style .calc-result-box-value {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.deal-calculator-extension-style .calc-result-box-sub {
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  margin-top: 4px;
+}
+
+.deal-calculator-extension-style .calc-coc-value[data-tier='excellent'] {
+  color: #27ae60;
+}
+.deal-calculator-extension-style .calc-coc-value[data-tier='very-good'] {
+  color: #2ecc71;
+}
+.deal-calculator-extension-style .calc-coc-value[data-tier='good'] {
+  color: #f39c12;
+}
+.deal-calculator-extension-style .calc-coc-value[data-tier='fair'] {
+  color: #e67e22;
+}
+.deal-calculator-extension-style .calc-coc-value[data-tier='bad'] {
+  color: #e74c3c;
+}
+
+.deal-calculator-extension-style .calc-payback-value[data-tier='excellent'] {
+  color: #27ae60;
+}
+.deal-calculator-extension-style .calc-payback-value[data-tier='very-good'] {
+  color: #2ecc71;
+}
+.deal-calculator-extension-style .calc-payback-value[data-tier='good'] {
+  color: #f39c12;
+}
+.deal-calculator-extension-style .calc-payback-value[data-tier='fair'] {
+  color: #e67e22;
+}
+.deal-calculator-extension-style .calc-payback-value[data-tier='bad'] {
+  color: #e74c3c;
+}
+
+.deal-calculator-extension-style .target-offer-criteria {
+  background: rgba(52, 152, 219, 0.1);
+  border: 1px solid rgba(52, 152, 219, 0.45);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.deal-calculator-extension-style .target-offer-criteria ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.deal-calculator-extension-style .target-offer-criteria-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.deal-calculator-extension-style .calc-target-btn-full {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.deal-calculator-extension-style .target-offer-subtitle-ext {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 6px 0 0;
+}
+
+.deal-calculator-extension-style .target-offer-limit {
+  color: #e67e22;
+}
+
+.deal-calculator-extension-style .target-offer-limit--success {
+  color: #27ae60;
+}
+
+.deal-calculator-extension-style .target-offer-comparison--good {
+  background: rgba(39, 174, 96, 0.12);
+  border: 1px solid rgba(39, 174, 96, 0.35);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.deal-calculator-extension-style .target-offer-comparison--warn {
+  background: rgba(243, 156, 18, 0.12);
+  border: 1px solid rgba(243, 156, 18, 0.4);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.deal-calculator-extension-style .target-offer-comparison-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.deal-calculator-extension-style .calc-financing-breakdown {
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.deal-calculator-extension-style .calc-financing-breakdown-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.deal-calculator-extension-style .calc-target-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.deal-calculator-extension-style .calc-metric-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.deal-calculator-extension-style .calc-metric-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.deal-calculator-extension-style .calc-metric-value--good {
+  color: #27ae60;
+}
+
+.deal-calculator-extension-style .calc-target-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.deal-calculator-extension-style .calc-label-hint {
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.deal-calculator-extension-style .calc-offer-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.deal-calculator-extension-style .calc-checkbox-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.deal-calculator-extension-style .calc-actual-stack {
+  grid-template-columns: 1fr;
+}
+
+.deal-calculator-extension-style .calc-footer-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 900px) {
+  .deal-calculator-extension-style .calc-financing-grid,
+  .calc-financing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .deal-details-footer {

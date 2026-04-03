@@ -11,7 +11,9 @@ const DEFAULT_BUYBOX = {
   targetStates: [],
   excludeStates: [],
   targetIndustries: [],
-  minQuality: null,
+  targetCOC: null,
+  targetPayback: null,
+  minBuyerSalary: null,
   includeNearMatchesPercent: 0
 };
 
@@ -99,7 +101,9 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
           targetStates: (form.targetStatesInput || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
           excludeStates: (form.excludeStatesInput || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
           targetIndustries: form.targetIndustries || [],
-          minQuality: parseNumber(form.minQuality),
+          targetCOC: parseNumber(form.targetCOC),
+          targetPayback: parseNumber(form.targetPayback),
+          minBuyerSalary: parseNumber(form.minBuyerSalary),
           includeNearMatchesPercent: Number(form.includeNearMatchesPercent) || 0
         }
       });
@@ -150,7 +154,35 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
           <div className="form-group"><label>Target States</label><input value={form.targetStatesInput ?? form.targetStates?.join(', ') ?? ''} onChange={(e) => updateField('targetStatesInput', e.target.value)} placeholder="CA, TX, FL" /></div>
           <div className="form-group"><label>Exclude States</label><input value={form.excludeStatesInput ?? form.excludeStates?.join(', ') ?? ''} onChange={(e) => updateField('excludeStatesInput', e.target.value)} placeholder="AK, HI" /></div>
           <div className="form-group full-width"><label>Target Industries</label><div className="industry-checkboxes">{INDUSTRIES.map((industry) => (<label key={industry} className="industry-checkbox"><input type="checkbox" checked={form.targetIndustries?.includes(industry) || false} onChange={() => handleIndustryToggle(industry)} />{industry}</label>))}</div></div>
-          <div className="form-group"><label>Minimum Quality</label><input value={formatWithCommas(form.minQuality)} onChange={(e) => handleNumberChange('minQuality', e.target.value)} placeholder="80" /></div>
+          <div className="modal-grid three-col full-width buybox-analyzer-defaults-row" role="group" aria-label="Deal analyzer defaults">
+            <div className="form-group">
+              <label>Minimum CoC return (%)</label>
+              <input
+                value={formatWithCommas(form.targetCOC)}
+                onChange={(e) => handleNumberChange('targetCOC', e.target.value)}
+                placeholder="25"
+                inputMode="decimal"
+              />
+            </div>
+            <div className="form-group">
+              <label>Payback period (years)</label>
+              <input
+                value={formatWithCommas(form.targetPayback)}
+                onChange={(e) => handleNumberChange('targetPayback', e.target.value)}
+                placeholder="4"
+                inputMode="decimal"
+              />
+            </div>
+            <div className="form-group">
+              <label>Minimum Buyer Salary</label>
+              <input
+                value={formatWithCommas(form.minBuyerSalary)}
+                onChange={(e) => handleNumberChange('minBuyerSalary', e.target.value)}
+                placeholder="150,000"
+                inputMode="numeric"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="buybox-near-matches">

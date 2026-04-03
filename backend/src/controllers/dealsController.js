@@ -18,6 +18,7 @@ export const getSavedDeals = async (req, res) => {
         asking_price, ebitda, revenue, location, city, state, county, country,
         industry, years_established, franchise, remote, listing_id,
         notes, status, progress_stage, progress_history,
+        calculator_state,
         saved_at, updated_at
       FROM saved_deals 
       WHERE user_id = $1 
@@ -40,7 +41,8 @@ export const saveDeal = async (req, res) => {
     brokerEmail, brokerPhone, source, sourceType, discoveredAt,
     askingPrice, ebitda, revenue, location, city, state, county, country,
     industry, yearsEstablished, franchise, remote, listingId,
-    notes, status, progressStage
+    notes, status, progressStage,
+    calculatorState
   } = req.body;
 
   if (!dealId || !name) {
@@ -69,14 +71,16 @@ export const saveDeal = async (req, res) => {
             discovered_at = $12, asking_price = $13, ebitda = $14, revenue = $15,
             location = $16, city = $17, state = $18, county = $19, country = $20,
             industry = $21, years_established = $22, franchise = $23, remote = $24, listing_id = $25,
+            calculator_state = COALESCE($26::jsonb, calculator_state),
             updated_at = CURRENT_TIMESTAMP
-           WHERE user_id = $26 AND id = $27`,
+           WHERE user_id = $27 AND id = $28`,
           [
             dealId, name, url || null, description || null, broker || null, brokerName || null, brokerCompany || null,
             brokerEmail || null, brokerPhone || null, source || null, sourceType || null, discoveredAt || null,
             askingPrice ?? null, ebitda ?? null, revenue ?? null,
             location || null, city || null, state || null, county || null, country || null,
             industry || null, yearsEstablished || null, franchise || null, remote || null, listingId || null,
+            calculatorState !== undefined ? calculatorState : null,
             req.user.userId, existingId
           ]
         );
@@ -104,15 +108,16 @@ export const saveDeal = async (req, res) => {
         broker_email, broker_phone, source, source_type, discovered_at,
         asking_price, ebitda, revenue, location, city, state, county, country,
         industry, years_established, franchise, remote, listing_id,
-        notes, status, progress_stage
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+        notes, status, progress_stage, calculator_state
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
       RETURNING id, saved_at`,
       [
         req.user.userId, dealId, name, url, description, broker, brokerName, brokerCompany,
         brokerEmail, brokerPhone, source, sourceType, discoveredAt,
         askingPrice, ebitda, revenue, location, city, state, county, country,
         industry, yearsEstablished, franchise, remote, listingId,
-        notes, status || 'none', progressStage
+        notes, status || 'none', progressStage,
+        calculatorState !== undefined ? calculatorState : null
       ]
     );
 
@@ -133,7 +138,8 @@ export const updateSavedDeal = async (req, res) => {
   const { id } = req.params;
   const { 
     notes, status, progressStage, progressHistory,
-    brokerName, brokerCompany, brokerPhone, brokerEmail
+    brokerName, brokerCompany, brokerPhone, brokerEmail,
+    calculatorState
   } = req.body;
 
   try {
@@ -172,6 +178,10 @@ export const updateSavedDeal = async (req, res) => {
     if (brokerEmail !== undefined) {
       updateFields.push(`broker_email = $${paramIndex++}`);
       values.push(brokerEmail);
+    }
+    if (calculatorState !== undefined) {
+      updateFields.push(`calculator_state = $${paramIndex++}`);
+      values.push(calculatorState);
     }
 
     if (updateFields.length === 0) {

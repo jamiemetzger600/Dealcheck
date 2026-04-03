@@ -1843,6 +1843,28 @@ a {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.deal-details-header-title-block {
+  min-width: 0;
+}
+
+.deal-details-header-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.deal-details-header-meta-row .deal-details-header-progress {
+  margin-top: 0;
+}
+
+.deal-details-header-listing-link {
+  flex-shrink: 0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .deal-details-header h2 {
   font-size: 18px;
   margin-bottom: 4px;
@@ -1851,6 +1873,31 @@ a {
 .deal-details-header p {
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+/* Must beat .deal-details-header p { color: var(--text-secondary) } specificity */
+.deal-details-header p.deal-details-header-progress {
+  margin: 0;
+  display: inline-block;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+  color: #ffffff;
+  background: var(--primary);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 10px rgba(102, 126, 234, 0.35);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.deal-details-header p.deal-details-header-progress strong {
+  font-weight: inherit;
+  color: #ffffff;
+  text-shadow: inherit;
 }
 
 .deal-details-header-actions {
@@ -1946,7 +1993,6 @@ a {
 }
 
 /* Condensed overview and broker to save space */
-.deal-overview-condensed h3,
 .deal-broker-condensed h3 {
   margin-bottom: 6px;
 }
@@ -2743,7 +2789,7 @@ a {
 
 .my-deals-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -2778,6 +2824,21 @@ a {
   font-size: 32px;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+.my-deals-stats .stat-sublabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  line-height: 1.35;
+}
+
+.my-deals-progress-cell {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.35;
+  display: inline-block;
+  max-width: 200px;
 }
 
 .my-deals-controls {

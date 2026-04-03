@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { dealsAPI } from '../utils/api';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
 import { getQualityPresentation } from '../utils/dealCalculatorMath';
-import { formatDate, formatMoney, getStatusBadgeClass, getStatusLabel } from '../utils/normalizeDeal';
+import { formatDate, formatMoney, getDealProgressLabel } from '../utils/normalizeDeal';
 import { getSavedDealCalculatorSummary } from '../utils/savedDealCalculatorSummary';
 import DealDetailsPanel from './DealDetailsPanel';
 import { InfoCard } from './DealDetailsPanel';
@@ -18,7 +18,6 @@ function cocReturnTier(coc) {
 
 export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCalculatorDefaults = null }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [sortField, setSortField] = useState('savedAt');
   const [sortDirection, setSortDirection] = useState('desc');
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -38,11 +37,6 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
         const notes = (deal.notes || '').toLowerCase();
         return name.includes(query) || url.includes(query) || notes.includes(query);
       });
-    }
-
-    // Status filter
-    if (statusFilter) {
-      filtered = filtered.filter(deal => deal.status === statusFilter);
     }
 
     // Sort
@@ -76,17 +70,13 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
     });
 
     return filtered;
-  }, [deals, searchQuery, statusFilter, sortField, sortDirection]);
+  }, [deals, searchQuery, sortField, sortDirection]);
 
   // Calculate stats
-  const stats = useMemo(() => {
-    return {
-      total: deals.length,
-      hot: deals.filter(d => d.status === 'hot').length,
-      warm: deals.filter(d => d.status === 'warm').length,
-      cold: deals.filter(d => d.status === 'cold').length
-    };
-  }, [deals]);
+  const stats = useMemo(() => ({
+    total: deals.length,
+    withProgress: deals.filter((d) => getDealProgressLabel(d)).length
+  }), [deals]);
 
   const calculatorDefaults = useMemo(() => getCalculatorDefaultsFromSettings(settings), [settings]);
 
@@ -139,7 +129,7 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
     const exportDeals = dealsToExport || filteredDeals;
     if (exportDeals.length === 0) return;
 
-    const headers = ['Name', 'Saved Date', 'Status', 'Asking Price', 'EBITDA', 'Quality', 'COC Return', 'URL', 'Notes'];
+    const headers = ['Name', 'Saved Date', 'Progress', 'Asking Price', 'EBITDA', 'Quality', 'COC Return', 'URL', 'Notes'];
     const rows = exportDeals.map((deal) => {
       const { qualityScore: q, cocReturn: c } = getSavedDealCalculatorSummary(deal, calculatorDefaults);
       const qDisp = q != null && Number.isFinite(q) ? q : '—';
@@ -147,7 +137,7 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
       return [
         deal.name || '',
         formatDate(deal.savedAt),
-        deal.status || 'none',
+        getDealProgressLabel(deal) || '',
         deal.askingPrice || '',
         deal.ebitda || '',
         qDisp,
@@ -206,16 +196,6 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
     handleExportCSV(selected);
   };
 
-  // Handle update status from modal
-  const handleUpdateStatus = async (dealId, status) => {
-    try {
-      await dealsAPI.updateDeal(dealId, { status });
-      onUpdate();
-    } catch (error) {
-      alert('Failed to update status: ' + error.message);
-    }
-  };
-
   // Handle update notes from modal
   const handleUpdateNotes = async (dealId, notes) => {
     try {
@@ -237,17 +217,10 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
           <div className="stat-label">Total Deals</div>
           <div className="stat-value">{stats.total}</div>
         </div>
-        <div className="stat-card hot">
-          <div className="stat-label">🔥 Hot Leads</div>
-          <div className="stat-value">{stats.hot}</div>
-        </div>
-        <div className="stat-card warm">
-          <div className="stat-label">🌡️ Warm</div>
-          <div className="stat-value">{stats.warm}</div>
-        </div>
-        <div className="stat-card cold">
-          <div className="stat-label">❄️ Cold</div>
-          <div className="stat-value">{stats.cold}</div>
+        <div className="stat-card">
+          <div className="stat-label">Pipeline milestone</div>
+          <div className="stat-value">{stats.withProgress}</div>
+          <div className="stat-sublabel">Deals with a progress stage</div>
         </div>
       </div>
 
@@ -265,15 +238,6 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
           </div>
 
           <div className="filter-group">
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">All Statuses</option>
-              <option value="hot">🔥 Hot</option>
-              <option value="warm">🌡️ Warm</option>
-              <option value="cold">❄️ Cold</option>
-              <option value="pass">❌ Pass</option>
-              <option value="none">No Status</option>
-            </select>
-
             <select 
               value={`${sortField}-${sortDirection}`} 
               onChange={(e) => {
@@ -357,7 +321,7 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
                     <span className="sort-indicator">{sortDirection === 'asc' ? ' ↑' : ' ↓'}</span>
                   )}
                 </th>
-                <th>Status</th>
+                <th>Progress</th>
                 <th className="sortable" onClick={() => handleSort('askingPrice')}>
                   Asking Price
                   {sortField === 'askingPrice' && (
@@ -402,8 +366,8 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
                   </td>
                   <td>{formatDate(deal.savedAt)}</td>
                   <td>
-                    <span className={`status-badge status-${getStatusBadgeClass(deal.status)}`}>
-                      {getStatusLabel(deal.status)}
+                    <span className="my-deals-progress-cell">
+                      {getDealProgressLabel(deal) || '—'}
                     </span>
                   </td>
                   <td>{formatMoney(deal.askingPrice)}</td>
@@ -471,7 +435,6 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
             setShowModal(false);
             setSelectedDeal(null);
           }}
-          onUpdateStatus={handleUpdateStatus}
           onUpdateNotes={handleUpdateNotes}
           onDelete={handleDelete}
           onExport={() => handleExportCSV([selectedDeal])}
@@ -485,8 +448,7 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
 }
 
 // Modal component for saved deal details - uses DealDetailsPanel so layout matches aggregator panel exactly
-function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpdateNotes, onDelete, onExport, onUpdate, onSaveCalculatorDefaults = null }) {
-  const [status, setStatus] = useState(deal.status || 'none');
+function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelete, onExport, onUpdate, onSaveCalculatorDefaults = null }) {
   const [notes, setNotes] = useState(deal.notes || '');
   const [notesTimeout, setNotesTimeout] = useState(null);
   const [brokerInfo, setBrokerInfo] = useState({
@@ -499,7 +461,6 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpda
   const [progressHistory, setProgressHistory] = useState(deal.progressHistory || []);
 
   useEffect(() => {
-    setStatus(deal.status || 'none');
     setNotes(deal.notes || '');
     setBrokerInfo({
       name: deal.brokerName || '',
@@ -511,10 +472,10 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpda
     setProgressHistory(deal.progressHistory || []);
   }, [deal]);
 
-  const handleStatusChange = async (newStatus) => {
-    setStatus(newStatus);
-    await onUpdateStatus(deal.id, newStatus);
-  };
+  const headerProgressLabel = useMemo(() => {
+    if (progressStage?.trim()) return progressStage.trim();
+    return getDealProgressLabel({ ...deal, progressHistory, progressStage: deal.progressStage }) || '';
+  }, [progressStage, progressHistory, deal]);
 
   const handleNotesChange = (newNotes) => {
     setNotes(newNotes);
@@ -605,18 +566,6 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpda
 
   const overviewAdditions = (
     <>
-      <div className="deal-overview-card">
-        <div className="deal-overview-label">Status</div>
-        <div className="deal-overview-value">
-          <select value={status} onChange={(e) => handleStatusChange(e.target.value)} className="status-select-inline">
-            <option value="none">No Status</option>
-            <option value="hot">🔥 Hot</option>
-            <option value="warm">🌡️ Warm</option>
-            <option value="cold">❄️ Cold</option>
-            <option value="pass">❌ Pass</option>
-          </select>
-        </div>
-      </div>
       <InfoCard label="Saved Date" value={formatDate(deal.savedAt)} />
       {deal.county && <InfoCard label="County" value={deal.county} />}
       {deal.country && <InfoCard label="Country" value={deal.country} />}
@@ -729,6 +678,7 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateStatus, onUpda
           renderFooter={savedFooter}
           onIOISent={handleIOISent}
           onIOIPrefsSaved={onUpdate}
+          headerProgressLabel={headerProgressLabel}
         />
       </div>
     </div>

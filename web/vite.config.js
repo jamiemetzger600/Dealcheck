@@ -37,6 +37,9 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react(), versionPlugin()],
     server: {
+      // Listen on all local interfaces so http://127.0.0.1:5173 and http://localhost:5173 both work
+      // (Node/Vite sometimes bound ::1-only on macOS, which breaks 127.0.0.1 bookmarks and some tools.)
+      host: true,
       port: 5173,
       strictPort: true,
       proxy: {

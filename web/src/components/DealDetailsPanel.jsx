@@ -22,12 +22,15 @@ export default function DealDetailsPanel({
   extraSectionsAfterCalculator = null,
   overviewAdditions = null,
   onIOISent = null,
-  onIOIPrefsSaved = null
+  onIOIPrefsSaved = null,
+  headerProgressLabel = null
 }) {
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(true);
   const [isOverviewOpen, setIsOverviewOpen] = useState(true);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [ioiData, setIoiData] = useState(null);
+  /** Remount IOIModal each open so signature/company hydrate from latest `settings.preferences`. */
+  const [ioiModalKey, setIoiModalKey] = useState(0);
 
   useEffect(() => {
     if (!deal) return;
@@ -45,6 +48,7 @@ export default function DealDetailsPanel({
 
   const handleUseForIOI = useCallback((data) => {
     setIoiData(data);
+    setIoiModalKey((k) => k + 1);
   }, []);
 
   const handleCloseIOI = useCallback(() => {
@@ -65,8 +69,27 @@ export default function DealDetailsPanel({
   const panelContent = (
     <div className={`deal-details-panel panel-${position}`} onClick={panelOnly ? undefined : (e) => e.stopPropagation()}>
       <div className="deal-details-header">
-        <div>
+        <div className="deal-details-header-title-block">
           <h2>{deal.name || 'Deal Details'}</h2>
+          {(headerProgressLabel || deal.url) ? (
+            <div className="deal-details-header-meta-row">
+              {headerProgressLabel ? (
+                <p className="deal-details-header-progress" title="Current progress status">
+                  <strong>{headerProgressLabel}</strong>
+                </p>
+              ) : null}
+              {deal.url ? (
+                <a
+                  href={deal.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary deal-details-header-listing-link"
+                >
+                  View Original Listing
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="deal-details-header-actions">
           {showPositionToggle && (
@@ -106,7 +129,6 @@ export default function DealDetailsPanel({
           {isOverviewOpen && (
             <div className="deal-overview-section-content">
               <div className="deal-overview-condensed">
-                <h3>Deal Overview</h3>
                 <div className="deal-overview-grid">
                   {overviewAdditions}
                   <InfoCard label="Asking Price" value={formatMoneyPanel(deal.askingPrice)} accent />
@@ -151,6 +173,7 @@ export default function DealDetailsPanel({
 
       {ioiData && (
         <IOIModal
+          key={ioiModalKey}
           deal={deal}
           scenarios={ioiData.scenarios}
           activeScenario={ioiData.activeScenario}

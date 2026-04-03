@@ -92,6 +92,18 @@ function getPaginationPages(currentPage, totalPages) {
   return pages;
 }
 
+/** Map stored hidden deal id (composite string) to market_deals.id for exclude_ids when possible */
+function hiddenDealIdToDbId(hiddenId) {
+  if (hiddenId == null) return null;
+  if (typeof hiddenId === 'number' && Number.isFinite(hiddenId) && hiddenId > 0) return hiddenId;
+  const s = String(hiddenId);
+  const underscored = s.match(/_(\d+)$/);
+  if (underscored) return Number(underscored[1]);
+  const tail = s.includes('_') ? s.split('_').pop() : s;
+  if (tail && /^\d+$/.test(tail)) return Number(tail);
+  return null;
+}
+
 /** Card in list view. When enableSwipe (mobile only): swipe left = hide, swipe right = heart/save. Desktop: plain click. */
 function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, enableSwipe, children }) {
   const [dragX, setDragX] = useState(0);
@@ -328,15 +340,7 @@ export default function DealAggregator({
     const flexPct = Math.min(100, Math.max(0, Number(buyBox.includeNearMatchesPercent) || 0));
     const primary = sortConfig[0] || { field: 'date', direction: 'desc' };
 
-    // Map hidden deal IDs: we stored them as "airtable_<id>" style strings,
-    // but the server needs DB integer ids. For now, pass the string IDs and
-    // let the server ignore non-numeric ones. We also store dbId on normalized deals.
-    const hiddenDbIds = hiddenDealIds
-      .map((id) => {
-        const match = typeof id === 'string' && id.match(/_(\d+)$/);
-        return match ? Number(match[1]) : null;
-      })
-      .filter(Boolean);
+    const hiddenDbIds = [...new Set(hiddenDealIds.map(hiddenDealIdToDbId).filter(Boolean))];
 
     const excludeKw = settings?.excludeKeywords || [];
 
@@ -393,10 +397,11 @@ export default function DealAggregator({
     }
   }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, onMatchCountUpdate, onDealsStatsUpdate]);
 
-  // Fetch on mount, filter/sort/page/search change, and manual refresh
+  // Fetch on mount, filter/sort/page/search/hidden-ids change, and manual refresh
   useEffect(() => {
     if (settings) fetchServerDeals();
-  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, settings, manualRefreshToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when inputs to fetchServerDeals change; avoid tying to unstable parent callbacks
+  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken]);
 
   const updateUserFilterSettings = async (nextValues) => {
     try {
@@ -476,6 +481,13 @@ export default function DealAggregator({
       document.removeEventListener('keydown', handleEscape);
     };
   }, [showCardColsPopup]);
+
+  const dealsToShow = useMemo(() => {
+    if (showHiddenDeals) {
+      return deals.filter((d) => hiddenDealIds.includes(d.id));
+    }
+    return deals.filter((d) => !hiddenDealIds.includes(d.id));
+  }, [deals, hiddenDealIds, showHiddenDeals]);
 
   if (loading) {
     return <div className="loading">Loading deals...</div>;
@@ -588,6 +600,9 @@ export default function DealAggregator({
       ? hiddenDealIds.filter((id) => id !== dealId)
       : [...hiddenDealIds, dealId];
     setHiddenDealIds(nextHiddenIds);
+    if (selectedDeal?.id === dealId && nextHiddenIds.includes(dealId) && !showHiddenDeals) {
+      setSelectedDeal(null);
+    }
     await updateUserFilterSettings({ hiddenDealIds: nextHiddenIds });
   };
 
@@ -697,7 +712,6 @@ export default function DealAggregator({
   const fmt = (n) => (n != null ? `$${Number(n).toLocaleString()}` : null);
   const fmtMult = (n) => (n != null ? `${Number(n)}×` : null);
 
-  const dealsToShow = deals;
   const hasMultiplePages = totalPages > 1;
 
   return (
@@ -734,7 +748,7 @@ export default function DealAggregator({
           </p>
           <div className="aggregator-stats">
             <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'matches' ? 'active' : ''}`} onClick={handleShowMatches}>Matches: {totalFromAPI.toLocaleString()}</button>
-            <div className="aggregator-stat">Showing: {deals.length.toLocaleString()} of {totalFromAPI.toLocaleString()}</div>
+            <div className="aggregator-stat">Showing: {dealsToShow.length.toLocaleString()} of {totalFromAPI.toLocaleString()}</div>
             <div className="aggregator-stat">Page {currentPage} of {totalPages || 1}</div>
             <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'hidden' ? 'active' : ''}`} onClick={handleShowHidden}>Hidden: {hiddenDealIds.length.toLocaleString()}</button>
           </div>
@@ -1041,6 +1055,14 @@ export default function DealAggregator({
                 <tr>
                   <td colSpan={Object.keys(COLUMN_CONFIG).filter((columnId) => visibleColumns[columnId] !== false).length + 1} className="table-empty-cell">No deals found. Try adjusting your filters or search.</td>
                 </tr>
+              ) : dealsToShow.length === 0 ? (
+                <tr>
+                  <td colSpan={Object.keys(COLUMN_CONFIG).filter((columnId) => visibleColumns[columnId] !== false).length + 1} className="table-empty-cell">
+                    {showHiddenDeals
+                      ? 'No hidden listings on this page. Try another page or clear search.'
+                      : 'All listings on this page are hidden. Open Hidden or use Show hidden to review them.'}
+                  </td>
+                </tr>
               ) : (
                 dealsToShow.map((deal) => {
                   const isHidden = hiddenDealIds.includes(deal.id);
@@ -1134,6 +1156,12 @@ export default function DealAggregator({
             <div className="aggregator-cards-grid" data-cols={cardColumnsPerRow}>
               {deals.length === 0 ? (
                 <div className="aggregator-cards-empty">No deals found. Try adjusting your filters or search.</div>
+              ) : dealsToShow.length === 0 ? (
+                <div className="aggregator-cards-empty">
+                  {showHiddenDeals
+                    ? 'No hidden listings on this page. Try another page or clear search.'
+                    : 'All listings on this page are hidden. Open Hidden or use Show hidden to review them.'}
+                </div>
               ) : (
                 dealsToShow.map((deal) => {
                   const isHidden = hiddenDealIds.includes(deal.id);

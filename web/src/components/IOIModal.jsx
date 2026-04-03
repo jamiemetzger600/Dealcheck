@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { userAPI } from '../utils/api';
 import { generateIOIText, generateIOISubject, getBrokerEmailFromDeal } from '../utils/ioiGenerator';
 
@@ -12,6 +12,7 @@ export default function IOIModal({
   onIOISent = null,
   onIOIPrefsSaved = null
 }) {
+  /** Saved to account: signature + buyer company only. Broker email is per listing/deal and is never stored in preferences. */
   const prefs = settings?.preferences || {};
   const [selected, setSelected] = useState(() => {
     const init = new Set();
@@ -45,19 +46,68 @@ export default function IOIModal({
     });
   }, []);
 
-  const persistIoiPrefs = useCallback(async () => {
+  const latestSigCo = useRef({ signature: '', companyName: '' });
+  latestSigCo.current = { signature, companyName };
+  const debounceSaveRef = useRef(null);
+  const skipDebouncedSaveRef = useRef(true);
+
+  const saveSignatureAndCompany = useCallback(async () => {
+    const { signature: s, companyName: c } = latestSigCo.current;
     try {
       await userAPI.updateSettings({
         preferences: {
-          ioiSignature: signature.trim(),
-          ioiCompanyName: companyName.trim()
+          ioiSignature: s.trim(),
+          ioiCompanyName: c.trim()
         }
       });
       onIOIPrefsSaved?.();
     } catch (e) {
       console.error('[IOI] Failed to save signature / company preferences', e);
     }
-  }, [signature, companyName, onIOIPrefsSaved]);
+  }, [onIOIPrefsSaved]);
+
+  const scheduleSaveSignatureAndCompany = useCallback(() => {
+    if (debounceSaveRef.current) clearTimeout(debounceSaveRef.current);
+    debounceSaveRef.current = setTimeout(() => {
+      debounceSaveRef.current = null;
+      void saveSignatureAndCompany();
+    }, 450);
+  }, [saveSignatureAndCompany]);
+
+  const saveSignatureAndCompanyNow = useCallback(async () => {
+    if (debounceSaveRef.current) {
+      clearTimeout(debounceSaveRef.current);
+      debounceSaveRef.current = null;
+    }
+    await saveSignatureAndCompany();
+  }, [saveSignatureAndCompany]);
+
+  useEffect(() => {
+    if (skipDebouncedSaveRef.current) {
+      skipDebouncedSaveRef.current = false;
+      return;
+    }
+    scheduleSaveSignatureAndCompany();
+  }, [signature, companyName, scheduleSaveSignatureAndCompany]);
+
+  const onIOIPrefsSavedRef = useRef(onIOIPrefsSaved);
+  onIOIPrefsSavedRef.current = onIOIPrefsSaved;
+
+  useEffect(() => {
+    return () => {
+      if (debounceSaveRef.current) {
+        clearTimeout(debounceSaveRef.current);
+        debounceSaveRef.current = null;
+      }
+      const { signature: s, companyName: c } = latestSigCo.current;
+      void userAPI
+        .updateSettings({
+          preferences: { ioiSignature: s.trim(), ioiCompanyName: c.trim() }
+        })
+        .then(() => onIOIPrefsSavedRef.current?.())
+        .catch((e) => console.error('[IOI] Failed to flush signature / company on close', e));
+    };
+  }, []);
 
   const generatedText = useMemo(() => {
     if (selectedIndices.length === 0) return '';
@@ -92,18 +142,65 @@ export default function IOIModal({
     if (onIOISent) onIOISent(text);
   }, [onIOISent]);
 
+  /** Gmail web compose — reliable in a new tab; mailto + window.open often yields a blank tab. */
+  const openGmailCompose = useCallback((to, subject, body) => {
+    const maxLen = 7500;
+    let bodyUse = body;
+    const build = () => {
+      const p = new URLSearchParams();
+      p.set('view', 'cm');
+      p.set('fs', '1');
+      if (to) p.set('to', to);
+      p.set('su', subject);
+      p.set('body', bodyUse);
+      return `https://mail.google.com/mail/?${p.toString()}`;
+    };
+    let url = build();
+    if (url.length > maxLen) {
+      const note = '\n\n[... truncated for link length — use Copy to Clipboard for the full IOI.]';
+      while (url.length > maxLen && bodyUse.length > note.length + 50) {
+        bodyUse = bodyUse.slice(0, bodyUse.length - 120) + note;
+        url = build();
+      }
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, []);
+
+  /** Fallback for desktop mail apps (avoids blank mailto tabs in some browsers). */
+  const openMailtoViaAnchor = useCallback((mailtoHref) => {
+    const a = document.createElement('a');
+    a.href = mailtoHref;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, []);
+
   const handleSendEmail = async () => {
-    await persistIoiPrefs();
-    const subject = encodeURIComponent(generateIOISubject(deal));
-    const body = encodeURIComponent(previewText);
-    const to = encodeURIComponent(brokerEmail.trim());
-    window.open(`mailto:${to}?subject=${subject}&body=${body}`, '_self');
+    await saveSignatureAndCompanyNow();
+    const subject = generateIOISubject(deal);
+    const to = brokerEmail.trim();
+    openGmailCompose(to, subject, previewText);
     setSent(true);
     recordIOI(previewText);
   };
 
+  const handleSendMailApp = useCallback(async () => {
+    await saveSignatureAndCompanyNow();
+    const subject = encodeURIComponent(generateIOISubject(deal));
+    const body = encodeURIComponent(previewText);
+    const to = brokerEmail.trim();
+    const href = to
+      ? `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`
+      : `mailto:?subject=${subject}&body=${body}`;
+    openMailtoViaAnchor(href);
+    setSent(true);
+    recordIOI(previewText);
+  }, [brokerEmail, deal, openMailtoViaAnchor, previewText, recordIOI, saveSignatureAndCompanyNow]);
+
   const handleCopy = async () => {
-    await persistIoiPrefs();
+    await saveSignatureAndCompanyNow();
     try {
       await navigator.clipboard.writeText(previewText);
       setCopied(true);
@@ -164,7 +261,7 @@ export default function IOIModal({
               onChange={(e) => setBrokerEmail(e.target.value)}
               placeholder="broker@example.com"
             />
-            <p className="ioi-hint">Pre-filled from listing when available. You can edit before sending.</p>
+            <p className="ioi-hint">From this listing only — not saved to your account. If empty, add the broker in Gmail or your mail app.</p>
           </div>
 
           {/* Buyer company + signature (saved for next time) */}
@@ -176,10 +273,10 @@ export default function IOIModal({
               className="ioi-input"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              onBlur={persistIoiPrefs}
+              onBlur={saveSignatureAndCompanyNow}
               placeholder="e.g. Acme Acquisitions LLC"
             />
-            <p className="ioi-hint">Shown in the email closing. Saved to your account when you leave this field or send/copy.</p>
+            <p className="ioi-hint">Shown in the email closing. Saved to your account and reused on every IOI.</p>
           </div>
 
           <div className="ioi-field-row">
@@ -201,12 +298,12 @@ export default function IOIModal({
                 className="ioi-input"
                 value={signature}
                 onChange={(e) => setSignature(e.target.value)}
-                onBlur={persistIoiPrefs}
+                onBlur={saveSignatureAndCompanyNow}
                 placeholder="Your Name"
               />
             </div>
           </div>
-          <p className="ioi-hint ioi-hint-inline">Signature is saved to your account when you leave the field or send/copy.</p>
+          <p className="ioi-hint ioi-hint-inline">Signature is saved to your account and reused on every IOI.</p>
 
           <div className="ioi-section">
             <label className="ioi-section-label" htmlFor="ioi-closing">Closing Notes (optional)</label>
@@ -237,13 +334,16 @@ export default function IOIModal({
         </div>
 
         <div className="ioi-modal-footer">
-          {sent && <span className="ioi-success">Email client opened</span>}
+          {sent && <span className="ioi-success">Opened — check for a new tab (Gmail) or your mail app.</span>}
           {copied && <span className="ioi-success">Copied to clipboard</span>}
           <button type="button" className="btn-secondary" onClick={handleCopy} disabled={!canSend}>
             Copy to Clipboard
           </button>
-          <button type="button" className="btn-primary" onClick={handleSendEmail} disabled={!canSend || !brokerEmail.trim()}>
-            Send Email
+          <button type="button" className="btn-primary" onClick={handleSendEmail} disabled={!canSend}>
+            Open in Gmail
+          </button>
+          <button type="button" className="btn-secondary ioi-mailapp-btn" onClick={() => handleSendMailApp()} disabled={!canSend}>
+            Default mail app
           </button>
           <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
         </div>

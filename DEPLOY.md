@@ -32,6 +32,7 @@ For a single list of all environment variables (backend, web, CLI), see **[CONFI
    - `VITE_API_URL` = your Koyeb backend URL **including** `/api` (e.g. `https://your-app.koyeb.app/api`)
    - Without this, the app will show "Total: 0 Deals" because it will request `/api/airtable-deals` on the Pages host (which has no API). Set the variable in Cloudflare Pages → your project → Settings → Environment variables, then trigger a new build.
 5. Deploy — your app will be live at `https://your-project.pages.dev`
+6. **SPA routing:** With no root `404.html`, Cloudflare Pages already sends unknown paths to your React app. Do not add a `/* /index.html 200` `_redirects` rule (it triggers “infinite loop” warnings and is unnecessary).
 
 ---
 

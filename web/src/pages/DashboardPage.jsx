@@ -39,6 +39,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showBuyBoxModal, setShowBuyBoxModal] = useState(false);
+  /** 'onboarding' = auto-open for new/empty buy box; 'edit' = user opened settings */
+  const [buyBoxModalMode, setBuyBoxModalMode] = useState('closed');
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showManualDealModal, setShowManualDealModal] = useState(false);
 
@@ -58,7 +60,12 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       const normalized = (dealsData.deals || []).map(normalizeDeal);
       setSavedDeals(normalized);
       
-      if (settingsData && isBuyBoxEmpty(settingsData.buyBox)) {
+      if (
+        settingsData &&
+        isBuyBoxEmpty(settingsData.buyBox) &&
+        !settingsData.preferences?.buyBoxOnboardingDismissed
+      ) {
+        setBuyBoxModalMode('onboarding');
         setShowBuyBoxModal(true);
       }
       
@@ -121,7 +128,10 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onSaveDeal={loadUserData}
             onSettingsUpdate={loadUserData}
             onAddDeal={() => setShowManualDealModal(true)}
-            onConfigureBuyBox={() => setShowBuyBoxModal(true)}
+            onConfigureBuyBox={() => {
+              setBuyBoxModalMode('edit');
+              setShowBuyBoxModal(true);
+            }}
             feedSource={feedSource}
             savedDealIds={savedDeals.map((d) => d.dealId ?? d.id).filter(Boolean)}
           />
@@ -140,9 +150,12 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       <BuyBoxModal
         isOpen={showBuyBoxModal}
         settings={settings}
-        onClose={() => setShowBuyBoxModal(false)}
+        onClose={() => {
+          setShowBuyBoxModal(false);
+          setBuyBoxModalMode('closed');
+        }}
         onSaved={loadUserData}
-        isOnboarding={showBuyBoxModal && settings && isBuyBoxEmpty(settings.buyBox)}
+        isOnboarding={buyBoxModalMode === 'onboarding'}
       />
       <SourceManagerModal
         isOpen={showSourceModal}

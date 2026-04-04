@@ -141,5 +141,6 @@ As a buyer, I want to know what offer price I should make to achieve my target 2
 (Add new ideas here)
 
 - Target Offer Price Calculator (v1.5.0)
+- **Vettr web — Re-enable Target Industries in Buy Box modal** (`web/src/components/BuyBoxModal.jsx`): checkboxes were hidden (Apr 2026); flip `SHOW_TARGET_INDUSTRIES_IN_BUYBOX` to `true` when ready to surface industry filtering in the UI again (ensure server-side buy-box / `market_deals` industry alignment first).
 - ???
 

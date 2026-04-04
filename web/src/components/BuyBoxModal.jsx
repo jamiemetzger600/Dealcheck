@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { userAPI } from '../utils/api';
 
 const DEFAULT_BUYBOX = {
@@ -29,9 +29,16 @@ const NEAR_MATCH_OPTIONS = [
 
 const INDUSTRIES = ['Healthcare', 'SaaS', 'Manufacturing', 'Restaurant', 'Retail', 'E-commerce', 'Services', 'Real Estate'];
 
+/** Set true to show Target Industries checkboxes in the Buy Box modal again. */
+const SHOW_TARGET_INDUSTRIES_IN_BUYBOX = false;
+
 export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnboarding = false }) {
   const [form, setForm] = useState(DEFAULT_BUYBOX);
   const [saving, setSaving] = useState(false);
+  const [dismissing, setDismissing] = useState(false);
+  const busyRef = useRef(false);
+  busyRef.current = saving || dismissing;
+  const onboardingDismissLock = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -39,16 +46,37 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
     }
   }, [isOpen, settings]);
 
+  const dismissOnboarding = useCallback(async () => {
+    if (onboardingDismissLock.current || saving) return;
+    onboardingDismissLock.current = true;
+    setDismissing(true);
+    try {
+      await userAPI.updateSettings({ preferences: { buyBoxOnboardingDismissed: true } });
+      onSaved();
+      onClose();
+    } catch (error) {
+      console.error('[BuyBoxModal] dismiss onboarding failed:', error);
+      onClose();
+    } finally {
+      onboardingDismissLock.current = false;
+      setDismissing(false);
+    }
+  }, [onSaved, onClose, saving]);
+
   useEffect(() => {
-    if (!isOpen || isOnboarding) return;
+    if (!isOpen) return;
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape' || busyRef.current) return;
+      if (isOnboarding) dismissOnboarding();
+      else onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isOnboarding, onClose]);
+  }, [isOpen, isOnboarding, onClose, dismissOnboarding]);
 
   if (!isOpen) return null;
+
+  const busy = saving || dismissing;
 
   const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const parseNumber = (value) => {
@@ -90,22 +118,24 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
 
     setSaving(true);
     try {
+      const buyBoxPayload = {
+        minPrice: parseNumber(form.minPrice),
+        maxPrice: parseNumber(form.maxPrice),
+        minEbitda: parseNumber(form.minEbitda),
+        maxEbitda: parseNumber(form.maxEbitda),
+        minRevenue: parseNumber(form.minRevenue),
+        revenueMultiple: parseNumber(form.revenueMultiple),
+        targetStates: (form.targetStatesInput || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+        excludeStates: (form.excludeStatesInput || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+        targetIndustries: form.targetIndustries || [],
+        targetCOC: parseNumber(form.targetCOC),
+        targetPayback: parseNumber(form.targetPayback),
+        minBuyerSalary: parseNumber(form.minBuyerSalary),
+        includeNearMatchesPercent: Number(form.includeNearMatchesPercent) || 0
+      };
       await userAPI.updateSettings({
-        buyBox: {
-          minPrice: parseNumber(form.minPrice),
-          maxPrice: parseNumber(form.maxPrice),
-          minEbitda: parseNumber(form.minEbitda),
-          maxEbitda: parseNumber(form.maxEbitda),
-          minRevenue: parseNumber(form.minRevenue),
-          revenueMultiple: parseNumber(form.revenueMultiple),
-          targetStates: (form.targetStatesInput || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
-          excludeStates: (form.excludeStatesInput || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
-          targetIndustries: form.targetIndustries || [],
-          targetCOC: parseNumber(form.targetCOC),
-          targetPayback: parseNumber(form.targetPayback),
-          minBuyerSalary: parseNumber(form.minBuyerSalary),
-          includeNearMatchesPercent: Number(form.includeNearMatchesPercent) || 0
-        }
+        buyBox: buyBoxPayload,
+        ...(isOnboarding ? { preferences: { buyBoxOnboardingDismissed: true } } : {})
       });
       onSaved();
       onClose();
@@ -131,17 +161,29 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
   return (
     <div
       className="modal-overlay buybox-modal-overlay"
-      onClick={(e) => !isOnboarding && e.target === e.currentTarget && onClose()}
+      onClick={(e) => {
+        if (e.target !== e.currentTarget || busy) return;
+        if (isOnboarding) dismissOnboarding();
+        else onClose();
+      }}
     >
       <div className="modal-card buybox-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>⚙️ Configure Buy Box</h2>
-          {!isOnboarding && (
-            <button type="button" className="column-close-btn" onClick={onClose}>×</button>
-          )}
+          <button
+            type="button"
+            className="column-close-btn"
+            onClick={() => (isOnboarding ? dismissOnboarding() : onClose())}
+            disabled={busy}
+            aria-label={isOnboarding ? 'Skip buy box and browse deals' : 'Close'}
+          >
+            ×
+          </button>
         </div>
         {isOnboarding && (
-          <p className="buybox-onboarding-intro">Set your deal criteria to get started. Deals are loading in the background.</p>
+          <p className="buybox-onboarding-intro">
+            <strong>Optional but recommended:</strong> set your buy box so the feed highlights deals that fit you. You can skip for now and browse all listings — change this anytime from the dashboard. Deals load in the background.
+          </p>
         )}
 
         <div className="modal-grid two-col">
@@ -153,7 +195,19 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
           <div className="form-group"><label>Revenue Multiple</label><input value={formatWithCommas(form.revenueMultiple)} onChange={(e) => handleNumberChange('revenueMultiple', e.target.value)} placeholder="3.5" /></div>
           <div className="form-group"><label>Target States</label><input value={form.targetStatesInput ?? form.targetStates?.join(', ') ?? ''} onChange={(e) => updateField('targetStatesInput', e.target.value)} placeholder="CA, TX, FL" /></div>
           <div className="form-group"><label>Exclude States</label><input value={form.excludeStatesInput ?? form.excludeStates?.join(', ') ?? ''} onChange={(e) => updateField('excludeStatesInput', e.target.value)} placeholder="AK, HI" /></div>
-          <div className="form-group full-width"><label>Target Industries</label><div className="industry-checkboxes">{INDUSTRIES.map((industry) => (<label key={industry} className="industry-checkbox"><input type="checkbox" checked={form.targetIndustries?.includes(industry) || false} onChange={() => handleIndustryToggle(industry)} />{industry}</label>))}</div></div>
+          {SHOW_TARGET_INDUSTRIES_IN_BUYBOX && (
+            <div className="form-group full-width">
+              <label>Target Industries</label>
+              <div className="industry-checkboxes">
+                {INDUSTRIES.map((industry) => (
+                  <label key={industry} className="industry-checkbox">
+                    <input type="checkbox" checked={form.targetIndustries?.includes(industry) || false} onChange={() => handleIndustryToggle(industry)} />
+                    {industry}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="modal-grid three-col full-width buybox-analyzer-defaults-row" role="group" aria-label="Deal analyzer defaults">
             <div className="form-group">
               <label>Minimum CoC return (%)</label>
@@ -219,9 +273,20 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
         </div>
 
         <div className="modal-actions">
-          {!isOnboarding && <button type="button" className="btn-secondary" onClick={handleReset}>Reset</button>}
-          {!isOnboarding && <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>}
-          <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Buy Box'}</button>
+          {!isOnboarding && <button type="button" className="btn-secondary" onClick={handleReset} disabled={busy}>Reset</button>}
+          {!isOnboarding && (
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+          )}
+          {isOnboarding && (
+            <button type="button" className="btn-secondary" onClick={() => dismissOnboarding()} disabled={busy}>
+              {dismissing ? 'Skipping...' : 'Skip for now'}
+            </button>
+          )}
+          <button type="button" className="btn-primary" onClick={handleSave} disabled={busy}>
+            {saving ? 'Saving...' : 'Save Buy Box'}
+          </button>
         </div>
       </div>
     </div>

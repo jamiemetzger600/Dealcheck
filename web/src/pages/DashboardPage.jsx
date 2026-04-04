@@ -106,14 +106,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         logout={logout}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        pageTitle="Deal Acquisition Platform"
-        pageSubtitle="From discovery to closing: Data → Information → Knowledge → Insight → Wisdom"
         aggregatorCount={totalDeals}
         myDealsCount={savedDeals.length}
-        onFetchDeals={handleFetchDeals}
-        onManageSources={() => setShowSourceModal(true)}
-        onAddDeal={() => setShowManualDealModal(true)}
-        onConfigureBuyBox={() => setShowBuyBoxModal(true)}
       />
 
       <div className="dashboard-content">
@@ -126,6 +120,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onDealsStatsUpdate={handleDealsStatsUpdate}
             onSaveDeal={loadUserData}
             onSettingsUpdate={loadUserData}
+            onAddDeal={() => setShowManualDealModal(true)}
             onConfigureBuyBox={() => setShowBuyBoxModal(true)}
             feedSource={feedSource}
             savedDealIds={savedDeals.map((d) => d.dealId ?? d.id).filter(Boolean)}

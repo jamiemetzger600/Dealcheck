@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { dealsAPI } from '../utils/api';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
@@ -6,7 +6,80 @@ import { getQualityPresentation } from '../utils/dealCalculatorMath';
 import { formatDate, formatMoney, getDealProgressLabel } from '../utils/normalizeDeal';
 import { getSavedDealCalculatorSummary } from '../utils/savedDealCalculatorSummary';
 import DealDetailsPanel from './DealDetailsPanel';
-import { InfoCard } from './DealDetailsPanel';
+
+/** Ordered pipeline options for saved-deal progress (My Deals modal). */
+const PROGRESS_STAGE_OPTIONS = [
+  'Requested NDA',
+  'Signed NDA',
+  'Review CIM',
+  'Passed On Deal',
+  'Send IOI',
+  'Review Financials',
+  'Preliminary Valuation',
+  'Review Tax Returns',
+  'Seller Call',
+  'Bank Pre-Approval',
+  'LOI Sent',
+  'LOI Signed',
+  'Starting Due Diligence',
+  'Custom Status'
+];
+
+function listingEditsFromDeal(d) {
+  return {
+    name: d.name || '',
+    description: d.description || '',
+    url: d.url || '',
+    askingPrice: d.askingPrice != null && d.askingPrice !== '' ? String(d.askingPrice) : '',
+    ebitda: d.ebitda != null && d.ebitda !== '' ? String(d.ebitda) : '',
+    revenue: d.revenue != null && d.revenue !== '' ? String(d.revenue) : '',
+    location: d.location || '',
+    city: d.city || '',
+    state: d.state || '',
+    county: d.county || '',
+    country: d.country || '',
+    industry: d.industry || '',
+    yearsEstablished: d.yearsEstablished != null && d.yearsEstablished !== '' ? String(d.yearsEstablished) : '',
+    franchise: d.franchise != null && d.franchise !== '' ? String(d.franchise) : '',
+    remote: d.remote != null && d.remote !== '' ? String(d.remote) : '',
+    source: d.source || '',
+    sourceType: d.sourceType || '',
+    discoveredAt: d.discoveredAt != null && d.discoveredAt !== '' ? String(d.discoveredAt) : ''
+  };
+}
+
+function buildSavedDealListingPayload(le, br, dealFb) {
+  const num = (v) => {
+    if (v === '' || v == null) return null;
+    const n = parseFloat(String(v).replace(/,/g, '').trim());
+    return Number.isFinite(n) ? n : null;
+  };
+  const nameTrim = (le.name || '').trim();
+  return {
+    name: nameTrim || dealFb.name || 'Untitled deal',
+    description: le.description,
+    url: (le.url || '').trim() || null,
+    askingPrice: num(le.askingPrice),
+    ebitda: num(le.ebitda),
+    revenue: num(le.revenue),
+    location: (le.location || '').trim() || null,
+    city: (le.city || '').trim() || null,
+    state: (le.state || '').trim() || null,
+    county: (le.county || '').trim() || null,
+    country: (le.country || '').trim() || null,
+    industry: (le.industry || '').trim() || null,
+    yearsEstablished: (le.yearsEstablished || '').trim() || null,
+    franchise: (le.franchise || '').trim() || null,
+    remote: (le.remote || '').trim() || null,
+    source: (le.source || '').trim() || null,
+    sourceType: (le.sourceType || '').trim() || null,
+    discoveredAt: (le.discoveredAt || '').trim() || null,
+    brokerName: br.name,
+    brokerCompany: br.company,
+    brokerPhone: br.phone,
+    brokerEmail: br.email
+  };
+}
 
 function cocReturnTier(coc) {
   if (coc >= 100) return 'excellent';
@@ -459,6 +532,23 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
   });
   const [progressStage, setProgressStage] = useState(deal.progressStage || '');
   const [progressHistory, setProgressHistory] = useState(deal.progressHistory || []);
+  const [progressSaving, setProgressSaving] = useState(false);
+  const [isNotesSectionOpen, setIsNotesSectionOpen] = useState(true);
+  const [isBrokerProgressSectionOpen, setIsBrokerProgressSectionOpen] = useState(true);
+  const [descriptionEditMode, setDescriptionEditMode] = useState(false);
+  const [overviewEditMode, setOverviewEditMode] = useState(false);
+  const [listingEdits, setListingEdits] = useState(() => listingEditsFromDeal(deal));
+  const persistListingTimerRef = useRef(null);
+  const listingEditsRef = useRef(listingEdits);
+  const brokerInfoRef = useRef(brokerInfo);
+  const dealRef = useRef(deal);
+  const descriptionEditModeRef = useRef(descriptionEditMode);
+  const overviewEditModeRef = useRef(overviewEditMode);
+  listingEditsRef.current = listingEdits;
+  brokerInfoRef.current = brokerInfo;
+  dealRef.current = deal;
+  descriptionEditModeRef.current = descriptionEditMode;
+  overviewEditModeRef.current = overviewEditMode;
 
   useEffect(() => {
     setNotes(deal.notes || '');
@@ -470,11 +560,117 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
     });
     setProgressStage(deal.progressStage || '');
     setProgressHistory(deal.progressHistory || []);
+    setIsNotesSectionOpen(true);
+    setIsBrokerProgressSectionOpen(true);
+    setDescriptionEditMode(false);
+    setOverviewEditMode(false);
+    setListingEdits(listingEditsFromDeal(deal));
   }, [deal]);
+
+  useEffect(() => () => {
+    if (persistListingTimerRef.current) clearTimeout(persistListingTimerRef.current);
+  }, []);
+
+  const flushListingPersistNow = useCallback(async () => {
+    if (persistListingTimerRef.current) {
+      clearTimeout(persistListingTimerRef.current);
+      persistListingTimerRef.current = null;
+    }
+    try {
+      const payload = buildSavedDealListingPayload(
+        listingEditsRef.current,
+        brokerInfoRef.current,
+        dealRef.current
+      );
+      await dealsAPI.updateDeal(dealRef.current.id, payload);
+      onUpdate();
+    } catch (e) {
+      console.error('Saved deal listing persist failed:', e);
+      alert('Failed to save deal details: ' + e.message);
+    }
+  }, [onUpdate]);
+
+  const schedulePersistListing = useCallback(() => {
+    if (persistListingTimerRef.current) clearTimeout(persistListingTimerRef.current);
+    persistListingTimerRef.current = setTimeout(async () => {
+      persistListingTimerRef.current = null;
+      try {
+        const payload = buildSavedDealListingPayload(
+          listingEditsRef.current,
+          brokerInfoRef.current,
+          dealRef.current
+        );
+        await dealsAPI.updateDeal(dealRef.current.id, payload);
+        onUpdate();
+      } catch (e) {
+        console.error('Saved deal listing persist failed:', e);
+        alert('Failed to save deal details: ' + e.message);
+      }
+    }, 1000);
+  }, [onUpdate]);
+
+  const handleListingEditChange = (key, value) => {
+    setListingEdits((prev) => ({ ...prev, [key]: value }));
+    const desc = key === 'description';
+    if (desc && !descriptionEditModeRef.current) return;
+    if (!desc && !overviewEditModeRef.current) return;
+    schedulePersistListing();
+  };
+
+  const toggleDescriptionEdit = useCallback(() => {
+    setDescriptionEditMode((wasOn) => {
+      if (wasOn) {
+        queueMicrotask(() => flushListingPersistNow());
+      }
+      return !wasOn;
+    });
+  }, [flushListingPersistNow]);
+
+  const toggleOverviewEdit = useCallback(() => {
+    setOverviewEditMode((wasOn) => {
+      if (wasOn) {
+        queueMicrotask(() => flushListingPersistNow());
+      }
+      return !wasOn;
+    });
+  }, [flushListingPersistNow]);
+
+  const mergedDeal = useMemo(() => {
+    const num = (raw, fallback) => {
+      const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
+      return Number.isFinite(n) ? n : fallback;
+    };
+    const nameTrim = (listingEdits.name || '').trim();
+    return {
+      ...deal,
+      name: nameTrim || deal.name,
+      description: listingEdits.description,
+      url: (listingEdits.url || '').trim() || deal.url,
+      askingPrice: num(listingEdits.askingPrice, deal.askingPrice),
+      ebitda: num(listingEdits.ebitda, deal.ebitda),
+      revenue: num(listingEdits.revenue, deal.revenue),
+      location: listingEdits.location,
+      city: listingEdits.city,
+      state: listingEdits.state,
+      county: listingEdits.county,
+      country: listingEdits.country,
+      industry: listingEdits.industry,
+      yearsEstablished: listingEdits.yearsEstablished || deal.yearsEstablished,
+      franchise: listingEdits.franchise || deal.franchise,
+      remote: listingEdits.remote || deal.remote,
+      source: listingEdits.source || deal.source,
+      sourceType: listingEdits.sourceType || deal.sourceType,
+      discoveredAt: listingEdits.discoveredAt || deal.discoveredAt,
+      brokerName: brokerInfo.name,
+      brokerCompany: brokerInfo.company,
+      brokerPhone: brokerInfo.phone,
+      brokerEmail: brokerInfo.email
+    };
+  }, [deal, listingEdits, brokerInfo]);
 
   const headerProgressLabel = useMemo(() => {
     if (progressStage?.trim()) return progressStage.trim();
-    return getDealProgressLabel({ ...deal, progressHistory, progressStage: deal.progressStage }) || '';
+    return getDealProgressLabel({ ...deal, progressHistory, progressStage }) || '';
   }, [progressStage, progressHistory, deal]);
 
   const handleNotesChange = (newNotes) => {
@@ -488,49 +684,65 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
     setNotesTimeout(timeout);
   };
 
-  const handleSaveBrokerInfo = async () => {
+  const handleSaveDealDetailsNow = () => flushListingPersistNow();
+
+  const handleProgressSelectChange = async (e) => {
+    const newStage = e.target.value;
+    if (progressSaving) return;
+
+    // Placeholder option — keep controlled value unchanged (no API call).
+    if (!newStage.trim()) {
+      return;
+    }
+
+    const previousStage = progressStage;
+    const previousHistory = progressHistory;
+
+    setProgressStage(newStage);
+
+    const newHistory = [
+      ...previousHistory,
+      { stage: newStage, timestamp: new Date().toISOString() }
+    ];
+    setProgressHistory(newHistory);
+    setProgressSaving(true);
     try {
       await dealsAPI.updateDeal(deal.id, {
-        brokerName: brokerInfo.name,
-        brokerCompany: brokerInfo.company,
-        brokerPhone: brokerInfo.phone,
-        brokerEmail: brokerInfo.email
+        progressStage: newStage,
+        progressHistory: newHistory
       });
       onUpdate();
-      alert('Broker information saved!');
     } catch (error) {
-      alert('Failed to save broker info: ' + error.message);
+      setProgressStage(previousStage);
+      setProgressHistory(previousHistory);
+      alert('Failed to update progress: ' + error.message);
+    } finally {
+      setProgressSaving(false);
     }
   };
 
-  const handleAddProgressStage = async () => {
-    if (!progressStage.trim()) return;
-
-    const newHistory = [
-      ...progressHistory,
-      {
-        stage: progressStage,
-        timestamp: new Date().toISOString()
-      }
-    ];
+  const handleRemoveProgressHistoryItem = async (index) => {
+    const newHistory = progressHistory.filter((_, i) => i !== index);
+    const nextStage =
+      newHistory.length > 0 ? newHistory[newHistory.length - 1].stage : '';
 
     try {
       await dealsAPI.updateDeal(deal.id, {
-        progressStage,
+        progressStage: nextStage,
         progressHistory: newHistory
       });
       setProgressHistory(newHistory);
-      setProgressStage('');
+      setProgressStage(nextStage);
       onUpdate();
     } catch (error) {
-      alert('Failed to add progress: ' + error.message);
+      alert('Failed to remove progress entry: ' + error.message);
     }
   };
 
   const handleShareDeal = () => {
-    const shareText = `Deal: ${deal.name}\nAsking: ${formatMoney(deal.askingPrice)}\nEBITDA: ${formatMoney(deal.ebitda)}\n${deal.url || ''}`;
+    const shareText = `Deal: ${mergedDeal.name}\nAsking: ${formatMoney(mergedDeal.askingPrice)}\nEBITDA: ${formatMoney(mergedDeal.ebitda)}\n${mergedDeal.url || ''}`;
     if (navigator.share) {
-      navigator.share({ title: deal.name, text: shareText, url: deal.url || '' }).catch(() => {});
+      navigator.share({ title: mergedDeal.name, text: shareText, url: mergedDeal.url || '' }).catch(() => {});
     } else {
       navigator.clipboard.writeText(shareText);
       alert('Deal details copied to clipboard!');
@@ -545,17 +757,17 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
 
     const newHistory = [
       ...progressHistory,
-      { stage: 'IOI Sent', timestamp }
+      { stage: 'Send IOI', timestamp }
     ];
 
     try {
       await dealsAPI.updateDeal(deal.id, {
         notes: updatedNotes,
-        progressStage: 'IOI Sent',
+        progressStage: 'Send IOI',
         progressHistory: newHistory
       });
       setNotes(updatedNotes);
-      setProgressStage('IOI Sent');
+      setProgressStage('Send IOI');
       setProgressHistory(newHistory);
       onUpdate();
     } catch (error) {
@@ -564,92 +776,115 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
     }
   };
 
-  const overviewAdditions = (
-    <>
-      <InfoCard label="Saved Date" value={formatDate(deal.savedAt)} />
-      {deal.county && <InfoCard label="County" value={deal.county} />}
-      {deal.country && <InfoCard label="Country" value={deal.country} />}
-      {deal.yearsEstablished != null && deal.yearsEstablished !== '' && <InfoCard label="Years Established" value={deal.yearsEstablished} />}
-      {deal.franchise != null && deal.franchise !== '' && <InfoCard label="Franchise" value={deal.franchise} />}
-      {deal.remote != null && deal.remote !== '' && <InfoCard label="Remote / Relocatable" value={deal.remote} wide />}
-    </>
-  );
-
   const extraSections = (
     <>
-      <section className="deal-details-section deal-notes-section">
-        <button type="button" className="calc-section-header"><span>▼ Notes</span></button>
-        <div className="deal-notes-content">
-          <textarea value={notes} onChange={(e) => handleNotesChange(e.target.value)} placeholder="Add notes about this deal..." rows={6} className="modal-notes" />
-          <p className="notes-hint">Notes are auto-saved as you type</p>
-        </div>
-      </section>
       <section className="deal-details-section deal-edit-broker-section">
-        <button type="button" className="calc-section-header"><span>▼ Edit Broker &amp; Progress</span></button>
-        <div className="broker-form-grid">
-          <div className="input-group">
-            <label>Broker Name</label>
-            <input type="text" value={brokerInfo.name} onChange={(e) => setBrokerInfo({ ...brokerInfo, name: e.target.value })} placeholder="John Smith" className="modal-input" />
-          </div>
-          <div className="input-group">
-            <label>Company</label>
-            <input type="text" value={brokerInfo.company} onChange={(e) => setBrokerInfo({ ...brokerInfo, company: e.target.value })} placeholder="ABC Brokers Inc." className="modal-input" />
-          </div>
-          <div className="input-group">
-            <label>Phone</label>
-            <input type="tel" value={brokerInfo.phone} onChange={(e) => setBrokerInfo({ ...brokerInfo, phone: e.target.value })} placeholder="(555) 123-4567" className="modal-input" />
-          </div>
-          <div className="input-group">
-            <label>Email</label>
-            <input type="email" value={brokerInfo.email} onChange={(e) => setBrokerInfo({ ...brokerInfo, email: e.target.value })} placeholder="broker@example.com" className="modal-input" />
-          </div>
-        </div>
-        <button type="button" className="btn-secondary" onClick={handleSaveBrokerInfo}>💾 Save Broker Info</button>
-        <div className="progress-tracking">
-          <div className="input-group">
-            <label>Current Progress Status</label>
-            <select value={progressStage} onChange={(e) => setProgressStage(e.target.value)} className="modal-input">
-              <option value="">Select Progress Status</option>
-              <option value="Requested NDA">Requested NDA</option>
-              <option value="Signed NDA">Signed NDA</option>
-              <option value="Deal Room Access">Deal Room Access</option>
-              <option value="Underwriting Began">Underwriting Began</option>
-              <option value="Underwriting Complete">Underwriting Complete</option>
-              <option value="Bank Pre-Approval">Bank Pre-Approval</option>
-              <option value="IOI Sent">IOI Sent</option>
-              <option value="IOI Accepted">IOI Accepted</option>
-              <option value="IOI Declined">IOI Declined</option>
-              <option value="LOI Sent">LOI Sent</option>
-              <option value="LOI Accepted">LOI Accepted</option>
-              <option value="LOI Declined">LOI Declined</option>
-              <option value="Awaiting Seller Response">Awaiting Seller Response</option>
-            </select>
-          </div>
-          <button type="button" className="btn-secondary" onClick={handleAddProgressStage}>+ Add Progress Update</button>
-          {progressHistory.length > 0 && (
-            <div className="progress-history">
-              <div className="section-title">Progress History</div>
-              <div className="progress-list">
-                {progressHistory.map((item, index) => (
-                  <div key={index} className="progress-item">
-                    <div className="progress-stage">{item.stage}</div>
-                    <div className="progress-timestamp">
-                      {new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </div>
-                ))}
+        <button
+          type="button"
+          className={`calc-section-header ${isBrokerProgressSectionOpen ? '' : 'collapsed'}`}
+          onClick={() => setIsBrokerProgressSectionOpen((current) => !current)}
+        >
+          <span>{isBrokerProgressSectionOpen ? '▼' : '▶'} Edit Broker &amp; Progress</span>
+        </button>
+        {isBrokerProgressSectionOpen && (
+          <>
+            <div className="broker-form-grid">
+              <div className="input-group">
+                <label>Broker Name</label>
+                <input type="text" value={brokerInfo.name} onChange={(e) => setBrokerInfo({ ...brokerInfo, name: e.target.value })} placeholder="John Smith" className="modal-input" />
+              </div>
+              <div className="input-group">
+                <label>Company</label>
+                <input type="text" value={brokerInfo.company} onChange={(e) => setBrokerInfo({ ...brokerInfo, company: e.target.value })} placeholder="ABC Brokers Inc." className="modal-input" />
+              </div>
+              <div className="input-group">
+                <label>Phone</label>
+                <input type="tel" value={brokerInfo.phone} onChange={(e) => setBrokerInfo({ ...brokerInfo, phone: e.target.value })} placeholder="(555) 123-4567" className="modal-input" />
+              </div>
+              <div className="input-group">
+                <label>Email</label>
+                <input type="email" value={brokerInfo.email} onChange={(e) => setBrokerInfo({ ...brokerInfo, email: e.target.value })} placeholder="broker@example.com" className="modal-input" />
               </div>
             </div>
-          )}
-        </div>
+            <button type="button" className="btn-secondary" onClick={handleSaveDealDetailsNow}>💾 Save deal details now</button>
+            <div className="progress-tracking">
+              <div className="progress-tracking-columns">
+                <div className="progress-tracking-col progress-tracking-status-col">
+                  <div className="input-group">
+                    <label>Current Progress Status</label>
+                    <select
+                      value={progressStage}
+                      onChange={handleProgressSelectChange}
+                      className="modal-input"
+                      disabled={progressSaving}
+                      aria-busy={progressSaving}
+                      aria-label="Current progress status"
+                    >
+                      <option value="">Select Progress Status</option>
+                      {PROGRESS_STAGE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                      {progressStage && !PROGRESS_STAGE_OPTIONS.includes(progressStage) ? (
+                        <option value={progressStage}>{progressStage} (saved)</option>
+                      ) : null}
+                    </select>
+                  </div>
+                </div>
+                <div className="progress-tracking-col progress-tracking-history-col">
+                  <div className="section-title">Progress History</div>
+                  {progressHistory.length > 0 ? (
+                    <div className="progress-list">
+                      {progressHistory.map((item, index) => (
+                        <div key={`${item.timestamp}-${index}`} className="progress-item">
+                          <div className="progress-item-body">
+                            <div className="progress-stage">{item.stage}</div>
+                            <div className="progress-timestamp">
+                              {new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="progress-item-remove"
+                            aria-label={`Remove progress entry: ${item.stage}`}
+                            title="Remove this update"
+                            onClick={() => handleRemoveProgressHistoryItem(index)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="progress-history-empty">No progress updates yet.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+      <section className="deal-details-section deal-notes-section">
+        <button
+          type="button"
+          className={`calc-section-header ${isNotesSectionOpen ? '' : 'collapsed'}`}
+          onClick={() => setIsNotesSectionOpen((current) => !current)}
+        >
+          <span>{isNotesSectionOpen ? '▼' : '▶'} Notes</span>
+        </button>
+        {isNotesSectionOpen && (
+          <div className="deal-notes-content">
+            <textarea value={notes} onChange={(e) => handleNotesChange(e.target.value)} placeholder="Add notes about this deal..." rows={6} className="modal-notes" />
+            <p className="notes-hint">Notes are auto-saved as you type</p>
+          </div>
+        )}
       </section>
     </>
   );
 
   const savedFooter = (
     <>
-      {deal.url ? (
-        <a href={deal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary">View Original Listing</a>
+      {mergedDeal.url ? (
+        <a href={mergedDeal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary">View Original Listing</a>
       ) : (
         <button type="button" className="btn-secondary" disabled aria-label="No listing URL">No Listing URL Available</button>
       )}
@@ -665,7 +900,7 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
       <div className="modal-content saved-deal-modal saved-deal-modal-content" onClick={(e) => e.stopPropagation()}>
         <DealDetailsPanel
           isOpen
-          deal={deal}
+          deal={mergedDeal}
           position="center"
           onClose={onClose}
           settings={settings}
@@ -673,12 +908,20 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
           panelOnly
           showPositionToggle={false}
           showSaveButton={false}
-          overviewAdditions={overviewAdditions}
           extraSectionsAfterCalculator={extraSections}
           renderFooter={savedFooter}
           onIOISent={handleIOISent}
           onIOIPrefsSaved={onUpdate}
           headerProgressLabel={headerProgressLabel}
+          listingEdit={{
+            savedAtDisplay: formatDate(deal.savedAt),
+            values: listingEdits,
+            onChange: handleListingEditChange,
+            descriptionEditMode,
+            onToggleDescriptionEdit: toggleDescriptionEdit,
+            overviewEditMode,
+            onToggleOverviewEdit: toggleOverviewEdit
+          }}
         />
       </div>
     </div>

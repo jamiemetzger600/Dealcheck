@@ -309,12 +309,22 @@ a {
 
 .tab-navigation {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 20px;
   background: var(--bg-secondary);
   padding: 8px;
   border-radius: 12px;
   box-shadow: 0 2px 8px var(--shadow);
+}
+
+.tab-navigation-version {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .tab-btn {
@@ -484,61 +494,63 @@ a {
 }
 
 .aggregator-welcome {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 16px;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
-  padding: 24px 32px;
-  border-radius: 12px;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .aggregator-welcome__main {
-  flex: 1;
   min-width: 0;
+  justify-self: start;
 }
 
 .aggregator-welcome__buybox {
-  flex-shrink: 0;
+  justify-self: end;
   background: rgba(255, 255, 255, 0.12);
-  padding: 14px 18px;
+  padding: 8px 12px;
   border-radius: 8px;
-  min-width: 200px;
+  min-width: min(100%, 220px);
+  max-width: 100%;
 }
 
 .aggregator-welcome__buybox-title {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   opacity: 0.95;
 }
 
 .aggregator-welcome__buybox-empty {
-  font-size: 13px;
+  font-size: 12px;
   opacity: 0.9;
   margin: 0;
+  line-height: 1.35;
 }
 
 .aggregator-welcome__buybox-list {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.35;
   opacity: 0.95;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 10px;
+  row-gap: 3px;
+  align-items: baseline;
 }
 
 .aggregator-welcome__buybox-list dt {
-  margin-top: 6px;
-  margin-bottom: 2px;
+  margin: 0;
   font-weight: 600;
-}
-
-.aggregator-welcome__buybox-list dt:first-child {
-  margin-top: 0;
 }
 
 .aggregator-welcome__buybox-list dd {
@@ -546,14 +558,45 @@ a {
 }
 
 .aggregator-welcome h2 {
-  font-size: 24px;
-  margin-bottom: 8px;
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
 }
 
 .aggregator-welcome p {
   opacity: 0.9;
-  font-size: 14px;
-  margin-bottom: 16px;
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 0 0 6px;
+}
+
+.aggregator-welcome__actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 8px;
+  padding: 0 6px;
+  justify-self: center;
+  min-width: 0;
+}
+
+.aggregator-welcome__actions .aggregator-filter-btn {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+  padding: 5px 10px;
+  font-size: 11px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.aggregator-welcome__actions .aggregator-filter-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.45);
 }
 
 .aggregator-welcome__buybox-text-link {
@@ -581,18 +624,40 @@ a {
   border-radius: 2px;
 }
 
+@media (max-width: 960px) {
+  .aggregator-welcome {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .aggregator-welcome__main,
+  .aggregator-welcome__buybox {
+    justify-self: stretch;
+  }
+
+  .aggregator-welcome__actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 0;
+  }
+}
+
 .aggregator-stats {
   display: flex;
-  gap: 16px;
+  gap: 6px 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .aggregator-stat {
   background: rgba(255, 255, 255, 0.1);
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1.3;
 }
 
 .aggregator-stat-btn {
@@ -1460,10 +1525,10 @@ a {
   font-size: 0.8rem;
   color: var(--text-secondary);
   margin: 10px 16px 0;
-  padding-bottom: 12px;
+  padding: 0 0 20px;
   line-height: 1.45;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 8;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
@@ -1870,6 +1935,48 @@ a {
   margin-bottom: 4px;
 }
 
+.deal-details-title-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+}
+
+.deal-details-description--edit {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 120px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.deal-overview-card--edit {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.deal-overview-card--edit .deal-overview-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .deal-details-header p {
   color: var(--text-secondary);
   font-size: 13px;
@@ -1942,6 +2049,31 @@ a {
   padding: 18px;
   display: grid;
   gap: 16px;
+}
+
+.deal-details-section-header-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.deal-details-section-header-row .calc-section-header {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.deal-section-edit-btn {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 8px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.deal-section-edit-btn--active {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .deal-details-section h3 {
@@ -3350,14 +3482,28 @@ a {
   border-radius: 8px;
 }
 
-.saved-deal-modal .progress-tracking .input-group {
-  margin-bottom: 12px;
+.saved-deal-modal .progress-tracking-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
 }
 
-.saved-deal-modal .progress-history {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
+@media (max-width: 720px) {
+  .saved-deal-modal .progress-tracking-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.saved-deal-modal .progress-tracking-status-col .input-group {
+  margin-bottom: 0;
+}
+
+.saved-deal-modal .progress-history-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
 }
 
 .saved-deal-modal .section-title {
@@ -3376,10 +3522,38 @@ a {
 }
 
 .saved-deal-modal .progress-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
   background: var(--bg-secondary);
   padding: 12px;
   border-radius: 6px;
   border-left: 3px solid var(--primary);
+}
+
+.saved-deal-modal .progress-item-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.saved-deal-modal .progress-item-remove {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+  font-size: 18px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.saved-deal-modal .progress-item-remove:hover {
+  color: var(--danger, #c62828);
+  border-color: var(--danger, #c62828);
 }
 
 .saved-deal-modal .progress-stage {
@@ -3752,6 +3926,13 @@ a {
 
   .tab-navigation {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tab-navigation-version {
+    margin-left: 0;
+    text-align: center;
+    padding: 8px 0 4px;
   }
 
   .journey-indicator {

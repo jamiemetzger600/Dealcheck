@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { dealsAPI, userAPI } from '../utils/api';
 import { loadCalculatorState, saveCalculatorState } from '../utils/dealCalculatorStorage';
 import { fetchMarketDeals, fetchMarketDealsStats, buildMarketDealsParams, mapSortField } from '../utils/normalizeMarketDeal';
@@ -90,6 +91,31 @@ function getPaginationPages(currentPage, totalPages) {
   if (right < totalPages - 1) pages.push('…');
   if (totalPages > 1) pages.push(totalPages);
   return pages;
+}
+
+/** Collapse whitespace for card description text. */
+function normalizeCardDescription(description) {
+  if (description == null) return '';
+  return String(description).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * First `maxSentences` sentences for card preview (split on . ! ? followed by space).
+ * Appends … when there are more sentences. `full` is the full normalized string for tooltips.
+ */
+function cardViewDescriptionPreview(description, maxSentences = 4) {
+  const full = normalizeCardDescription(description);
+  if (!full) return { preview: '', full: '', truncated: false };
+  const sentences = full.split(/(?<=[.!?])\s+/).filter((s) => s.length > 0);
+  if (sentences.length === 0) return { preview: full, full, truncated: false };
+  if (sentences.length <= maxSentences) {
+    return { preview: sentences.join(' '), full, truncated: false };
+  }
+  return {
+    preview: `${sentences.slice(0, maxSentences).join(' ')} …`,
+    full,
+    truncated: true
+  };
 }
 
 /** Map stored hidden deal id (composite string) to market_deals.id for exclude_ids when possible */
@@ -241,10 +267,12 @@ export default function DealAggregator({
   onDealsStatsUpdate,
   onSaveDeal,
   onSettingsUpdate,
+  onAddDeal,
   onConfigureBuyBox,
   feedSource = 'airtable',
   savedDealIds = []
 }) {
+  const navigate = useNavigate();
   const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
@@ -753,6 +781,24 @@ export default function DealAggregator({
             <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'hidden' ? 'active' : ''}`} onClick={handleShowHidden}>Hidden: {hiddenDealIds.length.toLocaleString()}</button>
           </div>
         </div>
+        <div className="aggregator-welcome__actions" role="toolbar" aria-label="Deal list actions">
+          {onAddDeal ? (
+            <button type="button" className="aggregator-filter-btn" onClick={onAddDeal}>
+              <span>➕</span>
+              <span>Add Deal</span>
+            </button>
+          ) : null}
+          {onConfigureBuyBox ? (
+            <button type="button" className="aggregator-filter-btn" onClick={onConfigureBuyBox}>
+              <span>⚙️</span>
+              <span>Configure Buy Box</span>
+            </button>
+          ) : null}
+          <button type="button" className="aggregator-filter-btn" onClick={() => navigate('/settings')}>
+            <span>⚙️</span>
+            <span>Settings</span>
+          </button>
+        </div>
         <div className="aggregator-welcome__buybox">
           <h3 className="aggregator-welcome__buybox-title">Buy box</h3>
           {!hasAnyCriteria ? (
@@ -1165,7 +1211,7 @@ export default function DealAggregator({
               ) : (
                 dealsToShow.map((deal) => {
                   const isHidden = hiddenDealIds.includes(deal.id);
-                  const subtitle = [deal.industry, deal.location].filter(Boolean).join(' in ') || deal.description?.slice(0, 80) || '—';
+                  const descCard = cardViewDescriptionPreview(deal.description, 4);
                   return (
                     <SwipeableDealCard
                       key={deal.id}
@@ -1183,7 +1229,9 @@ export default function DealAggregator({
                           <button type="button" className="deal-card__btn deal-card__btn-hide" onClick={(e) => { e.stopPropagation(); handleToggleHidden(deal.id); }} title={isHidden ? 'Unhide' : 'Hide'} aria-label={isHidden ? 'Unhide' : 'Hide'}>{isHidden ? 'Unhide' : 'Hide'}</button>
                         </div>
                       </div>
-                      <p className="deal-card__subtitle">{subtitle}{subtitle.length >= 80 ? '...' : ''}</p>
+                      <p className="deal-card__subtitle" title={descCard.full || undefined}>
+                        {descCard.preview || 'No description available.'}
+                      </p>
                       <div className="deal-card__metrics">
                         <div className="deal-card__metric">
                           <span className="deal-card__metric-value" title={formatMoney(deal.askingPrice)}>{formatMoneyShort(deal.askingPrice)}</span>

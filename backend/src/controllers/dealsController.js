@@ -139,7 +139,13 @@ export const updateSavedDeal = async (req, res) => {
   const { 
     notes, status, progressStage, progressHistory,
     brokerName, brokerCompany, brokerPhone, brokerEmail,
-    calculatorState
+    calculatorState,
+    name, description, url,
+    askingPrice, ebitda, revenue,
+    location, city, state, county, country,
+    industry, yearsEstablished, franchise, remote,
+    source, sourceType, discoveredAt, listingId,
+    broker
   } = req.body;
 
   try {
@@ -182,6 +188,86 @@ export const updateSavedDeal = async (req, res) => {
     if (calculatorState !== undefined) {
       updateFields.push(`calculator_state = $${paramIndex++}`);
       values.push(calculatorState);
+    }
+    if (name !== undefined) {
+      updateFields.push(`name = $${paramIndex++}`);
+      values.push(name);
+    }
+    if (description !== undefined) {
+      updateFields.push(`description = $${paramIndex++}`);
+      values.push(description);
+    }
+    if (url !== undefined) {
+      updateFields.push(`url = $${paramIndex++}`);
+      values.push(url);
+    }
+    if (askingPrice !== undefined) {
+      updateFields.push(`asking_price = $${paramIndex++}`);
+      values.push(askingPrice);
+    }
+    if (ebitda !== undefined) {
+      updateFields.push(`ebitda = $${paramIndex++}`);
+      values.push(ebitda);
+    }
+    if (revenue !== undefined) {
+      updateFields.push(`revenue = $${paramIndex++}`);
+      values.push(revenue);
+    }
+    if (location !== undefined) {
+      updateFields.push(`location = $${paramIndex++}`);
+      values.push(location);
+    }
+    if (city !== undefined) {
+      updateFields.push(`city = $${paramIndex++}`);
+      values.push(city);
+    }
+    if (state !== undefined) {
+      updateFields.push(`state = $${paramIndex++}`);
+      values.push(state);
+    }
+    if (county !== undefined) {
+      updateFields.push(`county = $${paramIndex++}`);
+      values.push(county);
+    }
+    if (country !== undefined) {
+      updateFields.push(`country = $${paramIndex++}`);
+      values.push(country);
+    }
+    if (industry !== undefined) {
+      updateFields.push(`industry = $${paramIndex++}`);
+      values.push(industry);
+    }
+    if (yearsEstablished !== undefined) {
+      updateFields.push(`years_established = $${paramIndex++}`);
+      values.push(yearsEstablished);
+    }
+    if (franchise !== undefined) {
+      updateFields.push(`franchise = $${paramIndex++}`);
+      values.push(franchise);
+    }
+    if (remote !== undefined) {
+      updateFields.push(`remote = $${paramIndex++}`);
+      values.push(remote);
+    }
+    if (source !== undefined) {
+      updateFields.push(`source = $${paramIndex++}`);
+      values.push(source);
+    }
+    if (sourceType !== undefined) {
+      updateFields.push(`source_type = $${paramIndex++}`);
+      values.push(sourceType);
+    }
+    if (discoveredAt !== undefined) {
+      updateFields.push(`discovered_at = $${paramIndex++}`);
+      values.push(discoveredAt);
+    }
+    if (listingId !== undefined) {
+      updateFields.push(`listing_id = $${paramIndex++}`);
+      values.push(listingId);
+    }
+    if (broker !== undefined) {
+      updateFields.push(`broker = $${paramIndex++}`);
+      values.push(broker);
     }
 
     if (updateFields.length === 0) {

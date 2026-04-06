@@ -50,6 +50,8 @@ export default function SettingsPage() {
   const { user, logout } = useAuth();
   const [settings, setSettings] = useState(null);
   const [notificationFrequency, setNotificationFrequency] = useState('daily');
+  const [hideSavedDealsInFeed, setHideSavedDealsInFeed] = useState(false);
+  const [showSavedHighlightInFeed, setShowSavedHighlightInFeed] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importPaste, setImportPaste] = useState('');
@@ -69,10 +71,40 @@ export default function SettingsPage() {
       const data = await userAPI.getSettings();
       setSettings(data);
       setNotificationFrequency(data.notificationFrequency || 'daily');
+      setHideSavedDealsInFeed(Boolean(data.preferences?.hideSavedDealsInFeed));
+      setShowSavedHighlightInFeed(data.preferences?.showSavedHighlightInFeed !== false);
     } catch (error) {
       console.error('Failed to load settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleHideSavedInFeed = async (checked) => {
+    const prev = hideSavedDealsInFeed;
+    setHideSavedDealsInFeed(checked);
+    try {
+      await userAPI.updateSettings({ preferences: { hideSavedDealsInFeed: checked } });
+      setSettings((s) =>
+        s ? { ...s, preferences: { ...s.preferences, hideSavedDealsInFeed: checked } } : s
+      );
+    } catch (error) {
+      setHideSavedDealsInFeed(prev);
+      alert('Failed to save: ' + error.message);
+    }
+  };
+
+  const handleToggleShowSavedHighlight = async (checked) => {
+    const prev = showSavedHighlightInFeed;
+    setShowSavedHighlightInFeed(checked);
+    try {
+      await userAPI.updateSettings({ preferences: { showSavedHighlightInFeed: checked } });
+      setSettings((s) =>
+        s ? { ...s, preferences: { ...s.preferences, showSavedHighlightInFeed: checked } } : s
+      );
+    } catch (error) {
+      setShowSavedHighlightInFeed(prev);
+      alert('Failed to save: ' + error.message);
     }
   };
 
@@ -234,6 +266,39 @@ export default function SettingsPage() {
           <button onClick={handleSave} className="btn-primary" disabled={saving}>
             {saving ? 'Saving...' : 'Save Settings'}
           </button>
+        </div>
+
+        <div className="settings-section">
+          <h2>Market feed</h2>
+          <p>
+            Control how saved listings appear in the deal table and card views on the dashboard. Use{' '}
+            <strong>Hide saved deals</strong> for an inbox-style workflow: after you save a listing, it leaves the market
+            feed so you can focus on what is still new.
+          </p>
+          <div className="settings-checkbox-list">
+            <label className="settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={showSavedHighlightInFeed}
+                onChange={(e) => handleToggleShowSavedHighlight(e.target.checked)}
+              />
+              <span>
+                <strong>Highlight saved listings</strong> — show a red &ldquo;Saved&rdquo; button (or filled heart in
+                cards) when a row is already in My Deals. Turn off for a quieter, neutral &ldquo;Saved&rdquo; style.
+              </span>
+            </label>
+            <label className="settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={hideSavedDealsInFeed}
+                onChange={(e) => handleToggleHideSavedInFeed(e.target.checked)}
+              />
+              <span>
+                <strong>Hide saved deals from the feed</strong> — remove saved listings from the market list (table /
+                cards). Open <strong>My Deals</strong> to review them.
+              </span>
+            </label>
+          </div>
         </div>
 
         <div className="settings-section">

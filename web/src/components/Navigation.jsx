@@ -6,7 +6,7 @@ export default function Navigation({
   logout,
   activeTab,
   setActiveTab,
-  pageTitle = 'Find it. Vet it. Save it.',
+  pageTitle = 'Find It. Vett It. Save It.',
   pageSubtitle,
   showTabs = true,
   aggregatorCount = 0,
@@ -15,9 +15,19 @@ export default function Navigation({
   return (
     <>
       <nav className="app-header">
-        <div className="app-header-copy">
-          <h1>{pageTitle}</h1>
-          {pageSubtitle != null && pageSubtitle !== '' ? <p>{pageSubtitle}</p> : null}
+        <div className="app-header-brand">
+          <img
+            className="app-header-logo"
+            src="/vettr-logo.png"
+            alt="Vettr"
+            width={420}
+            height={120}
+            decoding="async"
+          />
+          <div className="app-header-copy">
+            <h1>{pageTitle}</h1>
+            {pageSubtitle != null && pageSubtitle !== '' ? <p>{pageSubtitle}</p> : null}
+          </div>
         </div>
 
         <div className="app-header-actions">
@@ -34,7 +44,6 @@ export default function Navigation({
             className={`tab-btn ${activeTab === 'aggregator' ? 'active' : ''}`}
             onClick={() => setActiveTab('aggregator')}
           >
-            <span>🔍</span>
             <span>Deal Aggregator</span>
             <span className="tab-badge">{aggregatorCount}</span>
           </button>
@@ -42,7 +51,6 @@ export default function Navigation({
             className={`tab-btn ${activeTab === 'saved-deals' ? 'active' : ''}`}
             onClick={() => setActiveTab('saved-deals')}
           >
-            <span>💼</span>
             <span>My Deals</span>
             <span className="tab-badge">{myDealsCount}</span>
           </button>

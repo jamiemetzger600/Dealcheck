@@ -73,7 +73,7 @@ export default function ManualDealModal({ isOpen, onClose, onSaved }) {
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-card manual-deal-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>➕ Add Deal</h2>
+          <h2>Add Deal</h2>
           <button type="button" className="column-close-btn" onClick={onClose}>×</button>
         </div>
 

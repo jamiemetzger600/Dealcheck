@@ -1,21 +1,42 @@
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-// Get auth token from localStorage
+const IS_DEV = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+const RETRY_DELAYS = [2000, 4000];
+const MAX_ATTEMPTS = 1 + RETRY_DELAYS.length;
+
 function getToken() {
   return localStorage.getItem('token');
 }
 
-// Set auth token
 function setToken(token) {
   localStorage.setItem('token', token);
 }
 
-// Remove auth token
 function removeToken() {
   localStorage.removeItem('token');
 }
 
-// Make authenticated API request
+function isNetworkError(err) {
+  return err instanceof TypeError || err.message === 'Failed to fetch';
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Ping the backend health endpoint. Resolves true if the server responds
+ * (any HTTP status), false on network error.
+ */
+export async function pingHealth() {
+  try {
+    await fetch(`${API_URL.replace(/\/api\/?$/, '')}/health`, { method: 'GET' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function apiRequest(endpoint, options = {}) {
   const token = getToken();
   const headers = {
@@ -24,31 +45,44 @@ async function apiRequest(endpoint, options = {}) {
     ...options.headers
   };
 
-  let response;
-  try {
-    response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers
-    });
-  } catch (err) {
-    const hint = err.message === 'Failed to fetch'
-      ? ' Start the backend (default port 3001). Open the app at http://localhost:5173. If the API uses another port, set VITE_API_PROXY in web/.env (e.g. VITE_API_PROXY=http://localhost:3002) and restart npm run dev.'
-      : '';
-    throw new Error(err.message + hint);
+  let lastError;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers
+      });
+
+      if (response.status === 401) {
+        removeToken();
+        window.location.href = '/login';
+        throw new Error('Unauthorized');
+      }
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(error.error || 'Request failed');
+      }
+
+      return response.json();
+    } catch (err) {
+      if (!isNetworkError(err)) throw err;
+      lastError = err;
+      if (attempt < RETRY_DELAYS.length) {
+        console.log(`[api] Network error, retrying in ${RETRY_DELAYS[attempt]}ms (attempt ${attempt + 1}/${MAX_ATTEMPTS})...`);
+        await sleep(RETRY_DELAYS[attempt]);
+      }
+    }
   }
 
-  if (response.status === 401) {
-    removeToken();
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+  if (IS_DEV) {
+    throw new Error(
+      'Failed to fetch. Start the backend (default port 3001). Open the app at http://localhost:5173.'
+    );
   }
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || 'Request failed');
-  }
-
-  return response.json();
+  throw new Error(
+    'The server is starting up — please wait a moment and try again.'
+  );
 }
 
 // Auth API

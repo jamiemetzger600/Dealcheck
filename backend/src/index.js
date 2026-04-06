@@ -52,7 +52,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '4.2.25' });
+  res.json({ status: 'ok', version: '4.2.26' });
 });
 
 app.get('/api/default-deals-csv', async (req, res) => {

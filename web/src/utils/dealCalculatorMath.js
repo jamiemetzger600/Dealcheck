@@ -60,15 +60,15 @@ export function calculateDealQualityScore(askingPrice, maxPrice, cocReturn, payb
 
 export function getQualityPresentation(score) {
   if (score >= 80) {
-    return { badge: '🟢', text: 'Excellent Deal', scoreColor: '#27ae60', borderColor: '#27ae60' };
+    return { badge: '', text: 'Excellent Deal', scoreColor: '#27ae60', borderColor: '#27ae60' };
   }
   if (score >= 60) {
-    return { badge: '🟡', text: 'Good Deal', scoreColor: '#f39c12', borderColor: '#f39c12' };
+    return { badge: '', text: 'Good Deal', scoreColor: '#f39c12', borderColor: '#f39c12' };
   }
   if (score >= 40) {
-    return { badge: '🟠', text: 'Fair Deal', scoreColor: '#e67e22', borderColor: '#e67e22' };
+    return { badge: '', text: 'Fair Deal', scoreColor: '#e67e22', borderColor: '#e67e22' };
   }
-  return { badge: '🔴', text: 'Weak Deal', scoreColor: '#e74c3c', borderColor: '#e74c3c' };
+  return { badge: '', text: 'Weak Deal', scoreColor: '#e74c3c', borderColor: '#e74c3c' };
 }
 
 /**

@@ -309,9 +309,11 @@ export default function DealCalculator({
         style={{ borderBottomColor: qualityPresentation.borderColor }}
       >
         <div className="calc-quality-left">
-          <span className="calc-quality-badge" aria-hidden>
-            {qualityPresentation.badge}
-          </span>
+          {qualityPresentation.badge ? (
+            <span className="calc-quality-badge" aria-hidden>
+              {qualityPresentation.badge}
+            </span>
+          ) : null}
           <div>
             <div className="calc-quality-kicker">Deal Quality</div>
             <div className="calc-quality-text" style={{ color: qualityPresentation.scoreColor }}>
@@ -562,7 +564,7 @@ export default function DealCalculator({
             onClick={() => updateScenario('dismissDealOpportunity', true)}
             title="Dismiss"
           >
-            ✕
+            ×
           </button>
           <strong>Deal opportunity</strong>
           <p>Asking is {formatMoney(analysis.opportunitySavings)} below your max allowable (DSCR-based) price.</p>

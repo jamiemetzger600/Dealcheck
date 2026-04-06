@@ -150,10 +150,10 @@ export function getStatusBadgeClass(status) {
 
 export function getStatusLabel(status) {
   const labels = {
-    'hot': '🔥 Hot',
-    'warm': '🌡️ Warm',
-    'cold': '❄️ Cold',
-    'pass': '❌ Pass',
+    'hot': 'Hot',
+    'warm': 'Warm',
+    'cold': 'Cold',
+    'pass': 'Pass',
     'none': '—'
   };
   return labels[status] || '—';

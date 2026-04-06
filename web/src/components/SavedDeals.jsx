@@ -301,7 +301,6 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
       <div className="my-deals-controls">
         <div className="controls-row">
           <div className="search-box">
-            <span className="search-icon">🔍</span>
             <input
               type="text"
               placeholder="Search deals by name, URL, or notes..."
@@ -330,10 +329,10 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
             </select>
 
             <button className="btn-secondary" onClick={() => handleExportCSV()}>
-              📤 Export CSV
+              Export CSV
             </button>
             <button className="btn-secondary" onClick={onUpdate}>
-              ↻ Refresh
+              Refresh
             </button>
           </div>
         </div>
@@ -345,13 +344,13 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
               {selectedIds.size} deal{selectedIds.size !== 1 ? 's' : ''} selected
             </span>
             <button className="btn-secondary" onClick={handleBulkExport}>
-              📤 Export Selected
+              Export Selected
             </button>
             <button className="btn-danger" onClick={handleBulkDelete}>
-              🗑️ Delete Selected
+              Delete Selected
             </button>
             <button className="btn-secondary" onClick={() => setSelectedIds(new Set())}>
-              ✕ Deselect All
+              Deselect All
             </button>
           </div>
         )}
@@ -360,13 +359,11 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
       {/* Table */}
       {deals.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">📭</div>
           <h3>No deals saved yet</h3>
           <p>Save deals from the Deal Aggregator to get started!</p>
         </div>
       ) : filteredDeals.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">🔍</div>
           <h3>No deals match your filters</h3>
           <p>Try adjusting your search or filters.</p>
         </div>
@@ -448,7 +445,8 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
                   <td>
                     {qp ? (
                       <span className="my-deals-quality-score" style={{ color: qp.scoreColor }} title={qp.text}>
-                        <span aria-hidden>{qp.badge}</span> {qualityScore}
+                        {qp.badge ? <span aria-hidden>{qp.badge}</span> : null}
+                        {qp.badge ? ' ' : ''}{qualityScore}
                       </span>
                     ) : (
                       '—'
@@ -468,26 +466,29 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <div className="actions">
-                      <button 
-                        className="action-btn" 
-                        title="View Details"
+                      <button
+                        type="button"
+                        className="action-btn"
+                        title="View details"
                         onClick={() => handleViewDeal(deal)}
                       >
-                        👁️
+                        View
                       </button>
-                      <button 
-                        className="action-btn" 
+                      <button
+                        type="button"
+                        className="action-btn"
                         title="Export"
                         onClick={() => handleExportCSV([deal])}
                       >
-                        📤
+                        Export
                       </button>
-                      <button 
-                        className="action-btn danger" 
+                      <button
+                        type="button"
+                        className="action-btn danger"
                         title="Delete"
                         onClick={() => handleDelete(deal.id)}
                       >
-                        🗑️
+                        Delete
                       </button>
                     </div>
                   </td>
@@ -806,7 +807,7 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
                 <input type="email" value={brokerInfo.email} onChange={(e) => setBrokerInfo({ ...brokerInfo, email: e.target.value })} placeholder="broker@example.com" className="modal-input" />
               </div>
             </div>
-            <button type="button" className="btn-secondary" onClick={handleSaveDealDetailsNow}>💾 Save deal details now</button>
+            <button type="button" className="btn-secondary" onClick={handleSaveDealDetailsNow}>Save deal details now</button>
             <div className="progress-tracking">
               <div className="progress-tracking-columns">
                 <div className="progress-tracking-col progress-tracking-status-col">
@@ -888,9 +889,9 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
       ) : (
         <button type="button" className="btn-secondary" disabled aria-label="No listing URL">No Listing URL Available</button>
       )}
-      <button type="button" className="btn-secondary" onClick={handleShareDeal}>📤 Share</button>
-      <button type="button" className="btn-secondary" onClick={onExport}>📊 Export CSV</button>
-      <button type="button" className="btn-danger" onClick={() => onDelete(deal.id)}>🗑️ Delete</button>
+      <button type="button" className="btn-secondary" onClick={handleShareDeal}>Share</button>
+      <button type="button" className="btn-secondary" onClick={onExport}>Export CSV</button>
+      <button type="button" className="btn-danger" onClick={() => onDelete(deal.id)}>Delete</button>
       <button type="button" className="btn-primary" onClick={onClose}>Close</button>
     </>
   );

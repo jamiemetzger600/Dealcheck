@@ -169,7 +169,7 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
     >
       <div className="modal-card buybox-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>⚙️ Configure Buy Box</h2>
+          <h2>Configure Buy Box</h2>
           <button
             type="button"
             className="column-close-btn"

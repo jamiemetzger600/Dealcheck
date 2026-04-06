@@ -236,6 +236,8 @@ async function upsertDeals(deals) {
   const client = await pool.connect();
   let inserted = 0;
   let updated = 0;
+  /** DB ids for rows inserted this run (for in-app "new pool" navigation; capped). */
+  const newRowIds = [];
 
   try {
     await client.query('BEGIN');
@@ -289,7 +291,7 @@ async function upsertDeals(deals) {
           source_added_at   = EXCLUDED.source_added_at,
           last_scraped_at   = NOW(),
           is_active         = true
-        RETURNING (xmax = 0) AS is_insert`,
+        RETURNING id, (xmax = 0) AS is_insert`,
         [
           SOURCE_KEY,
           sourceId,
@@ -319,8 +321,11 @@ async function upsertDeals(deals) {
         ]
       );
 
-      if (result.rows[0]?.is_insert) inserted++;
-      else updated++;
+      const ret = result.rows[0];
+      if (ret?.is_insert) {
+        inserted++;
+        if (newRowIds.length < 400 && ret.id != null) newRowIds.push(ret.id);
+      } else updated++;
     }
 
     await dedupeAirtableRowsByListingUrl(client);
@@ -335,7 +340,15 @@ async function upsertDeals(deals) {
           last_scrape_result = $1,
           deal_count = (SELECT COUNT(*) FROM market_deals WHERE source = $2 AND is_active = true)
         WHERE source_key = $2`,
-        [JSON.stringify({ inserted, updated, ts: new Date().toISOString() }), SOURCE_KEY]
+        [
+          JSON.stringify({
+            inserted,
+            updated,
+            ts: new Date().toISOString(),
+            ...(newRowIds.length > 0 ? { new_row_ids: newRowIds } : {}),
+          }),
+          SOURCE_KEY,
+        ]
       );
     } catch (metaErr) {
       console.warn('  Warning: failed to update deal_sources metadata:', metaErr.message);

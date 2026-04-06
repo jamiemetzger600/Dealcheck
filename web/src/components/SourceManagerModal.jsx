@@ -87,7 +87,7 @@ export default function SourceManagerModal({ isOpen, settings, onClose, onSaved 
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-card source-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>📥 Manage Sources</h2>
+          <h2>Manage Sources</h2>
           <button type="button" className="column-close-btn" onClick={onClose}>×</button>
         </div>
 
@@ -105,8 +105,8 @@ export default function SourceManagerModal({ isOpen, settings, onClose, onSaved 
                 <div className="source-item-meta">Type: {source.type} | {source.enabled ? 'Enabled' : 'Disabled'}</div>
               </div>
               <div className="source-item-actions">
-                <button type="button" className="source-item-btn toggle-btn" onClick={() => toggleSource(source.id)}>{source.enabled ? '✓ Enabled' : 'Disabled'}</button>
-                <button type="button" className="source-item-btn delete" onClick={() => removeSource(source.id)}>🗑️</button>
+                <button type="button" className="source-item-btn toggle-btn" onClick={() => toggleSource(source.id)}>{source.enabled ? 'Enabled' : 'Disabled'}</button>
+                <button type="button" className="source-item-btn delete" onClick={() => removeSource(source.id)} title="Remove source">Remove</button>
               </div>
             </div>
           ))}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { userAPI, dealsAPI } from '../utils/api';
 import { normalizeDeal } from '../utils/normalizeDeal';
@@ -8,6 +8,7 @@ import Navigation from '../components/Navigation';
 import BuyBoxModal from '../components/BuyBoxModal';
 import SourceManagerModal from '../components/SourceManagerModal';
 import ManualDealModal from '../components/ManualDealModal';
+import ScrapeActivityToast from '../components/ScrapeActivityToast';
 
 function isBuyBoxEmpty(buyBox) {
   if (!buyBox || typeof buyBox !== 'object') return true;
@@ -43,6 +44,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [buyBoxModalMode, setBuyBoxModalMode] = useState('closed');
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showManualDealModal, setShowManualDealModal] = useState(false);
+  /** When set, aggregator shows deals from the latest scrape (ids or first_seen window). */
+  const [poolNewDealsFilter, setPoolNewDealsFilter] = useState(null);
 
   useEffect(() => {
     loadUserData();
@@ -102,12 +105,33 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     }
   };
 
+  const savedRowIdByMarketDealId = useMemo(() => {
+    const map = {};
+    for (const d of savedDeals) {
+      if (d.dealId != null && d.dealId !== '') {
+        map[String(d.dealId)] = d.id;
+      }
+    }
+    return map;
+  }, [savedDeals]);
+
   if (loading) {
     return <div className="loading-screen">Loading your dashboard...</div>;
   }
 
   return (
     <div className="app-page-shell">
+      <ScrapeActivityToast
+        feedSource={feedSource}
+        enabled={Boolean(user)}
+        onViewNewDeals={({ newRowDbIds, lastScrapeAt }) => {
+          setPoolNewDealsFilter({
+            dbIds: newRowDbIds?.length > 0 ? newRowDbIds : null,
+            lastScrapeAt,
+          });
+          setActiveTab('aggregator');
+        }}
+      />
       <Navigation
         user={user}
         logout={logout}
@@ -134,6 +158,9 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             }}
             feedSource={feedSource}
             savedDealIds={savedDeals.map((d) => d.dealId ?? d.id).filter(Boolean)}
+            savedRowIdByMarketDealId={savedRowIdByMarketDealId}
+            poolNewDealsFilter={poolNewDealsFilter}
+            onClearPoolNewDealsFilter={() => setPoolNewDealsFilter(null)}
           />
         )}
 

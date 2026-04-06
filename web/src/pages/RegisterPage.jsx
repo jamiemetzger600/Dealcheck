@@ -8,7 +8,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
+  const { register, wakingUp } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -40,11 +40,20 @@ export default function RegisterPage() {
     }
   };
 
+  if (wakingUp) {
+    return (
+      <div className="wakeup-splash">
+        <div className="wakeup-splash__spinner" />
+        <p className="wakeup-splash__text">Loading Vettr&hellip;</p>
+      </div>
+    );
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-container">
         <div className="auth-header">
-          <h1>📊 Vettr</h1>
+          <h1>Vettr</h1>
           <p>Business Acquisition Deal Analyzer</p>
         </div>
 

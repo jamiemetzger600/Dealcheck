@@ -77,6 +77,9 @@ const DRAG_CLICK_THRESHOLD = 8;
 const MAX_DRAG = 320;
 const MOBILE_BREAKPOINT_PX = 768;
 
+const CARD_COLUMNS_OPTIONS = [1, 2, 3, 4, 6, 8];
+const DEFAULT_CARD_COLUMNS = 4;
+
 /** Returns page numbers to show: e.g. [1, 2, 3, 4, 5, '…', 50] for currentPage 3, totalPages 50. */
 function getPaginationPages(currentPage, totalPages) {
   if (totalPages <= 7) {
@@ -118,16 +121,54 @@ function cardViewDescriptionPreview(description, maxSentences = 4) {
   };
 }
 
-/** Map stored hidden deal id (composite string) to market_deals.id for exclude_ids when possible */
+/** Stored in hidden_deal_ids for market rows; maps 1:1 to market_deals.id (PK). */
+function marketDealHiddenToken(dbId) {
+  const n = Number(dbId);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `md:${n}`;
+}
+
+/**
+ * Map a stored hidden id to market_deals.id for exclude_ids.
+ * Supports md:<pk> and plain numeric legacy entries. Never guesses PK from composite deal.id
+ * (trailing digits are often source_id, not the DB row).
+ */
 function hiddenDealIdToDbId(hiddenId) {
   if (hiddenId == null) return null;
   if (typeof hiddenId === 'number' && Number.isFinite(hiddenId) && hiddenId > 0) return hiddenId;
   const s = String(hiddenId);
-  const underscored = s.match(/_(\d+)$/);
-  if (underscored) return Number(underscored[1]);
-  const tail = s.includes('_') ? s.split('_').pop() : s;
-  if (tail && /^\d+$/.test(tail)) return Number(tail);
+  if (s.startsWith('md:')) {
+    const n = Number(s.slice(3));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
   return null;
+}
+
+function isDealHidden(deal, hiddenDealIds) {
+  if (!hiddenDealIds || hiddenDealIds.length === 0) return false;
+  if (hiddenDealIds.includes(deal.id)) return true;
+  const md = marketDealHiddenToken(deal.dbId);
+  return Boolean(md && hiddenDealIds.includes(md));
+}
+
+/** One list entry per hidden deal for new hides (prefer stable DB PK when present). */
+function hiddenStorageTokenForDeal(deal) {
+  return marketDealHiddenToken(deal.dbId) || deal.id;
+}
+
+/** Tokens to remove on unhide (covers legacy composite-only rows). */
+function hiddenStorageTokensForDeal(deal) {
+  const tokens = new Set();
+  if (deal.id != null && deal.id !== '') tokens.add(deal.id);
+  const md = marketDealHiddenToken(deal.dbId);
+  if (md) tokens.add(md);
+  return tokens;
+}
+
+function isDealInSavedList(deal, savedIdSet) {
+  if (!deal?.id || !savedIdSet?.size) return false;
+  const key = String(deal.id);
+  return savedIdSet.has(key);
 }
 
 /** Card in list view. When enableSwipe (mobile only): swipe left = hide, swipe right = heart/save. Desktop: plain click. */
@@ -155,7 +196,7 @@ function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, enableSwipe,
   const handleEnd = useCallback(() => {
     const x = dragXRef.current;
     if (x < -SWIPE_THRESHOLD) {
-      onHide(deal.id);
+      onHide(deal);
     } else if (x > SWIPE_THRESHOLD) {
       onLike(deal);
     }
@@ -251,7 +292,7 @@ function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, enableSwipe,
           Nope
         </div>
         <div className="swipeable-card-overlay swipeable-card-overlay--like" style={{ opacity: likeOpacity }} aria-hidden="true">
-          ♡ Like
+          Like
         </div>
         {children}
       </div>
@@ -270,7 +311,10 @@ export default function DealAggregator({
   onAddDeal,
   onConfigureBuyBox,
   feedSource = 'airtable',
-  savedDealIds = []
+  savedDealIds = [],
+  savedRowIdByMarketDealId = {},
+  poolNewDealsFilter = null,
+  onClearPoolNewDealsFilter
 }) {
   const navigate = useNavigate();
   const [deals, setDeals] = useState([]);
@@ -290,7 +334,7 @@ export default function DealAggregator({
   const [sortConfig, setSortConfig] = useState(() => loadSavedSortConfig());
   const [visibleColumns, setVisibleColumns] = useState(() => loadVisibleColumns());
   const [showColumnsPanel, setShowColumnsPanel] = useState(false);
-  const [showExcludeSection, setShowExcludeSection] = useState(true);
+  const [showExcludeSection, setShowExcludeSection] = useState(false);
   const [dealViewStyle, setDealViewStyle] = useState(settings?.dealViewStyle || 'table');
   const [customFlexibilityInput, setCustomFlexibilityInput] = useState('');
   const [saveToast, setSaveToast] = useState(null);
@@ -301,7 +345,7 @@ export default function DealAggregator({
   const [totalPages, setTotalPages] = useState(0);
   const [cardColumnsPerRow, setCardColumnsPerRow] = useState(() => {
     const v = settings?.preferences?.cardColumnsPerRow;
-    return [2, 3, 4, 6, 8].includes(v) ? v : 4;
+    return CARD_COLUMNS_OPTIONS.includes(v) ? v : DEFAULT_CARD_COLUMNS;
   });
   const [showCardColsPopup, setShowCardColsPopup] = useState(false);
   const cardColsPopupRef = useRef(null);
@@ -314,6 +358,26 @@ export default function DealAggregator({
     () => JSON.stringify(settings?.excludeKeywords ?? []),
     [settings]
   );
+
+  const poolNewFinger = useMemo(() => {
+    if (!poolNewDealsFilter) return '';
+    const ids = poolNewDealsFilter.dbIds || [];
+    return `${ids.join(',')}|${poolNewDealsFilter.lastScrapeAt || ''}`;
+  }, [poolNewDealsFilter]);
+
+  const poolNewMode = Boolean(
+    poolNewDealsFilter &&
+      ((poolNewDealsFilter.dbIds && poolNewDealsFilter.dbIds.length > 0) ||
+        poolNewDealsFilter.lastScrapeAt)
+  );
+
+  const savedDealIdSet = useMemo(
+    () => new Set((savedDealIds || []).filter(Boolean).map((id) => String(id))),
+    [savedDealIds]
+  );
+
+  const hideSavedDealsInFeed = Boolean(settings?.preferences?.hideSavedDealsInFeed);
+  const showSavedHighlightInFeed = settings?.preferences?.showSavedHighlightInFeed !== false;
 
   useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX - 1}px)`);
@@ -331,7 +395,7 @@ export default function DealAggregator({
     setDealPanelPosition(settings?.preferences?.dealPanelPosition || 'center');
     setDealViewStyle(settings?.dealViewStyle || 'table');
     const cols = settings?.preferences?.cardColumnsPerRow;
-    setCardColumnsPerRow([2, 3, 4, 6, 8].includes(cols) ? cols : 4);
+    setCardColumnsPerRow(CARD_COLUMNS_OPTIONS.includes(cols) ? cols : DEFAULT_CARD_COLUMNS);
   }, [settings]);
 
   // Debounce search input
@@ -343,7 +407,7 @@ export default function DealAggregator({
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint]);
+  }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger]);
 
   // Persist column/sort preferences
   useEffect(() => {
@@ -372,17 +436,39 @@ export default function DealAggregator({
 
     const excludeKw = settings?.excludeKeywords || [];
 
+    const sourceFilter =
+      feedSource === 'airtable' ? ['airtable_bizbuysell'] : null;
+
+    let restrictToDbIds = null;
+    let firstSeenAfter = null;
+    let firstSeenBefore = null;
+    if (poolNewMode && poolNewDealsFilter) {
+      if (poolNewDealsFilter.dbIds?.length > 0) {
+        restrictToDbIds = poolNewDealsFilter.dbIds;
+      } else if (poolNewDealsFilter.lastScrapeAt) {
+        const end = new Date(poolNewDealsFilter.lastScrapeAt);
+        if (!Number.isNaN(end.getTime())) {
+          firstSeenBefore = end.toISOString();
+          firstSeenAfter = new Date(end.getTime() - 12 * 60 * 60 * 1000).toISOString();
+        }
+      }
+    }
+
     const params = buildMarketDealsParams({
       page: pageOverride ?? currentPage,
       perPage: PER_PAGE,
       search: debouncedSearch,
-      buyBox: showHiddenDeals ? null : buyBox,
+      buyBox: poolNewMode ? null : (showHiddenDeals ? null : buyBox),
       flexibilityPct: flexPct,
       sort: mapSortField(primary.field),
       order: primary.direction,
       hiddenDealDbIds: showHiddenDeals ? [] : hiddenDbIds,
       showHidden: showHiddenDeals,
       excludeKeywords: excludeKw,
+      sources: sourceFilter,
+      restrictToDbIds,
+      firstSeenAfter,
+      firstSeenBefore,
     });
 
     try {
@@ -423,13 +509,13 @@ export default function DealAggregator({
         setIsFetching(false);
       }
     }
-  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, onMatchCountUpdate, onDealsStatsUpdate]);
+  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter]);
 
   // Fetch on mount, filter/sort/page/search/hidden-ids change, and manual refresh
   useEffect(() => {
     if (settings) fetchServerDeals();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when inputs to fetchServerDeals change; avoid tying to unstable parent callbacks
-  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken]);
+  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken, poolNewFinger]);
 
   const updateUserFilterSettings = async (nextValues) => {
     try {
@@ -442,7 +528,44 @@ export default function DealAggregator({
     }
   };
 
+  const getSavedRowIdForMarketDeal = useCallback(
+    (deal) => {
+      if (!deal?.id) return null;
+      const rowId = savedRowIdByMarketDealId[String(deal.id)];
+      return rowId != null ? rowId : null;
+    },
+    [savedRowIdByMarketDealId]
+  );
+
+  const handleUnsaveDeal = async (deal) => {
+    const rowId = getSavedRowIdForMarketDeal(deal);
+    if (rowId == null) {
+      console.warn('[DealAggregator] No saved row id for market deal', deal?.id);
+      alert('Could not remove this listing from My Deals. Try refreshing the page.');
+      return;
+    }
+    setSavingDealId(deal.id);
+    try {
+      await dealsAPI.deleteDeal(rowId);
+      setSaveToast('Removed from My Deals');
+      onSaveDeal();
+    } catch (error) {
+      alert('Failed to remove deal: ' + error.message);
+    } finally {
+      setSavingDealId(null);
+    }
+  };
+
+  const handleToggleSaveDeal = async (deal) => {
+    if (isDealInSavedList(deal, savedDealIdSet)) {
+      await handleUnsaveDeal(deal);
+    } else {
+      await handleSaveDeal(deal);
+    }
+  };
+
   const handleSaveDeal = async (deal) => {
+    if (isDealInSavedList(deal, savedDealIdSet)) return;
     setSavingDealId(deal.id);
     try {
       const calculatorState = loadCalculatorState(deal.id);
@@ -511,11 +634,35 @@ export default function DealAggregator({
   }, [showCardColsPopup]);
 
   const dealsToShow = useMemo(() => {
+    let list;
     if (showHiddenDeals) {
-      return deals.filter((d) => hiddenDealIds.includes(d.id));
+      list = deals.filter((d) => isDealHidden(d, hiddenDealIds));
+    } else {
+      list = deals.filter((d) => !isDealHidden(d, hiddenDealIds));
     }
-    return deals.filter((d) => !hiddenDealIds.includes(d.id));
-  }, [deals, hiddenDealIds, showHiddenDeals]);
+    if (hideSavedDealsInFeed && !showHiddenDeals) {
+      list = list.filter((d) => !isDealInSavedList(d, savedDealIdSet));
+    }
+    return list;
+  }, [deals, hiddenDealIds, showHiddenDeals, hideSavedDealsInFeed, savedDealIdSet]);
+
+  const emptyFeedMessage = useMemo(() => {
+    if (showHiddenDeals) {
+      return 'No hidden listings on this page. Try another page or clear search.';
+    }
+    const visibleNotHidden = deals.filter((d) => !isDealHidden(d, hiddenDealIds));
+    if (visibleNotHidden.length === 0) {
+      return 'All listings on this page are hidden. Open Hidden or use Show hidden to review them.';
+    }
+    if (
+      hideSavedDealsInFeed &&
+      visibleNotHidden.length > 0 &&
+      visibleNotHidden.every((d) => isDealInSavedList(d, savedDealIdSet))
+    ) {
+      return 'Every listing on this page is saved and hidden from the feed. Open My Deals, or turn off “Hide saved deals” in Settings.';
+    }
+    return 'All listings on this page are hidden. Open Hidden or use Show hidden to review them.';
+  }, [deals, hiddenDealIds, showHiddenDeals, hideSavedDealsInFeed, savedDealIdSet]);
 
   if (loading) {
     return <div className="loading">Loading deals...</div>;
@@ -623,12 +770,17 @@ export default function DealAggregator({
     await updateUserFilterSettings({ excludeKeywords: nextKeywords, currentExcludeList: listName });
   };
 
-  const handleToggleHidden = async (dealId) => {
-    const nextHiddenIds = hiddenDealIds.includes(dealId)
-      ? hiddenDealIds.filter((id) => id !== dealId)
-      : [...hiddenDealIds, dealId];
+  const handleToggleHidden = async (deal) => {
+    const tokenSet = hiddenStorageTokensForDeal(deal);
+    const primary = hiddenStorageTokenForDeal(deal);
+    const currentlyHidden = [...tokenSet].some((t) => hiddenDealIds.includes(t));
+    const nextHiddenIds = currentlyHidden
+      ? hiddenDealIds.filter((id) => !tokenSet.has(id))
+      : hiddenDealIds.includes(primary)
+        ? hiddenDealIds
+        : [...hiddenDealIds, primary];
     setHiddenDealIds(nextHiddenIds);
-    if (selectedDeal?.id === dealId && nextHiddenIds.includes(dealId) && !showHiddenDeals) {
+    if (selectedDeal && isDealHidden(selectedDeal, nextHiddenIds) && !showHiddenDeals) {
       setSelectedDeal(null);
     }
     await updateUserFilterSettings({ hiddenDealIds: nextHiddenIds });
@@ -658,7 +810,7 @@ export default function DealAggregator({
   };
 
   const handleCardColumnsPerRowChange = async (value) => {
-    const num = [2, 3, 4, 6, 8].includes(value) ? value : 4;
+    const num = CARD_COLUMNS_OPTIONS.includes(value) ? value : DEFAULT_CARD_COLUMNS;
     setCardColumnsPerRow(num);
     setShowCardColsPopup(false);
     try {
@@ -749,12 +901,31 @@ export default function DealAggregator({
           {feedError}
         </div>
       )}
+      {poolNewMode && (
+        <div className="pool-new-deals-banner" role="region" aria-label="New pool listings filter">
+          <p>
+            Showing deals added to the pool in the latest scrape
+            {totalFromAPI > 0 ? ` (${totalFromAPI.toLocaleString()} listing${totalFromAPI !== 1 ? 's' : ''})` : ''}.
+          </p>
+          {typeof onClearPoolNewDealsFilter === 'function' ? (
+            <button type="button" className="pool-new-deals-banner__clear" onClick={onClearPoolNewDealsFilter}>
+              Back to Buy Box feed
+            </button>
+          ) : null}
+        </div>
+      )}
       {isFetching && <div className="aggregator-loading-bar" aria-live="polite" />}
       <div className="aggregator-welcome">
         <div className="aggregator-welcome__main">
           <h2>Discover Business Deals</h2>
           <p>
-            {totalFromAPI > 0 ? (
+            {poolNewMode ? (
+              <>
+                {totalFromAPI > 0
+                  ? `${totalFromAPI.toLocaleString()} new pool listing${totalFromAPI !== 1 ? 's' : ''} in this scrape view.`
+                  : 'No listings match this scrape filter (they may be hidden or excluded).'}
+              </>
+            ) : totalFromAPI > 0 ? (
               <>
                 {totalFromAPI.toLocaleString()} deal{totalFromAPI !== 1 ? 's' : ''} match your{' '}
                 {onConfigureBuyBox ? (
@@ -776,7 +947,15 @@ export default function DealAggregator({
           </p>
           <div className="aggregator-stats">
             <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'matches' ? 'active' : ''}`} onClick={handleShowMatches}>Matches: {totalFromAPI.toLocaleString()}</button>
-            <div className="aggregator-stat">Showing: {dealsToShow.length.toLocaleString()} of {totalFromAPI.toLocaleString()}</div>
+            <div className="aggregator-stat">
+              Showing: {dealsToShow.length.toLocaleString()} of {totalFromAPI.toLocaleString()}
+              {hideSavedDealsInFeed && !showHiddenDeals ? (
+                <span className="aggregator-stat__note" title="Saved listings are omitted from this list while the option is on in Settings.">
+                  {' '}
+                  · saved hidden
+                </span>
+              ) : null}
+            </div>
             <div className="aggregator-stat">Page {currentPage} of {totalPages || 1}</div>
             <button type="button" className={`aggregator-stat aggregator-stat-btn ${viewMode === 'hidden' ? 'active' : ''}`} onClick={handleShowHidden}>Hidden: {hiddenDealIds.length.toLocaleString()}</button>
           </div>
@@ -784,19 +963,16 @@ export default function DealAggregator({
         <div className="aggregator-welcome__actions" role="toolbar" aria-label="Deal list actions">
           {onAddDeal ? (
             <button type="button" className="aggregator-filter-btn" onClick={onAddDeal}>
-              <span>➕</span>
-              <span>Add Deal</span>
+              Add Deal
             </button>
           ) : null}
           {onConfigureBuyBox ? (
             <button type="button" className="aggregator-filter-btn" onClick={onConfigureBuyBox}>
-              <span>⚙️</span>
-              <span>Configure Buy Box</span>
+              Configure Buy Box
             </button>
           ) : null}
           <button type="button" className="aggregator-filter-btn" onClick={() => navigate('/settings')}>
-            <span>⚙️</span>
-            <span>Settings</span>
+            Settings
           </button>
         </div>
         <div className="aggregator-welcome__buybox">
@@ -869,8 +1045,8 @@ export default function DealAggregator({
                     ⊞ {cardColumnsPerRow} cols
                   </button>
                   {showCardColsPopup && (
-                    <div className="card-cols-popup" role="listbox" aria-label="Cards per row">
-                      {[2, 3, 4, 6, 8].map((n) => (
+                    <div className="card-cols-popup card-cols-popup--viewport" role="listbox" aria-label="Cards per row">
+                      {CARD_COLUMNS_OPTIONS.map((n) => (
                         <button
                           key={n}
                           type="button"
@@ -946,6 +1122,16 @@ export default function DealAggregator({
                 />
               )}
             </label>
+            <div className="deal-age-legend" title="Listing age by date added">
+              <span className="deal-age-legend__dot deal-age-legend__dot--fresh" />
+              <span className="deal-age-legend__label">0–2w</span>
+              <span className="deal-age-legend__dot deal-age-legend__dot--recent" />
+              <span className="deal-age-legend__label">2–4w</span>
+              <span className="deal-age-legend__dot deal-age-legend__dot--aging" />
+              <span className="deal-age-legend__label">4–8w</span>
+              <span className="deal-age-legend__dot deal-age-legend__dot--older" />
+              <span className="deal-age-legend__label">8w+</span>
+            </div>
           </div>
 
           {showColumnsPanel && (
@@ -982,41 +1168,42 @@ export default function DealAggregator({
               >
                 {showExcludeSection ? '▼' : '▶'} Exclude Keywords:
               </button>
-              <div className="exclude-list-controls">
-                <select
-                  value={currentSelectedList}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    if (!value) {
-                      setCurrentSelectedList('');
-                      updateUserFilterSettings({ currentExcludeList: '' });
-                      return;
-                    }
-                    handleLoadExcludeList(value);
-                  }}
-                >
-                  <option value="">-- Select List --</option>
-                  {Object.keys(savedExcludeLists).sort().map((name) => (
-                    <option key={name} value={name}>
-                      {name} ({savedExcludeLists[name].length})
-                    </option>
-                  ))}
-                </select>
-                <button type="button" className="exclude-btn" onClick={handleSaveExcludeList}>
-                  Save List
-                </button>
-                <button type="button" className="exclude-btn" onClick={handleUpdateExcludeList} disabled={!currentSelectedList}>
-                  Update
-                </button>
-                <button type="button" className="exclude-btn" onClick={handleDeleteExcludeList} disabled={!currentSelectedList}>
-                  Delete
-                </button>
-                <button type="button" className="exclude-btn exclude-btn-clear" onClick={handleClearExcludeKeywords}>
-                  Clear All
-                </button>
-              </div>
             </div>
             {showExcludeSection && (
+            <>
+            <div className="exclude-list-controls">
+              <select
+                value={currentSelectedList}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!value) {
+                    setCurrentSelectedList('');
+                    updateUserFilterSettings({ currentExcludeList: '' });
+                    return;
+                  }
+                  handleLoadExcludeList(value);
+                }}
+              >
+                <option value="">-- Select List --</option>
+                {Object.keys(savedExcludeLists).sort().map((name) => (
+                  <option key={name} value={name}>
+                    {name} ({savedExcludeLists[name].length})
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="exclude-btn" onClick={handleSaveExcludeList}>
+                Save List
+              </button>
+              <button type="button" className="exclude-btn" onClick={handleUpdateExcludeList} disabled={!currentSelectedList}>
+                Update
+              </button>
+              <button type="button" className="exclude-btn" onClick={handleDeleteExcludeList} disabled={!currentSelectedList}>
+                Delete
+              </button>
+              <button type="button" className="exclude-btn" onClick={handleClearExcludeKeywords}>
+                Clear All
+              </button>
+            </div>
             <div className="exclude-content">
               <div className="exclude-input-row">
                 <input
@@ -1054,13 +1241,14 @@ export default function DealAggregator({
                 )}
               </div>
             </div>
+            </>
             )}
           </div>
         </div>
 
         {dealViewStyle === 'table' && (
           <div className="sort-tip">
-            💡 <strong>Sorting tip:</strong> Click a column to sort. Hold <kbd>Shift</kbd> + click to add multi-level sorting like the extension.
+            <strong>Sorting tip:</strong> Click a column to sort. Hold <kbd>Shift</kbd> + click to add multi-level sorting like the extension.
           </div>
         )}
 
@@ -1104,14 +1292,13 @@ export default function DealAggregator({
               ) : dealsToShow.length === 0 ? (
                 <tr>
                   <td colSpan={Object.keys(COLUMN_CONFIG).filter((columnId) => visibleColumns[columnId] !== false).length + 1} className="table-empty-cell">
-                    {showHiddenDeals
-                      ? 'No hidden listings on this page. Try another page or clear search.'
-                      : 'All listings on this page are hidden. Open Hidden or use Show hidden to review them.'}
+                    {emptyFeedMessage}
                   </td>
                 </tr>
               ) : (
                 dealsToShow.map((deal) => {
-                  const isHidden = hiddenDealIds.includes(deal.id);
+                  const isHidden = isDealHidden(deal, hiddenDealIds);
+                  const dealSaved = isDealInSavedList(deal, savedDealIdSet);
                   return (
                   <tr key={deal.id} className={isHidden ? 'deal-row-hidden' : ''} onClick={() => setSelectedDeal(deal)}>
                     {visibleColumns.name !== false && (
@@ -1119,7 +1306,13 @@ export default function DealAggregator({
                         <div className="deal-name-primary">{deal.name || 'Unnamed Business'}</div>
                       </td>
                     )}
-                    {visibleColumns.date !== false && <td data-col="date">{formatDate(deal.discoveredAt)}</td>}
+                    {visibleColumns.date !== false && (
+                      <td data-col="date">
+                        <span className={`deal-date-age ${getListingAgeClass(deal.discoveredAt)}`} title={listingAgeTitle(deal.discoveredAt)}>
+                          {formatDate(deal.discoveredAt)}
+                        </span>
+                      </td>
+                    )}
                     {visibleColumns.industry !== false && <td data-col="industry">{deal.industry || '—'}</td>}
                     {visibleColumns.description !== false && (
                       <td data-col="description" className="description-col">
@@ -1156,8 +1349,26 @@ export default function DealAggregator({
                     )}
                     <td>
                       <div className="table-actions">
-                        <button onClick={(event) => { event.stopPropagation(); handleSaveDeal(deal); }} className="btn-save">Save</button>
-                        <button onClick={(event) => { event.stopPropagation(); handleToggleHidden(deal.id); }} className="btn-save btn-hide">{isHidden ? 'Unhide' : 'Hide'}</button>
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); handleToggleSaveDeal(deal); }}
+                          className={
+                            dealSaved
+                              ? `btn-save ${showSavedHighlightInFeed ? 'btn-save--saved' : 'btn-save--saved-muted'}`
+                              : 'btn-save'
+                          }
+                          disabled={savingDealId === deal.id}
+                          title={dealSaved ? 'Click to remove from My Deals' : 'Save to My Deals'}
+                        >
+                          {dealSaved
+                            ? savingDealId === deal.id
+                              ? '…'
+                              : 'Saved'
+                            : savingDealId === deal.id
+                              ? 'Saving…'
+                              : 'Save'}
+                        </button>
+                        <button onClick={(event) => { event.stopPropagation(); handleToggleHidden(deal); }} className="btn-save btn-hide">{isHidden ? 'Unhide' : 'Hide'}</button>
                       </div>
                     </td>
                   </tr>
@@ -1204,13 +1415,12 @@ export default function DealAggregator({
                 <div className="aggregator-cards-empty">No deals found. Try adjusting your filters or search.</div>
               ) : dealsToShow.length === 0 ? (
                 <div className="aggregator-cards-empty">
-                  {showHiddenDeals
-                    ? 'No hidden listings on this page. Try another page or clear search.'
-                    : 'All listings on this page are hidden. Open Hidden or use Show hidden to review them.'}
+                  {emptyFeedMessage}
                 </div>
               ) : (
                 dealsToShow.map((deal) => {
-                  const isHidden = hiddenDealIds.includes(deal.id);
+                  const isHidden = isDealHidden(deal, hiddenDealIds);
+                  const dealSaved = isDealInSavedList(deal, savedDealIdSet);
                   const descCard = cardViewDescriptionPreview(deal.description, 4);
                   return (
                     <SwipeableDealCard
@@ -1225,9 +1435,23 @@ export default function DealAggregator({
                       <div className="deal-card__header">
                         <h3 className="deal-card__name">{deal.name || 'Unnamed Business'}</h3>
                         <div className="deal-card__actions">
-                          <button type="button" className="deal-card__btn deal-card__btn-save" onClick={(e) => { e.stopPropagation(); handleSaveDeal(deal); }} title="Save to My Deals" aria-label="Save to My Deals">♡</button>
-                          <button type="button" className="deal-card__btn deal-card__btn-hide" onClick={(e) => { e.stopPropagation(); handleToggleHidden(deal.id); }} title={isHidden ? 'Unhide' : 'Hide'} aria-label={isHidden ? 'Unhide' : 'Hide'}>{isHidden ? 'Unhide' : 'Hide'}</button>
+                          <button
+                            type="button"
+                            className={`deal-card__btn deal-card__btn-save${dealSaved ? (showSavedHighlightInFeed ? ' deal-card__btn-save--saved' : ' deal-card__btn-save--saved-muted') : ''}`}
+                            onClick={(e) => { e.stopPropagation(); handleToggleSaveDeal(deal); }}
+                            disabled={savingDealId === deal.id}
+                            title={dealSaved ? 'Click to remove from My Deals' : 'Save to My Deals'}
+                            aria-label={dealSaved ? 'Saved — click to remove from My Deals' : 'Save to My Deals'}
+                          >
+                            {dealSaved ? 'Saved' : 'Save'}
+                          </button>
+                          <button type="button" className="deal-card__btn deal-card__btn-hide" onClick={(e) => { e.stopPropagation(); handleToggleHidden(deal); }} title={isHidden ? 'Unhide' : 'Hide'} aria-label={isHidden ? 'Unhide' : 'Hide'}>{isHidden ? 'Unhide' : 'Hide'}</button>
                         </div>
+                      </div>
+                      <div className="deal-card__date">
+                        <span className={`deal-date-age ${getListingAgeClass(deal.discoveredAt)}`} title={listingAgeTitle(deal.discoveredAt)}>
+                          Date Added: {formatDate(deal.discoveredAt)}
+                        </span>
                       </div>
                       <p className="deal-card__subtitle" title={descCard.full || undefined}>
                         {descCard.preview || 'No description available.'}
@@ -1293,7 +1517,10 @@ export default function DealAggregator({
         position={dealPanelPosition}
         onClose={() => setSelectedDeal(null)}
         onSaveDeal={handleSaveDeal}
+        onUnsaveDeal={handleUnsaveDeal}
         isSavingDeal={savingDealId != null && selectedDeal?.id === savingDealId}
+        dealSavedInMyDeals={selectedDeal ? isDealInSavedList(selectedDeal, savedDealIdSet) : false}
+        savedHighlightStyle={showSavedHighlightInFeed}
         onPositionChange={handleDealPanelPositionChange}
         settings={settings}
         onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
@@ -1342,6 +1569,37 @@ function formatDate(value) {
   return date.toLocaleDateString();
 }
 
+const MS_PER_DAY = 86_400_000;
+const AGE_BUCKETS = [
+  { max: 14, cls: 'deal-date-age--fresh',  label: 'fresh' },
+  { max: 28, cls: 'deal-date-age--recent', label: 'recent' },
+  { max: 56, cls: 'deal-date-age--aging',  label: 'aging' },
+];
+
+function getListingAgeDays(discoveredAt) {
+  if (!discoveredAt) return null;
+  const d = new Date(discoveredAt);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / MS_PER_DAY);
+}
+
+function getListingAgeClass(discoveredAt) {
+  const days = getListingAgeDays(discoveredAt);
+  if (days == null) return '';
+  for (const b of AGE_BUCKETS) {
+    if (days < b.max) return b.cls;
+  }
+  return 'deal-date-age--older';
+}
+
+function listingAgeTitle(discoveredAt) {
+  const days = getListingAgeDays(discoveredAt);
+  const dateStr = formatDate(discoveredAt);
+  if (days == null) return dateStr;
+  if (days === 0) return `${dateStr} — today`;
+  if (days === 1) return `${dateStr} — 1 day ago`;
+  return `${dateStr} — ${days} days ago`;
+}
 
 function loadVisibleColumns() {
   try {

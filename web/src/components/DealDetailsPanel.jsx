@@ -39,7 +39,10 @@ export default function DealDetailsPanel({
   position = 'center',
   onClose,
   onSaveDeal,
+  onUnsaveDeal = null,
   isSavingDeal = false,
+  dealSavedInMyDeals = false,
+  savedHighlightStyle = true,
   onPositionChange,
   settings = null,
   onSaveCalculatorDefaults = null,
@@ -323,9 +326,21 @@ export default function DealDetailsPanel({
         {renderFooter != null ? (typeof renderFooter === 'function' ? renderFooter() : renderFooter) : (
           <>
             {showSaveButton && (
-              <button type="button" className="btn-primary" disabled={isSavingDeal} onClick={() => onSaveDeal(deal)}>
-                {isSavingDeal ? 'Saving...' : 'Save to My Deals'}
-              </button>
+              dealSavedInMyDeals ? (
+                <button
+                  type="button"
+                  className={savedHighlightStyle ? 'btn-save btn-save--saved' : 'btn-save btn-save--saved-muted'}
+                  disabled={isSavingDeal || typeof onUnsaveDeal !== 'function'}
+                  title="Click to remove from My Deals"
+                  onClick={() => onUnsaveDeal && onUnsaveDeal(deal)}
+                >
+                  {isSavingDeal ? 'Removing…' : 'Saved'}
+                </button>
+              ) : (
+                <button type="button" className="btn-primary" disabled={isSavingDeal} onClick={() => onSaveDeal(deal)}>
+                  {isSavingDeal ? 'Saving...' : 'Save to My Deals'}
+                </button>
+              )
             )}
             {deal.url ? (
               <a href={deal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary">

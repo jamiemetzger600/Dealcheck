@@ -37,11 +37,26 @@ router.get('/', async (req, res) => {
       exclude_ids,
       exclude_keywords,
       updated_after,
+      ids,
+      first_seen_after,
+      first_seen_before,
     } = req.query;
 
     const conditions = ['is_active = true'];
     const params = [];
     let idx = 1;
+
+    const restrictIds = ids
+      ? String(ids)
+          .split(',')
+          .map((n) => Number(String(n).trim()))
+          .filter((n) => Number.isFinite(n) && n > 0)
+          .slice(0, 400)
+      : [];
+    if (restrictIds.length > 0) {
+      conditions.push(`id = ANY($${idx++})`);
+      params.push(restrictIds);
+    }
 
     // Text search (trigram ILIKE on name + description)
     if (search && search.trim()) {
@@ -196,6 +211,21 @@ router.get('/', async (req, res) => {
       }
     }
 
+    if (first_seen_after) {
+      const ts = new Date(first_seen_after);
+      if (!Number.isNaN(ts.getTime())) {
+        conditions.push(`first_seen_at >= $${idx++}`);
+        params.push(ts.toISOString());
+      }
+    }
+    if (first_seen_before) {
+      const ts = new Date(first_seen_before);
+      if (!Number.isNaN(ts.getTime())) {
+        conditions.push(`first_seen_at < $${idx++}`);
+        params.push(ts.toISOString());
+      }
+    }
+
     const where = `WHERE ${conditions.join(' AND ')}`;
 
     const sortCol = ALLOWED_SORTS.includes(sort) ? sort : 'source_added_at';
@@ -253,7 +283,7 @@ router.get('/sources', async (_req, res) => {
   try {
     const result = await pool.query(
       `SELECT source_key, display_name, source_type, scrape_enabled,
-              scrape_cron, last_scrape_at, deal_count, created_at
+              scrape_cron, last_scrape_at, last_scrape_result, deal_count, created_at
        FROM deal_sources ORDER BY created_at`
     );
     res.json({ sources: result.rows });

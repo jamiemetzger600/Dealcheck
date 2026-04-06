@@ -75,10 +75,20 @@ export function buildMarketDealsParams({
   hiddenDealDbIds,
   excludeKeywords,
   showHidden = false,
+  /** Limit to market_deals.source values, e.g. ['airtable_bizbuysell'] */
+  sources = null,
+  /** When set, API filters to these market_deals.id values (use with buyBox: null for full list). */
+  restrictToDbIds = null,
+  firstSeenAfter = null,
+  firstSeenBefore = null,
 } = {}) {
   const params = new URLSearchParams();
   params.set('page', String(page));
   params.set('per_page', String(perPage));
+
+  if (sources && sources.length > 0) {
+    params.set('source', sources.join(','));
+  }
 
   if (search && search.trim()) {
     params.set('search', search.trim());
@@ -129,6 +139,25 @@ export function buildMarketDealsParams({
     }
   }
 
+  if (restrictToDbIds && restrictToDbIds.length > 0) {
+    const flat = restrictToDbIds
+      .map((n) => Number(n))
+      .filter((n) => Number.isFinite(n) && n > 0)
+      .slice(0, 400);
+    if (flat.length > 0) {
+      params.set('ids', flat.join(','));
+    }
+  }
+
+  if (firstSeenAfter) {
+    const t = new Date(firstSeenAfter);
+    if (!Number.isNaN(t.getTime())) params.set('first_seen_after', t.toISOString());
+  }
+  if (firstSeenBefore) {
+    const t = new Date(firstSeenBefore);
+    if (!Number.isNaN(t.getTime())) params.set('first_seen_before', t.toISOString());
+  }
+
   return params;
 }
 
@@ -176,6 +205,16 @@ export async function fetchMarketDeals(queryParams, signal) {
  */
 export async function fetchMarketDealsStats(signal) {
   const url = `${API_BASE_URL}/market-deals/stats`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+/**
+ * Deal source rows including last_scrape_at / last_scrape_result (for new-pool notifications).
+ */
+export async function fetchMarketDealsSources(signal) {
+  const url = `${API_BASE_URL}/market-deals/sources`;
   const res = await fetch(url, { signal });
   if (!res.ok) return null;
   return res.json();

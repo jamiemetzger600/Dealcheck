@@ -6,9 +6,20 @@ import DashboardPage from './pages/DashboardPage';
 import BillingPage from './pages/BillingPage';
 import SettingsPage from './pages/SettingsPage';
 
-// Protected route wrapper
+/** Full-screen splash shown while backend wakes from cold start (temporary — remove on paid plan). */
+function WakeUpSplash() {
+  return (
+    <div className="wakeup-splash">
+      <div className="wakeup-splash__spinner" />
+      <p className="wakeup-splash__text">Loading Vettr&hellip;</p>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth();
+  const { user, loading, wakingUp } = useAuth();
+
+  if (wakingUp) return <WakeUpSplash />;
 
   if (loading) {
     return (
@@ -18,7 +29,7 @@ function ProtectedRoute({ children }) {
         justifyContent: 'center', 
         height: '100vh',
         fontSize: '18px',
-        color: '#667eea'
+        color: 'var(--text-secondary, #a8a8a8)'
       }}>
         Loading...
       </div>

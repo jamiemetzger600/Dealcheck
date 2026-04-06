@@ -70,9 +70,9 @@ export default function BillingPage() {
               <h3>Monthly</h3>
               <p className="price">$29<span>/month</span></p>
               <ul>
-                <li>✓ Instant notifications</li>
-                <li>✓ Unlimited saved deals</li>
-                <li>✓ Advanced filters</li>
+                <li>Instant notifications</li>
+                <li>Unlimited saved deals</li>
+                <li>Advanced filters</li>
               </ul>
               <button onClick={() => handleUpgrade('monthly')} className="btn-primary" disabled={upgrading}>
                 {upgrading ? 'Loading...' : 'Upgrade to Monthly'}
@@ -84,10 +84,10 @@ export default function BillingPage() {
               <p className="price">$290<span>/year</span></p>
               <p className="save-badge">Save $58/year</p>
               <ul>
-                <li>✓ Instant notifications</li>
-                <li>✓ Unlimited saved deals</li>
-                <li>✓ Advanced filters</li>
-                <li>✓ Priority support</li>
+                <li>Instant notifications</li>
+                <li>Unlimited saved deals</li>
+                <li>Advanced filters</li>
+                <li>Priority support</li>
               </ul>
               <button onClick={() => handleUpgrade('yearly')} className="btn-primary" disabled={upgrading}>
                 {upgrading ? 'Loading...' : 'Upgrade to Yearly'}

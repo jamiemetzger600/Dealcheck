@@ -7,7 +7,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, wakingUp } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -25,11 +25,20 @@ export default function LoginPage() {
     }
   };
 
+  if (wakingUp) {
+    return (
+      <div className="wakeup-splash">
+        <div className="wakeup-splash__spinner" />
+        <p className="wakeup-splash__text">Loading Vettr&hellip;</p>
+      </div>
+    );
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-container">
         <div className="auth-header">
-          <h1>📊 Vettr</h1>
+          <h1>Vettr</h1>
           <p>Business Acquisition Deal Analyzer</p>
         </div>
 

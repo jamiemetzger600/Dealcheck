@@ -1,8 +1,13 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI, getToken } from '../utils/api';
+import { authAPI, getToken, pingHealth } from '../utils/api';
 import { pushSessionToChromeExtension, clearChromeExtensionSession } from '../utils/extensionBridge';
 
 const AuthContext = createContext();
+
+const IS_DEV = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const WAKE_POLL_MS = 3000;
+const WAKE_MAX_ATTEMPTS = 10;
 
 export function useAuth() {
   return useContext(AuthContext);
@@ -11,24 +16,47 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  /** True while waiting for Koyeb backend to wake from cold start (temporary — remove on paid plan). */
+  const [wakingUp, setWakingUp] = useState(false);
 
   useEffect(() => {
-    // Check if user is logged in on mount
+    let cancelled = false;
+
+    const waitForBackend = async () => {
+      if (IS_DEV) return;
+      const alive = await pingHealth();
+      if (alive || cancelled) return;
+
+      setWakingUp(true);
+      for (let i = 0; i < WAKE_MAX_ATTEMPTS && !cancelled; i++) {
+        await new Promise((r) => setTimeout(r, WAKE_POLL_MS));
+        if (await pingHealth()) break;
+      }
+      if (!cancelled) setWakingUp(false);
+    };
+
     const checkAuth = async () => {
+      await waitForBackend();
+      if (cancelled) return;
+
       const token = getToken();
       if (token) {
         try {
           const data = await authAPI.getCurrentUser();
-          setUser(data.user);
+          if (!cancelled) setUser(data.user);
         } catch (error) {
           console.error('Auth check failed:', error);
-          authAPI.logout();
+          const isNetwork = error instanceof TypeError || (error.message || '').includes('Failed to fetch') || (error.message || '').includes('server is starting');
+          if (!isNetwork) {
+            authAPI.logout();
+          }
         }
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     };
 
     checkAuth();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -60,6 +88,7 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     loading,
+    wakingUp,
     login,
     register,
     logout

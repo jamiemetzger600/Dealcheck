@@ -9,6 +9,45 @@ const ALLOWED_SORTS = [
   'revenue_multiple', 'years_established', 'name',
 ];
 
+/** Build ORDER BY from `sort_spec=col:dir,col:dir` (whitelist only; skips unknown / duplicate columns). */
+function buildOrderByFromSortSpec(sortSpec) {
+  if (sortSpec == null || typeof sortSpec !== 'string') return null;
+  const raw = sortSpec.trim();
+  if (!raw) return null;
+  const segments = raw.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 8);
+  const parts = [];
+  const used = new Set();
+  for (const seg of segments) {
+    const colon = seg.indexOf(':');
+    if (colon <= 0) continue;
+    const rawCol = seg.slice(0, colon).trim();
+    const rawDir = seg.slice(colon + 1).trim();
+    if (!ALLOWED_SORTS.includes(rawCol)) continue;
+    if (used.has(rawCol)) continue;
+    used.add(rawCol);
+    const dir = rawDir.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    parts.push(`${rawCol} ${dir} NULLS LAST`);
+  }
+  return parts.length > 0 ? parts.join(', ') : null;
+}
+
+/** Build ORDER BY with optional secondary key (legacy `sort2` / `order2`). */
+function buildMarketDealsOrderBy(sort, order, sort2, order2) {
+  const col1 = ALLOWED_SORTS.includes(sort) ? sort : 'source_added_at';
+  const dir1 = String(order || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  const parts = [`${col1} ${dir1} NULLS LAST`];
+
+  if (sort2 && ALLOWED_SORTS.includes(String(sort2))) {
+    const col2 = String(sort2);
+    if (col2 !== col1) {
+      const dir2 = String(order2 || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+      parts.push(`${col2} ${dir2} NULLS LAST`);
+    }
+  }
+
+  return parts.join(', ');
+}
+
 const MAX_PER_PAGE = 100;
 const DEFAULT_PER_PAGE = 50;
 
@@ -34,6 +73,9 @@ router.get('/', async (req, res) => {
       remote,
       sort = 'source_added_at',
       order = 'desc',
+      sort_spec,
+      sort2,
+      order2,
       exclude_ids,
       exclude_keywords,
       updated_after,
@@ -228,8 +270,9 @@ router.get('/', async (req, res) => {
 
     const where = `WHERE ${conditions.join(' AND ')}`;
 
-    const sortCol = ALLOWED_SORTS.includes(sort) ? sort : 'source_added_at';
-    const sortDir = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    const specSql = buildOrderByFromSortSpec(sort_spec);
+    const orderBySql =
+      specSql || buildMarketDealsOrderBy(sort, order, sort2, order2);
 
     const safePage = Math.max(Number(page) || 1, 1);
     const safePerPage = Math.min(Math.max(Number(per_page) || DEFAULT_PER_PAGE, 1), MAX_PER_PAGE);
@@ -247,7 +290,7 @@ router.get('/', async (req, res) => {
     params.push(offset);
     const result = await pool.query(
       `SELECT * FROM market_deals ${where}
-       ORDER BY ${sortCol} ${sortDir} NULLS LAST
+       ORDER BY ${orderBySql}
        LIMIT $${idx++} OFFSET $${idx++}`,
       params
     );

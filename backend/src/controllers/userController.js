@@ -1,4 +1,11 @@
 import pool from '../db/pool.js';
+import {
+  BUY_BOX_SLOT_COUNT,
+  activeSlotExcludeColumns,
+  criteriaFromSlot,
+  ensureBuyBoxesInMergedPreferences,
+  normalizeUserBuyBoxes
+} from '../lib/userBuyBoxes.js';
 
 // Get user settings
 export const getUserSettings = async (req, res) => {
@@ -31,11 +38,15 @@ export const getUserSettings = async (req, res) => {
         [req.user.userId]
       );
       
+      const normalized = normalizeUserBuyBoxes({}, {}, {});
+      const ex = activeSlotExcludeColumns(normalized.buyBoxes, normalized.activeBuyBoxIndex);
       return res.json({
-        buyBox: {},
-        excludeKeywords: [],
-        excludeLists: {},
-        currentExcludeList: null,
+        buyBox: normalized.activeCriteria,
+        buyBoxes: normalized.buyBoxes,
+        activeBuyBoxIndex: normalized.activeBuyBoxIndex,
+        excludeKeywords: ex.excludeKeywords,
+        excludeLists: ex.excludeLists,
+        currentExcludeList: ex.currentExcludeList,
         hiddenDealIds: [],
         preferences: {},
         customSources: [],
@@ -50,12 +61,20 @@ export const getUserSettings = async (req, res) => {
     }
 
     const settings = result.rows[0];
+    const normalized = normalizeUserBuyBoxes(settings.buy_box, settings.preferences, {
+      excludeKeywords: settings.exclude_keywords,
+      excludeLists: settings.exclude_lists,
+      currentExcludeList: settings.current_exclude_list
+    });
+    const ex = activeSlotExcludeColumns(normalized.buyBoxes, normalized.activeBuyBoxIndex);
 
     res.json({
-      buyBox: settings.buy_box || {},
-      excludeKeywords: settings.exclude_keywords || [],
-      excludeLists: settings.exclude_lists || {},
-      currentExcludeList: settings.current_exclude_list,
+      buyBox: normalized.activeCriteria,
+      buyBoxes: normalized.buyBoxes,
+      activeBuyBoxIndex: normalized.activeBuyBoxIndex,
+      excludeKeywords: ex.excludeKeywords,
+      excludeLists: ex.excludeLists,
+      currentExcludeList: ex.currentExcludeList,
       hiddenDealIds: settings.hidden_deal_ids || [],
       preferences: settings.preferences || {},
       customSources: settings.custom_sources || [],
@@ -113,43 +132,98 @@ export const updateUserSettings = async (req, res) => {
 
   try {
     let preferencesToWrite = null;
-    if (incomingPreferences !== undefined) {
-      const current = await pool.query(
-        'SELECT preferences FROM user_settings WHERE user_id = $1',
+    const patchExcludeInBody =
+      excludeKeywords !== undefined ||
+      excludeLists !== undefined ||
+      currentExcludeList !== undefined;
+
+    let row = null;
+    const loadRow = async () => {
+      if (row) return row;
+      const r = await pool.query(
+        `SELECT buy_box, preferences, exclude_keywords, exclude_lists, current_exclude_list FROM user_settings WHERE user_id = $1`,
         [req.user.userId]
       );
-      const existing = (current.rows[0] && current.rows[0].preferences) || {};
-      preferencesToWrite = mergePreferences(existing, incomingPreferences);
+      if (!r.rows.length) return null;
+      row = r.rows[0];
+      return row;
+    };
+
+    if (incomingPreferences !== undefined) {
+      const r = await loadRow();
+      if (!r) {
+        return res.status(404).json({ error: 'User settings not found' });
+      }
+      preferencesToWrite = mergePreferences(r.preferences || {}, incomingPreferences);
+    }
+
+    if (patchExcludeInBody) {
+      const r = await loadRow();
+      if (!r) {
+        return res.status(404).json({ error: 'User settings not found' });
+      }
+      const base = preferencesToWrite !== null ? preferencesToWrite : (r.preferences || {});
+      const prefs = ensureBuyBoxesInMergedPreferences(base, r);
+      const idx = Math.min(
+        BUY_BOX_SLOT_COUNT - 1,
+        Math.max(0, Number(prefs.activeBuyBoxIndex) || 0)
+      );
+      const boxes = prefs.buyBoxes.map((b) => ({ ...b }));
+      boxes[idx] = { ...boxes[idx] };
+      if (excludeKeywords !== undefined) boxes[idx].excludeKeywords = excludeKeywords;
+      if (excludeLists !== undefined) boxes[idx].excludeLists = excludeLists;
+      if (currentExcludeList !== undefined) {
+        boxes[idx].currentExcludeList = currentExcludeList || '';
+      }
+      preferencesToWrite = { ...prefs, buyBoxes: boxes, activeBuyBoxIndex: idx };
     }
 
     const updateFields = [];
     const values = [req.user.userId];
     let paramIndex = 2;
 
-    if (buyBox !== undefined) {
-      updateFields.push(`buy_box = $${paramIndex++}`);
-      values.push(JSON.stringify(buyBox));
-    }
-    if (excludeKeywords !== undefined) {
-      updateFields.push(`exclude_keywords = $${paramIndex++}`);
-      values.push(JSON.stringify(excludeKeywords));
-    }
-    if (excludeLists !== undefined) {
-      updateFields.push(`exclude_lists = $${paramIndex++}`);
-      values.push(JSON.stringify(excludeLists));
-    }
-    if (currentExcludeList !== undefined) {
-      updateFields.push(`current_exclude_list = $${paramIndex++}`);
-      values.push(currentExcludeList);
-    }
     if (hiddenDealIds !== undefined) {
       updateFields.push(`hidden_deal_ids = $${paramIndex++}`);
       values.push(JSON.stringify(hiddenDealIds));
     }
     if (preferencesToWrite !== null) {
+      const r = await loadRow();
+      if (!r) {
+        return res.status(404).json({ error: 'User settings not found' });
+      }
+      preferencesToWrite = ensureBuyBoxesInMergedPreferences(preferencesToWrite, r);
       updateFields.push(`preferences = $${paramIndex++}`);
       values.push(JSON.stringify(preferencesToWrite));
+      const ex = activeSlotExcludeColumns(preferencesToWrite.buyBoxes, preferencesToWrite.activeBuyBoxIndex);
+      if (ex) {
+        updateFields.push(`exclude_keywords = $${paramIndex++}`);
+        values.push(JSON.stringify(ex.excludeKeywords));
+        updateFields.push(`exclude_lists = $${paramIndex++}`);
+        values.push(JSON.stringify(ex.excludeLists));
+        updateFields.push(`current_exclude_list = $${paramIndex++}`);
+        values.push(ex.currentExcludeList);
+      }
     }
+
+    let buyBoxColumnPayload;
+    if (buyBox !== undefined) {
+      buyBoxColumnPayload = buyBox;
+    } else if (
+      preferencesToWrite !== null &&
+      Array.isArray(preferencesToWrite.buyBoxes) &&
+      preferencesToWrite.buyBoxes.length === BUY_BOX_SLOT_COUNT
+    ) {
+      const idx = Math.min(
+        BUY_BOX_SLOT_COUNT - 1,
+        Math.max(0, Number(preferencesToWrite.activeBuyBoxIndex) || 0)
+      );
+      buyBoxColumnPayload = criteriaFromSlot(preferencesToWrite.buyBoxes[idx]);
+    }
+    if (buyBoxColumnPayload !== undefined) {
+      updateFields.push(`buy_box = $${paramIndex++}`);
+      values.push(JSON.stringify(buyBoxColumnPayload));
+    }
+
     if (customSources !== undefined) {
       updateFields.push(`custom_sources = $${paramIndex++}`);
       values.push(JSON.stringify(customSources));

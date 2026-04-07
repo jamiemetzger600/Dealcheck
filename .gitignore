@@ -63,6 +63,14 @@ build-temp/
 .env.*.local
 .env.cli
 
+# Python
+python/venv/
+python/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+python/output/
+
 # OS generated files
 Thumbs.db
 ehthumbs.db

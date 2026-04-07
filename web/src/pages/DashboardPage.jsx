@@ -151,7 +151,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onDealsStatsUpdate={handleDealsStatsUpdate}
             onSaveDeal={loadUserData}
             onSettingsUpdate={loadUserData}
-            onAddDeal={() => setShowManualDealModal(true)}
             onConfigureBuyBox={() => {
               setBuyBoxModalMode('edit');
               setShowBuyBoxModal(true);
@@ -170,6 +169,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             settings={settings}
             onUpdate={loadUserData}
             onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
+            onAddDeal={() => setShowManualDealModal(true)}
           />
         )}
       </div>
@@ -177,6 +177,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       <BuyBoxModal
         isOpen={showBuyBoxModal}
         settings={settings}
+        editingSlotIndex={settings?.activeBuyBoxIndex ?? 0}
         onClose={() => {
           setShowBuyBoxModal(false);
           setBuyBoxModalMode('closed');
@@ -196,9 +197,9 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       <ManualDealModal
         isOpen={showManualDealModal}
         onClose={() => setShowManualDealModal(false)}
-        onSaved={() => {
-          loadUserData();
-          handleFetchDeals();
+        onSaved={async () => {
+          await loadUserData();
+          setActiveTab('saved-deals');
         }}
       />
     </div>

@@ -2,7 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dealsAPI, userAPI } from '../utils/api';
 import { loadCalculatorState, saveCalculatorState } from '../utils/dealCalculatorStorage';
-import { fetchMarketDeals, fetchMarketDealsStats, buildMarketDealsParams, mapSortField } from '../utils/normalizeMarketDeal';
+import {
+  fetchMarketDeals,
+  fetchMarketDealsStats,
+  buildMarketDealsParams,
+  mapSortField,
+  encodeMarketDealsSortSpec
+} from '../utils/normalizeMarketDeal';
+import {
+  criteriaFromSlot,
+  defaultBuyBoxSlotName,
+  mergeActiveSlotFeedPatch,
+  normalizeBuyBoxesState,
+  patchActiveBuyBoxFlexibility
+} from '../utils/buyBoxes';
 import DealDetailsPanel from './DealDetailsPanel';
 
 const PER_PAGE = 50;
@@ -37,6 +50,20 @@ const DEFAULT_VISIBLE_COLUMNS = Object.fromEntries(
   Object.entries(COLUMN_CONFIG).map(([key, config]) => [key, config.default !== false])
 );
 const DEFAULT_SORT = [{ field: 'date', direction: 'desc' }];
+
+/** First direction when adding a column via Shift+click (numeric/date: high/newest first). */
+function defaultDirectionForNewSortField(field) {
+  const descFirst = new Set([
+    'date',
+    'price',
+    'ebitda',
+    'revenue',
+    'profitMultiple',
+    'revenueMultiple',
+    'yearsEstablished'
+  ]);
+  return descFirst.has(field) ? 'desc' : 'asc';
+}
 
 const CARD_SORT_OPTIONS = [
   { value: 'date_desc', label: 'Date Added (newest first)', field: 'date', direction: 'desc' },
@@ -308,7 +335,6 @@ export default function DealAggregator({
   onDealsStatsUpdate,
   onSaveDeal,
   onSettingsUpdate,
-  onAddDeal,
   onConfigureBuyBox,
   feedSource = 'airtable',
   savedDealIds = [],
@@ -339,6 +365,7 @@ export default function DealAggregator({
   const [customFlexibilityInput, setCustomFlexibilityInput] = useState('');
   const [saveToast, setSaveToast] = useState(null);
   const [savingDealId, setSavingDealId] = useState(null);
+  const [buyBoxSwitching, setBuyBoxSwitching] = useState(false);
   const [feedError, setFeedError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalFromAPI, setTotalFromAPI] = useState(0);
@@ -355,8 +382,8 @@ export default function DealAggregator({
   );
 
   const excludeKeywordsFingerprint = useMemo(
-    () => JSON.stringify(settings?.excludeKeywords ?? []),
-    [settings]
+    () => `${settings?.activeBuyBoxIndex ?? settings?.preferences?.activeBuyBoxIndex ?? 0}:${JSON.stringify(excludeKeywords)}`,
+    [settings?.activeBuyBoxIndex, settings?.preferences?.activeBuyBoxIndex, excludeKeywords]
   );
 
   const poolNewFinger = useMemo(() => {
@@ -388,9 +415,19 @@ export default function DealAggregator({
   }, []);
 
   useEffect(() => {
-    setExcludeKeywords(settings?.excludeKeywords || []);
-    setSavedExcludeLists(settings?.excludeLists || {});
-    setCurrentSelectedList(settings?.currentExcludeList || '');
+    if (!settings) return;
+    const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
+    const slot = buyBoxes[activeBuyBoxIndex] || {};
+    setExcludeKeywords(Array.isArray(slot.excludeKeywords) ? slot.excludeKeywords : []);
+    setSavedExcludeLists(
+      slot.excludeLists && typeof slot.excludeLists === 'object' && !Array.isArray(slot.excludeLists)
+        ? slot.excludeLists
+        : {}
+    );
+    setCurrentSelectedList(slot.currentExcludeList != null ? String(slot.currentExcludeList) : '');
+    const q = typeof slot.feedSearch === 'string' ? slot.feedSearch : '';
+    setSearchQuery(q);
+    setDebouncedSearch(q);
     setHiddenDealIds(settings?.hiddenDealIds || []);
     setDealPanelPosition(settings?.preferences?.dealPanelPosition || 'center');
     setDealViewStyle(settings?.dealViewStyle || 'table');
@@ -403,6 +440,22 @@ export default function DealAggregator({
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Persist search text per active buy box (no full settings refresh — avoids input flicker)
+  useEffect(() => {
+    if (!settings) return;
+    const t = setTimeout(() => {
+      const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
+      const slot = buyBoxes[activeBuyBoxIndex];
+      const server = typeof slot?.feedSearch === 'string' ? slot.feedSearch : '';
+      if (server === debouncedSearch) return;
+      const payload = mergeActiveSlotFeedPatch(settings, { feedSearch: debouncedSearch });
+      userAPI.updateSettings(payload).catch((err) => {
+        console.error('[DealAggregator] persist feedSearch failed:', err);
+      });
+    }, 900);
+    return () => clearTimeout(t);
+  }, [debouncedSearch, settings]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -430,11 +483,14 @@ export default function DealAggregator({
 
     const buyBox = settings?.buyBox || {};
     const flexPct = Math.min(100, Math.max(0, Number(buyBox.includeNearMatchesPercent) || 0));
-    const primary = sortConfig[0] || { field: 'date', direction: 'desc' };
+    const effectiveSort = sortConfig.length > 0 ? sortConfig : [{ field: 'date', direction: 'desc' }];
+    const primary = effectiveSort[0];
+    const primarySortCol = mapSortField(primary.field);
+    const sortSpec = encodeMarketDealsSortSpec(effectiveSort);
 
     const hiddenDbIds = [...new Set(hiddenDealIds.map(hiddenDealIdToDbId).filter(Boolean))];
 
-    const excludeKw = settings?.excludeKeywords || [];
+    const excludeKw = excludeKeywords;
 
     const sourceFilter =
       feedSource === 'airtable' ? ['airtable_bizbuysell'] : null;
@@ -460,7 +516,8 @@ export default function DealAggregator({
       search: debouncedSearch,
       buyBox: poolNewMode ? null : (showHiddenDeals ? null : buyBox),
       flexibilityPct: flexPct,
-      sort: mapSortField(primary.field),
+      sortSpec,
+      sort: primarySortCol,
       order: primary.direction,
       hiddenDealDbIds: showHiddenDeals ? [] : hiddenDbIds,
       showHidden: showHiddenDeals,
@@ -470,6 +527,15 @@ export default function DealAggregator({
       firstSeenAfter,
       firstSeenBefore,
     });
+
+    if (
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+      effectiveSort.length > 1 &&
+      sortSpec
+    ) {
+      console.debug('[DealAggregator] market-deals sort_spec:', sortSpec);
+    }
 
     try {
       const result = await fetchMarketDeals(params, signal);
@@ -509,7 +575,7 @@ export default function DealAggregator({
         setIsFetching(false);
       }
     }
-  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter]);
+  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords]);
 
   // Fetch on mount, filter/sort/page/search/hidden-ids change, and manual refresh
   useEffect(() => {
@@ -520,6 +586,18 @@ export default function DealAggregator({
   const updateUserFilterSettings = async (nextValues) => {
     try {
       await userAPI.updateSettings(nextValues);
+      if (typeof onSettingsUpdate === 'function') {
+        await onSettingsUpdate();
+      }
+    } catch (error) {
+      alert(`Failed to save filter settings: ${error.message}`);
+    }
+  };
+
+  const persistActiveSlotFeed = async (patch) => {
+    try {
+      const payload = mergeActiveSlotFeedPatch(settings, patch);
+      await userAPI.updateSettings(payload);
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
@@ -664,6 +742,8 @@ export default function DealAggregator({
     return 'All listings on this page are hidden. Open Hidden or use Show hidden to review them.';
   }, [deals, hiddenDealIds, showHiddenDeals, hideSavedDealsInFeed, savedDealIdSet]);
 
+  const buyBoxesUiState = useMemo(() => normalizeBuyBoxesState(settings), [settings]);
+
   if (loading) {
     return <div className="loading">Loading deals...</div>;
   }
@@ -680,19 +760,54 @@ export default function DealAggregator({
     if (nextKeywords.length === excludeKeywords.length) return;
     setExcludeKeywords(nextKeywords);
     setExcludeInput('');
-    await updateUserFilterSettings({ excludeKeywords: nextKeywords });
+    await persistActiveSlotFeed({ excludeKeywords: nextKeywords });
   };
 
   const flexibilityPercent = Math.min(100, Math.max(0, Number(settings?.buyBox?.includeNearMatchesPercent) || 0));
   const flexibilityIsPreset = FLEXIBILITY_PRESETS.includes(flexibilityPercent);
   const flexibilitySelectValue = flexibilityIsPreset ? flexibilityPercent : 'custom';
 
+  const handleBuyBoxSlotClick = async (index) => {
+    const activeIdx = buyBoxesUiState.activeBuyBoxIndex;
+    if (index === activeIdx || buyBoxSwitching) return;
+    setBuyBoxSwitching(true);
+    try {
+      const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
+      const next = buyBoxes.map((b, i) => {
+        if (i !== activeBuyBoxIndex) return b;
+        return {
+          ...b,
+          feedSearch: searchQuery,
+          excludeKeywords: [...excludeKeywords],
+          excludeLists: { ...savedExcludeLists },
+          currentExcludeList: currentSelectedList || ''
+        };
+      });
+      const newIdx = index;
+      const activeSlot = next[newIdx];
+      const crit = criteriaFromSlot(activeSlot);
+      await userAPI.updateSettings({
+        preferences: { buyBoxes: next, activeBuyBoxIndex: newIdx },
+        buyBox: crit,
+        excludeKeywords: Array.isArray(activeSlot.excludeKeywords) ? activeSlot.excludeKeywords : [],
+        excludeLists:
+          activeSlot.excludeLists && typeof activeSlot.excludeLists === 'object' && !Array.isArray(activeSlot.excludeLists)
+            ? activeSlot.excludeLists
+            : {},
+        currentExcludeList: activeSlot.currentExcludeList || null
+      });
+      if (typeof onSettingsUpdate === 'function') await onSettingsUpdate();
+    } catch (error) {
+      alert(`Failed to switch buy box: ${error.message}`);
+    } finally {
+      setBuyBoxSwitching(false);
+    }
+  };
+
   const handleFlexibilityChange = async (percent) => {
     const num = Math.min(100, Math.max(0, Number(percent) || 0));
     try {
-      await userAPI.updateSettings({
-        buyBox: { ...(settings?.buyBox || {}), includeNearMatchesPercent: num }
-      });
+      await userAPI.updateSettings(patchActiveBuyBoxFlexibility(settings, num));
       if (typeof onSettingsUpdate === 'function') await onSettingsUpdate();
       setCustomFlexibilityInput('');
     } catch (error) {
@@ -715,13 +830,13 @@ export default function DealAggregator({
   const handleRemoveExcludeKeyword = async (keyword) => {
     const nextKeywords = excludeKeywords.filter((item) => item !== keyword);
     setExcludeKeywords(nextKeywords);
-    await updateUserFilterSettings({ excludeKeywords: nextKeywords });
+    await persistActiveSlotFeed({ excludeKeywords: nextKeywords });
   };
 
   const handleClearExcludeKeywords = async () => {
     setExcludeKeywords([]);
     setCurrentSelectedList('');
-    await updateUserFilterSettings({ excludeKeywords: [], currentExcludeList: '' });
+    await persistActiveSlotFeed({ excludeKeywords: [], currentExcludeList: '' });
   };
 
   const handleSaveExcludeList = async () => {
@@ -736,7 +851,7 @@ export default function DealAggregator({
     const nextLists = { ...savedExcludeLists, [trimmed]: [...excludeKeywords] };
     setSavedExcludeLists(nextLists);
     setCurrentSelectedList(trimmed);
-    await updateUserFilterSettings({ excludeLists: nextLists, currentExcludeList: trimmed });
+    await persistActiveSlotFeed({ excludeLists: nextLists, currentExcludeList: trimmed });
   };
 
   const handleDeleteExcludeList = async () => {
@@ -750,7 +865,7 @@ export default function DealAggregator({
     delete nextLists[currentSelectedList];
     setSavedExcludeLists(nextLists);
     setCurrentSelectedList('');
-    await updateUserFilterSettings({ excludeLists: nextLists, currentExcludeList: '' });
+    await persistActiveSlotFeed({ excludeLists: nextLists, currentExcludeList: '' });
   };
 
   const handleUpdateExcludeList = async () => {
@@ -760,14 +875,14 @@ export default function DealAggregator({
     }
     const nextLists = { ...savedExcludeLists, [currentSelectedList]: [...excludeKeywords] };
     setSavedExcludeLists(nextLists);
-    await updateUserFilterSettings({ excludeLists: nextLists, currentExcludeList: currentSelectedList });
+    await persistActiveSlotFeed({ excludeLists: nextLists, currentExcludeList: currentSelectedList });
   };
 
   const handleLoadExcludeList = async (listName) => {
     const nextKeywords = savedExcludeLists[listName] || [];
     setCurrentSelectedList(listName);
     setExcludeKeywords(nextKeywords);
-    await updateUserFilterSettings({ excludeKeywords: nextKeywords, currentExcludeList: listName });
+    await persistActiveSlotFeed({ excludeKeywords: nextKeywords, currentExcludeList: listName });
   };
 
   const handleToggleHidden = async (deal) => {
@@ -859,7 +974,7 @@ export default function DealAggregator({
           };
           return next;
         }
-        return [...current, { field, direction: 'asc' }];
+        return [...current, { field, direction: defaultDirectionForNewSortField(field) }];
       }
 
       const isSingleSort = current.length === 1 && current[0].field === field;
@@ -887,6 +1002,7 @@ export default function DealAggregator({
   const buyBox = settings?.buyBox || {};
   const flexPct = Math.min(100, Math.max(0, Number(buyBox.includeNearMatchesPercent) || 0));
   const hasAnyCriteria = [buyBox.minPrice, buyBox.maxPrice, buyBox.minEbitda, buyBox.maxEbitda, buyBox.minRevenue, buyBox.maxRevenue, buyBox.revenueMultiple].some((v) => v != null && v !== '');
+  const showBuyBoxConfigureHint = Boolean(settings) && !hasAnyCriteria;
   const effectiveMax = (limit) => (limit != null && flexPct > 0 ? limit * (1 + flexPct / 100) : limit);
   const effectiveMin = (limit) => (limit != null && flexPct > 0 ? limit * (1 - flexPct / 100) : limit);
   const fmt = (n) => (n != null ? `$${Number(n).toLocaleString()}` : null);
@@ -961,22 +1077,44 @@ export default function DealAggregator({
           </div>
         </div>
         <div className="aggregator-welcome__actions" role="toolbar" aria-label="Deal list actions">
-          {onAddDeal ? (
-            <button type="button" className="aggregator-filter-btn" onClick={onAddDeal}>
-              Add Deal
-            </button>
-          ) : null}
           {onConfigureBuyBox ? (
-            <button type="button" className="aggregator-filter-btn" onClick={onConfigureBuyBox}>
-              Configure Buy Box
-            </button>
+            <div className="aggregator-welcome__buybox-toolbar">
+              <button
+                type="button"
+                className={`aggregator-filter-btn${showBuyBoxConfigureHint ? ' aggregator-filter-btn--buybox-unset' : ''}`}
+                onClick={onConfigureBuyBox}
+              >
+                Configure Buy Box
+              </button>
+              <div className="aggregator-buybox-slots" role="tablist" aria-label="Buy box slots">
+                {buyBoxesUiState.buyBoxes.map((slot, i) => {
+                  const isActive = i === buyBoxesUiState.activeBuyBoxIndex;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      className={`aggregator-buybox-slot-btn${isActive ? ' active' : ''}`}
+                      disabled={buyBoxSwitching}
+                      onClick={() => handleBuyBoxSlotClick(i)}
+                      title={slot?.name || defaultBuyBoxSlotName(i)}
+                    >
+                      {slot?.name || defaultBuyBoxSlotName(i)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           ) : null}
           <button type="button" className="aggregator-filter-btn" onClick={() => navigate('/settings')}>
             Settings
           </button>
         </div>
         <div className="aggregator-welcome__buybox">
-          <h3 className="aggregator-welcome__buybox-title">Buy box</h3>
+          <h3 className="aggregator-welcome__buybox-title">
+            {buyBoxesUiState.buyBoxes[buyBoxesUiState.activeBuyBoxIndex]?.name?.trim() || 'Buy box'}
+          </h3>
           {!hasAnyCriteria ? (
             <p className="aggregator-welcome__buybox-empty">No criteria set. Configure in Buy Box.</p>
           ) : (
@@ -1178,7 +1316,7 @@ export default function DealAggregator({
                   const value = event.target.value;
                   if (!value) {
                     setCurrentSelectedList('');
-                    updateUserFilterSettings({ currentExcludeList: '' });
+                    persistActiveSlotFeed({ currentExcludeList: '' });
                     return;
                   }
                   handleLoadExcludeList(value);
@@ -1248,7 +1386,15 @@ export default function DealAggregator({
 
         {dealViewStyle === 'table' && (
           <div className="sort-tip">
-            <strong>Sorting tip:</strong> Click a column to sort. Hold <kbd>Shift</kbd> + click to add multi-level sorting like the extension.
+            <strong>Sorting tip:</strong> Click a column to sort. Hold <kbd>Shift</kbd> and click another column to add a tiebreaker (header numbers: 1 = first key, 2 = second key).
+            {sortConfig.length >= 2 ? (
+              <span className="sort-tip__multi">
+                {' '}
+                <strong>Important:</strong> column (2) only changes order when two rows <strong>tie</strong> on column (1) (exact same value). If every row has a different annual profit, dates will <strong>not</strong> look chronological—that is expected. For newest listings overall, sort <strong>Date Added</strong> first (click it without Shift to make it #1), then Shift+click <strong>Annual Profit</strong> as #2.
+              </span>
+            ) : (
+              <span> Example: <strong>Annual Profit</strong> #1 (high → low), then Shift+ <strong>Date Added</strong> #2 (newest first only when profit matches).</span>
+            )}
           </div>
         )}
 
@@ -1636,10 +1782,10 @@ function renderHeaderCell(columnId, label, visibleColumns, sortConfig, handleSor
       data-sort={columnId}
       className={classes}
       onClick={sortable ? (event) => handleSort(columnId, event.shiftKey) : undefined}
-      title={sortable ? 'Click to sort. Shift+Click for multi-sort.' : undefined}
+      title={sortable ? 'Click to sort. Shift+Click for multi-sort (e.g. profit, then date).' : undefined}
     >
       <span>{label}</span>
-      {sortMeta && <span className="sort-priority">{sortIndex + 1}</span>}
+      {sortMeta ? <span className="sort-priority"> {sortIndex + 1}</span> : null}
     </th>
   );
 }

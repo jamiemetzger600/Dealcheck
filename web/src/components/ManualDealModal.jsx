@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { userAPI } from '../utils/api';
+import { dealsAPI } from '../utils/api';
 
 export default function ManualDealModal({ isOpen, onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -26,43 +26,46 @@ export default function ManualDealModal({ isOpen, onClose, onSaved }) {
       return;
     }
 
-    const manualSource = {
-      id: `manual_${Date.now()}`,
-      type: 'manual',
-      enabled: true,
-      name: `Manual: ${form.name.trim()}`,
-      addedAt: Date.now(),
-      dealCount: 1,
-      deal: {
-        id: `manual_${Date.now()}`,
-        name: form.name.trim(),
-        description: form.description.trim(),
-        city: form.city.trim(),
-        state: form.state.trim().toUpperCase(),
-        location: [form.city.trim(), form.state.trim().toUpperCase()].filter(Boolean).join(', '),
-        industry: form.industry.trim(),
-        askingPrice: Number(form.askingPrice) || null,
-        revenue: Number(form.revenue) || null,
-        ebitda: Number(form.ebitda) || null,
-        brokerName: form.brokerName.trim(),
-        brokerPhone: form.brokerPhone.trim(),
-        brokerEmail: form.brokerEmail.trim(),
-        source: 'Manual Deal',
-        sourceType: 'manual',
-        discoveredAt: Date.now(),
-        rawColumns: { Notes: form.notes.trim() }
-      }
+    const city = form.city.trim();
+    const state = form.state.trim().toUpperCase();
+    const location = [city, state].filter(Boolean).join(', ') || null;
+    const dealId = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const num = (v) => {
+      if (v === '' || v == null) return null;
+      const n = parseFloat(String(v).replace(/,/g, '').trim());
+      return Number.isFinite(n) ? n : null;
     };
 
     setSaving(true);
     try {
-      const settings = await userAPI.getSettings();
-      const customSources = settings.customSources || [];
-      await userAPI.updateSettings({ customSources: [...customSources, manualSource] });
-      onSaved();
+      await dealsAPI.saveDeal({
+        dealId,
+        name: form.name.trim(),
+        url: null,
+        description: form.description.trim() || null,
+        city: city || null,
+        state: state || null,
+        location,
+        industry: form.industry.trim() || null,
+        askingPrice: num(form.askingPrice),
+        revenue: num(form.revenue),
+        ebitda: num(form.ebitda),
+        brokerName: form.brokerName.trim() || null,
+        brokerPhone: form.brokerPhone.trim() || null,
+        brokerEmail: form.brokerEmail.trim() || null,
+        source: 'Manual deal',
+        sourceType: 'manual',
+        discoveredAt: Date.now(),
+        notes: form.notes.trim() || null
+      });
+      if (typeof onSaved === 'function') {
+        await Promise.resolve(onSaved());
+      }
+      console.log('[ManualDealModal] Saved to My Deals', { dealId, name: form.name.trim() });
       onClose();
       setForm({ name: '', description: '', city: '', state: '', industry: '', askingPrice: '', revenue: '', ebitda: '', brokerName: '', brokerPhone: '', brokerEmail: '', notes: '' });
     } catch (error) {
+      console.error('[ManualDealModal] save failed', error);
       alert(`Failed to save manual deal: ${error.message}`);
     } finally {
       setSaving(false);

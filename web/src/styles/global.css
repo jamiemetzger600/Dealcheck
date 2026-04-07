@@ -793,6 +793,84 @@ a {
   border-color: rgba(255, 255, 255, 0.45);
 }
 
+.aggregator-welcome__buybox-toolbar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.aggregator-buybox-slots {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.aggregator-buybox-slot-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aggregator-buybox-slot-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.38);
+}
+
+.aggregator-buybox-slot-btn.active {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(253, 224, 71, 0.55);
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.25);
+}
+
+.aggregator-buybox-slot-btn:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@keyframes aggregator-buybox-unset-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(234, 179, 8, 0.45),
+      0 0 10px rgba(250, 204, 21, 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(250, 204, 21, 0.75),
+      0 0 18px rgba(250, 204, 21, 0.5);
+  }
+}
+
+.aggregator-welcome__actions .aggregator-filter-btn.aggregator-filter-btn--buybox-unset {
+  border-color: rgba(250, 204, 21, 0.55);
+  animation: aggregator-buybox-unset-glow 2.2s ease-in-out infinite;
+}
+
+.aggregator-welcome__actions .aggregator-filter-btn.aggregator-filter-btn--buybox-unset:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(253, 224, 71, 0.85);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aggregator-welcome__actions .aggregator-filter-btn.aggregator-filter-btn--buybox-unset {
+    animation: none;
+    box-shadow:
+      0 0 0 2px rgba(250, 204, 21, 0.55),
+      0 0 14px rgba(250, 204, 21, 0.35);
+  }
+}
+
 .aggregator-welcome__buybox-text-link {
   display: inline;
   margin: 0;
@@ -1986,6 +2064,56 @@ a {
 .buybox-modal-overlay {
   align-items: center;
   justify-content: center;
+}
+
+.buybox-modal-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.buybox-modal-header__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.buybox-modal-header__main h2 {
+  margin: 0;
+}
+
+.buybox-modal-name-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.buybox-modal-name-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.buybox-modal-name-field__input {
+  width: 100%;
+  max-width: 320px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.buybox-modal-name-field__input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.buybox-modal-name-field__input:disabled {
+  opacity: 0.7;
 }
 
 /* Full-width row: CoC, payback, salary — equal columns inside Buy Box modal */

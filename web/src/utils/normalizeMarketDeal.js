@@ -60,6 +60,45 @@ export function normalizeMarketDeal(row) {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+/** Map frontend sort field names to backend column names */
+const SORT_FIELD_MAP = {
+  date: 'source_added_at',
+  price: 'asking_price',
+  ebitda: 'annual_profit',
+  revenue: 'annual_revenue',
+  name: 'name',
+  state: 'state',
+  industry: 'name',
+  profitMultiple: 'profit_multiple',
+  revenueMultiple: 'revenue_multiple',
+  yearsEstablished: 'years_established',
+  source_added_at: 'source_added_at',
+  source_updated_at: 'source_updated_at',
+};
+
+export function mapSortField(frontendField) {
+  return SORT_FIELD_MAP[frontendField] || 'source_added_at';
+}
+
+/**
+ * Encode full table sort stack for `sort_spec` (comma-separated col:dir).
+ * Dedupes DB columns so two UI fields mapping to the same column only sort once.
+ */
+export function encodeMarketDealsSortSpec(sortConfig) {
+  if (!Array.isArray(sortConfig) || sortConfig.length === 0) return '';
+  const used = new Set();
+  const parts = [];
+  for (const s of sortConfig.slice(0, 6)) {
+    if (!s?.field) continue;
+    const col = mapSortField(s.field);
+    if (used.has(col)) continue;
+    used.add(col);
+    const dir = s.direction === 'asc' ? 'asc' : 'desc';
+    parts.push(`${col}:${dir}`);
+  }
+  return parts.join(',');
+}
+
 /**
  * Build query string from buy box, search, sort, pagination, and exclusions.
  * Flexibility % is pre-applied to the numeric ranges before sending.
@@ -72,6 +111,8 @@ export function buildMarketDealsParams({
   flexibilityPct = 0,
   sort,
   order,
+  /** Full multi-sort for API (`col:dir,col:dir`). Preferred over sort alone when set. */
+  sortSpec,
   hiddenDealDbIds,
   excludeKeywords,
   showHidden = false,
@@ -123,6 +164,7 @@ export function buildMarketDealsParams({
     }
   }
 
+  if (sortSpec) params.set('sort_spec', sortSpec);
   if (sort) params.set('sort', sort);
   if (order) params.set('order', order);
 
@@ -159,26 +201,6 @@ export function buildMarketDealsParams({
   }
 
   return params;
-}
-
-/** Map frontend sort field names to backend column names */
-const SORT_FIELD_MAP = {
-  date: 'source_added_at',
-  price: 'asking_price',
-  ebitda: 'annual_profit',
-  revenue: 'annual_revenue',
-  name: 'name',
-  state: 'state',
-  industry: 'name',
-  profitMultiple: 'profit_multiple',
-  revenueMultiple: 'revenue_multiple',
-  yearsEstablished: 'years_established',
-  source_added_at: 'source_added_at',
-  source_updated_at: 'source_updated_at',
-};
-
-export function mapSortField(frontendField) {
-  return SORT_FIELD_MAP[frontendField] || 'source_added_at';
 }
 
 /**

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { userAPI } from '../utils/api';
+import {
+  BUY_BOX_SLOT_COUNT,
+  defaultBuyBoxSlotName,
+  emptyBuyBoxCriteria,
+  normalizeBuyBoxesState
+} from '../utils/buyBoxes';
 
 const DEFAULT_BUYBOX = {
   minPrice: null,
@@ -7,6 +13,7 @@ const DEFAULT_BUYBOX = {
   minEbitda: null,
   maxEbitda: null,
   minRevenue: null,
+  maxRevenue: null,
   revenueMultiple: null,
   targetStates: [],
   excludeStates: [],
@@ -32,19 +39,34 @@ const INDUSTRIES = ['Healthcare', 'SaaS', 'Manufacturing', 'Restaurant', 'Retail
 /** Set true to show Target Industries checkboxes in the Buy Box modal again. */
 const SHOW_TARGET_INDUSTRIES_IN_BUYBOX = false;
 
-export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnboarding = false }) {
+export default function BuyBoxModal({
+  isOpen,
+  settings,
+  editingSlotIndex,
+  onClose,
+  onSaved,
+  isOnboarding = false
+}) {
   const [form, setForm] = useState(DEFAULT_BUYBOX);
+  const [buyBoxName, setBuyBoxName] = useState(defaultBuyBoxSlotName(0));
   const [saving, setSaving] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const busyRef = useRef(false);
   busyRef.current = saving || dismissing;
   const onboardingDismissLock = useRef(false);
+  /** True only if the current gesture started with pointerdown on the backdrop (not inside the card). Avoids closing when text selection ends on the overlay. */
+  const closeGestureFromBackdropRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
-      setForm({ ...DEFAULT_BUYBOX, ...(settings?.buyBox || {}) });
-    }
-  }, [isOpen, settings]);
+    if (!isOpen) return;
+    const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
+    const idx = isOnboarding ? 0 : (Number.isFinite(editingSlotIndex) ? editingSlotIndex : activeBuyBoxIndex);
+    const safeIdx = Math.min(BUY_BOX_SLOT_COUNT - 1, Math.max(0, idx));
+    const slot = buyBoxes[safeIdx] || {};
+    const { name, ...crit } = slot;
+    setBuyBoxName(typeof name === 'string' && name.trim() ? name.trim() : defaultBuyBoxSlotName(safeIdx));
+    setForm({ ...DEFAULT_BUYBOX, ...crit });
+  }, [isOpen, settings, editingSlotIndex, isOnboarding]);
 
   const dismissOnboarding = useCallback(async () => {
     if (onboardingDismissLock.current || saving) return;
@@ -133,10 +155,33 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
         minBuyerSalary: parseNumber(form.minBuyerSalary),
         includeNearMatchesPercent: Number(form.includeNearMatchesPercent) || 0
       };
-      await userAPI.updateSettings({
-        buyBox: buyBoxPayload,
-        ...(isOnboarding ? { preferences: { buyBoxOnboardingDismissed: true } } : {})
-      });
+
+      const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
+      const slotIndex = isOnboarding ? 0 : (Number.isFinite(editingSlotIndex) ? editingSlotIndex : activeBuyBoxIndex);
+      const safeIdx = Math.min(BUY_BOX_SLOT_COUNT - 1, Math.max(0, slotIndex));
+      const trimmed = buyBoxName.trim();
+      const nextName = trimmed || defaultBuyBoxSlotName(safeIdx);
+      const { name: _drop, ...prevCrit } = buyBoxes[safeIdx] || {};
+      const nextSlots = [...buyBoxes];
+      nextSlots[safeIdx] = {
+        name: nextName,
+        ...prevCrit,
+        ...buyBoxPayload
+      };
+
+      const preferencePayload = {
+        buyBoxes: nextSlots,
+        activeBuyBoxIndex
+      };
+      if (isOnboarding) {
+        preferencePayload.buyBoxOnboardingDismissed = true;
+      }
+
+      const updates = { preferences: preferencePayload };
+      if (safeIdx === activeBuyBoxIndex) {
+        updates.buyBox = buyBoxPayload;
+      }
+      await userAPI.updateSettings(updates);
       onSaved();
       onClose();
     } catch (error) {
@@ -147,10 +192,23 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
   };
 
   const handleReset = async () => {
-    if (!window.confirm('Reset Buy Box to default settings?')) return;
+    if (!window.confirm('Reset this buy box slot to defaults?')) return;
+    const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
+    const slotIndex = isOnboarding ? 0 : (Number.isFinite(editingSlotIndex) ? editingSlotIndex : activeBuyBoxIndex);
+    const safeIdx = Math.min(BUY_BOX_SLOT_COUNT - 1, Math.max(0, slotIndex));
+    const nextSlots = buyBoxes.map((b, i) =>
+      i === safeIdx ? { name: defaultBuyBoxSlotName(safeIdx), ...DEFAULT_BUYBOX } : b
+    );
     setForm(DEFAULT_BUYBOX);
+    setBuyBoxName(defaultBuyBoxSlotName(safeIdx));
     try {
-      await userAPI.updateSettings({ buyBox: DEFAULT_BUYBOX });
+      const updates = {
+        preferences: { buyBoxes: nextSlots, activeBuyBoxIndex }
+      };
+      if (safeIdx === activeBuyBoxIndex) {
+        updates.buyBox = emptyBuyBoxCriteria();
+      }
+      await userAPI.updateSettings(updates);
       onSaved();
       onClose();
     } catch (error) {
@@ -161,15 +219,39 @@ export default function BuyBoxModal({ isOpen, settings, onClose, onSaved, isOnbo
   return (
     <div
       className="modal-overlay buybox-modal-overlay"
+      onPointerDownCapture={(e) => {
+        if (busy) return;
+        closeGestureFromBackdropRef.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
         if (e.target !== e.currentTarget || busy) return;
+        if (!closeGestureFromBackdropRef.current) return;
+        closeGestureFromBackdropRef.current = false;
         if (isOnboarding) dismissOnboarding();
         else onClose();
       }}
     >
       <div className="modal-card buybox-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Configure Buy Box</h2>
+        <div className="modal-header buybox-modal-header">
+          <div className="buybox-modal-header__main">
+            <h2>Configure Buy Box</h2>
+            <label className="buybox-modal-name-field">
+              <span className="buybox-modal-name-field__label">Name</span>
+              <input
+                type="text"
+                className="buybox-modal-name-field__input"
+                value={buyBoxName}
+                onChange={(e) => setBuyBoxName(e.target.value)}
+                placeholder={defaultBuyBoxSlotName(
+                  isOnboarding ? 0 : (Number.isFinite(editingSlotIndex) ? editingSlotIndex : settings?.activeBuyBoxIndex ?? 0)
+                )}
+                maxLength={80}
+                disabled={busy}
+                autoComplete="off"
+                aria-label="Buy box name"
+              />
+            </label>
+          </div>
           <button
             type="button"
             className="column-close-btn"

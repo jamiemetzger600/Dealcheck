@@ -89,7 +89,7 @@ function cocReturnTier(coc) {
   return 'bad';
 }
 
-export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCalculatorDefaults = null }) {
+export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCalculatorDefaults = null, onAddDeal = null }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('savedAt');
   const [sortDirection, setSortDirection] = useState('desc');
@@ -108,7 +108,17 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
         const name = (deal.name || '').toLowerCase();
         const url = (deal.url || '').toLowerCase();
         const notes = (deal.notes || '').toLowerCase();
-        return name.includes(query) || url.includes(query) || notes.includes(query);
+        const description = (deal.description || '').toLowerCase();
+        const industry = (deal.industry || '').toLowerCase();
+        const brokerName = (deal.brokerName || '').toLowerCase();
+        return (
+          name.includes(query) ||
+          url.includes(query) ||
+          notes.includes(query) ||
+          description.includes(query) ||
+          industry.includes(query) ||
+          brokerName.includes(query)
+        );
       });
     }
 
@@ -328,6 +338,11 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
               <option value="ebitda-asc">Lowest EBITDA</option>
             </select>
 
+            {typeof onAddDeal === 'function' ? (
+              <button type="button" className="btn-primary" onClick={onAddDeal}>
+                Add Deal
+              </button>
+            ) : null}
             <button className="btn-secondary" onClick={() => handleExportCSV()}>
               Export CSV
             </button>

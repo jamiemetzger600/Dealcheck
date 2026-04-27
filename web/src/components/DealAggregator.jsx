@@ -5,6 +5,7 @@ import { loadCalculatorState, saveCalculatorState } from '../utils/dealCalculato
 import {
   fetchMarketDeals,
   fetchMarketDealsStats,
+  fetchMarketDealByDbId,
   buildMarketDealsParams,
   mapSortField,
   encodeMarketDealsSortSpec
@@ -377,9 +378,34 @@ export default function DealAggregator({
   const [showCardColsPopup, setShowCardColsPopup] = useState(false);
   const cardColsPopupRef = useRef(null);
   const fetchAbortRef = useRef(null);
+  /** Same query + manual refresh → send If-None-Match for list 304. */
+  const listEtagCacheRef = useRef({ key: '', etag: '' });
   const [isMobileViewport, setIsMobileViewport] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
   );
+
+  // List API returns truncated description; merge full row when a deal is opened.
+  useEffect(() => {
+    const dbId = selectedDeal?.dbId;
+    if (dbId == null) return;
+
+    const ac = new AbortController();
+    (async () => {
+      try {
+        const full = await fetchMarketDealByDbId(dbId, ac.signal);
+        if (ac.signal.aborted) return;
+        setSelectedDeal((prev) => {
+          if (!prev || prev.dbId !== dbId) return prev;
+          return { ...prev, ...full };
+        });
+      } catch (err) {
+        if (err?.name === 'AbortError' || ac.signal.aborted) return;
+        console.warn('[DealAggregator] Full deal fetch failed:', err?.message || err);
+      }
+    })();
+
+    return () => ac.abort();
+  }, [selectedDeal?.dbId]);
 
   const excludeKeywordsFingerprint = useMemo(
     () => `${settings?.activeBuyBoxIndex ?? settings?.preferences?.activeBuyBoxIndex ?? 0}:${JSON.stringify(excludeKeywords)}`,
@@ -537,9 +563,22 @@ export default function DealAggregator({
       console.debug('[DealAggregator] market-deals sort_spec:', sortSpec);
     }
 
+    const paramsKey = `${params.toString()}|${String(manualRefreshToken ?? 0)}`;
+    const ifNoneMatch =
+      listEtagCacheRef.current.key === paramsKey ? listEtagCacheRef.current.etag : undefined;
+
     try {
-      const result = await fetchMarketDeals(params, signal);
+      const result = await fetchMarketDeals(params, signal, { ifNoneMatch });
       if (signal.aborted) return;
+
+      if (result.notModified) {
+        return;
+      }
+
+      listEtagCacheRef.current = {
+        key: paramsKey,
+        etag: result.etag || '',
+      };
 
       setDeals(result.deals);
       setTotalFromAPI(result.pagination.total);
@@ -575,7 +614,7 @@ export default function DealAggregator({
         setIsFetching(false);
       }
     }
-  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords]);
+  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords]);
 
   // Fetch on mount, filter/sort/page/search/hidden-ids change, and manual refresh
   useEffect(() => {

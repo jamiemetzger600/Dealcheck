@@ -205,10 +205,23 @@ export function buildMarketDealsParams({
 
 /**
  * Fetch one page of market deals from the backend.
+ * @param {URLSearchParams} queryParams
+ * @param {AbortSignal} [signal]
+ * @param {{ ifNoneMatch?: string }} [options] — send prior ETag to receive 304 when unchanged
  */
-export async function fetchMarketDeals(queryParams, signal) {
+export async function fetchMarketDeals(queryParams, signal, options = {}) {
   const url = `${API_BASE_URL}/market-deals?${queryParams.toString()}`;
-  const res = await fetch(url, { signal });
+  const headers = {};
+  if (options.ifNoneMatch) {
+    headers['If-None-Match'] = options.ifNoneMatch;
+  }
+  const res = await fetch(url, { signal, headers });
+  if (res.status === 304) {
+    return {
+      notModified: true,
+      etag: res.headers.get('ETag') || options.ifNoneMatch || null,
+    };
+  }
   if (!res.ok) {
     const err = new Error(`Market deals API error (${res.status})`);
     err.url = url;
@@ -219,7 +232,27 @@ export async function fetchMarketDeals(queryParams, signal) {
     deals: (data.deals || []).map(normalizeMarketDeal),
     pagination: data.pagination || { page: 1, per_page: 50, total: 0, total_pages: 0 },
     maxUpdatedAt: data.max_updated_at || null,
+    etag: res.headers.get('ETag'),
   };
+}
+
+/**
+ * Full market_deals row by primary key (for detail panel after list uses truncated description).
+ */
+export async function fetchMarketDealByDbId(dbId, signal) {
+  const id = Number(dbId);
+  if (!Number.isFinite(id) || id < 1) {
+    throw new Error('Invalid deal id');
+  }
+  const url = `${API_BASE_URL}/market-deals/${id}`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) {
+    const err = new Error(`Market deal API error (${res.status})`);
+    err.url = url;
+    throw err;
+  }
+  const row = await res.json();
+  return normalizeMarketDeal(row);
 }
 
 /**

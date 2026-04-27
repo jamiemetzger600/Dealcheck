@@ -1,7 +1,46 @@
 import express from 'express';
+import crypto from 'crypto';
 import pool from '../db/pool.js';
 
 const router = express.Router();
+
+/** Columns for list rows — full `description` omitted; use detail GET for full text. */
+const MARKET_DEALS_LIST_SELECT = `
+  id, source, source_id, name,
+  LEFT(COALESCE(description, ''), 400) AS description,
+  listing_url, industries, asking_price, annual_revenue, annual_profit,
+  profit_multiple, revenue_multiple, city, county, state, country,
+  years_established, remote_relocatable, franchise, five_plus_years,
+  broker_name, broker_company, broker_contact, broker_email,
+  source_added_at, source_updated_at, first_seen_at, last_scraped_at, is_active
+`.replace(/\s+/g, ' ').trim();
+
+function normalizeEtagPart(raw) {
+  let s = String(raw).trim();
+  if (s.toLowerCase().startsWith('w/')) s = s.slice(2).trim();
+  if (s.startsWith('"') && s.endsWith('"')) s = s.slice(1, -1);
+  return s;
+}
+
+function ifNoneMatchSatisfied(header, serverEtag) {
+  if (header == null || header === '' || !serverEtag) return false;
+  const serverVal = normalizeEtagPart(serverEtag);
+  for (const part of String(header).split(',')) {
+    const v = normalizeEtagPart(part);
+    if (v === '*' || v === serverVal) return true;
+  }
+  return false;
+}
+
+function buildMarketDealsListEtag(total, maxActivity, page, perPage, orderBySql) {
+  const maxIso =
+    maxActivity instanceof Date && !Number.isNaN(maxActivity.getTime())
+      ? maxActivity.toISOString()
+      : '';
+  const payload = `${total}|${maxIso}|${page}|${perPage}|${orderBySql}`;
+  const hash = crypto.createHash('sha256').update(payload).digest('base64url').slice(0, 24);
+  return `W/"${hash}"`;
+}
 
 const ALLOWED_SORTS = [
   'source_added_at', 'source_updated_at', 'asking_price',
@@ -278,32 +317,38 @@ router.get('/', async (req, res) => {
     const safePerPage = Math.min(Math.max(Number(per_page) || DEFAULT_PER_PAGE, 1), MAX_PER_PAGE);
     const offset = (safePage - 1) * safePerPage;
 
-    // Count total matching rows
-    const countResult = await pool.query(
-      `SELECT COUNT(*) FROM market_deals ${where}`,
+    const aggResult = await pool.query(
+      `SELECT COUNT(*)::int AS total,
+              MAX(GREATEST(source_added_at, source_updated_at)) AS max_activity
+       FROM market_deals ${where}`,
       params
     );
-    const total = parseInt(countResult.rows[0].count, 10);
+    const total = Number(aggResult.rows[0]?.total) || 0;
+    const maxActivity = aggResult.rows[0]?.max_activity;
 
-    // Fetch page
-    params.push(safePerPage);
-    params.push(offset);
-    const result = await pool.query(
-      `SELECT * FROM market_deals ${where}
-       ORDER BY ${orderBySql}
-       LIMIT $${idx++} OFFSET $${idx++}`,
-      params
-    );
-
-    // Compute max updated timestamp for delta sync
-    let maxUpdatedAt = null;
-    if (result.rows.length > 0) {
-      const dates = result.rows
-        .flatMap(r => [r.source_added_at, r.source_updated_at].filter(Boolean))
-        .map(d => new Date(d).getTime());
-      if (dates.length) maxUpdatedAt = new Date(Math.max(...dates)).toISOString();
+    const etag = buildMarketDealsListEtag(total, maxActivity, safePage, safePerPage, orderBySql);
+    if (ifNoneMatchSatisfied(req.get('if-none-match'), etag)) {
+      res.set('ETag', etag);
+      res.set('Cache-Control', 'public, max-age=30');
+      return res.status(304).end();
     }
 
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+    const pageParams = [...params, safePerPage, offset];
+    const result = await pool.query(
+      `SELECT ${MARKET_DEALS_LIST_SELECT} FROM market_deals ${where}
+       ORDER BY ${orderBySql}
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      pageParams
+    );
+
+    const maxUpdatedAt =
+      maxActivity instanceof Date && !Number.isNaN(maxActivity.getTime())
+        ? maxActivity.toISOString()
+        : null;
+
+    res.set('ETag', etag);
     res.set('Cache-Control', 'public, max-age=30');
     res.json({
       deals: result.rows,
@@ -365,6 +410,28 @@ router.get('/stats', async (_req, res) => {
     });
   } catch (err) {
     console.error('Market deals stats error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/market-deals/:id — full row (registered after /sources and /stats)
+router.get('/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(404).json({ error: 'Deal not found' });
+  }
+  try {
+    const result = await pool.query(
+      'SELECT * FROM market_deals WHERE id = $1 AND is_active = true',
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deal not found' });
+    }
+    res.set('Cache-Control', 'private, max-age=60');
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Market deal detail error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -4,6 +4,14 @@ import pool from '../db/pool.js';
 
 const SALT_ROUNDS = 10;
 
+const DB_ACTIVE_TIME_QUOTA =
+  "Database is temporarily unavailable: the database plan's active-time limit was reached. Upgrade the database or wait for the limit to reset.";
+
+function isDbActiveTimeQuotaError(error) {
+  const msg = String(error?.message || '');
+  return msg.includes('exceeded the active time quota') || msg.includes('active time quota');
+}
+
 // Register new user
 export const register = async (req, res) => {
   const { email, password } = req.body;
@@ -69,6 +77,9 @@ export const register = async (req, res) => {
 
   } catch (error) {
     console.error('Registration error:', error);
+    if (isDbActiveTimeQuotaError(error)) {
+      return res.status(503).json({ error: DB_ACTIVE_TIME_QUOTA });
+    }
     res.status(500).json({ error: 'Server error during registration' });
   }
 };
@@ -119,6 +130,9 @@ export const login = async (req, res) => {
 
   } catch (error) {
     console.error('Login error:', error);
+    if (isDbActiveTimeQuotaError(error)) {
+      return res.status(503).json({ error: DB_ACTIVE_TIME_QUOTA });
+    }
     res.status(500).json({ error: 'Server error during login' });
   }
 };

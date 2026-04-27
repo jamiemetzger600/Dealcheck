@@ -1,6 +1,6 @@
 {
   "name": "vettr-backend",
-  "version": "4.2.30",
+  "version": "4.2.32",
   "description": "Backend API for Vettr mobile web and native apps",
   "main": "src/index.js",
   "type": "module",
@@ -16,6 +16,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
+    "compression": "^1.7.4",
     "dotenv": "^16.3.1",
     "bcrypt": "^5.1.1",
     "jsonwebtoken": "^9.0.2",

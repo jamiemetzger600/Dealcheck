@@ -398,15 +398,63 @@ export async function scrapeAirtable() {
 
     console.log('  Step 4/4: Parsing & upserting to database...');
     const colLookup = buildColumnLookup(columns);
-    const deals = parseRows(rows, colLookup);
+    let deals = parseRows(rows, colLookup);
+
+    // -----------------------------------------------------------------------
+    // Change detection: skip rows we already have and haven't changed.
+    // Query the DB for the latest dates we've seen for this source, then
+    // filter the fetched rows to only those that are genuinely new or updated.
+    // This avoids upserting thousands of unchanged rows on every cron run.
+    // We still do a full re-sync (no filter) if the DB has no records yet,
+    // or once a week (Sunday 2 AM) to catch any soft-deletes or corrections.
+    // -----------------------------------------------------------------------
+    const isSundayFullSync = new Date().getDay() === 0 && new Date().getHours() < 4;
+    let skipped = 0;
+
+    if (!isSundayFullSync) {
+      try {
+        const cutoffResult = await pool.query(
+          `SELECT
+             MAX(source_added_at)   AS max_added,
+             MAX(source_updated_at) AS max_updated
+           FROM market_deals WHERE source = $1`,
+          [SOURCE_KEY]
+        );
+        const maxAdded   = cutoffResult.rows[0]?.max_added;
+        const maxUpdated = cutoffResult.rows[0]?.max_updated;
+
+        if (maxAdded) {
+          const addedCutoff   = new Date(maxAdded);
+          const updatedCutoff = maxUpdated ? new Date(maxUpdated) : addedCutoff;
+          const before = deals.length;
+
+          deals = deals.filter((d) => {
+            const addedAt   = d.airtable_added_at   ? new Date(d.airtable_added_at)   : null;
+            const updatedAt = d.airtable_updated_at ? new Date(d.airtable_updated_at) : null;
+            return (addedAt && addedAt > addedCutoff) ||
+                   (updatedAt && updatedAt > updatedCutoff);
+          });
+
+          skipped = before - deals.length;
+          console.log(
+            `  Change filter: ${before} fetched → ${deals.length} new/updated, ${skipped} unchanged skipped`
+          );
+        }
+      } catch (cutoffErr) {
+        console.warn('  Could not query cutoff dates, upserting all rows:', cutoffErr.message);
+      }
+    } else {
+      console.log('  Sunday full-sync: skipping change filter, processing all rows');
+    }
+
     const { inserted, updated } = await upsertDeals(deals);
 
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    _lastResult = { rows: rows.length, inserted, updated, elapsed, ts: new Date().toISOString() };
+    _lastResult = { rows: rows.length, processed: deals.length, skipped, inserted, updated, elapsed, ts: new Date().toISOString() };
     _lastRun = new Date();
 
     console.log(
-      `  Done: ${rows.length} rows (${inserted} new, ${updated} updated) in ${elapsed}s`
+      `  Done: ${rows.length} fetched, ${deals.length} processed (${inserted} new, ${updated} updated, ${skipped} skipped) in ${elapsed}s`
     );
     return _lastResult;
   } catch (err) {

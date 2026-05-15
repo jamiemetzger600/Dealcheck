@@ -18,7 +18,7 @@ validateConfig(); // Exits in production if required env vars missing (see CONFI
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
-// Gzip compress all responses — reduces egress by 70-85% on JSON and CSV payloads
+// Gzip compress all responses — reduces egress by 70-85% on JSON payloads
 app.use(compression());
 
 // CORS: use a function so we always send exactly one Access-Control-Allow-Origin value (required by spec)
@@ -56,63 +56,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '4.2.33' });
-});
-
-// In-memory cache for the default deals CSV.
-// Without this, every client request causes Koyeb to download the full CSV
-// from Google *and* re-send it — double bandwidth per request.
-// Cache TTL: 5 minutes (300s). Adjust CSV_CACHE_TTL_MS if you want fresher data.
-const CSV_CACHE_TTL_MS = 5 * 60 * 1000;
-let _csvCache = { data: null, fetchedAt: 0 };
-
-app.get('/api/default-deals-csv', async (req, res) => {
-  const now = Date.now();
-
-  // Serve from cache if still fresh
-  if (_csvCache.data && now - _csvCache.fetchedAt < CSV_CACHE_TTL_MS) {
-    res.set('Cache-Control', `public, max-age=${Math.floor(CSV_CACHE_TTL_MS / 1000)}`);
-    res.set('X-Cache', 'HIT');
-    return res.type('text/csv').send(_csvCache.data);
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-
-  try {
-    const response = await fetch(
-      'https://docs.google.com/spreadsheets/d/1RKab4UHut6SvVjjCtSeCGL0xT__WTLNwsACFRmSXYyM/gviz/tq?tqx=out:csv&sheet=1',
-      {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-        signal: controller.signal
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Google Sheets CSV error (${response.status})`);
-    }
-
-    const csv = await response.text();
-
-    // Store in cache
-    _csvCache = { data: csv, fetchedAt: Date.now() };
-
-    res.set('Cache-Control', `public, max-age=${Math.floor(CSV_CACHE_TTL_MS / 1000)}`);
-    res.set('X-Cache', 'MISS');
-    res.type('text/csv').send(csv);
-  } catch (error) {
-    // If fetch fails but we have stale cache, serve it rather than erroring
-    if (_csvCache.data) {
-      console.warn('Default deals CSV fetch failed, serving stale cache:', error.message);
-      res.set('Cache-Control', 'public, max-age=60');
-      res.set('X-Cache', 'STALE');
-      return res.type('text/csv').send(_csvCache.data);
-    }
-    console.error('Default deals CSV fetch failed:', error.message);
-    res.status(502).json({ error: 'Failed to fetch default deals feed' });
-  } finally {
-    clearTimeout(timeout);
-  }
+  res.json({ status: 'ok', version: '4.2.34' });
 });
 
 // Routes

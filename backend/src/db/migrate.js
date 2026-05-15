@@ -298,7 +298,7 @@ const migrations = [
       );
 
       INSERT INTO deal_sources (source_key, display_name, source_type, scrape_cron, scrape_enabled)
-      VALUES ('airtable_bizbuysell', 'Airtable (BizBuySell)', 'airtable', '0 */12 * * *', true)
+      VALUES ('airtable_bizbuysell', 'Airtable (BizBuySell)', 'airtable', '0 4 * * *', true)
       ON CONFLICT (source_key) DO NOTHING;
     `
   },
@@ -385,6 +385,15 @@ const migrations = [
       SET scrape_cron = '0 */12 * * *'
       WHERE source_key = 'airtable_bizbuysell'
         AND (scrape_cron IS NULL OR scrape_cron = '0 */4 * * *' OR scrape_cron = '*/30 * * * *');
+    `
+  },
+  {
+    name: 'deal_sources_airtable_cron_daily_pacific',
+    up: `
+      UPDATE deal_sources
+      SET scrape_cron = '0 4 * * *'
+      WHERE source_key = 'airtable_bizbuysell'
+        AND (scrape_cron IN ('0 */12 * * *', '0 */4 * * *', '*/30 * * * *'));
     `
   },
   {

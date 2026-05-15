@@ -58,7 +58,8 @@ export function normalizeMarketDeal(row) {
   };
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// In dev, always use the same-origin Vite proxy at `/api` so LAN clients don't try to call their own localhost.
+const API_BASE_URL = import.meta.env.DEV ? '/api' : (import.meta.env.VITE_API_URL || '/api');
 
 /** Map frontend sort field names to backend column names */
 const SORT_FIELD_MAP = {

@@ -1,7 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || '/api';
-
-const IS_DEV = typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+// In dev, always use the same-origin Vite proxy at `/api` so LAN clients don't try to call their own localhost.
+const IS_DEV = Boolean(import.meta.env.DEV);
+const API_URL = IS_DEV ? '/api' : (import.meta.env.VITE_API_URL || '/api');
 
 const RETRY_DELAYS = [2000, 4000];
 const MAX_ATTEMPTS = 1 + RETRY_DELAYS.length;

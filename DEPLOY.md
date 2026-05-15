@@ -54,6 +54,8 @@ For a single list of all environment variables (backend, web, CLI), see **[CONFI
    - `WEB_APP_URL` = your Cloudflare Pages URL **with no trailing slash** (e.g. `https://your-project.pages.dev`) — required for CORS to match the browser’s Origin
    - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
    - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (for email notifications)
+   - **Market deals feed (Airtable scraper):** Defaults are daily **`0 4 * * *`** at **`America/Los_Angeles`**. Override with `AIRTABLE_SCRAPE_CRON` / `AIRTABLE_SCRAPE_CRON_TZ` only if needed. **Remove** any legacy **`AIRTABLE_SCRAPE_CRON=*/30 * * * *`** in the dashboard (pulls the full Airtable view every 30 minutes). Set **`AIRTABLE_SCRAPE_ON_STARTUP=false`** to skip the automatic scrape 5s after each cold start.
+   - The legacy **`GET /api/default-deals-csv`** route (Google Sheet proxy) has been removed; listings come from **Airtable → Postgres → `/api/market-deals`** only.
 6. Deploy → wait for service to go live
 7. Run migrations via Koyeb console: `npm run migrate`
 8. Verify: `GET https://your-api.koyeb.app/health` → `{ "status": "ok" }`

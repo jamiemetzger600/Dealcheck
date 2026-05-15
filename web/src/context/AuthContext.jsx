@@ -4,8 +4,8 @@ import { pushSessionToChromeExtension, clearChromeExtensionSession } from '../ut
 
 const AuthContext = createContext();
 
-const IS_DEV = typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+// Use Vite's dev flag so LAN access (e.g. http://192.168.x.x:5173) is still treated as dev.
+const IS_DEV = Boolean(import.meta.env.DEV);
 const WAKE_POLL_MS = 3000;
 const WAKE_MAX_ATTEMPTS = 10;
 

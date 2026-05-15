@@ -8,13 +8,20 @@ const AIRTABLE_SHARE_URL =
   process.env.AIRTABLE_SHARE_URL ||
   'https://airtable.com/appEGxhjno0HTpEco/shrUhtbnzZTPaR4Lk/tblACIQ9QNiVmoWSK';
 
-// Cron expression: default every 12 hours (minute 0 of every 12th hour, server local time)
+// Cron: default 04:00 daily in AIRTABLE_SCRAPE_CRON_TZ (IANA, e.g. America/Los_Angeles)
+const SCRAPE_CRON_TZ =
+  process.env.AIRTABLE_SCRAPE_CRON_TZ || 'America/Los_Angeles';
+
 const SCRAPE_CRON =
-  process.env.AIRTABLE_SCRAPE_CRON || '0 */12 * * *';
+  process.env.AIRTABLE_SCRAPE_CRON || '0 4 * * *';
 
 // Toggle the scraper on/off without removing code
 const SCRAPE_ENABLED =
   (process.env.AIRTABLE_SCRAPE_ENABLED || 'true') === 'true';
+
+/** After deploy, run one scrape unless disabled (saves one full Airtable pull on cold starts). */
+const SCRAPE_ON_STARTUP =
+  (process.env.AIRTABLE_SCRAPE_ON_STARTUP || 'true') === 'true';
 
 // ---------------------------------------------------------------------------
 // Airtable column name → DB column + type handler
@@ -205,6 +212,20 @@ function parseRows(rows, colLookup) {
 }
 
 const SOURCE_KEY = 'airtable_bizbuysell';
+
+/** Sunday 00:00–03:59 in SCRAPE_CRON_TZ → full re-sync without change filter. */
+function isSundayFullSyncWindowPacific() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: SCRAPE_CRON_TZ,
+    weekday: 'short',
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(new Date());
+  const wd = parts.find((p) => p.type === 'weekday')?.value;
+  const hourRaw = parts.find((p) => p.type === 'hour')?.value;
+  const hour = hourRaw != null ? parseInt(hourRaw, 10) : NaN;
+  return wd === 'Sun' && Number.isFinite(hour) && hour >= 0 && hour < 4;
+}
 
 /** Collapse same-listing rows after switching source_id scheme (e.g. numeric → rec…). */
 async function dedupeAirtableRowsByListingUrl(client) {
@@ -406,9 +427,9 @@ export async function scrapeAirtable() {
     // filter the fetched rows to only those that are genuinely new or updated.
     // This avoids upserting thousands of unchanged rows on every cron run.
     // We still do a full re-sync (no filter) if the DB has no records yet,
-    // or once a week (Sunday 2 AM) to catch any soft-deletes or corrections.
+    // or on Sunday 00:00–03:59 Pacific (SCRAPE_CRON_TZ) to catch soft-deletes or corrections.
     // -----------------------------------------------------------------------
-    const isSundayFullSync = new Date().getDay() === 0 && new Date().getHours() < 4;
+    const isSundayFullSync = isSundayFullSyncWindowPacific();
     let skipped = 0;
 
     if (!isSundayFullSync) {
@@ -470,6 +491,8 @@ export function getScraperStatus() {
   return {
     enabled: SCRAPE_ENABLED,
     cron: SCRAPE_CRON,
+    cronTimezone: SCRAPE_CRON_TZ,
+    scrapeOnStartup: SCRAPE_ON_STARTUP,
     isRunning: _isRunning,
     lastRun: _lastRun,
     lastResult: _lastResult,
@@ -485,12 +508,15 @@ register({
   getStatus: getScraperStatus,
   cronExpr: SCRAPE_ENABLED ? SCRAPE_CRON : null,
   enabled: SCRAPE_ENABLED,
+  cronTimezone: SCRAPE_ENABLED && SCRAPE_CRON ? SCRAPE_CRON_TZ : undefined,
 });
 
 // Run once on startup after a short delay so the server finishes booting
-if (SCRAPE_ENABLED) {
+if (SCRAPE_ENABLED && SCRAPE_ON_STARTUP) {
   setTimeout(() => {
     console.log('🔄 [Airtable] Initial scrape on startup...');
     scrapeAirtable().catch(() => {});
   }, 5000);
+} else if (SCRAPE_ENABLED && !SCRAPE_ON_STARTUP) {
+  console.log('⏸️  [Airtable] SCRAPE_ON_STARTUP=false — skipping initial scrape');
 }

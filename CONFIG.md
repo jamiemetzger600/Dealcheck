@@ -26,8 +26,10 @@ Single reference for all environment variables and deployment config. Copy the r
 | `SMTP_USER` | No | — | With SMTP_HOST for sending |
 | `SMTP_PASS` | No | — | Gmail: [App Password](https://support.google.com/accounts/answer/185833) |
 | `AIRTABLE_SHARE_URL` | No | (hardcoded fallback) | Airtable shared view URL for scraper |
-| `AIRTABLE_SCRAPE_CRON` | No | `0 */12 * * *` | Cron expression (default every 12 hours) |
+| `AIRTABLE_SCRAPE_CRON` | No | `0 4 * * *` | Cron expression; interpreted in `AIRTABLE_SCRAPE_CRON_TZ` |
+| `AIRTABLE_SCRAPE_CRON_TZ` | No | `America/Los_Angeles` | IANA timezone for the cron schedule |
 | `AIRTABLE_SCRAPE_ENABLED` | No | `true` | `false` to disable scraper |
+| `AIRTABLE_SCRAPE_ON_STARTUP` | No | `true` | `false` to skip the scrape 5s after server boot (saves one full Airtable pull per cold start) |
 
 ---
 

@@ -1,5 +1,6 @@
 import pool from '../db/pool.js';
 import { register } from './scraperRegistry.js';
+import { pruneStaleMarketDeals } from './marketDealsPrune.js';
 
 // ---------------------------------------------------------------------------
 // Config — all tuneable via env vars
@@ -470,8 +471,25 @@ export async function scrapeAirtable() {
 
     const { inserted, updated } = await upsertDeals(deals);
 
+    let prune = null;
+    try {
+      prune = await pruneStaleMarketDeals();
+    } catch (pruneErr) {
+      console.warn('  Prune after scrape failed:', pruneErr.message);
+      prune = { error: pruneErr.message };
+    }
+
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-    _lastResult = { rows: rows.length, processed: deals.length, skipped, inserted, updated, elapsed, ts: new Date().toISOString() };
+    _lastResult = {
+      rows: rows.length,
+      processed: deals.length,
+      skipped,
+      inserted,
+      updated,
+      prune,
+      elapsed,
+      ts: new Date().toISOString(),
+    };
     _lastRun = new Date();
 
     console.log(

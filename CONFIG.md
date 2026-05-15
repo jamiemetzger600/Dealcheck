@@ -30,6 +30,8 @@ Single reference for all environment variables and deployment config. Copy the r
 | `AIRTABLE_SCRAPE_CRON_TZ` | No | `America/Los_Angeles` | IANA timezone for the cron schedule |
 | `AIRTABLE_SCRAPE_ENABLED` | No | `true` | `false` to disable scraper |
 | `AIRTABLE_SCRAPE_ON_STARTUP` | No | `true` | `false` to skip the scrape 5s after server boot (saves one full Airtable pull per cold start) |
+| `MARKET_DEALS_PRUNE_ENABLED` | No | `true` | `false` to skip deactivating stale listings after each Airtable scrape |
+| `MARKET_DEALS_MAX_AGE_MONTHS` | No | `6` | Listings with no newer activity than this are set `is_active = false` |
 
 ---
 

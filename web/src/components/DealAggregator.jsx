@@ -8,7 +8,8 @@ import {
   fetchMarketDealByDbId,
   buildMarketDealsParams,
   mapSortField,
-  encodeMarketDealsSortSpec
+  encodeMarketDealsSortSpec,
+  normalizeGeoScalar
 } from '../utils/normalizeMarketDeal';
 import {
   criteriaFromSlot,
@@ -107,6 +108,21 @@ const MOBILE_BREAKPOINT_PX = 768;
 
 const CARD_COLUMNS_OPTIONS = [1, 2, 3, 4, 6, 8];
 const DEFAULT_CARD_COLUMNS = 4;
+
+/** State for card metrics; else city, county, country; then combined location line. */
+function cardMetricLocation(deal) {
+  const state = normalizeGeoScalar(deal?.state);
+  if (state) return { label: 'State', value: state };
+  const city = normalizeGeoScalar(deal?.city);
+  if (city) return { label: 'City', value: city };
+  const county = normalizeGeoScalar(deal?.county);
+  if (county) return { label: 'County', value: county };
+  const country = normalizeGeoScalar(deal?.country);
+  if (country) return { label: 'Country', value: country };
+  const locationLine = normalizeGeoScalar(deal?.location);
+  if (locationLine) return { label: 'Location', value: locationLine };
+  return null;
+}
 
 /** Returns page numbers to show: e.g. [1, 2, 3, 4, 5, '…', 50] for currentPage 3, totalPages 50. */
 function getPaginationPages(currentPage, totalPages) {
@@ -1607,6 +1623,7 @@ export default function DealAggregator({
                   const isHidden = isDealHidden(deal, hiddenDealIds);
                   const dealSaved = isDealInSavedList(deal, savedDealIdSet);
                   const descCard = cardViewDescriptionPreview(deal.description, 4);
+                  const cardLoc = cardMetricLocation(deal);
                   return (
                     <SwipeableDealCard
                       key={deal.id}
@@ -1641,7 +1658,10 @@ export default function DealAggregator({
                       <p className="deal-card__subtitle" title={descCard.full || undefined}>
                         {descCard.preview || 'No description available.'}
                       </p>
-                      <div className="deal-card__metrics">
+                      <div
+                        className="deal-card__metrics"
+                        style={cardLoc ? { gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' } : undefined}
+                      >
                         <div className="deal-card__metric">
                           <span className="deal-card__metric-value" title={formatMoney(deal.askingPrice)}>{formatMoneyShort(deal.askingPrice)}</span>
                           <span className="deal-card__metric-label">Asking Price</span>
@@ -1658,6 +1678,12 @@ export default function DealAggregator({
                           <span className="deal-card__metric-value">{deal.profitMultiple != null ? `${formatRatio(deal.profitMultiple)}X` : '—'}</span>
                           <span className="deal-card__metric-label">C.F. Multiple</span>
                         </div>
+                        {cardLoc && (
+                          <div className="deal-card__metric">
+                            <span className="deal-card__metric-value" title={cardLoc.value}>{cardLoc.value}</span>
+                            <span className="deal-card__metric-label">{cardLoc.label}</span>
+                          </div>
+                        )}
                       </div>
                     </SwipeableDealCard>
                   );

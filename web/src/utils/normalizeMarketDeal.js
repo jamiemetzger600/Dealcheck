@@ -8,10 +8,24 @@ function computeMultiple(price, base) {
   return Number((price / base).toFixed(2));
 }
 
+/** Trim geo fields; join multi-select-style arrays so UI/search stay consistent. */
+export function normalizeGeoScalar(raw) {
+  if (raw == null || raw === '') return '';
+  if (Array.isArray(raw)) {
+    const parts = raw.map((x) => (x != null ? String(x).trim() : '')).filter(Boolean);
+    return parts.join(', ');
+  }
+  const s = String(raw).trim();
+  return s || '';
+}
+
 export function normalizeMarketDeal(row) {
-  const city = row.city || '';
-  const state = row.state || '';
-  const location = (city && state) ? `${city}, ${state}` : (city || state || '');
+  const city = normalizeGeoScalar(row.city);
+  const state = normalizeGeoScalar(row.state);
+  const county = normalizeGeoScalar(row.county);
+  const country = normalizeGeoScalar(row.country);
+  const location =
+    city && state ? `${city}, ${state}` : (city || state || county || country || '');
   const brokerName = row.broker_name || '';
   const brokerCompany = row.broker_company || '';
   const broker = brokerName && brokerCompany
@@ -36,8 +50,8 @@ export function normalizeMarketDeal(row) {
     location,
     city,
     state,
-    county: row.county || '',
-    country: row.country || '',
+    county,
+    country,
     yearsEstablished: row.years_established != null ? String(row.years_established) : '',
     ebitda,
     revenue,

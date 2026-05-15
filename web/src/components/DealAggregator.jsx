@@ -1056,7 +1056,17 @@ export default function DealAggregator({
 
   const buyBox = settings?.buyBox || {};
   const flexPct = Math.min(100, Math.max(0, Number(buyBox.includeNearMatchesPercent) || 0));
-  const hasAnyCriteria = [buyBox.minPrice, buyBox.maxPrice, buyBox.minEbitda, buyBox.maxEbitda, buyBox.minRevenue, buyBox.maxRevenue, buyBox.revenueMultiple].some((v) => v != null && v !== '');
+  const hasTargetStates = Array.isArray(buyBox.targetStates) && buyBox.targetStates.length > 0;
+  const hasAnyCriteria =
+    [
+      buyBox.minPrice,
+      buyBox.maxPrice,
+      buyBox.minEbitda,
+      buyBox.maxEbitda,
+      buyBox.minRevenue,
+      buyBox.maxRevenue,
+      buyBox.revenueMultiple
+    ].some((v) => v != null && v !== '') || hasTargetStates;
   const showBuyBoxConfigureHint = Boolean(settings) && !hasAnyCriteria;
   const effectiveMax = (limit) => (limit != null && flexPct > 0 ? limit * (1 + flexPct / 100) : limit);
   const effectiveMin = (limit) => (limit != null && flexPct > 0 ? limit * (1 - flexPct / 100) : limit);
@@ -1196,6 +1206,12 @@ export default function DealAggregator({
                 <>
                   <dt>Rev multiple</dt>
                   <dd>≤ {fmtMult(effectiveMax(buyBox.revenueMultiple))}</dd>
+                </>
+              )}
+              {hasTargetStates && (
+                <>
+                  <dt>States</dt>
+                  <dd>{buyBox.targetStates.join(', ')}</dd>
                 </>
               )}
               {flexPct > 0 && hasAnyCriteria && (

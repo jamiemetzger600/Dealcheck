@@ -13,6 +13,20 @@ export function defaultBuyBoxSlotName(index) {
   return `Buy box ${index + 1}`;
 }
 
+/** Keyword/search filters stored on each buy-box slot (not sent as deal-matching criteria). */
+export function snapshotSlotFeed(slot) {
+  const s = slot && typeof slot === 'object' ? slot : {};
+  return {
+    feedSearch: typeof s.feedSearch === 'string' ? s.feedSearch : '',
+    excludeKeywords: Array.isArray(s.excludeKeywords) ? [...s.excludeKeywords] : [],
+    excludeLists:
+      s.excludeLists && typeof s.excludeLists === 'object' && !Array.isArray(s.excludeLists)
+        ? { ...s.excludeLists }
+        : {},
+    currentExcludeList: s.currentExcludeList != null ? String(s.currentExcludeList) : ''
+  };
+}
+
 export function emptyBuyBoxCriteria() {
   return {
     minPrice: null,

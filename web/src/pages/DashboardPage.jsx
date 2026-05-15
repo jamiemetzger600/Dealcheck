@@ -6,6 +6,7 @@ import DealAggregator from '../components/DealAggregator';
 import SavedDeals from '../components/SavedDeals';
 import Navigation from '../components/Navigation';
 import BuyBoxModal from '../components/BuyBoxModal';
+import { BUY_BOX_SLOT_COUNT } from '../utils/buyBoxes';
 import SourceManagerModal from '../components/SourceManagerModal';
 import ManualDealModal from '../components/ManualDealModal';
 import ScrapeActivityToast from '../components/ScrapeActivityToast';
@@ -115,6 +116,13 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     return map;
   }, [savedDeals]);
 
+  const safeBuyBoxEditingSlotIndex = useMemo(() => {
+    const raw = settings?.activeBuyBoxIndex ?? settings?.preferences?.activeBuyBoxIndex ?? 0;
+    const n = Number(raw);
+    const idx = Number.isFinite(n) ? Math.trunc(n) : 0;
+    return Math.min(BUY_BOX_SLOT_COUNT - 1, Math.max(0, idx));
+  }, [settings?.activeBuyBoxIndex, settings?.preferences?.activeBuyBoxIndex]);
+
   if (loading) {
     return <div className="loading-screen">Loading your dashboard...</div>;
   }
@@ -177,7 +185,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       <BuyBoxModal
         isOpen={showBuyBoxModal}
         settings={settings}
-        editingSlotIndex={settings?.activeBuyBoxIndex ?? 0}
+        editingSlotIndex={safeBuyBoxEditingSlotIndex}
         onClose={() => {
           setShowBuyBoxModal(false);
           setBuyBoxModalMode('closed');

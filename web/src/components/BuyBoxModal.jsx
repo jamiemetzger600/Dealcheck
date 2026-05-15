@@ -4,7 +4,8 @@ import {
   BUY_BOX_SLOT_COUNT,
   defaultBuyBoxSlotName,
   emptyBuyBoxCriteria,
-  normalizeBuyBoxesState
+  normalizeBuyBoxesState,
+  snapshotSlotFeed
 } from '../utils/buyBoxes';
 
 const DEFAULT_BUYBOX = {
@@ -17,12 +18,38 @@ const DEFAULT_BUYBOX = {
   revenueMultiple: null,
   targetStates: [],
   excludeStates: [],
+  /** Mirrors targetStates in the text field so Save always persists what the user sees */
+  targetStatesInput: '',
+  excludeStatesInput: '',
   targetIndustries: [],
   targetCOC: null,
   targetPayback: null,
   minBuyerSalary: null,
   includeNearMatchesPercent: 0
 };
+
+function statesArrayToCommaInput(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return '';
+  return arr.map((s) => String(s).trim()).filter(Boolean).join(', ');
+}
+
+/** Prefer typed input; fall back to saved arrays so Save does not wipe states when the field was never edited. */
+function parseStateCodes(inputStr, fallbackArr) {
+  const raw =
+    inputStr != null && String(inputStr).trim() !== ''
+      ? String(inputStr)
+      : statesArrayToCommaInput(fallbackArr);
+  return raw
+    .split(',')
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean);
+}
+
+function parseNumberField(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = parseFloat(String(value).replace(/[$,]/g, ''));
+  return Number.isNaN(num) ? null : num;
+}
 
 const FLEXIBILITY_PRESETS = [0, 5, 10, 15, 20];
 const NEAR_MATCH_OPTIONS = [
@@ -56,17 +83,42 @@ export default function BuyBoxModal({
   const onboardingDismissLock = useRef(false);
   /** True only if the current gesture started with pointerdown on the backdrop (not inside the card). Avoids closing when text selection ends on the overlay. */
   const closeGestureFromBackdropRef = useRef(false);
+  /** Tracks unsaved edits; state (not ref) so close handlers always see the latest value after React commits. */
+  const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
+  /** Avoid re-hydrating when only `settings` reference updates while the modal stays open. */
+  const hydrateSessionRef = useRef({ open: false, slotKey: '' });
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      hydrateSessionRef.current = { open: false, slotKey: '' };
+      setHasUnsavedEdits(false);
+      return;
+    }
+
     const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
     const idx = isOnboarding ? 0 : (Number.isFinite(editingSlotIndex) ? editingSlotIndex : activeBuyBoxIndex);
     const safeIdx = Math.min(BUY_BOX_SLOT_COUNT - 1, Math.max(0, idx));
+    const slotKey = `${safeIdx}:${isOnboarding ? 'onboarding' : 'edit'}`;
+    const sess = hydrateSessionRef.current;
+    if (sess.open && sess.slotKey === slotKey) {
+      return;
+    }
+    hydrateSessionRef.current = { open: true, slotKey };
+
     const slot = buyBoxes[safeIdx] || {};
     const { name, ...crit } = slot;
-    setBuyBoxName(typeof name === 'string' && name.trim() ? name.trim() : defaultBuyBoxSlotName(safeIdx));
-    setForm({ ...DEFAULT_BUYBOX, ...crit });
-  }, [isOpen, settings, editingSlotIndex, isOnboarding]);
+    const nextName = typeof name === 'string' && name.trim() ? name.trim() : defaultBuyBoxSlotName(safeIdx);
+    const nextForm = {
+      ...DEFAULT_BUYBOX,
+      ...crit,
+      targetStatesInput: statesArrayToCommaInput(crit.targetStates),
+      excludeStatesInput: statesArrayToCommaInput(crit.excludeStates)
+    };
+    setHasUnsavedEdits(false);
+    setBuyBoxName(nextName);
+    setForm(nextForm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit `settings`: parent refresh must not re-hydrate while open (was clearing unsaved-edits guard).
+  }, [isOpen, editingSlotIndex, isOnboarding]);
 
   const dismissOnboarding = useCallback(async () => {
     if (onboardingDismissLock.current || saving) return;
@@ -85,26 +137,42 @@ export default function BuyBoxModal({
     }
   }, [onSaved, onClose, saving]);
 
+  const tryConfirmDiscardChanges = useCallback(() => {
+    if (busyRef.current) return false;
+    if (!hasUnsavedEdits) return true;
+    return window.confirm(
+      'You have unsaved changes. If you close now, your buy box settings will not be saved.'
+    );
+  }, [hasUnsavedEdits]);
+
+  const requestCloseEditor = useCallback(() => {
+    if (!tryConfirmDiscardChanges()) return;
+    onClose();
+  }, [onClose, tryConfirmDiscardChanges]);
+
+  const requestDismissOnboarding = useCallback(async () => {
+    if (!tryConfirmDiscardChanges()) return;
+    await dismissOnboarding();
+  }, [dismissOnboarding, tryConfirmDiscardChanges]);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
       if (e.key !== 'Escape' || busyRef.current) return;
-      if (isOnboarding) dismissOnboarding();
-      else onClose();
+      if (isOnboarding) void requestDismissOnboarding();
+      else requestCloseEditor();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isOnboarding, onClose, dismissOnboarding]);
+  }, [isOpen, isOnboarding, requestCloseEditor, requestDismissOnboarding]);
 
   if (!isOpen) return null;
 
   const busy = saving || dismissing;
 
-  const updateField = (key, value) => setForm((current) => ({ ...current, [key]: value }));
-  const parseNumber = (value) => {
-    if (value === null || value === undefined || value === '') return null;
-    const num = parseFloat(String(value).replace(/[$,]/g, ''));
-    return Number.isNaN(num) ? null : num;
+  const updateField = (key, value) => {
+    setHasUnsavedEdits(true);
+    setForm((current) => ({ ...current, [key]: value }));
   };
   const formatWithCommas = (val) => {
     if (val === null || val === undefined || val === '') return '';
@@ -116,10 +184,11 @@ export default function BuyBoxModal({
     return decPart !== undefined ? `${formattedInt}.${decPart}` : formattedInt;
   };
   const handleNumberChange = (key, rawInput) => {
-    updateField(key, parseNumber(rawInput));
+    updateField(key, parseNumberField(rawInput));
   };
 
   const handleIndustryToggle = (industry) => {
+    setHasUnsavedEdits(true);
     setForm((current) => ({
       ...current,
       targetIndustries: current.targetIndustries?.includes(industry)
@@ -141,18 +210,18 @@ export default function BuyBoxModal({
     setSaving(true);
     try {
       const buyBoxPayload = {
-        minPrice: parseNumber(form.minPrice),
-        maxPrice: parseNumber(form.maxPrice),
-        minEbitda: parseNumber(form.minEbitda),
-        maxEbitda: parseNumber(form.maxEbitda),
-        minRevenue: parseNumber(form.minRevenue),
-        revenueMultiple: parseNumber(form.revenueMultiple),
-        targetStates: (form.targetStatesInput || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
-        excludeStates: (form.excludeStatesInput || '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+        minPrice: parseNumberField(form.minPrice),
+        maxPrice: parseNumberField(form.maxPrice),
+        minEbitda: parseNumberField(form.minEbitda),
+        maxEbitda: parseNumberField(form.maxEbitda),
+        minRevenue: parseNumberField(form.minRevenue),
+        revenueMultiple: parseNumberField(form.revenueMultiple),
+        targetStates: parseStateCodes(form.targetStatesInput, form.targetStates),
+        excludeStates: parseStateCodes(form.excludeStatesInput, form.excludeStates),
         targetIndustries: form.targetIndustries || [],
-        targetCOC: parseNumber(form.targetCOC),
-        targetPayback: parseNumber(form.targetPayback),
-        minBuyerSalary: parseNumber(form.minBuyerSalary),
+        targetCOC: parseNumberField(form.targetCOC),
+        targetPayback: parseNumberField(form.targetPayback),
+        minBuyerSalary: parseNumberField(form.minBuyerSalary),
         includeNearMatchesPercent: Number(form.includeNearMatchesPercent) || 0
       };
 
@@ -161,11 +230,12 @@ export default function BuyBoxModal({
       const safeIdx = Math.min(BUY_BOX_SLOT_COUNT - 1, Math.max(0, slotIndex));
       const trimmed = buyBoxName.trim();
       const nextName = trimmed || defaultBuyBoxSlotName(safeIdx);
-      const { name: _drop, ...prevCrit } = buyBoxes[safeIdx] || {};
+      const prevSlot = buyBoxes[safeIdx] || {};
       const nextSlots = [...buyBoxes];
+      // Merge criteria onto existing slot so feedSearch / exclude keywords stay tied to this slot.
       nextSlots[safeIdx] = {
+        ...prevSlot,
         name: nextName,
-        ...prevCrit,
         ...buyBoxPayload
       };
 
@@ -192,13 +262,24 @@ export default function BuyBoxModal({
   };
 
   const handleReset = async () => {
-    if (!window.confirm('Reset this buy box slot to defaults?')) return;
+    if (
+      !window.confirm(
+        'Reset deal criteria for this buy box to defaults?\n\nSearch keywords and exclude lists saved on this slot stay as they are.'
+      )
+    )
+      return;
     const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
     const slotIndex = isOnboarding ? 0 : (Number.isFinite(editingSlotIndex) ? editingSlotIndex : activeBuyBoxIndex);
     const safeIdx = Math.min(BUY_BOX_SLOT_COUNT - 1, Math.max(0, slotIndex));
-    const nextSlots = buyBoxes.map((b, i) =>
-      i === safeIdx ? { name: defaultBuyBoxSlotName(safeIdx), ...DEFAULT_BUYBOX } : b
-    );
+    const nextSlots = buyBoxes.map((b, i) => {
+      if (i !== safeIdx) return b;
+      const feed = snapshotSlotFeed(b);
+      return {
+        name: defaultBuyBoxSlotName(safeIdx),
+        ...emptyBuyBoxCriteria(),
+        ...feed
+      };
+    });
     setForm(DEFAULT_BUYBOX);
     setBuyBoxName(defaultBuyBoxSlotName(safeIdx));
     try {
@@ -227,8 +308,8 @@ export default function BuyBoxModal({
         if (e.target !== e.currentTarget || busy) return;
         if (!closeGestureFromBackdropRef.current) return;
         closeGestureFromBackdropRef.current = false;
-        if (isOnboarding) dismissOnboarding();
-        else onClose();
+        if (isOnboarding) void requestDismissOnboarding();
+        else requestCloseEditor();
       }}
     >
       <div className="modal-card buybox-modal" onClick={(e) => e.stopPropagation()}>
@@ -241,7 +322,10 @@ export default function BuyBoxModal({
                 type="text"
                 className="buybox-modal-name-field__input"
                 value={buyBoxName}
-                onChange={(e) => setBuyBoxName(e.target.value)}
+                onChange={(e) => {
+                  setHasUnsavedEdits(true);
+                  setBuyBoxName(e.target.value);
+                }}
                 placeholder={defaultBuyBoxSlotName(
                   isOnboarding ? 0 : (Number.isFinite(editingSlotIndex) ? editingSlotIndex : settings?.activeBuyBoxIndex ?? 0)
                 )}
@@ -255,7 +339,7 @@ export default function BuyBoxModal({
           <button
             type="button"
             className="column-close-btn"
-            onClick={() => (isOnboarding ? dismissOnboarding() : onClose())}
+            onClick={() => (isOnboarding ? void requestDismissOnboarding() : requestCloseEditor())}
             disabled={busy}
             aria-label={isOnboarding ? 'Skip buy box and browse deals' : 'Close'}
           >
@@ -357,12 +441,12 @@ export default function BuyBoxModal({
         <div className="modal-actions">
           {!isOnboarding && <button type="button" className="btn-secondary" onClick={handleReset} disabled={busy}>Reset</button>}
           {!isOnboarding && (
-            <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
+            <button type="button" className="btn-secondary" onClick={requestCloseEditor} disabled={busy}>
               Cancel
             </button>
           )}
           {isOnboarding && (
-            <button type="button" className="btn-secondary" onClick={() => dismissOnboarding()} disabled={busy}>
+            <button type="button" className="btn-secondary" onClick={() => void requestDismissOnboarding()} disabled={busy}>
               {dismissing ? 'Skipping...' : 'Skip for now'}
             </button>
           )}

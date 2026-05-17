@@ -10,7 +10,8 @@ export default function Navigation({
   pageSubtitle,
   showTabs = true,
   aggregatorCount = 0,
-  myDealsCount = 0
+  myDealsCount = 0,
+  onOpenQuickCalculator = null
 }) {
   return (
     <>
@@ -32,6 +33,15 @@ export default function Navigation({
 
         <div className="app-header-actions">
           <span className="nav-user-pill">{user?.email}</span>
+          {typeof onOpenQuickCalculator === 'function' && (
+            <button
+              type="button"
+              className="header-link header-link--calculator"
+              onClick={onOpenQuickCalculator}
+            >
+              Quick Deal Calculator
+            </button>
+          )}
           <Link to="/settings" className="header-link">Settings</Link>
           <Link to="/billing" className="header-link">Billing</Link>
           <button onClick={logout} className="header-link">Logout</button>

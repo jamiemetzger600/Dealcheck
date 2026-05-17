@@ -489,6 +489,77 @@ a {
   background: rgba(255, 255, 255, 0.2);
 }
 
+.header-link--calculator {
+  border-color: rgba(99, 179, 237, 0.45);
+  background: rgba(99, 179, 237, 0.12);
+}
+
+.header-link--calculator:hover {
+  background: rgba(99, 179, 237, 0.22);
+}
+
+.quick-calculator-subtitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+  max-width: 52ch;
+}
+
+.quick-calculator-body {
+  padding-top: 4px;
+}
+
+.quick-calculator-panel .deal-calculator-section {
+  border: none;
+  padding: 0;
+}
+
+.quick-calculator-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 14px;
+  max-width: 560px;
+}
+
+.quick-calculator-name-field {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0;
+}
+
+.quick-calculator-name-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.quick-calculator-name-field .modal-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.quick-calculator-save-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  height: 45px;
+  margin-bottom: 0;
+}
+
+.quick-calculator-name-error {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #f87171;
+}
+
+.modal-input--error {
+  border-color: #f87171;
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35);
+}
+
 .global-action-row {
   margin-bottom: 20px;
   padding: 16px 20px;
@@ -2647,7 +2718,6 @@ a {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 4px;
-  margin-bottom: 16px;
 }
 
 .calc-scenario-tabs .calc-scenario-tab {
@@ -2669,6 +2739,106 @@ a {
 .calc-scenario-tabs .calc-scenario-tab.active {
   background: linear-gradient(135deg, var(--brand-from) 0%, var(--brand-to) 100%);
   color: var(--text-primary);
+}
+
+.calc-scenario-bar {
+  margin-bottom: 16px;
+}
+
+.calc-scenario-compare-btn {
+  margin-left: 2px;
+}
+
+.calc-scenario-compare {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.calc-scenario-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.calc-scenario-compare-table th,
+.calc-scenario-compare-table td {
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.calc-scenario-compare-table thead th {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.calc-scenario-compare-metric-head,
+.calc-scenario-compare-metric-label {
+  text-align: left;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.calc-scenario-compare-col-label {
+  display: block;
+}
+
+.calc-scenario-best-pill {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #0d1f14;
+  background: linear-gradient(135deg, #6ee7a8 0%, #34d399 100%);
+}
+
+.calc-scenario-compare-col--best {
+  background: rgba(52, 211, 153, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.35);
+}
+
+.calc-scenario-compare-table tbody tr:last-child td,
+.calc-scenario-compare-table tbody tr:last-child th {
+  border-bottom: none;
+}
+
+.calc-scenario-compare-table .calc-compare-coc,
+.calc-scenario-compare-table .calc-compare-payback {
+  font-weight: 600;
+}
+
+.calc-scenario3-suggestion {
+  position: relative;
+  margin-bottom: 16px;
+  padding: 14px 40px 14px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(99, 179, 237, 0.35);
+  background: rgba(99, 179, 237, 0.1);
+}
+
+.calc-scenario3-suggestion strong {
+  color: var(--text-primary);
+}
+
+.calc-scenario3-suggestion p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.calc-scenario3-suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .calc-financing-grid {

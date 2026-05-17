@@ -10,6 +10,10 @@ import {
   SELLER_NOTE_TERM_YEARS,
   stringifyDealNumber
 } from '../utils/dealCalculatorMath';
+import {
+  isScenario3Pristine,
+  suggestScenario3Alternative
+} from '../utils/suggestScenario3';
 import { dealsAPI } from '../utils/api';
 import {
   isSavedDealRowId,
@@ -35,6 +39,10 @@ export default function DealCalculator({
   calculatorDefaults = {},
   onSaveCalculatorDefaults = null,
   onUseForIOI = null,
+  onAddToMyDeals = null,
+  addToMyDealsInFooter = true,
+  collectAddToMyDealsPayloadRef = null,
+  showRefreshFromListing = true,
   className = ''
 }) {
   const [activeScenario, setActiveScenario] = useState(0);
@@ -42,6 +50,8 @@ export default function DealCalculator({
   const [targetCOC, setTargetCOC] = useState('25');
   const [uiOpen, setUiOpen] = useState(() => ({ ...DEFAULT_UI }));
   const [targetOfferResult, setTargetOfferResult] = useState(null);
+  const [addingToMyDeals, setAddingToMyDeals] = useState(false);
+  const [showScenarioCompare, setShowScenarioCompare] = useState(false);
   const persistTimerRef = useRef(null);
   const perDealPersistTimerRef = useRef(null);
 
@@ -143,6 +153,57 @@ export default function DealCalculator({
     () => analyzeDealScenario(currentScenario, qualityPrefs),
     [currentScenario, qualityPrefs]
   );
+
+  const compareAnalyses = useMemo(
+    () => scenarios.map((scenario) => analyzeDealScenario(scenario, qualityPrefs)),
+    [scenarios, qualityPrefs]
+  );
+
+  const bestCompareScenarioIndices = useMemo(() => {
+    let maxCoc = -Infinity;
+    for (const row of compareAnalyses) {
+      if (row.coc > maxCoc) maxCoc = row.coc;
+    }
+    if (!Number.isFinite(maxCoc)) return new Set();
+    const best = new Set();
+    compareAnalyses.forEach((row, index) => {
+      if (row.coc === maxCoc) best.add(index);
+    });
+    return best;
+  }, [compareAnalyses]);
+
+  const scenario3Suggestion = useMemo(() => {
+    if (!deal || scenarios.length < 3) return null;
+    return suggestScenario3Alternative(scenarios, qualityPrefs, calculatorDefaults, deal);
+  }, [deal, scenarios, qualityPrefs, calculatorDefaults]);
+
+  const showScenario3SuggestionBanner =
+    scenario3Suggestion && isScenario3Pristine(scenarios, calculatorDefaults, deal);
+
+  const applyScenario3Suggestion = () => {
+    if (!scenario3Suggestion) return;
+    setScenarios((current) =>
+      current.map((scenario, index) =>
+        index === 2
+          ? { ...scenario3Suggestion.scenario, dismissScenario3Suggestion: true }
+          : scenario
+      )
+    );
+    setActiveScenario(2);
+    setShowScenarioCompare(false);
+    console.log('[DealCalculator] Applied Scenario 3 suggestion', {
+      label: scenario3Suggestion.label,
+      coc: scenario3Suggestion.coc
+    });
+  };
+
+  const dismissScenario3Suggestion = () => {
+    setScenarios((current) =>
+      current.map((scenario, index) =>
+        index === 2 ? { ...scenario, dismissScenario3Suggestion: true } : scenario
+      )
+    );
+  };
 
   useEffect(() => {
     setTargetOfferResult(null);
@@ -276,6 +337,33 @@ export default function DealCalculator({
     setTargetOfferResult(null);
   };
 
+  const getAddToMyDealsPayload = useCallback(() => {
+    const scenario = scenarios[activeScenario] || {};
+    return {
+      calculatorState: { scenarios, activeScenario, targetCOC, ui: uiOpen },
+      askingPrice: parseMoney(scenario.askingPrice),
+      ebitda: parseMoney(scenario.ebitda)
+    };
+  }, [scenarios, activeScenario, targetCOC, uiOpen]);
+
+  useEffect(() => {
+    if (!collectAddToMyDealsPayloadRef) return;
+    collectAddToMyDealsPayloadRef.current = getAddToMyDealsPayload;
+    return () => {
+      collectAddToMyDealsPayloadRef.current = null;
+    };
+  }, [collectAddToMyDealsPayloadRef, getAddToMyDealsPayload]);
+
+  const handleAddToMyDealsClick = async () => {
+    if (typeof onAddToMyDeals !== 'function' || addingToMyDeals) return;
+    setAddingToMyDeals(true);
+    try {
+      await onAddToMyDeals(getAddToMyDealsPayload());
+    } finally {
+      setAddingToMyDeals(false);
+    }
+  };
+
   const resetScenarioFromListing = () => {
     if (!deal) return;
     setScenarios((current) =>
@@ -326,18 +414,69 @@ export default function DealCalculator({
         </div>
       </div>
 
-      <div className="calc-scenario-tabs">
-        {scenarios.map((_, index) => (
+      <div className="calc-scenario-bar">
+        <div className="calc-scenario-tabs">
+          {scenarios.map((_, index) => (
+            <button
+              key={`scenario-${index + 1}`}
+              type="button"
+              className={`calc-scenario-tab ${!showScenarioCompare && activeScenario === index ? 'active' : ''}`}
+              onClick={() => {
+                setShowScenarioCompare(false);
+                setActiveScenario(index);
+              }}
+            >
+              Scenario {index + 1}
+            </button>
+          ))}
           <button
-            key={`scenario-${index + 1}`}
             type="button"
-            className={`calc-scenario-tab ${activeScenario === index ? 'active' : ''}`}
-            onClick={() => setActiveScenario(index)}
+            className={`calc-scenario-tab calc-scenario-compare-btn ${showScenarioCompare ? 'active' : ''}`}
+            onClick={() => setShowScenarioCompare((current) => !current)}
           >
-            Scenario {index + 1}
+            Compare
           </button>
-        ))}
+        </div>
+        {showScenarioCompare && (
+          <ScenarioCompareTable analyses={compareAnalyses} bestScenarioIndices={bestCompareScenarioIndices} />
+        )}
       </div>
+
+      {showScenario3SuggestionBanner && (
+        <div className="calc-scenario3-suggestion">
+          <button
+            type="button"
+            className="calc-opportunity-dismiss"
+            onClick={dismissScenario3Suggestion}
+            title="Dismiss suggestion"
+            aria-label="Dismiss Scenario 3 suggestion"
+          >
+            ×
+          </button>
+          <strong>Try a creative Scenario 3</strong>
+          <p>
+            Vettr found financing terms you have not used in Scenarios 1 or 2 that may improve ROI:{' '}
+            <strong>{scenario3Suggestion.label}</strong> — estimated{' '}
+            <strong>{scenario3Suggestion.coc.toFixed(1)}% CoC</strong>
+            {scenario3Suggestion.improvementVsBest > 0 ? (
+              <>
+                {' '}
+                (+{scenario3Suggestion.improvementVsBest.toFixed(1)}% vs Scenario{' '}
+                {scenario3Suggestion.betterThanScenario})
+              </>
+            ) : null}
+            .
+          </p>
+          <div className="calc-scenario3-suggestion-actions">
+            <button type="button" className="btn-primary" onClick={applyScenario3Suggestion}>
+              Apply to Scenario 3
+            </button>
+            <button type="button" className="btn-secondary" onClick={dismissScenario3Suggestion}>
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="modal-grid two-col calc-top-inputs">
         <div className="form-group">
@@ -767,6 +906,9 @@ export default function DealCalculator({
         </div>
       </CalcAccordion>
 
+      {(onUseForIOI ||
+        (addToMyDealsInFooter && typeof onAddToMyDeals === 'function') ||
+        showRefreshFromListing) && (
       <div className="calc-footer-actions">
         {onUseForIOI && (
           <button
@@ -777,10 +919,96 @@ export default function DealCalculator({
             Use for IOI
           </button>
         )}
-        <button type="button" className="btn-secondary" onClick={resetScenarioFromListing}>
-          Refresh from listing
-        </button>
+        {addToMyDealsInFooter && typeof onAddToMyDeals === 'function' && (
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={addingToMyDeals}
+            onClick={handleAddToMyDealsClick}
+          >
+            {addingToMyDeals ? 'Saving…' : 'Add to My Deals'}
+          </button>
+        )}
+        {showRefreshFromListing && (
+          <button type="button" className="btn-secondary" onClick={resetScenarioFromListing}>
+            Refresh from listing
+          </button>
+        )}
       </div>
+      )}
+    </div>
+  );
+}
+
+const COMPARE_ROWS = [
+  {
+    key: 'coc',
+    label: 'Cash-on-Cash',
+    format: (a) => `${a.coc.toFixed(1)}%`,
+    cellClass: (a) => `calc-compare-coc calc-coc-value`,
+    cellDataTier: (a) => cocTier(a.coc)
+  },
+  {
+    key: 'payback',
+    label: 'Payback',
+    format: (a) => (a.payback > 0 && a.payback < 100 ? `${a.payback.toFixed(1)} yrs` : '—'),
+    cellClass: () => 'calc-compare-payback calc-payback-value',
+    cellDataTier: (a) => paybackTier(a.payback)
+  },
+  {
+    key: 'fcf',
+    label: 'Free Cash Flow',
+    format: (a) => formatMoney(a.freeCashFlow),
+    cellClass: () => '',
+    cellDataTier: () => null
+  }
+];
+
+function ScenarioCompareTable({ analyses, bestScenarioIndices }) {
+  return (
+    <div className="calc-scenario-compare" role="region" aria-label="Scenario comparison">
+      <table className="calc-scenario-compare-table">
+        <thead>
+          <tr>
+            <th scope="col" className="calc-scenario-compare-metric-head" />
+            {analyses.map((_, index) => {
+              const isBest = bestScenarioIndices.has(index);
+              return (
+                <th
+                  key={`compare-head-${index + 1}`}
+                  scope="col"
+                  className={isBest ? 'calc-scenario-compare-col--best' : undefined}
+                >
+                  <span className="calc-scenario-compare-col-label">Scenario {index + 1}</span>
+                  {isBest ? <span className="calc-scenario-best-pill">Best ROI</span> : null}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {COMPARE_ROWS.map((row) => (
+            <tr key={row.key}>
+              <th scope="row" className="calc-scenario-compare-metric-label">
+                {row.label}
+              </th>
+              {analyses.map((analysis, index) => {
+                const isBest = bestScenarioIndices.has(index);
+                const tier = row.cellDataTier(analysis);
+                return (
+                  <td
+                    key={`${row.key}-${index + 1}`}
+                    className={`${isBest ? 'calc-scenario-compare-col--best' : ''} ${row.cellClass(analysis)}`.trim()}
+                    data-tier={tier || undefined}
+                  >
+                    {row.format(analysis)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import BuyBoxModal from '../components/BuyBoxModal';
 import { BUY_BOX_SLOT_COUNT } from '../utils/buyBoxes';
 import SourceManagerModal from '../components/SourceManagerModal';
 import ManualDealModal from '../components/ManualDealModal';
+import QuickDealCalculatorModal from '../components/QuickDealCalculatorModal';
 import ScrapeActivityToast from '../components/ScrapeActivityToast';
 
 function isBuyBoxEmpty(buyBox) {
@@ -45,6 +46,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [buyBoxModalMode, setBuyBoxModalMode] = useState('closed');
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showManualDealModal, setShowManualDealModal] = useState(false);
+  const [showQuickCalculator, setShowQuickCalculator] = useState(false);
   /** When set, aggregator shows deals from the latest scrape (ids or first_seen window). */
   const [poolNewDealsFilter, setPoolNewDealsFilter] = useState(null);
 
@@ -147,6 +149,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         setActiveTab={setActiveTab}
         aggregatorCount={totalDeals}
         myDealsCount={savedDeals.length}
+        onOpenQuickCalculator={() => setShowQuickCalculator(true)}
       />
 
       <div className="dashboard-content">
@@ -206,6 +209,16 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         isOpen={showManualDealModal}
         onClose={() => setShowManualDealModal(false)}
         onSaved={async () => {
+          await loadUserData();
+          setActiveTab('saved-deals');
+        }}
+      />
+      <QuickDealCalculatorModal
+        isOpen={showQuickCalculator}
+        onClose={() => setShowQuickCalculator(false)}
+        settings={settings}
+        onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
+        onDealSaved={async () => {
           await loadUserData();
           setActiveTab('saved-deals');
         }}

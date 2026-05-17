@@ -2,6 +2,40 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { userAPI } from '../utils/api';
 import { generateIOIText, generateIOISubject, getBrokerEmailFromDeal } from '../utils/ioiGenerator';
 
+/** Copy plain text for paste into email; uses Clipboard API with a focused textarea fallback. */
+async function copyTextToClipboard(text) {
+  if (!text) return false;
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) {
+      console.warn('[IOI] navigator.clipboard.writeText failed:', err);
+    }
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (err) {
+    console.warn('[IOI] execCommand copy failed:', err);
+    return false;
+  }
+}
+
 export default function IOIModal({
   deal,
   scenarios,
@@ -23,14 +57,18 @@ export default function IOIModal({
   const [closingNotes, setClosingNotes] = useState('');
   const [signature, setSignature] = useState(() => prefs.ioiSignature || '');
   const [companyName, setCompanyName] = useState(() => prefs.ioiCompanyName || '');
-  const [brokerEmail, setBrokerEmail] = useState(() => getBrokerEmailFromDeal(deal));
+  const parsedBrokerEmail = useMemo(() => getBrokerEmailFromDeal(deal), [deal]);
+  const [brokerEmail, setBrokerEmail] = useState(() => parsedBrokerEmail);
+  const brokerEmailTouchedRef = useRef(false);
   const [previewText, setPreviewText] = useState('');
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(false);
 
+  /** Autofill when listing data arrives (e.g. full detail fetch); do not clobber manual edits. */
   useEffect(() => {
-    setBrokerEmail(getBrokerEmailFromDeal(deal));
-  }, [deal]);
+    if (brokerEmailTouchedRef.current || !parsedBrokerEmail) return;
+    setBrokerEmail(parsedBrokerEmail);
+  }, [parsedBrokerEmail]);
 
   const selectedIndices = useMemo(
     () => Array.from(selected).sort((a, b) => a - b),
@@ -199,24 +237,24 @@ export default function IOIModal({
     recordIOI(previewText);
   }, [brokerEmail, deal, openMailtoViaAnchor, previewText, recordIOI, saveSignatureAndCompanyNow]);
 
-  const handleCopy = async () => {
-    await saveSignatureAndCompanyNow();
-    try {
-      await navigator.clipboard.writeText(previewText);
+  const handleCopy = () => {
+    const text = previewText.trim();
+    if (!text) return;
+
+    // Copy in the same user gesture — awaiting save first drops transient activation and breaks clipboard API.
+    void copyTextToClipboard(text).then((ok) => {
+      if (!ok) {
+        console.error('[IOI] copy to clipboard failed');
+        window.alert(
+          'Could not copy to the clipboard. Select the email preview text and use Cmd+C (Mac) or Ctrl+C (Windows).'
+        );
+        return;
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
       recordIOI(previewText);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = previewText;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-      recordIOI(previewText);
-    }
+      void saveSignatureAndCompanyNow();
+    });
   };
 
   const canSend = selectedIndices.length > 0 && previewText.trim().length > 0;
@@ -258,7 +296,10 @@ export default function IOIModal({
               type="email"
               className="ioi-input"
               value={brokerEmail}
-              onChange={(e) => setBrokerEmail(e.target.value)}
+              onChange={(e) => {
+                brokerEmailTouchedRef.current = true;
+                setBrokerEmail(e.target.value);
+              }}
               placeholder="broker@example.com"
             />
             <p className="ioi-hint">From this listing only — not saved to your account. If empty, add the broker in Gmail or your mail app.</p>

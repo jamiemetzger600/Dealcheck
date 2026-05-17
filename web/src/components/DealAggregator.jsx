@@ -396,6 +396,8 @@ export default function DealAggregator({
   const fetchAbortRef = useRef(null);
   /** Same query + manual refresh → send If-None-Match for list 304. */
   const listEtagCacheRef = useRef({ key: '', etag: '' });
+  /** After account/local column prefs are applied, allow debounced API writes. */
+  const columnsPrefsReadyRef = useRef(false);
   const [isMobileViewport, setIsMobileViewport] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
   );
@@ -475,6 +477,23 @@ export default function DealAggregator({
     setDealViewStyle(settings?.dealViewStyle || 'table');
     const cols = settings?.preferences?.cardColumnsPerRow;
     setCardColumnsPerRow(CARD_COLUMNS_OPTIONS.includes(cols) ? cols : DEFAULT_CARD_COLUMNS);
+
+    const accountCols = parseVisibleColumnsFromAccount(settings.visibleColumns);
+    if (accountCols) {
+      setVisibleColumns(accountCols);
+      columnsPrefsReadyRef.current = true;
+    } else if (isEmptyVisibleColumnsOnAccount(settings.visibleColumns)) {
+      const localCols = loadVisibleColumns();
+      setVisibleColumns(localCols);
+      columnsPrefsReadyRef.current = true;
+      if (!visibleColumnsEqual(localCols, DEFAULT_VISIBLE_COLUMNS)) {
+        userAPI.updateSettings({ visibleColumns: localCols }).catch((err) => {
+          console.error('[DealAggregator] migrate visibleColumns to account failed:', err);
+        });
+      }
+    } else {
+      columnsPrefsReadyRef.current = true;
+    }
   }, [settings]);
 
   // Debounce search input
@@ -504,10 +523,30 @@ export default function DealAggregator({
     setCurrentPage(1);
   }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger]);
 
-  // Persist column/sort preferences
+  // Persist column visibility locally and to user account
   useEffect(() => {
     localStorage.setItem('vettr_visible_columns', JSON.stringify(visibleColumns));
   }, [visibleColumns]);
+  useEffect(() => {
+    if (!settings || !columnsPrefsReadyRef.current) return;
+    const accountCols = parseVisibleColumnsFromAccount(settings.visibleColumns);
+    if (accountCols && visibleColumnsEqual(visibleColumns, accountCols)) return;
+
+    const t = setTimeout(() => {
+      userAPI
+        .updateSettings({ visibleColumns })
+        .then(() => {
+          if (typeof onSettingsUpdate === 'function') {
+            return onSettingsUpdate();
+          }
+          return undefined;
+        })
+        .catch((err) => {
+          console.error('[DealAggregator] persist visibleColumns failed:', err);
+        });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [visibleColumns, settings, onSettingsUpdate]);
   useEffect(() => {
     localStorage.setItem('vettr_aggregator_sort', JSON.stringify(sortConfig));
   }, [sortConfig]);
@@ -949,11 +988,23 @@ export default function DealAggregator({
       : hiddenDealIds.includes(primary)
         ? hiddenDealIds
         : [...hiddenDealIds, primary];
+    const previousHiddenIds = hiddenDealIds;
+    const previousSelectedDeal = selectedDeal;
     setHiddenDealIds(nextHiddenIds);
     if (selectedDeal && isDealHidden(selectedDeal, nextHiddenIds) && !showHiddenDeals) {
       setSelectedDeal(null);
     }
-    await updateUserFilterSettings({ hiddenDealIds: nextHiddenIds });
+    try {
+      await userAPI.updateSettings({ hiddenDealIds: nextHiddenIds });
+      if (typeof onSettingsUpdate === 'function') {
+        await onSettingsUpdate();
+      }
+    } catch (error) {
+      setHiddenDealIds(previousHiddenIds);
+      setSelectedDeal(previousSelectedDeal);
+      console.error('[DealAggregator] persist hiddenDealIds failed:', error);
+      alert(`Failed to save hidden listings: ${error.message}`);
+    }
   };
 
   const handleDealPanelPositionChange = async (position) => {
@@ -1828,10 +1879,35 @@ function listingAgeTitle(discoveredAt) {
   return `${dateStr} — ${days} days ago`;
 }
 
+function isEmptyVisibleColumnsOnAccount(raw) {
+  if (raw == null) return true;
+  if (Array.isArray(raw)) return raw.length === 0;
+  return Object.keys(raw).length === 0;
+}
+
+/** Normalize `user_settings.visible_columns` into a column-id → boolean map. */
+function parseVisibleColumnsFromAccount(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  if (Object.keys(raw).length === 0) return null;
+  const merged = { ...DEFAULT_VISIBLE_COLUMNS };
+  for (const columnId of Object.keys(COLUMN_CONFIG)) {
+    if (raw[columnId] === false) merged[columnId] = false;
+    else if (raw[columnId] === true) merged[columnId] = true;
+    if (COLUMN_CONFIG[columnId]?.required) merged[columnId] = true;
+  }
+  return merged;
+}
+
+function visibleColumnsEqual(a, b) {
+  return Object.keys(COLUMN_CONFIG).every((columnId) => (a[columnId] !== false) === (b[columnId] !== false));
+}
+
 function loadVisibleColumns() {
   try {
     const saved = localStorage.getItem('vettr_visible_columns');
-    return saved ? { ...DEFAULT_VISIBLE_COLUMNS, ...JSON.parse(saved) } : DEFAULT_VISIBLE_COLUMNS;
+    const parsed = saved ? JSON.parse(saved) : null;
+    const fromLocal = parseVisibleColumnsFromAccount(parsed);
+    return fromLocal || DEFAULT_VISIBLE_COLUMNS;
   } catch {
     return DEFAULT_VISIBLE_COLUMNS;
   }

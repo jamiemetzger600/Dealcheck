@@ -2,22 +2,50 @@ import { analyzeDealScenario, SELLER_NOTE_TERM_YEARS } from './dealCalculatorMat
 
 const EMAIL_IN_TEXT = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 
-/** Prefer explicit broker fields; fall back to first email found in contact strings. */
+function firstEmailInText(value) {
+  if (value == null || value === '') return '';
+  const s = String(value).trim();
+  if (!s) return '';
+  const mailto = s.match(/^mailto:([^?]+)/i);
+  const haystack = mailto ? mailto[1] : s;
+  const m = haystack.match(EMAIL_IN_TEXT);
+  return m ? m[0] : '';
+}
+
+/** Prefer explicit broker fields; fall back to first email found in contact / description text. */
 export function getBrokerEmailFromDeal(deal) {
   if (!deal) return '';
-  const candidates = [deal.brokerEmail, deal.broker_email, deal.listingBrokerEmail, deal.listing_broker_email];
-  for (const c of candidates) {
-    if (typeof c === 'string' && c.includes('@')) {
-      const t = c.trim();
-      if (t) return t;
-    }
+
+  const explicitFields = [
+    deal.brokerEmail,
+    deal.broker_email,
+    deal.listingBrokerEmail,
+    deal.listing_broker_email,
+    deal.contactEmail,
+    deal.contact_email
+  ];
+  for (const c of explicitFields) {
+    const email = firstEmailInText(c);
+    if (email) return email;
   }
-  const contactFields = [deal.brokerPhone, deal.broker_contact, deal.brokerContact, deal.contact, deal.broker];
-  for (const field of contactFields) {
-    if (typeof field !== 'string' || !field) continue;
-    const m = field.match(EMAIL_IN_TEXT);
-    if (m) return m[0];
+
+  const textFields = [
+    deal.brokerPhone,
+    deal.broker_contact,
+    deal.brokerContact,
+    deal.contact,
+    deal.broker,
+    deal.brokerName,
+    deal.broker_name,
+    deal.brokerCompany,
+    deal.broker_company,
+    deal.description
+  ];
+  for (const field of textFields) {
+    const email = firstEmailInText(field);
+    if (email) return email;
   }
+
   return '';
 }
 

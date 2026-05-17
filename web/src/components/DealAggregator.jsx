@@ -374,6 +374,8 @@ export default function DealAggregator({
   const [showHiddenDeals, setShowHiddenDeals] = useState(false);
   const [viewMode, setViewMode] = useState('matches');
   const [excludeInput, setExcludeInput] = useState('');
+  const [excludeListNameInput, setExcludeListNameInput] = useState('');
+  const [excludeListSaving, setExcludeListSaving] = useState(false);
   const [sortConfig, setSortConfig] = useState(() => loadSavedSortConfig());
   const [visibleColumns, setVisibleColumns] = useState(() => loadVisibleColumns());
   const [showColumnsPanel, setShowColumnsPanel] = useState(false);
@@ -468,7 +470,9 @@ export default function DealAggregator({
         ? slot.excludeLists
         : {}
     );
-    setCurrentSelectedList(slot.currentExcludeList != null ? String(slot.currentExcludeList) : '');
+    const activeListName = slot.currentExcludeList != null ? String(slot.currentExcludeList) : '';
+    setCurrentSelectedList(activeListName);
+    setExcludeListNameInput(activeListName);
     const q = typeof slot.feedSearch === 'string' ? slot.feedSearch : '';
     setSearchQuery(q);
     setDebouncedSearch(q);
@@ -689,16 +693,32 @@ export default function DealAggregator({
   };
 
   const persistActiveSlotFeed = async (patch) => {
+    if (!settings) {
+      console.error('[DealAggregator] persistActiveSlotFeed: settings not loaded');
+      alert('Settings are still loading. Please try again in a moment.');
+      return false;
+    }
     try {
       const payload = mergeActiveSlotFeedPatch(settings, patch);
       await userAPI.updateSettings(payload);
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
+      return true;
     } catch (error) {
+      console.error('[DealAggregator] persistActiveSlotFeed failed:', error);
       alert(`Failed to save filter settings: ${error.message}`);
+      return false;
     }
   };
+
+  const resolveExcludeKeywordsForSave = useCallback(() => {
+    const pending = excludeInput
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+    return Array.from(new Set([...excludeKeywords, ...pending]));
+  }, [excludeInput, excludeKeywords]);
 
   const getSavedRowIdForMarketDeal = useCallback(
     (deal) => {
@@ -934,18 +954,39 @@ export default function DealAggregator({
   };
 
   const handleSaveExcludeList = async () => {
-    if (excludeKeywords.length === 0) {
-      alert('Add some keywords first before saving a list');
+    if (excludeListSaving) return;
+
+    const keywords = resolveExcludeKeywordsForSave();
+    if (keywords.length === 0) {
+      alert('Add at least one keyword before saving (type below and click Add, or press Enter).');
       return;
     }
-    const listName = window.prompt('Enter a name for this exclude list:', currentSelectedList || '');
-    if (!listName || !listName.trim()) return;
 
-    const trimmed = listName.trim();
-    const nextLists = { ...savedExcludeLists, [trimmed]: [...excludeKeywords] };
-    setSavedExcludeLists(nextLists);
-    setCurrentSelectedList(trimmed);
-    await persistActiveSlotFeed({ excludeLists: nextLists, currentExcludeList: trimmed });
+    const trimmed = excludeListNameInput.trim();
+    if (!trimmed) {
+      alert('Enter a list name in the field next to the dropdown.');
+      return;
+    }
+
+    setExcludeListSaving(true);
+    try {
+      const nextLists = { ...savedExcludeLists, [trimmed]: keywords };
+      setExcludeKeywords(keywords);
+      setExcludeInput('');
+      setSavedExcludeLists(nextLists);
+      setCurrentSelectedList(trimmed);
+      setExcludeListNameInput(trimmed);
+      const ok = await persistActiveSlotFeed({
+        excludeKeywords: keywords,
+        excludeLists: nextLists,
+        currentExcludeList: trimmed
+      });
+      if (ok) {
+        console.log('[DealAggregator] Saved exclude list', { name: trimmed, count: keywords.length });
+      }
+    } finally {
+      setExcludeListSaving(false);
+    }
   };
 
   const handleDeleteExcludeList = async () => {
@@ -959,6 +1000,7 @@ export default function DealAggregator({
     delete nextLists[currentSelectedList];
     setSavedExcludeLists(nextLists);
     setCurrentSelectedList('');
+    setExcludeListNameInput('');
     await persistActiveSlotFeed({ excludeLists: nextLists, currentExcludeList: '' });
   };
 
@@ -972,9 +1014,47 @@ export default function DealAggregator({
     await persistActiveSlotFeed({ excludeLists: nextLists, currentExcludeList: currentSelectedList });
   };
 
+  const handleRenameExcludeList = async () => {
+    if (excludeListSaving) return;
+    if (!currentSelectedList) {
+      alert('Select a list to rename');
+      return;
+    }
+
+    const trimmed = excludeListNameInput.trim();
+    if (!trimmed) {
+      alert('Enter a new name in the List name field.');
+      return;
+    }
+    if (trimmed === currentSelectedList) {
+      alert('Change the list name before renaming.');
+      return;
+    }
+    if (savedExcludeLists[trimmed]) {
+      alert(`A list named "${trimmed}" already exists. Choose a different name.`);
+      return;
+    }
+
+    setExcludeListSaving(true);
+    try {
+      const nextLists = { ...savedExcludeLists };
+      nextLists[trimmed] = nextLists[currentSelectedList];
+      delete nextLists[currentSelectedList];
+      setSavedExcludeLists(nextLists);
+      setCurrentSelectedList(trimmed);
+      const ok = await persistActiveSlotFeed({ excludeLists: nextLists, currentExcludeList: trimmed });
+      if (ok) {
+        console.log('[DealAggregator] Renamed exclude list', { from: currentSelectedList, to: trimmed });
+      }
+    } finally {
+      setExcludeListSaving(false);
+    }
+  };
+
   const handleLoadExcludeList = async (listName) => {
     const nextKeywords = savedExcludeLists[listName] || [];
     setCurrentSelectedList(listName);
+    setExcludeListNameInput(listName);
     setExcludeKeywords(nextKeywords);
     await persistActiveSlotFeed({ excludeKeywords: nextKeywords, currentExcludeList: listName });
   };
@@ -1438,6 +1518,7 @@ export default function DealAggregator({
                   const value = event.target.value;
                   if (!value) {
                     setCurrentSelectedList('');
+                    setExcludeListNameInput('');
                     persistActiveSlotFeed({ currentExcludeList: '' });
                     return;
                   }
@@ -1451,16 +1532,43 @@ export default function DealAggregator({
                   </option>
                 ))}
               </select>
-              <button type="button" className="exclude-btn" onClick={handleSaveExcludeList}>
-                Save List
+              <input
+                type="text"
+                className="exclude-list-name-input"
+                value={excludeListNameInput}
+                onChange={(e) => setExcludeListNameInput(e.target.value)}
+                placeholder="List name"
+                aria-label="Exclude list name"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveExcludeList();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="exclude-btn"
+                onClick={handleSaveExcludeList}
+                disabled={excludeListSaving}
+              >
+                {excludeListSaving ? 'Saving…' : 'Save List'}
               </button>
-              <button type="button" className="exclude-btn" onClick={handleUpdateExcludeList} disabled={!currentSelectedList}>
+              <button
+                type="button"
+                className="exclude-btn"
+                onClick={handleRenameExcludeList}
+                disabled={!currentSelectedList || excludeListSaving}
+              >
+                Rename
+              </button>
+              <button type="button" className="exclude-btn" onClick={handleUpdateExcludeList} disabled={!currentSelectedList || excludeListSaving}>
                 Update
               </button>
-              <button type="button" className="exclude-btn" onClick={handleDeleteExcludeList} disabled={!currentSelectedList}>
+              <button type="button" className="exclude-btn" onClick={handleDeleteExcludeList} disabled={!currentSelectedList || excludeListSaving}>
                 Delete
               </button>
-              <button type="button" className="exclude-btn" onClick={handleClearExcludeKeywords}>
+              <button type="button" className="exclude-btn" onClick={handleClearExcludeKeywords} disabled={excludeListSaving}>
                 Clear All
               </button>
             </div>

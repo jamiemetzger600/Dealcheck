@@ -1268,6 +1268,22 @@ a {
   font-size: 12px;
 }
 
+.exclude-list-name-input {
+  min-width: 120px;
+  max-width: 180px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.exclude-list-name-input::placeholder {
+  color: var(--text-secondary);
+}
+
 .exclude-btn {
   padding: 5px 10px;
   border: 1px solid var(--border);

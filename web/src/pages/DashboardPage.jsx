@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { userAPI, dealsAPI } from '../utils/api';
+import { userAPI, dealsAPI, paymentsAPI } from '../utils/api';
 import { normalizeDeal } from '../utils/normalizeDeal';
 import DealAggregator from '../components/DealAggregator';
 import SavedDeals from '../components/SavedDeals';
@@ -41,6 +41,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const { isGuest, entitlements, requireSignup } = useGuestAccess(user);
   const [searchParams] = useSearchParams();
   const initialDealDbId = searchParams.get('dealDbId') || null;
+  const checkoutSessionId = searchParams.get('session_id');
 
   const [activeTab, setActiveTab] = useState('aggregator');
   const [guestTourBlocking, setGuestTourBlocking] = useState(() => {
@@ -124,6 +125,24 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   useEffect(() => {
     if (isGuest) logGuestEvent('guest_dashboard_view', { feedSource });
   }, [isGuest, feedSource]);
+
+  useEffect(() => {
+    if (isGuest || !checkoutSessionId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await paymentsAPI.confirmCheckout(checkoutSessionId);
+        if (!cancelled) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      } catch (error) {
+        console.error('Failed to confirm checkout:', error);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isGuest, checkoutSessionId]);
 
   const tourActive = tourForceOpen || guestTourBlocking;
 

@@ -95,13 +95,10 @@ Server runs on `http://localhost:3001` by default.
 
 1. Create a Stripe account at https://stripe.com
 2. Get your secret key from the Dashboard
-3. Create two products/prices:
-   - Monthly subscription
-   - Yearly subscription
-4. Add price IDs to `.env`:
+3. Create a product with a recurring price: **$19.99/month**
+4. Add the price ID to `.env`:
    ```
    STRIPE_MONTHLY_PRICE_ID=price_xxx
-   STRIPE_YEARLY_PRICE_ID=price_yyy
    ```
 5. Set up webhook endpoint in Stripe Dashboard:
    - URL: `https://yourdomain.com/api/payments/webhook`

@@ -1,10 +1,16 @@
 import express from 'express';
-import { createCheckoutSession, createPortalSession, handleWebhook } from '../controllers/paymentsController.js';
+import {
+  createCheckoutSession,
+  confirmCheckoutSession,
+  createPortalSession,
+  handleWebhook
+} from '../controllers/paymentsController.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.post('/create-checkout-session', authMiddleware, createCheckoutSession);
+router.post('/confirm-checkout', authMiddleware, confirmCheckoutSession);
 router.post('/create-portal-session', authMiddleware, createPortalSession);
 
 // Webhook endpoint (no auth, raw body needed)

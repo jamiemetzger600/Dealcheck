@@ -66,31 +66,16 @@ export default function BillingPage() {
 
         {entitlements?.plan === 'free' || entitlements?.status !== 'active' ? (
           <div className="pricing-plans">
-            <div className="plan-card">
-              <h3>Monthly</h3>
-              <p className="price">$29<span>/month</span></p>
+            <div className="plan-card featured">
+              <h3>Vettr Pro</h3>
+              <p className="price">$19.99<span>/month</span></p>
               <ul>
                 <li>Instant notifications</li>
                 <li>Unlimited saved deals</li>
                 <li>Advanced filters</li>
               </ul>
               <button onClick={() => handleUpgrade('monthly')} className="btn-primary" disabled={upgrading}>
-                {upgrading ? 'Loading...' : 'Upgrade to Monthly'}
-              </button>
-            </div>
-
-            <div className="plan-card featured">
-              <h3>Yearly</h3>
-              <p className="price">$290<span>/year</span></p>
-              <p className="save-badge">Save $58/year</p>
-              <ul>
-                <li>Instant notifications</li>
-                <li>Unlimited saved deals</li>
-                <li>Advanced filters</li>
-                <li>Priority support</li>
-              </ul>
-              <button onClick={() => handleUpgrade('yearly')} className="btn-primary" disabled={upgrading}>
-                {upgrading ? 'Loading...' : 'Upgrade to Yearly'}
+                {upgrading ? 'Loading...' : 'Subscribe — $19.99/month'}
               </button>
             </div>
           </div>

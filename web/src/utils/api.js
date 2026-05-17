@@ -152,6 +152,11 @@ export const paymentsAPI = {
     body: JSON.stringify({ plan })
   }),
 
+  confirmCheckout: (sessionId) => apiRequest('/payments/confirm-checkout', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId })
+  }),
+
   createPortalSession: () => apiRequest('/payments/create-portal-session', {
     method: 'POST'
   })

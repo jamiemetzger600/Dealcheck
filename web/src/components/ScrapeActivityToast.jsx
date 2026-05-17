@@ -60,11 +60,38 @@ export default function ScrapeActivityToast({
   feedSource = 'airtable',
   onViewNewDeals,
   enabled = true,
+  isGuest = false,
+  suppressGuestHint = false,
+  onRequireSignup = null,
 }) {
   const sourceKey = feedSource === 'airtable' ? 'airtable_bizbuysell' : null;
   const [toast, setToast] = useState(null);
   const toastRef = useRef(null);
   toastRef.current = toast;
+
+
+  useEffect(() => {
+    if (!suppressGuestHint) return;
+    setToast((prev) => (prev?.isGuestHint ? null : prev));
+  }, [suppressGuestHint]);
+
+  useEffect(() => {
+    if (!isGuest || !sourceKey || suppressGuestHint) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchMarketDealsSources();
+        if (cancelled || !data?.sources?.length) return;
+        const row = data.sources.find((s) => s.source_key === sourceKey);
+        if (!row?.last_scrape_at) return;
+        setToast({
+          isGuestHint: true,
+          label: 'New deals are added regularly. Sign up to get alerts when matches hit your buy box.',
+        });
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isGuest, sourceKey, suppressGuestHint, onRequireSignup]);
 
   const evaluate = useCallback(async () => {
     if (!enabled || !sourceKey) return;
@@ -121,6 +148,11 @@ export default function ScrapeActivityToast({
   const handleMainClick = useCallback(() => {
     const t = toastRef.current;
     if (!t) return;
+    if (t.isGuestHint) {
+      setToast(null);
+      onRequireSignup?.();
+      return;
+    }
     persistAck(t.ackId);
     setToast(null);
     onViewNewDeals?.({
@@ -128,7 +160,7 @@ export default function ScrapeActivityToast({
       lastScrapeAt: t.lastScrapeAt,
       inserted: t.inserted,
     });
-  }, [onViewNewDeals]);
+  }, [onViewNewDeals, onRequireSignup]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -141,9 +173,9 @@ export default function ScrapeActivityToast({
   return (
     <div className="scrape-activity-toast" role="status" aria-live="polite">
       <button type="button" className="scrape-activity-toast__main" onClick={handleMainClick}>
-        <span className="scrape-activity-toast__title">New listings in the pool</span>
+        <span className="scrape-activity-toast__title">{toast.isGuestHint ? 'Stay in the loop' : 'New listings in the pool'}</span>
         <span className="scrape-activity-toast__msg">{toast.label}</span>
-        <span className="scrape-activity-toast__hint">Click to view</span>
+        <span className="scrape-activity-toast__hint">{toast.isGuestHint ? 'Sign up for alerts' : 'Click to view'}</span>
       </button>
       <button
         type="button"

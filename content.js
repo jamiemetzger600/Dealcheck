@@ -398,8 +398,25 @@ const settingsModalHTML = `
     
     <div style="margin-bottom:20px;">
       <h4 style="font-size:calc(14px * var(--font-scale)); color:#2c3e50; margin:0 0 12px 0; border-bottom:1px solid #eee; padding-bottom:6px;">My Deals (web sync)</h4>
-      <p style="font-size:calc(11px * var(--font-scale)); color:#666; margin:0 0 8px 0; line-height:1.45;">When you are signed in to <strong>Vettr in this browser</strong>, the extension connects automatically. Deals you save here sync to the same <strong>My Deals</strong> list as the website, including your calculator inputs. No codes or URLs to paste.</p>
-      <p style="font-size:calc(10px * var(--font-scale)); color:#999; margin:0 0 10px 0; line-height:1.4;">Tip: open your Vettr tab once after installing the extension (while logged in).</p>
+      <p id="da-vettr-connection-status" style="font-size:calc(12px * var(--font-scale)); color:#666; margin:0 0 10px 0; line-height:1.45;">Checking connection…</p>
+      <div id="da-vettr-signin-block" style="margin-bottom:12px;">
+        <p style="font-size:calc(11px * var(--font-scale)); color:#666; margin:0 0 8px 0;">Sign in to sync saves to <strong>My Deals</strong> on Vettr (same list as the website).</p>
+        <div style="margin-bottom:8px;">
+          <label style="display:block; font-size:calc(11px * var(--font-scale)); color:#666; margin-bottom:4px;">Email</label>
+          <input type="email" id="da-vettr-login-email" class="da-input" placeholder="you@example.com" style="width:100%;" autocomplete="username">
+        </div>
+        <div style="margin-bottom:8px;">
+          <label style="display:block; font-size:calc(11px * var(--font-scale)); color:#666; margin-bottom:4px;">Password</label>
+          <input type="password" id="da-vettr-login-password" class="da-input" placeholder="Password" style="width:100%;" autocomplete="current-password">
+        </div>
+        <button type="button" id="da-vettr-login-btn" class="da-btn" style="background:#3498db; color:#fff; margin-right:8px;">Sign in</button>
+        <button type="button" id="da-vettr-signout-btn" class="da-btn" style="background:#ecf0f1; color:#2c3e50; display:none;">Sign out</button>
+        <p id="da-vettr-login-error" style="font-size:calc(11px * var(--font-scale)); color:#c0392b; margin:8px 0 0; display:none;"></p>
+      </div>
+      <p style="font-size:calc(11px * var(--font-scale)); color:#666; margin:0 0 8px 0;">
+        <a href="#" id="da-vettr-try-web" style="color:#3498db;">Try Vettr free on the web</a>
+        · <a href="#" id="da-vettr-web-signup" style="color:#3498db;">Create account</a>
+      </p>
       <button type="button" id="da-vettr-advanced-toggle" class="da-btn" style="background:#ecf0f1; color:#2c3e50; font-size:calc(11px * var(--font-scale)); padding:6px 12px;">Manual setup (support only)</button>
       <div id="da-vettr-advanced" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #eee;">
         <p style="font-size:calc(10px * var(--font-scale)); color:#999; margin:0 0 8px 0;">Only if automatic linking does not work (e.g. unusual browser setup).</p>
@@ -3549,6 +3566,7 @@ if (settingsModal) {
     });
   }
 
+  bindVettrAccountControls();
   if (settingsModal && !settingsModal.dataset.vettrAdvancedToggleBound) {
     settingsModal.dataset.vettrAdvancedToggleBound = '1';
     settingsModal.addEventListener('click', (e) => {

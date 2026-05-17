@@ -4,6 +4,7 @@ import pkg from '../../package.json';
 export default function Navigation({
   user,
   logout,
+  isGuest = false,
   activeTab,
   setActiveTab,
   pageTitle = 'Find It. Vett It. Save It.',
@@ -11,7 +12,8 @@ export default function Navigation({
   showTabs = true,
   aggregatorCount = 0,
   myDealsCount = 0,
-  onOpenQuickCalculator = null
+  onOpenQuickCalculator = null,
+  onStartTour = null,
 }) {
   return (
     <>
@@ -32,7 +34,24 @@ export default function Navigation({
         </div>
 
         <div className="app-header-actions">
-          <span className="nav-user-pill">{user?.email}</span>
+          {isGuest ? (
+            <>
+              <Link to="/login" className="header-link">Sign in</Link>
+              <Link to="/register" className="header-link header-link--primary">Sign up</Link>
+            </>
+          ) : (
+            <>
+              <span className="nav-user-pill">{user?.email}</span>
+              <Link to="/settings" className="header-link">Settings</Link>
+              <Link to="/billing" className="header-link">Billing</Link>
+              <button type="button" onClick={logout} className="header-link">Logout</button>
+            </>
+          )}
+          {typeof onStartTour === 'function' && (
+            <button type="button" className="header-link" onClick={onStartTour}>
+              Take a tour
+            </button>
+          )}
           {typeof onOpenQuickCalculator === 'function' && (
             <button
               type="button"
@@ -42,15 +61,13 @@ export default function Navigation({
               Quick Deal Calculator
             </button>
           )}
-          <Link to="/settings" className="header-link">Settings</Link>
-          <Link to="/billing" className="header-link">Billing</Link>
-          <button onClick={logout} className="header-link">Logout</button>
         </div>
       </nav>
 
       {showTabs && (
         <div className="tab-navigation">
           <button
+            type="button"
             className={`tab-btn ${activeTab === 'aggregator' ? 'active' : ''}`}
             onClick={() => setActiveTab('aggregator')}
           >
@@ -58,7 +75,9 @@ export default function Navigation({
             <span className="tab-badge">{aggregatorCount}</span>
           </button>
           <button
+            type="button"
             className={`tab-btn ${activeTab === 'saved-deals' ? 'active' : ''}`}
+            data-tour="my-deals-tab"
             onClick={() => setActiveTab('saved-deals')}
           >
             <span>My Deals</span>

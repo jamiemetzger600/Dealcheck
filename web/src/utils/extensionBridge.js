@@ -38,7 +38,7 @@ export function pushSessionToChromeExtension(accessToken) {
   try {
     chromeApi.runtime.sendMessage(
       extId,
-      { type: SET_SESSION, token: accessToken, apiBaseUrl },
+      { type: SET_SESSION, token: accessToken, apiBaseUrl, webAppUrl: typeof window !== 'undefined' ? window.location.origin : '' },
       () => {
         void chromeApi.runtime.lastError;
       }

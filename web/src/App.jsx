@@ -46,22 +46,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route 
-            path="/dashboard" 
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/dashboard/airtable" 
-            element={
-              <ProtectedRoute>
-                <DashboardPage feedSource="airtable" />
-              </ProtectedRoute>
-            } 
-          />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard/airtable" element={<DashboardPage feedSource="airtable" />} />
           <Route 
             path="/billing" 
             element={

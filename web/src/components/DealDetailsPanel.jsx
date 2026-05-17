@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import DealCalculator from './DealCalculator';
 import IOIModal from './IOIModal';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
+import GatedPreviewText from './GatedPreviewText';
 
 const POSITION_OPTIONS = ['left', 'center', 'right'];
 
@@ -56,7 +57,10 @@ export default function DealDetailsPanel({
   onIOIPrefsSaved = null,
   headerProgressLabel = null,
   /** Saved-deal modal: editable overview, description, broker summary */
-  listingEdit = null
+  listingEdit = null,
+  entitlements = null,
+  isGuest = false,
+  requireSignup = null,
 }) {
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(true);
   const [isOverviewOpen, setIsOverviewOpen] = useState(true);
@@ -80,9 +84,13 @@ export default function DealDetailsPanel({
   }, [isOpen, panelOnly, onClose]);
 
   const handleUseForIOI = useCallback((data) => {
+    if (isGuest && typeof requireSignup === 'function') {
+      requireSignup('ioi', { dealDbId: deal?.dbId });
+      return;
+    }
     setIoiData(data);
     setIoiModalKey((k) => k + 1);
-  }, []);
+  }, [isGuest, requireSignup, deal?.dbId]);
 
   const handleCloseIOI = useCallback(() => {
     setIoiData(null);
@@ -145,14 +153,15 @@ export default function DealDetailsPanel({
                 </p>
               ) : null}
               {deal.url ? (
-                <a
-                  href={deal.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary deal-details-header-listing-link"
-                >
-                  View Original Listing
-                </a>
+                entitlements?.listingLinkEnabled ? (
+                  <a href={deal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary deal-details-header-listing-link">
+                    View Original Listing
+                  </a>
+                ) : (
+                  <button type="button" className="btn-secondary deal-details-header-listing-link" disabled title="Sign up to open the original listing" onClick={() => requireSignup?.('listing', { dealDbId: deal.dbId })}>
+                    View Original Listing
+                  </button>
+                )
               ) : null}
             </div>
           ) : null}
@@ -209,9 +218,14 @@ export default function DealDetailsPanel({
                 </div>
               )
             ) : (
-              <div className="deal-details-description">
-                {deal.description || 'No description available.'}
-              </div>
+              <GatedPreviewText
+                text={deal.description || 'No description available.'}
+                limit={entitlements?.previewCharLimit ?? 120}
+                entitlements={entitlements}
+                serverTruncated={deal.descriptionTruncated}
+                className="deal-details-description"
+                onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
+              />
             )
           )}
         </section>
@@ -276,13 +290,24 @@ export default function DealDetailsPanel({
               {!listingEdit ? (
                 <div className="deal-broker-condensed">
                   <h3>Broker Information</h3>
-                  <div className="deal-broker-grid">
-                    <BrokerItem label="Broker Name" value={brokerName} />
-                    <BrokerItem label="Company" value={brokerCompany} />
-                    <BrokerItem label="Email" value={brokerEmail} href={brokerEmail !== '-' ? `mailto:${brokerEmail}` : null} />
-                    <BrokerItem label="Phone" value={brokerPhone} href={brokerPhone !== '-' ? `tel:${brokerPhone}` : null} />
-                    <BrokerItem label="Listed" value={listedDate} wide />
-                  </div>
+                  {entitlements?.brokerContactVisible !== false ? (
+                    <div className="deal-broker-grid">
+                      <BrokerItem label="Broker Name" value={brokerName} />
+                      <BrokerItem label="Company" value={brokerCompany} />
+                      <BrokerItem label="Email" value={brokerEmail} href={brokerEmail !== '-' ? `mailto:${brokerEmail}` : null} />
+                      <BrokerItem label="Phone" value={brokerPhone} href={brokerPhone !== '-' ? `tel:${brokerPhone}` : null} />
+                      <BrokerItem label="Listed" value={listedDate} wide />
+                    </div>
+                  ) : (
+                    <GatedPreviewText
+                      text={[brokerName, brokerCompany, brokerEmail, brokerPhone].filter((v) => v && v !== '-').join(' · ') || 'Broker contact available after sign up.'}
+                      limit={entitlements?.previewCharLimit ?? 120}
+                      entitlements={entitlements}
+                      reason="broker_click"
+                      className="deal-details-description"
+                      onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
+                    />
+                  )}
                 </div>
               ) : null}
             </div>
@@ -337,15 +362,20 @@ export default function DealDetailsPanel({
                   {isSavingDeal ? 'Removing…' : 'Saved'}
                 </button>
               ) : (
-                <button type="button" className="btn-primary" disabled={isSavingDeal} onClick={() => onSaveDeal(deal)}>
+                <button type="button" className="btn-primary" disabled={isSavingDeal} onClick={() => {
+                  if (isGuest && typeof requireSignup === 'function') requireSignup('save', { dealDbId: deal.dbId });
+                  else onSaveDeal(deal);
+                }}>
                   {isSavingDeal ? 'Saving...' : 'Save to My Deals'}
                 </button>
               )
             )}
             {deal.url ? (
-              <a href={deal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary">
-                View Original Listing
-              </a>
+              entitlements?.listingLinkEnabled ? (
+                <a href={deal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary">View Original Listing</a>
+              ) : (
+                <button type="button" className="btn-secondary" disabled={false} title="Sign up to open the original listing" onClick={() => requireSignup?.('listing', { dealDbId: deal.dbId })}>View Original Listing</button>
+              )
             ) : (
               <button type="button" className="btn-secondary" disabled aria-label="No listing URL">No Listing URL Available</button>
             )}

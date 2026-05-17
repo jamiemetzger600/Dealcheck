@@ -19,6 +19,7 @@ import {
   patchActiveBuyBoxFlexibility
 } from '../utils/buyBoxes';
 import DealDetailsPanel from './DealDetailsPanel';
+import GatedPreviewText from './GatedPreviewText';
 
 const PER_PAGE = 50;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -344,6 +345,15 @@ function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, enableSwipe,
   );
 }
 
+
+function guestBrokerCell(label, onRequireSignup) {
+  return (
+    <button type="button" className="gated-preview-text__hint" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }} onClick={() => onRequireSignup?.('broker_click')}>
+      {label}
+    </button>
+  );
+}
+
 export default function DealAggregator({
   settings,
   manualRefreshToken,
@@ -357,9 +367,24 @@ export default function DealAggregator({
   savedDealIds = [],
   savedRowIdByMarketDealId = {},
   poolNewDealsFilter = null,
-  onClearPoolNewDealsFilter
+  onClearPoolNewDealsFilter,
+  isGuest = false,
+  entitlements = null,
+  persistSettings: persistSettingsProp = null,
+  requireSignup = null,
+  initialOpenDealDbId = null,
+  tourPrepareStepId = null,
 }) {
   const navigate = useNavigate();
+  const saveSettings = useCallback(
+    (patch) => {
+      if (typeof persistSettingsProp === 'function') {
+        return persistSettingsProp(patch);
+      }
+      return saveSettings(patch);
+    },
+    [persistSettingsProp]
+  );
   const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
@@ -398,14 +423,28 @@ export default function DealAggregator({
   const fetchAbortRef = useRef(null);
   /** Same query + manual refresh → send If-None-Match for list 304. */
   const listEtagCacheRef = useRef({ key: '', etag: '' });
+  /** Avoid resetting in-progress search/exclude when guest settings persist (async). */
+  const syncedFeedSlotRef = useRef(null);
+  const feedFieldsInitializedRef = useRef(false);
+
+  useEffect(() => {
+    if (tourPrepareStepId !== 'exclude-keywords') return;
+    setShowExcludeSection(true);
+    const raf = requestAnimationFrame(() => {
+      const el = document.querySelector('[data-tour="exclude-keywords"]');
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [tourPrepareStepId]);
   /** After account/local column prefs are applied, allow debounced API writes. */
   const columnsPrefsReadyRef = useRef(false);
   const [isMobileViewport, setIsMobileViewport] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
   );
 
-  // List API returns truncated description; merge full row when a deal is opened.
+  // List API returns truncated description; merge full row when a deal is opened (logged-in only).
   useEffect(() => {
+    if (isGuest) return;
     const dbId = selectedDeal?.dbId;
     if (dbId == null) return;
 
@@ -425,7 +464,7 @@ export default function DealAggregator({
     })();
 
     return () => ac.abort();
-  }, [selectedDeal?.dbId]);
+  }, [selectedDeal?.dbId, isGuest]);
 
   const excludeKeywordsFingerprint = useMemo(
     () => `${settings?.activeBuyBoxIndex ?? settings?.preferences?.activeBuyBoxIndex ?? 0}:${JSON.stringify(excludeKeywords)}`,
@@ -443,6 +482,16 @@ export default function DealAggregator({
       ((poolNewDealsFilter.dbIds && poolNewDealsFilter.dbIds.length > 0) ||
         poolNewDealsFilter.lastScrapeAt)
   );
+
+  const initialOpenAppliedRef = useRef(false);
+  useEffect(() => {
+    if (initialOpenAppliedRef.current || initialOpenDealDbId == null || !deals?.length) return;
+    const match = deals.find((d) => String(d.dbId) === String(initialOpenDealDbId));
+    if (match) {
+      initialOpenAppliedRef.current = true;
+      setSelectedDeal(match);
+    }
+  }, [initialOpenDealDbId, deals]);
 
   const savedDealIdSet = useMemo(
     () => new Set((savedDealIds || []).filter(Boolean).map((id) => String(id))),
@@ -464,18 +513,25 @@ export default function DealAggregator({
     if (!settings) return;
     const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
     const slot = buyBoxes[activeBuyBoxIndex] || {};
-    setExcludeKeywords(Array.isArray(slot.excludeKeywords) ? slot.excludeKeywords : []);
-    setSavedExcludeLists(
-      slot.excludeLists && typeof slot.excludeLists === 'object' && !Array.isArray(slot.excludeLists)
-        ? slot.excludeLists
-        : {}
-    );
-    const activeListName = slot.currentExcludeList != null ? String(slot.currentExcludeList) : '';
-    setCurrentSelectedList(activeListName);
-    setExcludeListNameInput(activeListName);
-    const q = typeof slot.feedSearch === 'string' ? slot.feedSearch : '';
-    setSearchQuery(q);
-    setDebouncedSearch(q);
+    const slotKey = `${activeBuyBoxIndex}`;
+    const slotChanged = syncedFeedSlotRef.current !== slotKey;
+    const shouldSyncFeedFields = !feedFieldsInitializedRef.current || slotChanged;
+    if (shouldSyncFeedFields) {
+      feedFieldsInitializedRef.current = true;
+      syncedFeedSlotRef.current = slotKey;
+      setExcludeKeywords(Array.isArray(slot.excludeKeywords) ? slot.excludeKeywords : []);
+      setSavedExcludeLists(
+        slot.excludeLists && typeof slot.excludeLists === 'object' && !Array.isArray(slot.excludeLists)
+          ? slot.excludeLists
+          : {}
+      );
+      const activeListName = slot.currentExcludeList != null ? String(slot.currentExcludeList) : '';
+      setCurrentSelectedList(activeListName);
+      setExcludeListNameInput(activeListName);
+      const q = typeof slot.feedSearch === 'string' ? slot.feedSearch : '';
+      setSearchQuery(q);
+      setDebouncedSearch(q);
+    }
     setHiddenDealIds(settings?.hiddenDealIds || []);
     setDealPanelPosition(settings?.preferences?.dealPanelPosition || 'center');
     setDealViewStyle(settings?.dealViewStyle || 'table');
@@ -491,7 +547,7 @@ export default function DealAggregator({
       setVisibleColumns(localCols);
       columnsPrefsReadyRef.current = true;
       if (!visibleColumnsEqual(localCols, DEFAULT_VISIBLE_COLUMNS)) {
-        userAPI.updateSettings({ visibleColumns: localCols }).catch((err) => {
+        saveSettings({ visibleColumns: localCols }).catch((err) => {
           console.error('[DealAggregator] migrate visibleColumns to account failed:', err);
         });
       }
@@ -515,7 +571,7 @@ export default function DealAggregator({
       const server = typeof slot?.feedSearch === 'string' ? slot.feedSearch : '';
       if (server === debouncedSearch) return;
       const payload = mergeActiveSlotFeedPatch(settings, { feedSearch: debouncedSearch });
-      userAPI.updateSettings(payload).catch((err) => {
+      saveSettings(payload).catch((err) => {
         console.error('[DealAggregator] persist feedSearch failed:', err);
       });
     }, 900);
@@ -527,6 +583,11 @@ export default function DealAggregator({
     setCurrentPage(1);
   }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger]);
 
+  // New search/exclude params must not reuse a prior list ETag
+  useEffect(() => {
+    listEtagCacheRef.current = { key: '', etag: '' };
+  }, [debouncedSearch, excludeKeywordsFingerprint]);
+
   // Persist column visibility locally and to user account
   useEffect(() => {
     localStorage.setItem('vettr_visible_columns', JSON.stringify(visibleColumns));
@@ -537,8 +598,7 @@ export default function DealAggregator({
     if (accountCols && visibleColumnsEqual(visibleColumns, accountCols)) return;
 
     const t = setTimeout(() => {
-      userAPI
-        .updateSettings({ visibleColumns })
+      saveSettings({ visibleColumns })
         .then(() => {
           if (typeof onSettingsUpdate === 'function') {
             return onSettingsUpdate();
@@ -550,7 +610,7 @@ export default function DealAggregator({
         });
     }, 600);
     return () => clearTimeout(t);
-  }, [visibleColumns, settings, onSettingsUpdate]);
+  }, [visibleColumns, settings, onSettingsUpdate, saveSettings]);
   useEffect(() => {
     localStorage.setItem('vettr_aggregator_sort', JSON.stringify(sortConfig));
   }, [sortConfig]);
@@ -679,11 +739,11 @@ export default function DealAggregator({
   useEffect(() => {
     if (settings) fetchServerDeals();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when inputs to fetchServerDeals change; avoid tying to unstable parent callbacks
-  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken, poolNewFinger]);
+  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint]);
 
   const updateUserFilterSettings = async (nextValues) => {
     try {
-      await userAPI.updateSettings(nextValues);
+      await saveSettings(nextValues);
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
@@ -700,7 +760,7 @@ export default function DealAggregator({
     }
     try {
       const payload = mergeActiveSlotFeedPatch(settings, patch);
-      await userAPI.updateSettings(payload);
+      await saveSettings(payload);
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
@@ -757,6 +817,12 @@ export default function DealAggregator({
   };
 
   const handleSaveDeal = async (deal) => {
+    if (isGuest) {
+      if (typeof requireSignup === 'function') {
+        requireSignup('save', { dealDbId: deal?.dbId });
+      }
+      return;
+    }
     if (isDealInSavedList(deal, savedDealIdSet)) return;
     setSavingDealId(deal.id);
     try {
@@ -900,7 +966,7 @@ export default function DealAggregator({
       const newIdx = index;
       const activeSlot = next[newIdx];
       const crit = criteriaFromSlot(activeSlot);
-      await userAPI.updateSettings({
+      await saveSettings({
         preferences: { buyBoxes: next, activeBuyBoxIndex: newIdx },
         buyBox: crit,
         excludeKeywords: Array.isArray(activeSlot.excludeKeywords) ? activeSlot.excludeKeywords : [],
@@ -921,7 +987,7 @@ export default function DealAggregator({
   const handleFlexibilityChange = async (percent) => {
     const num = Math.min(100, Math.max(0, Number(percent) || 0));
     try {
-      await userAPI.updateSettings(patchActiveBuyBoxFlexibility(settings, num));
+      await saveSettings(patchActiveBuyBoxFlexibility(settings, num));
       if (typeof onSettingsUpdate === 'function') await onSettingsUpdate();
       setCustomFlexibilityInput('');
     } catch (error) {
@@ -1075,7 +1141,7 @@ export default function DealAggregator({
       setSelectedDeal(null);
     }
     try {
-      await userAPI.updateSettings({ hiddenDealIds: nextHiddenIds });
+      await saveSettings({ hiddenDealIds: nextHiddenIds });
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
@@ -1090,7 +1156,7 @@ export default function DealAggregator({
   const handleDealPanelPositionChange = async (position) => {
     setDealPanelPosition(position);
     try {
-      await userAPI.updateSettings({ preferences: { dealPanelPosition: position } });
+      await saveSettings({ preferences: { dealPanelPosition: position } });
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
@@ -1101,7 +1167,7 @@ export default function DealAggregator({
 
   const handleSaveCalculatorDefaults = async (calculatorDefaults) => {
     try {
-      await userAPI.updateSettings({ preferences: { calculatorDefaults } });
+      await saveSettings({ preferences: { calculatorDefaults } });
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
@@ -1115,7 +1181,7 @@ export default function DealAggregator({
     setCardColumnsPerRow(num);
     setShowCardColsPopup(false);
     try {
-      await userAPI.updateSettings({ preferences: { cardColumnsPerRow: num } });
+      await saveSettings({ preferences: { cardColumnsPerRow: num } });
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
       }
@@ -1278,6 +1344,7 @@ export default function DealAggregator({
               <button
                 type="button"
                 className={`aggregator-filter-btn${showBuyBoxConfigureHint ? ' aggregator-filter-btn--buybox-unset' : ''}`}
+                data-tour="buy-box"
                 onClick={onConfigureBuyBox}
               >
                 Configure Buy Box
@@ -1303,7 +1370,7 @@ export default function DealAggregator({
               </div>
             </div>
           ) : null}
-          <button type="button" className="aggregator-filter-btn" onClick={() => navigate('/settings')}>
+          <button type="button" className="aggregator-filter-btn" onClick={() => (isGuest ? requireSignup?.('default') : navigate('/settings'))}>
             Settings
           </button>
         </div>
@@ -1356,10 +1423,10 @@ export default function DealAggregator({
         </div>
       </div>
 
-      <div className="aggregator-table-container active">
+      <div className="aggregator-table-container active" data-tour="deal-feed">
         <div className="aggregator-controls">
           <div className="controls-row">
-            <div className="aggregator-search">
+            <div className="aggregator-search" data-tour="search-bar">
               <input
                 type="text"
                 placeholder="Search: name, location, industry… Use & for AND (e.g. Relocatable & Fedex & HVAC)"
@@ -1436,7 +1503,7 @@ export default function DealAggregator({
               />
               <span>{showHiddenDeals ? 'Showing Hidden Deals' : `Show Hidden (${hiddenDealIds.length})`}</span>
             </label>
-            <label className="flexibility-label">
+            <label className="flexibility-label" data-tour="flexibility">
               <span className="flexibility-label-text">Flexibility</span>
               <select
                 className="flexibility-select"
@@ -1498,7 +1565,10 @@ export default function DealAggregator({
             </div>
           )}
 
-          <div className={`exclude-keywords-section${!showExcludeSection ? ' exclude-keywords-section--collapsed' : ''}`}>
+          <div
+            className={`exclude-keywords-section${!showExcludeSection ? ' exclude-keywords-section--collapsed' : ''}`}
+            data-tour="exclude-keywords"
+          >
             <div className="exclude-header">
               <button
                 type="button"
@@ -1692,7 +1762,18 @@ export default function DealAggregator({
                     {visibleColumns.industry !== false && <td data-col="industry">{deal.industry || '—'}</td>}
                     {visibleColumns.description !== false && (
                       <td data-col="description" className="description-col">
-                        {deal.description ? `${deal.description.substring(0, 120)}${deal.description.length > 120 ? '...' : ''}` : '—'}
+                        {isGuest ? (
+                          <GatedPreviewText
+                            text={deal.description}
+                            limit={entitlements?.previewCharLimit ?? 120}
+                            entitlements={entitlements}
+                            serverTruncated={deal.descriptionTruncated}
+                            reason="description_click"
+                            onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
+                          />
+                        ) : (
+                          deal.description ? `${deal.description.substring(0, 120)}${deal.description.length > 120 ? '...' : ''}` : '—'
+                        )}
                       </td>
                     )}
                     {visibleColumns.city !== false && <td data-col="city">{deal.city || '—'}</td>}
@@ -1708,10 +1789,26 @@ export default function DealAggregator({
                     {visibleColumns.remote !== false && <td data-col="remote">{deal.remote || '—'}</td>}
                     {visibleColumns.franchise !== false && <td data-col="franchise">{deal.franchise || '—'}</td>}
                     {visibleColumns.fiveYearsInBusiness !== false && <td data-col="fiveYearsInBusiness">{deal.fiveYearsInBusiness || '—'}</td>}
-                    {visibleColumns.broker !== false && <td data-col="broker">{deal.broker || '—'}</td>}
-                    {visibleColumns.brokerCompany !== false && <td data-col="brokerCompany">{deal.brokerCompany || '—'}</td>}
-                    {visibleColumns.brokerPhone !== false && <td data-col="brokerPhone">{deal.brokerPhone || '—'}</td>}
-                    {visibleColumns.brokerEmail !== false && <td data-col="brokerEmail">{deal.brokerEmail || '—'}</td>}
+                    {visibleColumns.broker !== false && (
+                      <td data-col="broker">
+                        {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.broker || '—')}
+                      </td>
+                    )}
+                    {visibleColumns.brokerCompany !== false && (
+                      <td data-col="brokerCompany">
+                        {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.brokerCompany || '—')}
+                      </td>
+                    )}
+                    {visibleColumns.brokerPhone !== false && (
+                      <td data-col="brokerPhone">
+                        {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.brokerPhone || '—')}
+                      </td>
+                    )}
+                    {visibleColumns.brokerEmail !== false && (
+                      <td data-col="brokerEmail">
+                        {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.brokerEmail || '—')}
+                      </td>
+                    )}
                     {visibleColumns.location !== false && <td data-col="location">{deal.location || '—'}</td>}
                     {visibleColumns.source !== false && <td data-col="source">{deal.source || '—'}</td>}
                     {visibleColumns.url !== false && (
@@ -1831,7 +1928,19 @@ export default function DealAggregator({
                         </span>
                       </div>
                       <p className="deal-card__subtitle" title={descCard.full || undefined}>
-                        {descCard.preview || 'No description available.'}
+                        {isGuest ? (
+                          <GatedPreviewText
+                            text={deal.description}
+                            limit={entitlements?.previewCharLimit ?? 120}
+                            entitlements={entitlements}
+                            serverTruncated={deal.descriptionTruncated}
+                            reason="description_click"
+                            onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
+                            className="deal-card-description"
+                          />
+                        ) : (
+                          descCard.preview || 'No description available.'
+                        )}
                       </p>
                       <div
                         className="deal-card__metrics"
@@ -1911,6 +2020,9 @@ export default function DealAggregator({
         settings={settings}
         onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
         onIOIPrefsSaved={onSettingsUpdate}
+        isGuest={isGuest}
+        entitlements={entitlements}
+        requireSignup={requireSignup}
       />
       {saveToast && (
         <div className="save-toast" role="status" aria-live="polite">

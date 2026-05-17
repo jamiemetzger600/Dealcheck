@@ -246,6 +246,34 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
     );
     return true;
   }
+
+  if (message?.type === 'VETTR_LOGIN' && message.email && message.password) {
+    const apiBase = VettrCloudSync.normalizeApiBaseUrl(message.apiBaseUrl || 'http://localhost:3001/api');
+    fetch(apiBase + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: message.email, password: message.password })
+    })
+      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) {
+          sendResponse({ ok: false, error: data?.error || 'Login failed' });
+          return;
+        }
+        chrome.storage.local.set({
+          vettrAuthToken: data.token,
+          vettrApiBaseUrl: apiBase,
+          vettrUserEmail: data.user?.email || '',
+          vettrWebAppUrl: message.webAppUrl || 'http://localhost:5173'
+        }, () => {
+          console.log('☁️ Vettr extension login OK');
+          sendResponse({ ok: true, email: data.user?.email });
+        });
+      })
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
   if (message?.type === 'VETTR_CLEAR_SESSION') {
     chrome.storage.local.remove(['vettrAuthToken'], () => {
       console.log('☁️ Vettr session cleared (logout on web)');

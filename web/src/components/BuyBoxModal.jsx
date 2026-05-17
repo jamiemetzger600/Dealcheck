@@ -67,6 +67,8 @@ const INDUSTRIES = ['Healthcare', 'SaaS', 'Manufacturing', 'Restaurant', 'Retail
 const SHOW_TARGET_INDUSTRIES_IN_BUYBOX = false;
 
 export default function BuyBoxModal({
+  persistSettings: persistSettingsProp = null,
+  isGuest = false,
   isOpen,
   settings,
   editingSlotIndex,
@@ -74,6 +76,7 @@ export default function BuyBoxModal({
   onSaved,
   isOnboarding = false
 }) {
+  const persistSettings = persistSettingsProp || ((patch) => userAPI.updateSettings(patch));
   const [form, setForm] = useState(DEFAULT_BUYBOX);
   const [buyBoxName, setBuyBoxName] = useState(defaultBuyBoxSlotName(0));
   const [saving, setSaving] = useState(false);
@@ -125,7 +128,7 @@ export default function BuyBoxModal({
     onboardingDismissLock.current = true;
     setDismissing(true);
     try {
-      await userAPI.updateSettings({ preferences: { buyBoxOnboardingDismissed: true } });
+      await persistSettings({ preferences: { buyBoxOnboardingDismissed: true } });
       onSaved();
       onClose();
     } catch (error) {
@@ -251,7 +254,7 @@ export default function BuyBoxModal({
       if (safeIdx === activeBuyBoxIndex) {
         updates.buyBox = buyBoxPayload;
       }
-      await userAPI.updateSettings(updates);
+      await persistSettings(updates);
       onSaved();
       onClose();
     } catch (error) {
@@ -289,7 +292,7 @@ export default function BuyBoxModal({
       if (safeIdx === activeBuyBoxIndex) {
         updates.buyBox = emptyBuyBoxCriteria();
       }
-      await userAPI.updateSettings(updates);
+      await persistSettings(updates);
       onSaved();
       onClose();
     } catch (error) {

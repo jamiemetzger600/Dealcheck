@@ -54,7 +54,10 @@ async function apiRequest(endpoint, options = {}) {
 
       if (response.status === 401) {
         removeToken();
-        window.location.href = '/login';
+        const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+        if (!path.startsWith('/dashboard')) {
+          window.location.href = '/login';
+        }
         throw new Error('Unauthorized');
       }
 

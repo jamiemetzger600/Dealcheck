@@ -1,6 +1,8 @@
 import express from 'express';
 import crypto from 'crypto';
 import pool from '../db/pool.js';
+import { optionalAuth } from '../middleware/auth.js';
+import { sanitizeMarketDealRow } from '../lib/guestEntitlements.js';
 
 const router = express.Router();
 
@@ -91,7 +93,7 @@ const MAX_PER_PAGE = 100;
 const DEFAULT_PER_PAGE = 50;
 
 // GET /api/market-deals — server-side paginated, filtered, sorted, searchable
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
     const {
       page = 1,
@@ -350,8 +352,9 @@ router.get('/', async (req, res) => {
 
     res.set('ETag', etag);
     res.set('Cache-Control', 'public, max-age=30');
+    const isAuth = Boolean(req.user);
     res.json({
-      deals: result.rows,
+      deals: result.rows.map((row) => sanitizeMarketDealRow(row, isAuth)),
       pagination: {
         page: safePage,
         per_page: safePerPage,
@@ -415,7 +418,7 @@ router.get('/stats', async (_req, res) => {
 });
 
 // GET /api/market-deals/:id — full row (registered after /sources and /stats)
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) {
     return res.status(404).json({ error: 'Deal not found' });
@@ -429,7 +432,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Deal not found' });
     }
     res.set('Cache-Control', 'private, max-age=60');
-    res.json(result.rows[0]);
+    res.json(sanitizeMarketDealRow(result.rows[0], Boolean(req.user)));
   } catch (err) {
     console.error('Market deal detail error:', err);
     res.status(500).json({ error: 'Server error' });

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { userAPI, dealsAPI } from '../utils/api';
 import { normalizeDeal } from '../utils/normalizeDeal';
@@ -11,6 +12,11 @@ import SourceManagerModal from '../components/SourceManagerModal';
 import ManualDealModal from '../components/ManualDealModal';
 import QuickDealCalculatorModal from '../components/QuickDealCalculatorModal';
 import ScrapeActivityToast from '../components/ScrapeActivityToast';
+import GuestOnboardingTour, { GUEST_TOUR_DISMISS_KEY } from '../components/GuestOnboardingTour';
+import GuestMyDealsEmpty from '../components/GuestMyDealsEmpty';
+import { loadGuestSettings, persistGuestSettings } from '../utils/guestSettings';
+import { useGuestAccess } from '../hooks/useGuestAccess';
+import { logGuestEvent } from '../utils/guestAnalytics';
 
 function isBuyBoxEmpty(buyBox) {
   if (!buyBox || typeof buyBox !== 'object') return true;
@@ -32,7 +38,19 @@ function isBuyBoxEmpty(buyBox) {
 
 export default function DashboardPage({ feedSource = 'airtable' }) {
   const { user, logout } = useAuth();
+  const { isGuest, entitlements, requireSignup } = useGuestAccess(user);
+  const [searchParams] = useSearchParams();
+  const initialDealDbId = searchParams.get('dealDbId') || null;
+
   const [activeTab, setActiveTab] = useState('aggregator');
+  const [guestTourBlocking, setGuestTourBlocking] = useState(() => {
+    if (!isGuest) return false;
+    try {
+      return localStorage.getItem(GUEST_TOUR_DISMISS_KEY) !== '1';
+    } catch {
+      return false;
+    }
+  });
   const [settings, setSettings] = useState(null);
   const [savedDeals, setSavedDeals] = useState([]);
   const [matchCount, setMatchCount] = useState(0);
@@ -42,30 +60,47 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showBuyBoxModal, setShowBuyBoxModal] = useState(false);
-  /** 'onboarding' = auto-open for new/empty buy box; 'edit' = user opened settings */
   const [buyBoxModalMode, setBuyBoxModalMode] = useState('closed');
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showManualDealModal, setShowManualDealModal] = useState(false);
   const [showQuickCalculator, setShowQuickCalculator] = useState(false);
-  /** When set, aggregator shows deals from the latest scrape (ids or first_seen window). */
   const [poolNewDealsFilter, setPoolNewDealsFilter] = useState(null);
+  const [tourForceOpen, setTourForceOpen] = useState(false);
+  const [tourPrepareStepId, setTourPrepareStepId] = useState(null);
 
-  useEffect(() => {
-    loadUserData();
-  }, []);
+  const persistSettings = useCallback(
+    async (patch) => {
+      if (isGuest) {
+        const next = await persistGuestSettings(patch);
+        setSettings(next);
+        return next;
+      }
+      const updated = await userAPI.updateSettings(patch);
+      await loadUserData();
+      return updated;
+    },
+    [isGuest]
+  );
 
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
+    if (isGuest) {
+      const guestSettings = loadGuestSettings();
+      setSettings(guestSettings);
+      setSavedDeals([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       const [settingsData, dealsData] = await Promise.all([
         userAPI.getSettings(),
-        dealsAPI.getSavedDeals()
+        dealsAPI.getSavedDeals(),
       ]);
-      
+
       setSettings(settingsData);
-      // Normalize deals from API (snake_case) to frontend format (camelCase)
       const normalized = (dealsData.deals || []).map(normalizeDeal);
       setSavedDeals(normalized);
-      
+
       if (
         settingsData &&
         isBuyBoxEmpty(settingsData.buyBox) &&
@@ -74,19 +109,49 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         setBuyBoxModalMode('onboarding');
         setShowBuyBoxModal(true);
       }
-      
-      setMatchCount(0);
-      
     } catch (error) {
       console.error('Failed to load user data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isGuest]);
 
-  const handleMatchCountUpdate = (count) => {
-    setMatchCount(count);
-  };
+  useEffect(() => {
+    setLoading(true);
+    loadUserData();
+  }, [loadUserData]);
+
+  useEffect(() => {
+    if (isGuest) logGuestEvent('guest_dashboard_view', { feedSource });
+  }, [isGuest, feedSource]);
+
+  const tourActive = tourForceOpen || guestTourBlocking;
+
+  useEffect(() => {
+    if (!isGuest || guestTourBlocking || !settings) return;
+    if (
+      isBuyBoxEmpty(settings.buyBox) &&
+      !settings.preferences?.buyBoxOnboardingDismissed
+    ) {
+      setBuyBoxModalMode('onboarding');
+      setShowBuyBoxModal(true);
+    }
+  }, [isGuest, guestTourBlocking, settings]);
+
+  const handleTourDismiss = useCallback(() => {
+    setTourForceOpen(false);
+    setGuestTourBlocking(false);
+    setTourPrepareStepId(null);
+  }, []);
+
+  const handleStartTour = useCallback(() => {
+    setActiveTab('aggregator');
+    setTourForceOpen(true);
+    setGuestTourBlocking(true);
+    setTourPrepareStepId(null);
+  }, []);
+
+  const handleMatchCountUpdate = (count) => setMatchCount(count);
 
   const handleDealsStatsUpdate = ({ total = 0, newToday = 0, showing = 0 }) => {
     setTotalDeals(total);
@@ -101,8 +166,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
 
   const handleSaveCalculatorDefaults = async (calculatorDefaults) => {
     try {
-      await userAPI.updateSettings({ preferences: { calculatorDefaults } });
-      await loadUserData();
+      await persistSettings({ preferences: { calculatorDefaults } });
     } catch (error) {
       console.error('Failed to save calculator defaults:', error);
     }
@@ -125,15 +189,38 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     return Math.min(BUY_BOX_SLOT_COUNT - 1, Math.max(0, idx));
   }, [settings?.activeBuyBoxIndex, settings?.preferences?.activeBuyBoxIndex]);
 
+  const handleTabChange = (tab) => {
+    if (isGuest && tab === 'saved-deals') {
+      logGuestEvent('guest_my_deals_tab');
+    }
+    setActiveTab(tab);
+  };
+
   if (loading) {
-    return <div className="loading-screen">Loading your dashboard...</div>;
+    return (
+      <div className="loading-screen">
+        {isGuest ? 'Loading deals...' : 'Loading your dashboard...'}
+      </div>
+    );
   }
 
   return (
     <div className="app-page-shell">
+      {(isGuest || tourForceOpen) && (
+        <GuestOnboardingTour
+          autoShow={isGuest}
+          forceOpen={tourForceOpen}
+          onDismiss={handleTourDismiss}
+          onEnsureAggregatorTab={() => setActiveTab('aggregator')}
+          onPrepareStep={setTourPrepareStepId}
+        />
+      )}
       <ScrapeActivityToast
         feedSource={feedSource}
         enabled={Boolean(user)}
+        isGuest={isGuest}
+        suppressGuestHint={guestTourBlocking}
+        onRequireSignup={requireSignup}
         onViewNewDeals={({ newRowDbIds, lastScrapeAt }) => {
           setPoolNewDealsFilter({
             dbIds: newRowDbIds?.length > 0 ? newRowDbIds : null,
@@ -145,16 +232,25 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       <Navigation
         user={user}
         logout={logout}
+        isGuest={isGuest}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         aggregatorCount={totalDeals}
         myDealsCount={savedDeals.length}
-        onOpenQuickCalculator={() => setShowQuickCalculator(true)}
+        onOpenQuickCalculator={() => {
+          if (isGuest) {
+            requireSignup('default');
+            return;
+          }
+          setShowQuickCalculator(true);
+        }}
+        onStartTour={handleStartTour}
       />
 
       <div className="dashboard-content">
-        {activeTab === 'aggregator' && (
-          <DealAggregator 
+        {(activeTab === 'aggregator' || tourActive) && (
+          <DealAggregator
+            tourPrepareStepId={tourPrepareStepId}
             settings={settings}
             manualRefreshToken={refreshKey}
             matchCount={matchCount}
@@ -171,11 +267,20 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             savedRowIdByMarketDealId={savedRowIdByMarketDealId}
             poolNewDealsFilter={poolNewDealsFilter}
             onClearPoolNewDealsFilter={() => setPoolNewDealsFilter(null)}
+            isGuest={isGuest}
+            entitlements={entitlements}
+            persistSettings={persistSettings}
+            requireSignup={requireSignup}
+            initialOpenDealDbId={initialDealDbId}
           />
         )}
 
-        {activeTab === 'saved-deals' && (
-          <SavedDeals 
+        {activeTab === 'saved-deals' && isGuest && (
+          <GuestMyDealsEmpty onRequireSignup={requireSignup} />
+        )}
+
+        {activeTab === 'saved-deals' && !isGuest && (
+          <SavedDeals
             deals={savedDeals}
             settings={settings}
             onUpdate={loadUserData}
@@ -195,34 +300,41 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         }}
         onSaved={loadUserData}
         isOnboarding={buyBoxModalMode === 'onboarding'}
+        isGuest={isGuest}
+        persistSettings={persistSettings}
       />
-      <SourceManagerModal
-        isOpen={showSourceModal}
-        settings={settings}
-        onClose={() => setShowSourceModal(false)}
-        onSaved={() => {
-          loadUserData();
-          handleFetchDeals();
-        }}
-      />
-      <ManualDealModal
-        isOpen={showManualDealModal}
-        onClose={() => setShowManualDealModal(false)}
-        onSaved={async () => {
-          await loadUserData();
-          setActiveTab('saved-deals');
-        }}
-      />
-      <QuickDealCalculatorModal
-        isOpen={showQuickCalculator}
-        onClose={() => setShowQuickCalculator(false)}
-        settings={settings}
-        onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
-        onDealSaved={async () => {
-          await loadUserData();
-          setActiveTab('saved-deals');
-        }}
-      />
+
+      {!isGuest && (
+        <>
+          <SourceManagerModal
+            isOpen={showSourceModal}
+            settings={settings}
+            onClose={() => setShowSourceModal(false)}
+            onSaved={() => {
+              loadUserData();
+              handleFetchDeals();
+            }}
+          />
+          <ManualDealModal
+            isOpen={showManualDealModal}
+            onClose={() => setShowManualDealModal(false)}
+            onSaved={async () => {
+              await loadUserData();
+              setActiveTab('saved-deals');
+            }}
+          />
+          <QuickDealCalculatorModal
+            isOpen={showQuickCalculator}
+            onClose={() => setShowQuickCalculator(false)}
+            settings={settings}
+            onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
+            onDealSaved={async () => {
+              await loadUserData();
+              setActiveTab('saved-deals');
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

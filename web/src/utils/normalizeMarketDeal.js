@@ -47,6 +47,7 @@ export function normalizeMarketDeal(row) {
     url: row.listing_url || '',
     industry: industries,
     description: row.description || '',
+    descriptionTruncated: Boolean(row.description_truncated),
     location,
     city,
     state,

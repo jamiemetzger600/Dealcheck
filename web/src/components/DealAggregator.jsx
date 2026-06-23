@@ -376,12 +376,14 @@ export default function DealAggregator({
   tourPrepareStepId = null,
 }) {
   const navigate = useNavigate();
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
   const saveSettings = useCallback(
     (patch) => {
       if (typeof persistSettingsProp === 'function') {
         return persistSettingsProp(patch);
       }
-      return saveSettings(patch);
+      return userAPI.updateSettings(patch);
     },
     [persistSettingsProp]
   );
@@ -564,19 +566,21 @@ export default function DealAggregator({
 
   // Persist search text per active buy box (no full settings refresh — avoids input flicker)
   useEffect(() => {
-    if (!settings) return;
+    if (!settingsRef.current) return;
     const t = setTimeout(() => {
-      const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
+      const currentSettings = settingsRef.current;
+      if (!currentSettings) return;
+      const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(currentSettings);
       const slot = buyBoxes[activeBuyBoxIndex];
       const server = typeof slot?.feedSearch === 'string' ? slot.feedSearch : '';
       if (server === debouncedSearch) return;
-      const payload = mergeActiveSlotFeedPatch(settings, { feedSearch: debouncedSearch });
+      const payload = mergeActiveSlotFeedPatch(currentSettings, { feedSearch: debouncedSearch });
       saveSettings(payload).catch((err) => {
         console.error('[DealAggregator] persist feedSearch failed:', err);
       });
     }, 900);
     return () => clearTimeout(t);
-  }, [debouncedSearch, settings]);
+  }, [debouncedSearch, saveSettings]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -966,6 +970,12 @@ export default function DealAggregator({
       const newIdx = index;
       const activeSlot = next[newIdx];
       const crit = criteriaFromSlot(activeSlot);
+      console.log('[DealAggregator] switch buy box', {
+        from: activeBuyBoxIndex,
+        to: newIdx,
+        savedFeedSearch: searchQuery,
+        savedExcludeCount: excludeKeywords.length
+      });
       await saveSettings({
         preferences: { buyBoxes: next, activeBuyBoxIndex: newIdx },
         buyBox: crit,

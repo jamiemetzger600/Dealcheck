@@ -37,7 +37,7 @@ function isBuyBoxEmpty(buyBox) {
 }
 
 export default function DashboardPage({ feedSource = 'airtable' }) {
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
   const { isGuest, entitlements, requireSignup } = useGuestAccess(user);
   const [searchParams] = useSearchParams();
   const initialDealDbId = searchParams.get('dealDbId') || null;
@@ -84,6 +84,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   );
 
   const loadUserData = useCallback(async () => {
+    if (authLoading) return;
+
     if (isGuest) {
       const guestSettings = loadGuestSettings();
       setSettings(guestSettings);
@@ -106,12 +108,13 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     } finally {
       setLoading(false);
     }
-  }, [isGuest]);
+  }, [isGuest, authLoading]);
 
   useEffect(() => {
+    if (authLoading) return;
     setLoading(true);
     loadUserData();
-  }, [loadUserData]);
+  }, [loadUserData, authLoading]);
 
   useEffect(() => {
     if (isGuest) logGuestEvent('guest_dashboard_view', { feedSource });
@@ -138,7 +141,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const tourActive = tourForceOpen || guestTourBlocking;
 
   useEffect(() => {
-    if (!isGuest || guestTourBlocking || !settings) return;
+    if (authLoading || !isGuest || guestTourBlocking || !settings) return;
     if (
       isBuyBoxEmpty(settings.buyBox) &&
       !settings.preferences?.buyBoxOnboardingDismissed
@@ -146,7 +149,14 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       setBuyBoxModalMode('onboarding');
       setShowBuyBoxModal(true);
     }
-  }, [isGuest, guestTourBlocking, settings]);
+  }, [authLoading, isGuest, guestTourBlocking, settings]);
+
+  // Auth can resolve after a guest-path render; never keep onboarding open for logged-in users.
+  useEffect(() => {
+    if (isGuest || buyBoxModalMode !== 'onboarding') return;
+    setShowBuyBoxModal(false);
+    setBuyBoxModalMode('closed');
+  }, [isGuest, buyBoxModalMode]);
 
   const handleTourDismiss = useCallback(() => {
     setTourForceOpen(false);
@@ -206,7 +216,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     setActiveTab(tab);
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="loading-screen">
         {isGuest ? 'Loading deals...' : 'Loading your dashboard...'}

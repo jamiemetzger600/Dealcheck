@@ -1,6 +1,7 @@
 import express from 'express';
 import pool from '../db/pool.js';
 import { scrapeAirtable, getScraperStatus } from '../services/airtableScraper.js';
+import { requireScrapeSecret } from '../middleware/requireScrapeSecret.js';
 
 const router = express.Router();
 
@@ -111,8 +112,8 @@ router.get('/status', (_req, res) => {
   res.json(getScraperStatus());
 });
 
-// POST /api/airtable-deals/scrape — trigger a manual scrape
-router.post('/scrape', async (_req, res) => {
+// POST /api/airtable-deals/scrape — trigger a manual scrape (GitHub Actions cron or ops)
+router.post('/scrape', requireScrapeSecret, async (_req, res) => {
   try {
     const result = await scrapeAirtable();
     if (result == null) {

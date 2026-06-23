@@ -1,0 +1,42 @@
+# Daily Airtable ingest — triggers POST /api/airtable-deals/scrape on Koyeb.
+# Koyeb free tier may sleep; in-process node-cron is unreliable. This external cron wakes the API.
+#
+# Required GitHub repo secrets:
+#   SCRAPE_TRIGGER_SECRET — same value as Koyeb env SCRAPE_TRIGGER_SECRET
+#   VETTR_API_BASE_URL    — e.g. https://database-vettr-65d5dc25.koyeb.app (no trailing slash)
+
+name: Airtable scrape cron
+
+on:
+  schedule:
+    # 4:05 AM Pacific daily (handles DST via timezone)
+    - cron: '5 4 * * *'
+      timezone: America/Los_Angeles
+  workflow_dispatch:
+
+jobs:
+  trigger-scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: POST scrape endpoint
+        env:
+          API_BASE: ${{ secrets.VETTR_API_BASE_URL }}
+          SCRAPE_SECRET: ${{ secrets.SCRAPE_TRIGGER_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${API_BASE:-}" ] || [ -z "${SCRAPE_SECRET:-}" ]; then
+            echo "Missing secrets: set VETTR_API_BASE_URL and SCRAPE_TRIGGER_SECRET in repo Settings → Secrets."
+            exit 1
+          fi
+          echo "Triggering scrape at ${API_BASE}/api/airtable-deals/scrape"
+          http_code=$(curl -sS -o /tmp/scrape-response.json -w '%{http_code}' \
+            -X POST "${API_BASE}/api/airtable-deals/scrape" \
+            -H "X-Scrape-Secret: ${SCRAPE_SECRET}" \
+            -H "Content-Type: application/json" \
+            --max-time 600)
+          echo "HTTP ${http_code}"
+          cat /tmp/scrape-response.json
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            exit 1
+          fi

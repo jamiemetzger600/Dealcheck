@@ -55,6 +55,8 @@ For a single list of all environment variables (backend, web, CLI), see **[CONFI
    - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
    - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (for email notifications)
    - **Market deals feed (Airtable scraper):** Defaults are daily **`0 4 * * *`** at **`America/Los_Angeles`**. Override with `AIRTABLE_SCRAPE_CRON` / `AIRTABLE_SCRAPE_CRON_TZ` only if needed. **Remove** any legacy **`AIRTABLE_SCRAPE_CRON=*/30 * * * *`** in the dashboard (pulls the full Airtable view every 30 minutes). Set **`AIRTABLE_SCRAPE_ON_STARTUP=false`** to skip the automatic scrape 5s after each cold start.
+   - **External cron (recommended on free Koyeb):** GitHub Actions workflow [`.github/workflows/airtable-scrape-cron.yml`](.github/workflows/airtable-scrape-cron.yml) POSTs daily at **4:05 AM Pacific**. Set Koyeb env **`SCRAPE_TRIGGER_SECRET`** and GitHub secrets **`SCRAPE_TRIGGER_SECRET`** + **`VETTR_API_BASE_URL`** (e.g. `https://database-vettr-65d5dc25.koyeb.app`).
+   - **Scrape OOM:** Set **`NODE_OPTIONS=--max-old-space-size=768`** on Koyeb (or rely on `npm start` heap flag after deploy).
    - **Stale listings:** After each **successful Airtable scrape**, listings with source activity older than **6 months** are set `is_active = false` (see `MARKET_DEALS_MAX_AGE_MONTHS`). Set `MARKET_DEALS_PRUNE_ENABLED=false` to turn off.
 6. Deploy → wait for service to go live
 7. Run migrations via Koyeb console: `npm run migrate`

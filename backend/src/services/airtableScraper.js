@@ -519,22 +519,25 @@ export function getScraperStatus() {
 
 // ---------------------------------------------------------------------------
 // Register with scraper registry (handles cron scheduling)
+// Skip when running backend/scripts/run-airtable-scrape-once.mjs (SCRAPE_CLI_ONCE=1).
 // ---------------------------------------------------------------------------
-register({
-  sourceKey: SOURCE_KEY,
-  scrape: scrapeAirtable,
-  getStatus: getScraperStatus,
-  cronExpr: SCRAPE_ENABLED ? SCRAPE_CRON : null,
-  enabled: SCRAPE_ENABLED,
-  cronTimezone: SCRAPE_ENABLED && SCRAPE_CRON ? SCRAPE_CRON_TZ : undefined,
-});
+if (process.env.SCRAPE_CLI_ONCE !== '1') {
+  register({
+    sourceKey: SOURCE_KEY,
+    scrape: scrapeAirtable,
+    getStatus: getScraperStatus,
+    cronExpr: SCRAPE_ENABLED ? SCRAPE_CRON : null,
+    enabled: SCRAPE_ENABLED,
+    cronTimezone: SCRAPE_ENABLED && SCRAPE_CRON ? SCRAPE_CRON_TZ : undefined,
+  });
 
-// Run once on startup after a short delay so the server finishes booting
-if (SCRAPE_ENABLED && SCRAPE_ON_STARTUP) {
-  setTimeout(() => {
-    console.log('🔄 [Airtable] Initial scrape on startup...');
-    scrapeAirtable().catch(() => {});
-  }, 5000);
-} else if (SCRAPE_ENABLED && !SCRAPE_ON_STARTUP) {
-  console.log('⏸️  [Airtable] SCRAPE_ON_STARTUP=false — skipping initial scrape');
+  // Run once on startup after a short delay so the server finishes booting
+  if (SCRAPE_ENABLED && SCRAPE_ON_STARTUP) {
+    setTimeout(() => {
+      console.log('🔄 [Airtable] Initial scrape on startup...');
+      scrapeAirtable().catch(() => {});
+    }, 5000);
+  } else if (SCRAPE_ENABLED && !SCRAPE_ON_STARTUP) {
+    console.log('⏸️  [Airtable] SCRAPE_ON_STARTUP=false — skipping initial scrape');
+  }
 }

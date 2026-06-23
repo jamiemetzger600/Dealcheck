@@ -75,3 +75,6 @@ python/output/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Firecrawl CLI scrape/search artifacts
+.firecrawl/

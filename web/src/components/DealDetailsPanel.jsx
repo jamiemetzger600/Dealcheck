@@ -217,7 +217,7 @@ export default function DealDetailsPanel({
                   {deal.description || 'No description available.'}
                 </div>
               )
-            ) : (
+            ) : isGuest ? (
               <GatedPreviewText
                 text={deal.description || 'No description available.'}
                 limit={entitlements?.previewCharLimit ?? 120}
@@ -226,6 +226,10 @@ export default function DealDetailsPanel({
                 className="deal-details-description"
                 onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
               />
+            ) : (
+              <div className="deal-details-description">
+                {deal.description || 'No description available.'}
+              </div>
             )
           )}
         </section>

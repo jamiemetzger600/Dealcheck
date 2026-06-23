@@ -163,3 +163,12 @@ export const paymentsAPI = {
 };
 
 export { getToken, setToken, removeToken };
+
+/** Bearer token for public market-deals routes that use optionalAuth. */
+export function buildAuthHeaders(extraHeaders = {}) {
+  const token = getToken();
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extraHeaders,
+  };
+}

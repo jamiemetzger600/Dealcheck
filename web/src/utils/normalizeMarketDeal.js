@@ -3,6 +3,8 @@
  * used by DealAggregator. Works for any source in the market_deals table.
  */
 
+import { buildAuthHeaders } from './api.js';
+
 function computeMultiple(price, base) {
   if (!price || !base) return null;
   return Number((price / base).toFixed(2));
@@ -231,7 +233,7 @@ export async function fetchMarketDeals(queryParams, signal, options = {}) {
   if (options.ifNoneMatch) {
     headers['If-None-Match'] = options.ifNoneMatch;
   }
-  const res = await fetch(url, { signal, headers });
+  const res = await fetch(url, { signal, headers: buildAuthHeaders(headers) });
   if (res.status === 304) {
     return {
       notModified: true,
@@ -261,7 +263,7 @@ export async function fetchMarketDealByDbId(dbId, signal) {
     throw new Error('Invalid deal id');
   }
   const url = `${API_BASE_URL}/market-deals/${id}`;
-  const res = await fetch(url, { signal });
+  const res = await fetch(url, { signal, headers: buildAuthHeaders() });
   if (!res.ok) {
     const err = new Error(`Market deal API error (${res.status})`);
     err.url = url;

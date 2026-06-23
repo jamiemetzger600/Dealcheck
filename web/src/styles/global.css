@@ -2115,7 +2115,7 @@ a {
 
 .modal-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -2391,6 +2391,7 @@ a {
   padding: 28px;
   background: rgba(0, 0, 0, 0.58);
   z-index: 10000;
+  overflow: hidden;
 }
 
 .deal-details-overlay.panel-left {
@@ -2408,7 +2409,8 @@ a {
 .deal-details-panel {
   width: min(860px, 100%);
   max-height: calc(100vh - 56px);
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
   background: linear-gradient(180deg, #252525 0%, #1f1f1f 100%);
   border: 1px solid #3b3b3b;
   border-radius: 16px;
@@ -2424,6 +2426,7 @@ a {
   align-items: flex-start;
   padding: 18px 18px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
 }
 
 .deal-details-header-title-block {
@@ -2564,9 +2567,384 @@ a {
 }
 
 .deal-details-body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.deal-details-body--rail {
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.deal-section-rail {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 48px;
+  padding: 12px 6px;
+  gap: 4px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.deal-section-rail-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.deal-section-rail-btn:hover,
+.deal-section-rail-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.deal-section-rail-btn--visible {
+  color: var(--text-primary);
+}
+
+.deal-section-rail-btn--focused {
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--primary);
+}
+
+.deal-section-rail-btn--pinned .deal-section-rail-pin-dot {
+  display: block;
+}
+
+.deal-section-rail-pin-dot {
+  display: none;
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.deal-section-rail-tooltip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, visibility 0.12s ease;
+}
+
+.deal-section-rail-btn:hover .deal-section-rail-tooltip,
+.deal-section-rail-btn:focus-visible .deal-section-rail-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.deal-section-slots {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 18px;
-  display: grid;
-  gap: 16px;
+}
+
+.deal-section-slot {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Single visible section (e.g. calculator): scroll inside the slot body */
+.deal-section-slots:has(.deal-section-slot:only-child) {
+  overflow: hidden;
+}
+
+.deal-section-slots:has(.deal-section-slot:only-child) .deal-section-slot {
+  flex: 1;
+}
+
+.deal-section-slots:has(.deal-section-slot:only-child) .deal-section-slot-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.deal-section-slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  flex-shrink: 0;
+}
+
+.deal-section-slot-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.deal-section-slot-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.deal-section-pin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.deal-section-pin-btn:hover,
+.deal-section-pin-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.deal-section-pin-btn--active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.deal-section-slot-body {
+  padding: 14px;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.deal-section-slot-body .deal-overview-section-content {
+  padding: 0;
+}
+
+.deal-section-slot-body .deal-details-description {
+  margin: 0;
+}
+
+/* Deal calculator inside details panel — fit slot width, vertical scroll only */
+.deal-section-slot-body .deal-calculator-body {
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.deal-section-slot-body .deal-calculator-extension-style .calc-quality-banner {
+  margin: 0 0 12px;
+  border-radius: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.deal-section-slot-body .deal-calculator-extension-style .calc-quality-left {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.deal-section-slot-body .deal-calculator-extension-style .calc-quality-score {
+  flex-shrink: 0;
+}
+
+.deal-section-slot-body .calc-scenario-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+}
+
+.deal-section-slot-body .calc-scenario-tabs .calc-scenario-tab {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.deal-section-slot-body .modal-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.deal-section-slot-body .modal-grid.three-col,
+.deal-section-slot-body .modal-grid.calc-sba-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.deal-section-slot-body .form-group {
+  min-width: 0;
+  margin-bottom: 12px;
+}
+
+.deal-section-slot-body .form-group input,
+.deal-section-slot-body .form-group select,
+.deal-section-slot-body .form-group textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.deal-section-slot-body .deal-calculator-extension-style .calc-accordion-header,
+.deal-section-slot-body .deal-calculator-extension-style .calc-accordion-header--seller {
+  min-width: 0;
+}
+
+.deal-section-slot-body .deal-calculator-extension-style .calc-accordion-summary {
+  margin-left: 0;
+  flex: 1 1 100%;
+  max-width: none;
+  text-align: left;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.deal-section-slot-body .deal-calculator-extension-style .calc-seller-enable-label {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.deal-section-slot-body .deal-calculator-extension-style .calc-dscr-input-row {
+  min-width: 0;
+}
+
+.deal-section-slot-body .deal-calculator-extension-style .calc-result-pair,
+.deal-section-slot-body .deal-calculator-extension-style .calc-target-metrics-grid,
+.deal-section-slot-body .calc-financing-grid,
+.deal-section-slot-body .calc-results-grid-web {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.deal-section-slot-body .calc-scenario-compare {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.deal-section-slot-body .calc-scenario-compare-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.deal-section-slot-body .calc-scenario-compare-table th,
+.deal-section-slot-body .calc-scenario-compare-table td {
+  padding: 8px 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.deal-section-slot-body .calc-detail-row-web,
+.deal-section-slot-body .target-offer-comparison-row,
+.deal-section-slot-body .calc-scenario3-suggestion-actions,
+.deal-section-slot-body .calc-target-actions {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.deal-section-slot-body .target-offer-comparison-row {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  .deal-section-slot-body .modal-grid,
+  .deal-section-slot-body .modal-grid.three-col,
+  .deal-section-slot-body .modal-grid.calc-sba-row,
+  .deal-section-slot-body .deal-calculator-extension-style .calc-result-pair,
+  .deal-section-slot-body .deal-calculator-extension-style .calc-target-metrics-grid,
+  .deal-section-slot-body .calc-financing-grid,
+  .deal-section-slot-body .calc-results-grid-web {
+    grid-template-columns: 1fr;
+  }
+
+  .deal-section-slot-body .calc-scenario-tabs .calc-scenario-tab {
+    flex: 1 1 calc(50% - 4px);
+  }
+}
+
+.deal-section-slot .deal-section-edit-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .deal-details-body--rail {
+    flex-direction: column;
+  }
+
+  .deal-section-rail {
+    flex-direction: row;
+    width: 100%;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 8px 12px;
+  }
+
+  .deal-section-rail-tooltip {
+    display: none;
+  }
+
+  .deal-section-slots {
+    padding: 14px;
+  }
 }
 
 .deal-details-section-header-row {
@@ -3478,6 +3856,7 @@ a {
   padding: 16px 18px 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .deal-card {
@@ -3963,6 +4342,10 @@ a {
 .saved-deal-modal-content.deal-details-panel .deal-details-body {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+}
+
+.saved-deal-modal-content.deal-details-panel .deal-section-slots {
   overflow-y: auto;
 }
 

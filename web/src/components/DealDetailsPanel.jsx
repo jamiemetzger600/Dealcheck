@@ -1,10 +1,74 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DealCalculator from './DealCalculator';
 import IOIModal from './IOIModal';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
 import GatedPreviewText from './GatedPreviewText';
 
 const POSITION_OPTIONS = ['left', 'center', 'right'];
+const DEFAULT_PRIMARY = 'description';
+const DEFAULT_PINNED = 'overview';
+
+export const SECTION_ICON_IDS = ['description', 'overview', 'calculator', 'broker-progress', 'notes'];
+
+function SectionIcon({ name }) {
+  const props = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
+  switch (name) {
+    case 'description':
+      return (
+        <svg {...props}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+      );
+    case 'overview':
+      return (
+        <svg {...props}>
+          <rect x="3" y="3" width="7" height="7" />
+          <rect x="14" y="3" width="7" height="7" />
+          <rect x="3" y="14" width="7" height="7" />
+          <rect x="14" y="14" width="7" height="7" />
+        </svg>
+      );
+    case 'calculator':
+      return (
+        <svg {...props}>
+          <rect x="4" y="2" width="16" height="20" rx="2" />
+          <line x1="8" y1="6" x2="16" y2="6" />
+          <line x1="8" y1="10" x2="8" y2="10.01" />
+          <line x1="12" y1="10" x2="12" y2="10.01" />
+          <line x1="16" y1="10" x2="16" y2="10.01" />
+          <line x1="8" y1="14" x2="8" y2="14.01" />
+          <line x1="12" y1="14" x2="12" y2="14.01" />
+          <line x1="16" y1="14" x2="16" y2="14.01" />
+          <line x1="8" y1="18" x2="8" y2="18.01" />
+          <line x1="12" y1="18" x2="12" y2="18.01" />
+          <line x1="16" y1="18" x2="16" y2="18.01" />
+        </svg>
+      );
+    case 'broker-progress':
+      return (
+        <svg {...props}>
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      );
+    case 'notes':
+      return (
+        <svg {...props}>
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="10" />
+        </svg>
+      );
+  }
+}
 
 function dashStr(v) {
   if (v == null || String(v).trim() === '') return '—';
@@ -34,6 +98,106 @@ function SavedDealOverviewReadOnlyCards({ deal, savedAtDisplay, multiple }) {
   );
 }
 
+function SectionIconRail({
+  sections,
+  primarySection,
+  pinnedSection,
+  pinnedIds,
+  focusedSection,
+  onSelect,
+  onKeyDown,
+}) {
+  const railRef = useRef(null);
+
+  const handleKeyDown = (e, index) => {
+    const buttons = railRef.current?.querySelectorAll('button');
+    if (!buttons?.length) return;
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      const next = buttons[Math.min(index + 1, buttons.length - 1)];
+      next?.focus();
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const prev = buttons[Math.max(index - 1, 0)];
+      prev?.focus();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onSelect(sections[index].id);
+    }
+    onKeyDown?.(e, index);
+  };
+
+  return (
+    <nav className="deal-section-rail" aria-label="Deal sections" ref={railRef}>
+      {sections.map((section, index) => {
+        const isVisible = section.id === primarySection || section.id === pinnedSection;
+        const isPinned = pinnedIds.has(section.id);
+        const isFocused = section.id === focusedSection;
+        return (
+          <button
+            key={section.id}
+            type="button"
+            className={[
+              'deal-section-rail-btn',
+              isVisible ? 'deal-section-rail-btn--visible' : '',
+              isFocused ? 'deal-section-rail-btn--focused' : '',
+              isPinned ? 'deal-section-rail-btn--pinned' : '',
+            ].filter(Boolean).join(' ')}
+            onClick={() => onSelect(section.id)}
+            onKeyDown={(e) => handleKeyDown(e, index)}
+            aria-label={section.label}
+            title={section.label}
+            aria-current={isFocused ? 'true' : undefined}
+          >
+            <SectionIcon name={section.icon || section.id} />
+            <span className="deal-section-rail-tooltip" role="tooltip">{section.label}</span>
+            {isPinned ? <span className="deal-section-rail-pin-dot" aria-hidden="true" /> : null}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function SectionSlot({
+  sectionId,
+  label,
+  isPinned,
+  onTogglePin,
+  editControl = null,
+  children,
+}) {
+  return (
+    <section
+      className="deal-section-slot"
+      data-section={sectionId}
+      aria-labelledby={`deal-section-heading-${sectionId}`}
+    >
+      <div className="deal-section-slot-header">
+        <h3 id={`deal-section-heading-${sectionId}`} className="deal-section-slot-title">{label}</h3>
+        <div className="deal-section-slot-actions">
+          {editControl}
+          <button
+            type="button"
+            className={`deal-section-pin-btn ${isPinned ? 'deal-section-pin-btn--active' : ''}`}
+            onClick={onTogglePin}
+            aria-pressed={isPinned}
+            aria-label={isPinned ? `Unpin ${label}` : `Pin ${label}`}
+            title={isPinned ? 'Unpin — section may be replaced when browsing' : 'Pin — keep visible while browsing other sections'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 17v5" />
+              <path d="M9 3h6l1 7h4l-5 9v4H9v-4L5 10h4z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div className="deal-section-slot-body">{children}</div>
+    </section>
+  );
+}
+
 export default function DealDetailsPanel({
   isOpen,
   deal,
@@ -51,29 +215,29 @@ export default function DealDetailsPanel({
   showPositionToggle = true,
   showSaveButton = true,
   renderFooter = null,
-  extraSectionsAfterCalculator = null,
+  extraSections = [],
   overviewAdditions = null,
   onIOISent = null,
   onIOIPrefsSaved = null,
   headerProgressLabel = null,
-  /** Saved-deal modal: editable overview, description, broker summary */
   listingEdit = null,
   entitlements = null,
   isGuest = false,
   requireSignup = null,
 }) {
-  const [isDescriptionOpen, setIsDescriptionOpen] = useState(true);
-  const [isOverviewOpen, setIsOverviewOpen] = useState(true);
-  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [primarySection, setPrimarySection] = useState(DEFAULT_PRIMARY);
+  const [pinnedSection, setPinnedSection] = useState(DEFAULT_PINNED);
+  const [pinnedIds, setPinnedIds] = useState(() => new Set([DEFAULT_PINNED]));
+  const [focusedSection, setFocusedSection] = useState(DEFAULT_PRIMARY);
   const [ioiData, setIoiData] = useState(null);
-  /** Remount IOIModal each open so signature/company hydrate from latest `settings.preferences`. */
   const [ioiModalKey, setIoiModalKey] = useState(0);
 
   useEffect(() => {
     if (!deal) return;
-    setIsDescriptionOpen(true);
-    setIsOverviewOpen(true);
-    setIsCalculatorOpen(false);
+    setPrimarySection(DEFAULT_PRIMARY);
+    setPinnedSection(DEFAULT_PINNED);
+    setPinnedIds(new Set([DEFAULT_PINNED]));
+    setFocusedSection(DEFAULT_PRIMARY);
   }, [deal]);
 
   useEffect(() => {
@@ -95,6 +259,58 @@ export default function DealDetailsPanel({
   const handleCloseIOI = useCallback(() => {
     setIoiData(null);
   }, []);
+
+  const handleRailClick = useCallback((sectionId) => {
+    setFocusedSection(sectionId);
+
+    if (sectionId === primarySection) {
+      return;
+    }
+
+    const previousPrimary = primarySection;
+    setPrimarySection(sectionId);
+
+    const otherPinned = [...pinnedIds].filter((id) => id !== sectionId);
+    if (otherPinned.includes(previousPrimary)) {
+      setPinnedSection(previousPrimary);
+    } else if (pinnedSection && pinnedSection !== sectionId && pinnedIds.has(pinnedSection)) {
+      setPinnedSection(pinnedSection);
+    } else if (otherPinned.length > 0) {
+      setPinnedSection(otherPinned[0]);
+    } else {
+      setPinnedSection(null);
+    }
+  }, [primarySection, pinnedSection, pinnedIds]);
+
+  const handlePinToggle = useCallback((sectionId) => {
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  }, []);
+
+  const coreSections = useMemo(() => ([
+    { id: 'description', label: 'Description', icon: 'description' },
+    { id: 'overview', label: 'Deal Overview', icon: 'overview' },
+    { id: 'calculator', label: 'Deal Analyzer Calculator', icon: 'calculator' },
+  ]), []);
+
+  const allSections = useMemo(() => {
+    const extras = (extraSections || []).map((s) => ({
+      id: s.id,
+      label: s.label,
+      icon: s.icon || s.id,
+    }));
+    return [...coreSections, ...extras];
+  }, [coreSections, extraSections]);
+
+  const sectionMetaById = useMemo(() => {
+    const map = {};
+    allSections.forEach((s) => { map[s.id] = s; });
+    return map;
+  }, [allSections]);
 
   if (!deal) return null;
   if (!panelOnly && !isOpen) return null;
@@ -128,6 +344,162 @@ export default function DealDetailsPanel({
   const brokerCompany = deal.brokerCompany || deal.source || '-';
   const brokerEmail = deal.brokerEmail || '-';
   const brokerPhone = deal.brokerPhone || '-';
+
+  const descriptionEditControl = listingEdit?.onToggleDescriptionEdit ? (
+    <button
+      type="button"
+      className={`btn-secondary deal-section-edit-btn ${listingEdit.descriptionEditMode ? 'deal-section-edit-btn--active' : ''}`}
+      onClick={() => listingEdit.onToggleDescriptionEdit()}
+      aria-pressed={listingEdit.descriptionEditMode}
+    >
+      {listingEdit.descriptionEditMode ? 'Done' : 'Edit'}
+    </button>
+  ) : null;
+
+  const overviewEditControl = listingEdit?.onToggleOverviewEdit ? (
+    <button
+      type="button"
+      className={`btn-secondary deal-section-edit-btn ${listingEdit.overviewEditMode ? 'deal-section-edit-btn--active' : ''}`}
+      onClick={() => listingEdit.onToggleOverviewEdit()}
+      aria-pressed={listingEdit.overviewEditMode}
+    >
+      {listingEdit.overviewEditMode ? 'Done' : 'Edit'}
+    </button>
+  ) : null;
+
+  const sectionContentById = {
+    description: listingEdit ? (
+      listingEdit.descriptionEditMode ? (
+        <textarea
+          className="deal-details-description deal-details-description--edit"
+          value={listingEdit.values.description}
+          onChange={(e) => listingEdit.onChange('description', e.target.value)}
+          placeholder="No description yet — add notes about this listing."
+          rows={8}
+        />
+      ) : (
+        <div className="deal-details-description">
+          {deal.description || 'No description available.'}
+        </div>
+      )
+    ) : isGuest ? (
+      <GatedPreviewText
+        text={deal.description || 'No description available.'}
+        limit={entitlements?.previewCharLimit ?? 120}
+        entitlements={entitlements}
+        serverTruncated={deal.descriptionTruncated}
+        className="deal-details-description"
+        onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
+      />
+    ) : (
+      <div className="deal-details-description">
+        {deal.description || 'No description available.'}
+      </div>
+    ),
+    overview: (
+      <div className="deal-overview-section-content">
+        <div className="deal-overview-condensed">
+          <div className="deal-overview-grid">
+            {listingEdit ? (
+              listingEdit.overviewEditMode ? (
+                <>
+                  <InfoCard label="Saved Date" value={listingEdit.savedAtDisplay} />
+                  <OverviewEditCard label="County" value={listingEdit.values.county} onChange={(v) => listingEdit.onChange('county', v)} />
+                  <OverviewEditCard label="Country" value={listingEdit.values.country} onChange={(v) => listingEdit.onChange('country', v)} />
+                  <OverviewEditCard label="Years Established" value={listingEdit.values.yearsEstablished} onChange={(v) => listingEdit.onChange('yearsEstablished', v)} />
+                  <OverviewEditCard label="Franchise" value={listingEdit.values.franchise} onChange={(v) => listingEdit.onChange('franchise', v)} />
+                  <OverviewEditCard label="Remote / Relocatable" value={listingEdit.values.remote} onChange={(v) => listingEdit.onChange('remote', v)} wide />
+                  <OverviewEditCard label="Asking Price" value={listingEdit.values.askingPrice} onChange={(v) => listingEdit.onChange('askingPrice', v)} accent />
+                  <OverviewEditCard label="EBITDA/SDE" value={listingEdit.values.ebitda} onChange={(v) => listingEdit.onChange('ebitda', v)} accent />
+                  <OverviewEditCard label="Revenue" value={listingEdit.values.revenue} onChange={(v) => listingEdit.onChange('revenue', v)} />
+                  <InfoCard label="Multiple" value={multiple} />
+                  <OverviewEditCard label="Location" value={listingEdit.values.location} onChange={(v) => listingEdit.onChange('location', v)} />
+                  <OverviewEditCard label="City" value={listingEdit.values.city} onChange={(v) => listingEdit.onChange('city', v)} />
+                  <OverviewEditCard label="State" value={listingEdit.values.state} onChange={(v) => listingEdit.onChange('state', v)} />
+                  <OverviewEditCard label="Industry" value={listingEdit.values.industry} onChange={(v) => listingEdit.onChange('industry', v)} wide />
+                  <OverviewEditCard label="Listing URL" value={listingEdit.values.url} onChange={(v) => listingEdit.onChange('url', v)} wide />
+                </>
+              ) : (
+                <SavedDealOverviewReadOnlyCards deal={deal} savedAtDisplay={listingEdit.savedAtDisplay} multiple={multiple} />
+              )
+            ) : (
+              <>
+                {overviewAdditions}
+                <InfoCard label="Asking Price" value={formatMoneyPanel(deal.askingPrice)} accent />
+                <InfoCard label="EBITDA/SDE" value={formatMoneyPanel(deal.ebitda)} accent />
+                <InfoCard label="Revenue" value={formatMoneyPanel(deal.revenue)} />
+                <InfoCard label="Multiple" value={multiple} />
+                <InfoCard label="Location" value={deal.location || deal.city || '-'} />
+                <InfoCard label="State" value={deal.state || '-'} />
+                <InfoCard label="Industry" value={deal.industry || '-'} wide />
+                <InfoCard label="Source" value={deal.source || deal.sourceType || '-'} wide />
+              </>
+            )}
+          </div>
+        </div>
+        {!listingEdit ? (
+          <div className="deal-broker-condensed">
+            <h3>Broker Information</h3>
+            {entitlements?.brokerContactVisible !== false ? (
+              <div className="deal-broker-grid">
+                <BrokerItem label="Broker Name" value={brokerName} />
+                <BrokerItem label="Company" value={brokerCompany} />
+                <BrokerItem label="Email" value={brokerEmail} href={brokerEmail !== '-' ? `mailto:${brokerEmail}` : null} />
+                <BrokerItem label="Phone" value={brokerPhone} href={brokerPhone !== '-' ? `tel:${brokerPhone}` : null} />
+                <BrokerItem label="Listed" value={listedDate} wide />
+              </div>
+            ) : (
+              <GatedPreviewText
+                text={[brokerName, brokerCompany, brokerEmail, brokerPhone].filter((v) => v && v !== '-').join(' · ') || 'Broker contact available after sign up.'}
+                limit={entitlements?.previewCharLimit ?? 120}
+                entitlements={entitlements}
+                reason="broker_click"
+                className="deal-details-description"
+                onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
+              />
+            )}
+          </div>
+        ) : null}
+      </div>
+    ),
+    calculator: (
+      <DealCalculator
+        deal={deal}
+        calculatorDefaults={calculatorDefaults}
+        onSaveCalculatorDefaults={onSaveCalculatorDefaults}
+        onUseForIOI={handleUseForIOI}
+      />
+    ),
+  };
+
+  extraSections.forEach((extra) => {
+    if (extra?.id && typeof extra.render === 'function') {
+      sectionContentById[extra.id] = extra.render();
+    }
+  });
+
+  const visibleSlots = [primarySection, pinnedSection].filter((id, i, arr) => id && arr.indexOf(id) === i);
+
+  const renderSlot = (sectionId) => {
+    const meta = sectionMetaById[sectionId];
+    if (!meta || sectionContentById[sectionId] == null) return null;
+    const editControl =
+      sectionId === 'description' ? descriptionEditControl
+        : sectionId === 'overview' ? overviewEditControl
+          : null;
+    return (
+      <SectionSlot
+        key={sectionId}
+        sectionId={sectionId}
+        label={meta.label}
+        isPinned={pinnedIds.has(sectionId)}
+        onTogglePin={() => handlePinToggle(sectionId)}
+        editControl={editControl}
+      >
+        {sectionContentById[sectionId]}
+      </SectionSlot>
+    );
+  };
 
   const panelContent = (
     <div className={`deal-details-panel panel-${position}`} onClick={panelOnly ? undefined : (e) => e.stopPropagation()}>
@@ -185,153 +557,18 @@ export default function DealDetailsPanel({
         </div>
       </div>
 
-      <div className="deal-details-body">
-        <section className="deal-details-section deal-description-section">
-          <div className="deal-details-section-header-row">
-            <button type="button" className={`calc-section-header ${isDescriptionOpen ? '' : 'collapsed'}`} onClick={() => setIsDescriptionOpen((current) => !current)}>
-              <span>{isDescriptionOpen ? '▼' : '▶'} Description</span>
-            </button>
-            {listingEdit?.onToggleDescriptionEdit ? (
-              <button
-                type="button"
-                className={`btn-secondary deal-section-edit-btn ${listingEdit.descriptionEditMode ? 'deal-section-edit-btn--active' : ''}`}
-                onClick={() => listingEdit.onToggleDescriptionEdit()}
-                aria-pressed={listingEdit.descriptionEditMode}
-              >
-                {listingEdit.descriptionEditMode ? 'Done' : 'Edit'}
-              </button>
-            ) : null}
-          </div>
-          {isDescriptionOpen && (
-            listingEdit ? (
-              listingEdit.descriptionEditMode ? (
-                <textarea
-                  className="deal-details-description deal-details-description--edit"
-                  value={listingEdit.values.description}
-                  onChange={(e) => listingEdit.onChange('description', e.target.value)}
-                  placeholder="No description yet — add notes about this listing."
-                  rows={8}
-                />
-              ) : (
-                <div className="deal-details-description">
-                  {deal.description || 'No description available.'}
-                </div>
-              )
-            ) : isGuest ? (
-              <GatedPreviewText
-                text={deal.description || 'No description available.'}
-                limit={entitlements?.previewCharLimit ?? 120}
-                entitlements={entitlements}
-                serverTruncated={deal.descriptionTruncated}
-                className="deal-details-description"
-                onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
-              />
-            ) : (
-              <div className="deal-details-description">
-                {deal.description || 'No description available.'}
-              </div>
-            )
-          )}
-        </section>
-
-        <section className="deal-details-section deal-overview-section">
-          <div className="deal-details-section-header-row">
-            <button type="button" className={`calc-section-header ${isOverviewOpen ? '' : 'collapsed'}`} onClick={() => setIsOverviewOpen((current) => !current)}>
-              <span>{isOverviewOpen ? '▼' : '▶'} Deal Overview</span>
-            </button>
-            {listingEdit?.onToggleOverviewEdit ? (
-              <button
-                type="button"
-                className={`btn-secondary deal-section-edit-btn ${listingEdit.overviewEditMode ? 'deal-section-edit-btn--active' : ''}`}
-                onClick={() => listingEdit.onToggleOverviewEdit()}
-                aria-pressed={listingEdit.overviewEditMode}
-              >
-                {listingEdit.overviewEditMode ? 'Done' : 'Edit'}
-              </button>
-            ) : null}
-          </div>
-          {isOverviewOpen && (
-            <div className="deal-overview-section-content">
-              <div className="deal-overview-condensed">
-                <div className="deal-overview-grid">
-                  {listingEdit ? (
-                    listingEdit.overviewEditMode ? (
-                    <>
-                      <InfoCard label="Saved Date" value={listingEdit.savedAtDisplay} />
-                      <OverviewEditCard label="County" value={listingEdit.values.county} onChange={(v) => listingEdit.onChange('county', v)} />
-                      <OverviewEditCard label="Country" value={listingEdit.values.country} onChange={(v) => listingEdit.onChange('country', v)} />
-                      <OverviewEditCard label="Years Established" value={listingEdit.values.yearsEstablished} onChange={(v) => listingEdit.onChange('yearsEstablished', v)} />
-                      <OverviewEditCard label="Franchise" value={listingEdit.values.franchise} onChange={(v) => listingEdit.onChange('franchise', v)} />
-                      <OverviewEditCard label="Remote / Relocatable" value={listingEdit.values.remote} onChange={(v) => listingEdit.onChange('remote', v)} wide />
-                      <OverviewEditCard label="Asking Price" value={listingEdit.values.askingPrice} onChange={(v) => listingEdit.onChange('askingPrice', v)} accent />
-                      <OverviewEditCard label="EBITDA/SDE" value={listingEdit.values.ebitda} onChange={(v) => listingEdit.onChange('ebitda', v)} accent />
-                      <OverviewEditCard label="Revenue" value={listingEdit.values.revenue} onChange={(v) => listingEdit.onChange('revenue', v)} />
-                      <InfoCard label="Multiple" value={multiple} />
-                      <OverviewEditCard label="Location" value={listingEdit.values.location} onChange={(v) => listingEdit.onChange('location', v)} />
-                      <OverviewEditCard label="City" value={listingEdit.values.city} onChange={(v) => listingEdit.onChange('city', v)} />
-                      <OverviewEditCard label="State" value={listingEdit.values.state} onChange={(v) => listingEdit.onChange('state', v)} />
-                      <OverviewEditCard label="Industry" value={listingEdit.values.industry} onChange={(v) => listingEdit.onChange('industry', v)} wide />
-                      <OverviewEditCard label="Listing URL" value={listingEdit.values.url} onChange={(v) => listingEdit.onChange('url', v)} wide />
-                    </>
-                    ) : (
-                      <SavedDealOverviewReadOnlyCards deal={deal} savedAtDisplay={listingEdit.savedAtDisplay} multiple={multiple} />
-                    )
-                  ) : (
-                    <>
-                      {overviewAdditions}
-                      <InfoCard label="Asking Price" value={formatMoneyPanel(deal.askingPrice)} accent />
-                      <InfoCard label="EBITDA/SDE" value={formatMoneyPanel(deal.ebitda)} accent />
-                      <InfoCard label="Revenue" value={formatMoneyPanel(deal.revenue)} />
-                      <InfoCard label="Multiple" value={multiple} />
-                      <InfoCard label="Location" value={deal.location || deal.city || '-'} />
-                      <InfoCard label="State" value={deal.state || '-'} />
-                      <InfoCard label="Industry" value={deal.industry || '-'} wide />
-                      <InfoCard label="Source" value={deal.source || deal.sourceType || '-'} wide />
-                    </>
-                  )}
-                </div>
-              </div>
-              {!listingEdit ? (
-                <div className="deal-broker-condensed">
-                  <h3>Broker Information</h3>
-                  {entitlements?.brokerContactVisible !== false ? (
-                    <div className="deal-broker-grid">
-                      <BrokerItem label="Broker Name" value={brokerName} />
-                      <BrokerItem label="Company" value={brokerCompany} />
-                      <BrokerItem label="Email" value={brokerEmail} href={brokerEmail !== '-' ? `mailto:${brokerEmail}` : null} />
-                      <BrokerItem label="Phone" value={brokerPhone} href={brokerPhone !== '-' ? `tel:${brokerPhone}` : null} />
-                      <BrokerItem label="Listed" value={listedDate} wide />
-                    </div>
-                  ) : (
-                    <GatedPreviewText
-                      text={[brokerName, brokerCompany, brokerEmail, brokerPhone].filter((v) => v && v !== '-').join(' · ') || 'Broker contact available after sign up.'}
-                      limit={entitlements?.previewCharLimit ?? 120}
-                      entitlements={entitlements}
-                      reason="broker_click"
-                      className="deal-details-description"
-                      onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
-                    />
-                  )}
-                </div>
-              ) : null}
-            </div>
-          )}
-        </section>
-
-        <section className="deal-details-section deal-calculator-section">
-          <button type="button" className={`calc-section-header ${isCalculatorOpen ? '' : 'collapsed'}`} onClick={() => setIsCalculatorOpen((current) => !current)}>
-            <span>{isCalculatorOpen ? '▼' : '▶'} Deal Analyzer Calculator</span>
-          </button>
-          {isCalculatorOpen && (
-            <DealCalculator
-              deal={deal}
-              calculatorDefaults={calculatorDefaults}
-              onSaveCalculatorDefaults={onSaveCalculatorDefaults}
-              onUseForIOI={handleUseForIOI}
-            />
-          )}
-        </section>
-        {extraSectionsAfterCalculator}
+      <div className="deal-details-body deal-details-body--rail">
+        <SectionIconRail
+          sections={allSections}
+          primarySection={primarySection}
+          pinnedSection={pinnedSection}
+          pinnedIds={pinnedIds}
+          focusedSection={focusedSection}
+          onSelect={handleRailClick}
+        />
+        <div className="deal-section-slots">
+          {visibleSlots.map(renderSlot)}
+        </div>
       </div>
 
       {ioiData && (

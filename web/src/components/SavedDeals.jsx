@@ -549,8 +549,6 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
   const [progressStage, setProgressStage] = useState(deal.progressStage || '');
   const [progressHistory, setProgressHistory] = useState(deal.progressHistory || []);
   const [progressSaving, setProgressSaving] = useState(false);
-  const [isNotesSectionOpen, setIsNotesSectionOpen] = useState(true);
-  const [isBrokerProgressSectionOpen, setIsBrokerProgressSectionOpen] = useState(true);
   const [descriptionEditMode, setDescriptionEditMode] = useState(false);
   const [overviewEditMode, setOverviewEditMode] = useState(false);
   const [listingEdits, setListingEdits] = useState(() => listingEditsFromDeal(deal));
@@ -576,8 +574,6 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
     });
     setProgressStage(deal.progressStage || '');
     setProgressHistory(deal.progressHistory || []);
-    setIsNotesSectionOpen(true);
-    setIsBrokerProgressSectionOpen(true);
     setDescriptionEditMode(false);
     setOverviewEditMode(false);
     setListingEdits(listingEditsFromDeal(deal));
@@ -792,110 +788,100 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
     }
   };
 
-  const extraSections = (
-    <>
-      <section className="deal-details-section deal-edit-broker-section">
-        <button
-          type="button"
-          className={`calc-section-header ${isBrokerProgressSectionOpen ? '' : 'collapsed'}`}
-          onClick={() => setIsBrokerProgressSectionOpen((current) => !current)}
-        >
-          <span>{isBrokerProgressSectionOpen ? '▼' : '▶'} Edit Broker &amp; Progress</span>
-        </button>
-        {isBrokerProgressSectionOpen && (
-          <>
-            <div className="broker-form-grid">
-              <div className="input-group">
-                <label>Broker Name</label>
-                <input type="text" value={brokerInfo.name} onChange={(e) => setBrokerInfo({ ...brokerInfo, name: e.target.value })} placeholder="John Smith" className="modal-input" />
-              </div>
-              <div className="input-group">
-                <label>Company</label>
-                <input type="text" value={brokerInfo.company} onChange={(e) => setBrokerInfo({ ...brokerInfo, company: e.target.value })} placeholder="ABC Brokers Inc." className="modal-input" />
-              </div>
-              <div className="input-group">
-                <label>Phone</label>
-                <input type="tel" value={brokerInfo.phone} onChange={(e) => setBrokerInfo({ ...brokerInfo, phone: e.target.value })} placeholder="(555) 123-4567" className="modal-input" />
-              </div>
-              <div className="input-group">
-                <label>Email</label>
-                <input type="email" value={brokerInfo.email} onChange={(e) => setBrokerInfo({ ...brokerInfo, email: e.target.value })} placeholder="broker@example.com" className="modal-input" />
-              </div>
+  const extraSections = useMemo(() => [
+    {
+      id: 'broker-progress',
+      label: 'Edit Broker & Progress',
+      icon: 'broker-progress',
+      render: () => (
+        <>
+          <div className="broker-form-grid">
+            <div className="input-group">
+              <label>Broker Name</label>
+              <input type="text" value={brokerInfo.name} onChange={(e) => setBrokerInfo({ ...brokerInfo, name: e.target.value })} placeholder="John Smith" className="modal-input" />
             </div>
-            <button type="button" className="btn-secondary" onClick={handleSaveDealDetailsNow}>Save deal details now</button>
-            <div className="progress-tracking">
-              <div className="progress-tracking-columns">
-                <div className="progress-tracking-col progress-tracking-status-col">
-                  <div className="input-group">
-                    <label>Current Progress Status</label>
-                    <select
-                      value={progressStage}
-                      onChange={handleProgressSelectChange}
-                      className="modal-input"
-                      disabled={progressSaving}
-                      aria-busy={progressSaving}
-                      aria-label="Current progress status"
-                    >
-                      <option value="">Select Progress Status</option>
-                      {PROGRESS_STAGE_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                      {progressStage && !PROGRESS_STAGE_OPTIONS.includes(progressStage) ? (
-                        <option value={progressStage}>{progressStage} (saved)</option>
-                      ) : null}
-                    </select>
-                  </div>
-                </div>
-                <div className="progress-tracking-col progress-tracking-history-col">
-                  <div className="section-title">Progress History</div>
-                  {progressHistory.length > 0 ? (
-                    <div className="progress-list">
-                      {progressHistory.map((item, index) => (
-                        <div key={`${item.timestamp}-${index}`} className="progress-item">
-                          <div className="progress-item-body">
-                            <div className="progress-stage">{item.stage}</div>
-                            <div className="progress-timestamp">
-                              {new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            className="progress-item-remove"
-                            aria-label={`Remove progress entry: ${item.stage}`}
-                            title="Remove this update"
-                            onClick={() => handleRemoveProgressHistoryItem(index)}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="progress-history-empty">No progress updates yet.</p>
-                  )}
-                </div>
-              </div>
+            <div className="input-group">
+              <label>Company</label>
+              <input type="text" value={brokerInfo.company} onChange={(e) => setBrokerInfo({ ...brokerInfo, company: e.target.value })} placeholder="ABC Brokers Inc." className="modal-input" />
             </div>
-          </>
-        )}
-      </section>
-      <section className="deal-details-section deal-notes-section">
-        <button
-          type="button"
-          className={`calc-section-header ${isNotesSectionOpen ? '' : 'collapsed'}`}
-          onClick={() => setIsNotesSectionOpen((current) => !current)}
-        >
-          <span>{isNotesSectionOpen ? '▼' : '▶'} Notes</span>
-        </button>
-        {isNotesSectionOpen && (
-          <div className="deal-notes-content">
-            <textarea value={notes} onChange={(e) => handleNotesChange(e.target.value)} placeholder="Add notes about this deal..." rows={6} className="modal-notes" />
-            <p className="notes-hint">Notes are auto-saved as you type</p>
+            <div className="input-group">
+              <label>Phone</label>
+              <input type="tel" value={brokerInfo.phone} onChange={(e) => setBrokerInfo({ ...brokerInfo, phone: e.target.value })} placeholder="(555) 123-4567" className="modal-input" />
+            </div>
+            <div className="input-group">
+              <label>Email</label>
+              <input type="email" value={brokerInfo.email} onChange={(e) => setBrokerInfo({ ...brokerInfo, email: e.target.value })} placeholder="broker@example.com" className="modal-input" />
+            </div>
           </div>
-        )}
-      </section>
-    </>
-  );
+          <button type="button" className="btn-secondary" onClick={handleSaveDealDetailsNow}>Save deal details now</button>
+          <div className="progress-tracking">
+            <div className="progress-tracking-columns">
+              <div className="progress-tracking-col progress-tracking-status-col">
+                <div className="input-group">
+                  <label>Current Progress Status</label>
+                  <select
+                    value={progressStage}
+                    onChange={handleProgressSelectChange}
+                    className="modal-input"
+                    disabled={progressSaving}
+                    aria-busy={progressSaving}
+                    aria-label="Current progress status"
+                  >
+                    <option value="">Select Progress Status</option>
+                    {PROGRESS_STAGE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                    {progressStage && !PROGRESS_STAGE_OPTIONS.includes(progressStage) ? (
+                      <option value={progressStage}>{progressStage} (saved)</option>
+                    ) : null}
+                  </select>
+                </div>
+              </div>
+              <div className="progress-tracking-col progress-tracking-history-col">
+                <div className="section-title">Progress History</div>
+                {progressHistory.length > 0 ? (
+                  <div className="progress-list">
+                    {progressHistory.map((item, index) => (
+                      <div key={`${item.timestamp}-${index}`} className="progress-item">
+                        <div className="progress-item-body">
+                          <div className="progress-stage">{item.stage}</div>
+                          <div className="progress-timestamp">
+                            {new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="progress-item-remove"
+                          aria-label={`Remove progress entry: ${item.stage}`}
+                          title="Remove this update"
+                          onClick={() => handleRemoveProgressHistoryItem(index)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="progress-history-empty">No progress updates yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      ),
+    },
+    {
+      id: 'notes',
+      label: 'Notes',
+      icon: 'notes',
+      render: () => (
+        <div className="deal-notes-content">
+          <textarea value={notes} onChange={(e) => handleNotesChange(e.target.value)} placeholder="Add notes about this deal..." rows={6} className="modal-notes" />
+          <p className="notes-hint">Notes are auto-saved as you type</p>
+        </div>
+      ),
+    },
+  ], [brokerInfo, progressStage, progressSaving, progressHistory, notes, handleSaveDealDetailsNow, handleProgressSelectChange, handleRemoveProgressHistoryItem, handleNotesChange]);
 
   const savedFooter = (
     <>
@@ -924,7 +910,7 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
           panelOnly
           showPositionToggle={false}
           showSaveButton={false}
-          extraSectionsAfterCalculator={extraSections}
+          extraSections={extraSections}
           renderFooter={savedFooter}
           onIOISent={handleIOISent}
           onIOIPrefsSaved={onUpdate}

@@ -101,15 +101,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       setSettings(settingsData);
       const normalized = (dealsData.deals || []).map(normalizeDeal);
       setSavedDeals(normalized);
-
-      if (
-        settingsData &&
-        isBuyBoxEmpty(settingsData.buyBox) &&
-        !settingsData.preferences?.buyBoxOnboardingDismissed
-      ) {
-        setBuyBoxModalMode('onboarding');
-        setShowBuyBoxModal(true);
-      }
     } catch (error) {
       console.error('Failed to load user data:', error);
     } finally {

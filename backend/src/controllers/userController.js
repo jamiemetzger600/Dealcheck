@@ -4,6 +4,7 @@ import {
   activeSlotExcludeColumns,
   criteriaFromSlot,
   ensureBuyBoxesInMergedPreferences,
+  getExcludeListLibrary,
   normalizeUserBuyBoxes
 } from '../lib/userBuyBoxes.js';
 
@@ -40,15 +41,19 @@ export const getUserSettings = async (req, res) => {
       
       const normalized = normalizeUserBuyBoxes({}, {}, {});
       const ex = activeSlotExcludeColumns(normalized.buyBoxes, normalized.activeBuyBoxIndex);
+      const library = getExcludeListLibrary({}, normalized.buyBoxes, {});
       return res.json({
         buyBox: normalized.activeCriteria,
         buyBoxes: normalized.buyBoxes,
         activeBuyBoxIndex: normalized.activeBuyBoxIndex,
         excludeKeywords: ex.excludeKeywords,
-        excludeLists: ex.excludeLists,
+        excludeLists: library,
         currentExcludeList: ex.currentExcludeList,
         hiddenDealIds: [],
-        preferences: {},
+        preferences: {
+          buyBoxes: normalized.buyBoxes,
+          activeBuyBoxIndex: normalized.activeBuyBoxIndex
+        },
         customSources: [],
         autoRefreshEnabled: false,
         refreshInterval: 60,
@@ -67,16 +72,27 @@ export const getUserSettings = async (req, res) => {
       currentExcludeList: settings.current_exclude_list
     });
     const ex = activeSlotExcludeColumns(normalized.buyBoxes, normalized.activeBuyBoxIndex);
+    const library = getExcludeListLibrary(
+      settings.preferences,
+      normalized.buyBoxes,
+      { excludeLists: settings.exclude_lists }
+    );
+
+    const preferences = {
+      ...(settings.preferences || {}),
+      buyBoxes: normalized.buyBoxes,
+      activeBuyBoxIndex: normalized.activeBuyBoxIndex
+    };
 
     res.json({
       buyBox: normalized.activeCriteria,
       buyBoxes: normalized.buyBoxes,
       activeBuyBoxIndex: normalized.activeBuyBoxIndex,
       excludeKeywords: ex.excludeKeywords,
-      excludeLists: ex.excludeLists,
+      excludeLists: library,
       currentExcludeList: ex.currentExcludeList,
       hiddenDealIds: settings.hidden_deal_ids || [],
-      preferences: settings.preferences || {},
+      preferences,
       customSources: settings.custom_sources || [],
       autoRefreshEnabled: settings.auto_refresh_enabled,
       refreshInterval: settings.refresh_interval,
@@ -176,6 +192,9 @@ export const updateUserSettings = async (req, res) => {
         boxes[idx].currentExcludeList = currentExcludeList || '';
       }
       preferencesToWrite = { ...prefs, buyBoxes: boxes, activeBuyBoxIndex: idx };
+      if (excludeLists !== undefined) {
+        preferencesToWrite.excludeListLibrary = excludeLists;
+      }
     }
 
     const updateFields = [];
@@ -195,11 +214,16 @@ export const updateUserSettings = async (req, res) => {
       updateFields.push(`preferences = $${paramIndex++}`);
       values.push(JSON.stringify(preferencesToWrite));
       const ex = activeSlotExcludeColumns(preferencesToWrite.buyBoxes, preferencesToWrite.activeBuyBoxIndex);
+      const library = getExcludeListLibrary(
+        preferencesToWrite,
+        preferencesToWrite.buyBoxes,
+        { excludeLists: r.exclude_lists }
+      );
       if (ex) {
         updateFields.push(`exclude_keywords = $${paramIndex++}`);
         values.push(JSON.stringify(ex.excludeKeywords));
         updateFields.push(`exclude_lists = $${paramIndex++}`);
-        values.push(JSON.stringify(ex.excludeLists));
+        values.push(JSON.stringify(library));
         updateFields.push(`current_exclude_list = $${paramIndex++}`);
         values.push(ex.currentExcludeList);
       }

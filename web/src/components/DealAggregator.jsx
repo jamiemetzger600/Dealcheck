@@ -14,6 +14,7 @@ import {
 import {
   criteriaFromSlot,
   defaultBuyBoxSlotName,
+  getExcludeListLibrary,
   mergeActiveSlotFeedPatch,
   normalizeBuyBoxesState,
   patchActiveBuyBoxFlexibility
@@ -393,7 +394,9 @@ export default function DealAggregator({
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [excludeKeywords, setExcludeKeywords] = useState(settings?.excludeKeywords || []);
-  const [savedExcludeLists, setSavedExcludeLists] = useState(settings?.excludeLists || {});
+  const [savedExcludeLists, setSavedExcludeLists] = useState(() =>
+    settings ? getExcludeListLibrary(settings) : {}
+  );
   const [currentSelectedList, setCurrentSelectedList] = useState(settings?.currentExcludeList || '');
   const [hiddenDealIds, setHiddenDealIds] = useState(settings?.hiddenDealIds || []);
   const [selectedDeal, setSelectedDeal] = useState(null);
@@ -513,6 +516,7 @@ export default function DealAggregator({
 
   useEffect(() => {
     if (!settings) return;
+    setSavedExcludeLists(getExcludeListLibrary(settings));
     const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
     const slot = buyBoxes[activeBuyBoxIndex] || {};
     const slotKey = `${activeBuyBoxIndex}`;
@@ -522,11 +526,6 @@ export default function DealAggregator({
       feedFieldsInitializedRef.current = true;
       syncedFeedSlotRef.current = slotKey;
       setExcludeKeywords(Array.isArray(slot.excludeKeywords) ? slot.excludeKeywords : []);
-      setSavedExcludeLists(
-        slot.excludeLists && typeof slot.excludeLists === 'object' && !Array.isArray(slot.excludeLists)
-          ? slot.excludeLists
-          : {}
-      );
       const activeListName = slot.currentExcludeList != null ? String(slot.currentExcludeList) : '';
       setCurrentSelectedList(activeListName);
       setExcludeListNameInput(activeListName);
@@ -757,13 +756,14 @@ export default function DealAggregator({
   };
 
   const persistActiveSlotFeed = async (patch) => {
-    if (!settings) {
+    const currentSettings = settingsRef.current;
+    if (!currentSettings) {
       console.error('[DealAggregator] persistActiveSlotFeed: settings not loaded');
       alert('Settings are still loading. Please try again in a moment.');
       return false;
     }
     try {
-      const payload = mergeActiveSlotFeedPatch(settings, patch);
+      const payload = mergeActiveSlotFeedPatch(currentSettings, patch);
       await saveSettings(payload);
       if (typeof onSettingsUpdate === 'function') {
         await onSettingsUpdate();
@@ -963,27 +963,25 @@ export default function DealAggregator({
           ...b,
           feedSearch: searchQuery,
           excludeKeywords: [...excludeKeywords],
-          excludeLists: { ...savedExcludeLists },
           currentExcludeList: currentSelectedList || ''
         };
       });
       const newIdx = index;
       const activeSlot = next[newIdx];
       const crit = criteriaFromSlot(activeSlot);
+      const library = getExcludeListLibrary(settings);
       console.log('[DealAggregator] switch buy box', {
         from: activeBuyBoxIndex,
         to: newIdx,
         savedFeedSearch: searchQuery,
-        savedExcludeCount: excludeKeywords.length
+        savedExcludeCount: excludeKeywords.length,
+        sharedExcludeLists: Object.keys(library).length
       });
       await saveSettings({
         preferences: { buyBoxes: next, activeBuyBoxIndex: newIdx },
         buyBox: crit,
         excludeKeywords: Array.isArray(activeSlot.excludeKeywords) ? activeSlot.excludeKeywords : [],
-        excludeLists:
-          activeSlot.excludeLists && typeof activeSlot.excludeLists === 'object' && !Array.isArray(activeSlot.excludeLists)
-            ? activeSlot.excludeLists
-            : {},
+        excludeLists: library,
         currentExcludeList: activeSlot.currentExcludeList || null
       });
       if (typeof onSettingsUpdate === 'function') await onSettingsUpdate();

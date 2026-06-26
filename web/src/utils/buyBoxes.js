@@ -13,6 +13,50 @@ export function defaultBuyBoxSlotName(index) {
   return `Buy box ${index + 1}`;
 }
 
+/** Deep-clone named exclude list presets (name → keyword[]). */
+export function cloneExcludeListsMap(lists) {
+  if (!lists || typeof lists !== 'object' || Array.isArray(lists)) return {};
+  const out = {};
+  for (const [name, keywords] of Object.entries(lists)) {
+    if (!name || !Array.isArray(keywords)) continue;
+    out[String(name)] = keywords.map((k) => String(k));
+  }
+  return out;
+}
+
+/**
+ * Named exclude presets shared across all buy box slots.
+ * Migrates from preferences.excludeListLibrary, legacy top-level excludeLists, or per-slot lists.
+ */
+export function getExcludeListLibrary(settings) {
+  const prefs = settings?.preferences || {};
+  if (
+    prefs.excludeListLibrary &&
+    typeof prefs.excludeListLibrary === 'object' &&
+    !Array.isArray(prefs.excludeListLibrary)
+  ) {
+    return cloneExcludeListsMap(prefs.excludeListLibrary);
+  }
+
+  const merged = {};
+  const top = settings?.excludeLists;
+  if (top && typeof top === 'object' && !Array.isArray(top)) {
+    Object.assign(merged, cloneExcludeListsMap(top));
+  }
+
+  const { buyBoxes } = normalizeBuyBoxesState(settings);
+  for (const slot of buyBoxes) {
+    if (slot?.excludeLists && typeof slot.excludeLists === 'object' && !Array.isArray(slot.excludeLists)) {
+      for (const [name, keywords] of Object.entries(slot.excludeLists)) {
+        if (!merged[name] && Array.isArray(keywords)) {
+          merged[name] = keywords.map((k) => String(k));
+        }
+      }
+    }
+  }
+  return merged;
+}
+
 /** Keyword/search filters stored on each buy-box slot (not sent as deal-matching criteria). */
 export function snapshotSlotFeed(slot) {
   const s = slot && typeof slot === 'object' ? slot : {};
@@ -55,6 +99,38 @@ export function criteriaFromSlot(slot) {
     }
   }
   return out;
+}
+
+/** True when deal-matching criteria on a slot are unset (default / empty buy box). */
+export function isBuyBoxCriteriaEmpty(criteria) {
+  if (!criteria || typeof criteria !== 'object') return true;
+  const has = (v) => v != null && v !== '' && (Array.isArray(v) ? v.length > 0 : true);
+  return (
+    !has(criteria.minPrice) &&
+    !has(criteria.maxPrice) &&
+    !has(criteria.minEbitda) &&
+    !has(criteria.maxEbitda) &&
+    !has(criteria.minRevenue) &&
+    !has(criteria.revenueMultiple) &&
+    !has(criteria.targetStates) &&
+    !has(criteria.excludeStates) &&
+    !has(criteria.targetIndustries) &&
+    !has(criteria.targetCOC) &&
+    !has(criteria.targetPayback) &&
+    !has(criteria.minBuyerSalary) &&
+    !(Number(criteria.includeNearMatchesPercent) > 0)
+  );
+}
+
+/** True if any slot has a custom name or non-empty criteria (used to avoid clobbering account buy boxes on login). */
+export function buyBoxesHaveCustomization(buyBoxes) {
+  if (!Array.isArray(buyBoxes)) return false;
+  return buyBoxes.some((slot, i) => {
+    if (!slot || typeof slot !== 'object') return false;
+    const name = typeof slot.name === 'string' ? slot.name.trim() : '';
+    if (name && name !== defaultBuyBoxSlotName(i)) return true;
+    return !isBuyBoxCriteriaEmpty(criteriaFromSlot(slot));
+  });
 }
 
 function legacyFeedFromSettings(settings) {
@@ -181,16 +257,20 @@ export function mergeActiveSlotFeedPatch(settings, patch = {}) {
   const nextSlot = { ...prev };
   if (patch.feedSearch !== undefined) nextSlot.feedSearch = patch.feedSearch ?? '';
   if (patch.excludeKeywords !== undefined) nextSlot.excludeKeywords = patch.excludeKeywords;
-  if (patch.excludeLists !== undefined) nextSlot.excludeLists = patch.excludeLists;
   if (patch.currentExcludeList !== undefined) nextSlot.currentExcludeList = patch.currentExcludeList ?? '';
   const nextBoxes = buyBoxes.map((b, i) => (i === idx ? nextSlot : b));
+  const library =
+    patch.excludeLists !== undefined
+      ? cloneExcludeListsMap(patch.excludeLists)
+      : getExcludeListLibrary(settings);
+  const preferences = { buyBoxes: nextBoxes, activeBuyBoxIndex: idx };
+  if (patch.excludeLists !== undefined) {
+    preferences.excludeListLibrary = library;
+  }
   return {
-    preferences: { buyBoxes: nextBoxes, activeBuyBoxIndex: idx },
+    preferences,
     excludeKeywords: Array.isArray(nextSlot.excludeKeywords) ? nextSlot.excludeKeywords : [],
-    excludeLists:
-      nextSlot.excludeLists && typeof nextSlot.excludeLists === 'object' && !Array.isArray(nextSlot.excludeLists)
-        ? nextSlot.excludeLists
-        : {},
+    excludeLists: library,
     currentExcludeList: nextSlot.currentExcludeList || null
   };
 }

@@ -14,6 +14,53 @@ export function defaultBuyBoxSlotName(index) {
   return `Buy box ${index + 1}`;
 }
 
+/** Deep-clone named exclude list presets (name → keyword[]). */
+export function cloneExcludeListsMap(lists) {
+  if (!lists || typeof lists !== 'object' || Array.isArray(lists)) return {};
+  const out = {};
+  for (const [name, keywords] of Object.entries(lists)) {
+    if (!name || !Array.isArray(keywords)) continue;
+    out[String(name)] = keywords.map((k) => String(k));
+  }
+  return out;
+}
+
+/**
+ * Named exclude presets shared across all buy box slots.
+ * @param {object} preferences - user_settings.preferences
+ * @param {object[]} buyBoxes - normalized buy box slots
+ * @param {object} [legacy] - legacy exclude_lists column / top-level API field
+ */
+export function getExcludeListLibrary(preferences, buyBoxes, legacy = {}) {
+  const prefs = preferences && typeof preferences === 'object' ? preferences : {};
+  if (
+    prefs.excludeListLibrary &&
+    typeof prefs.excludeListLibrary === 'object' &&
+    !Array.isArray(prefs.excludeListLibrary)
+  ) {
+    return cloneExcludeListsMap(prefs.excludeListLibrary);
+  }
+
+  const merged = {};
+  const top = legacy.excludeLists;
+  if (top && typeof top === 'object' && !Array.isArray(top)) {
+    Object.assign(merged, cloneExcludeListsMap(top));
+  }
+
+  if (Array.isArray(buyBoxes)) {
+    for (const slot of buyBoxes) {
+      if (slot?.excludeLists && typeof slot.excludeLists === 'object' && !Array.isArray(slot.excludeLists)) {
+        for (const [name, keywords] of Object.entries(slot.excludeLists)) {
+          if (!merged[name] && Array.isArray(keywords)) {
+            merged[name] = keywords.map((k) => String(k));
+          }
+        }
+      }
+    }
+  }
+  return merged;
+}
+
 export function emptyBuyBoxCriteria() {
   return {
     minPrice: null,

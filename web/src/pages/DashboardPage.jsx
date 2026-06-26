@@ -36,6 +36,20 @@ function isBuyBoxEmpty(buyBox) {
   );
 }
 
+function shouldSkipGuestOnboardingAfterLogout() {
+  try {
+    return sessionStorage.getItem('vettr_skip_guest_onboarding') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function clearSkipGuestOnboardingAfterLogout() {
+  try {
+    sessionStorage.removeItem('vettr_skip_guest_onboarding');
+  } catch {}
+}
+
 export default function DashboardPage({ feedSource = 'airtable' }) {
   const { user, logout, loading: authLoading } = useAuth();
   const { isGuest, entitlements, requireSignup } = useGuestAccess(user);
@@ -68,6 +82,14 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [poolNewDealsFilter, setPoolNewDealsFilter] = useState(null);
   const [tourForceOpen, setTourForceOpen] = useState(false);
   const [tourPrepareStepId, setTourPrepareStepId] = useState(null);
+  /** Skip guest tour + buy box onboarding after logout (user already knows the product). */
+  const [suppressGuestOnboarding, setSuppressGuestOnboarding] = useState(() => {
+    if (shouldSkipGuestOnboardingAfterLogout()) {
+      clearSkipGuestOnboardingAfterLogout();
+      return true;
+    }
+    return false;
+  });
 
   const persistSettings = useCallback(
     async (patch) => {
@@ -141,7 +163,26 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const tourActive = tourForceOpen || guestTourBlocking;
 
   useEffect(() => {
-    if (authLoading || !isGuest || guestTourBlocking || !settings) return;
+    if (user) {
+      setSuppressGuestOnboarding(false);
+      clearSkipGuestOnboardingAfterLogout();
+    }
+  }, [user]);
+
+  const handleLogout = useCallback(() => {
+    setSuppressGuestOnboarding(true);
+    setShowBuyBoxModal(false);
+    setBuyBoxModalMode('closed');
+    logout();
+  }, [logout]);
+
+  useEffect(() => {
+    if (authLoading || !isGuest || guestTourBlocking || suppressGuestOnboarding || !settings) return;
+    if (shouldSkipGuestOnboardingAfterLogout()) {
+      clearSkipGuestOnboardingAfterLogout();
+      setSuppressGuestOnboarding(true);
+      return;
+    }
     if (
       isBuyBoxEmpty(settings.buyBox) &&
       !settings.preferences?.buyBoxOnboardingDismissed
@@ -149,7 +190,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       setBuyBoxModalMode('onboarding');
       setShowBuyBoxModal(true);
     }
-  }, [authLoading, isGuest, guestTourBlocking, settings]);
+  }, [authLoading, isGuest, guestTourBlocking, suppressGuestOnboarding, settings]);
 
   // Auth can resolve after a guest-path render; never keep onboarding open for logged-in users.
   useEffect(() => {
@@ -228,7 +269,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     <div className="app-page-shell">
       {(isGuest || tourForceOpen) && (
         <GuestOnboardingTour
-          autoShow={isGuest}
+          autoShow={isGuest && !suppressGuestOnboarding}
           forceOpen={tourForceOpen}
           onDismiss={handleTourDismiss}
           onEnsureAggregatorTab={() => setActiveTab('aggregator')}
@@ -251,7 +292,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       />
       <Navigation
         user={user}
-        logout={logout}
+        logout={handleLogout}
         isGuest={isGuest}
         activeTab={activeTab}
         setActiveTab={handleTabChange}

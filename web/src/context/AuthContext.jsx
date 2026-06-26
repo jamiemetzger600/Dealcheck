@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI, getToken, pingHealth } from '../utils/api';
 import { pushSessionToChromeExtension, clearChromeExtensionSession } from '../utils/extensionBridge';
+import { clearGuestSettings } from '../utils/guestSettings';
 
 const AuthContext = createContext();
 
@@ -80,6 +81,10 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    try {
+      sessionStorage.setItem('vettr_skip_guest_onboarding', '1');
+    } catch {}
+    clearGuestSettings();
     clearChromeExtensionSession();
     authAPI.logout();
     setUser(null);

@@ -785,6 +785,30 @@ a {
   max-width: 100%;
 }
 
+button.aggregator-welcome__buybox {
+  display: block;
+  width: 100%;
+  margin: 0;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.aggregator-welcome__buybox--clickable {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.aggregator-welcome__buybox--clickable:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.aggregator-welcome__buybox--clickable:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.95);
+  outline-offset: 2px;
+}
+
 .aggregator-welcome__buybox-title {
   font-size: 11px;
   font-weight: 700;

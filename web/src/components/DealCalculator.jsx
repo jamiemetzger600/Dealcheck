@@ -40,6 +40,7 @@ export default function DealCalculator({
   onSaveCalculatorDefaults = null,
   onUseForIOI = null,
   onAddToMyDeals = null,
+  onCalculatorPersisted = null,
   addToMyDealsInFooter = true,
   collectAddToMyDealsPayloadRef = null,
   showRefreshFromListing = true,
@@ -216,15 +217,26 @@ export default function DealCalculator({
       const payload = { scenarios, activeScenario, targetCOC, ui: uiOpen };
       saveCalculatorState(deal.id, payload);
       if (isSavedDealRowId(deal.id)) {
-        dealsAPI.updateDeal(deal.id, { calculatorState: payload }).catch((err) => {
-          console.warn('DealCalculator: failed to sync calculator to server', err);
-        });
+        const active = scenarios[Math.min(Number(activeScenario) || 0, scenarios.length - 1)] || scenarios[0];
+        const syncPatch = { calculatorState: payload };
+        const ap = parseMoney(active?.askingPrice);
+        const eb = parseMoney(active?.ebitda);
+        if (ap > 0) syncPatch.askingPrice = ap;
+        if (eb > 0) syncPatch.ebitda = eb;
+        dealsAPI
+          .updateDeal(deal.id, syncPatch)
+          .then(() => {
+            if (typeof onCalculatorPersisted === 'function') onCalculatorPersisted();
+          })
+          .catch((err) => {
+            console.warn('DealCalculator: failed to sync calculator to server', err);
+          });
       }
     }, PER_DEAL_PERSIST_DEBOUNCE_MS);
     return () => {
       if (perDealPersistTimerRef.current) clearTimeout(perDealPersistTimerRef.current);
     };
-  }, [deal?.id, scenarios, activeScenario, targetCOC, uiOpen]);
+  }, [deal?.id, scenarios, activeScenario, targetCOC, uiOpen, onCalculatorPersisted]);
 
   const patchScenario = useCallback((patch) => {
     setScenarios((current) =>

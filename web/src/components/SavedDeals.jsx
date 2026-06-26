@@ -4,7 +4,11 @@ import { dealsAPI } from '../utils/api';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
 import { getQualityPresentation } from '../utils/dealCalculatorMath';
 import { formatDate, formatMoney, getDealProgressLabel } from '../utils/normalizeDeal';
-import { getSavedDealCalculatorSummary } from '../utils/savedDealCalculatorSummary';
+import {
+  getSavedDealCalculatorSummary,
+  patchCalculatorStateListingFinancials
+} from '../utils/savedDealCalculatorSummary';
+import { saveCalculatorState } from '../utils/dealCalculatorStorage';
 import DealDetailsPanel from './DealDetailsPanel';
 
 /** Ordered pipeline options for saved-deal progress (My Deals modal). */
@@ -214,15 +218,18 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
 
     const headers = ['Name', 'Saved Date', 'Progress', 'Asking Price', 'EBITDA', 'Quality', 'COC Return', 'URL', 'Notes'];
     const rows = exportDeals.map((deal) => {
-      const { qualityScore: q, cocReturn: c } = getSavedDealCalculatorSummary(deal, calculatorDefaults);
+      const summary = getSavedDealCalculatorSummary(deal, calculatorDefaults);
+      const { qualityScore: q, cocReturn: c, askingPrice, ebitda } = summary;
       const qDisp = q != null && Number.isFinite(q) ? q : '—';
       const cDisp = c != null && Number.isFinite(c) ? `${c.toFixed(1)}%` : '—';
+      const displayAsking = askingPrice ?? deal.askingPrice;
+      const displayEbitda = ebitda ?? deal.ebitda;
       return [
         deal.name || '',
         formatDate(deal.savedAt),
         getDealProgressLabel(deal) || '',
-        deal.askingPrice || '',
-        deal.ebitda || '',
+        displayAsking || '',
+        displayEbitda || '',
         qDisp,
         cDisp,
         deal.url || '',
@@ -426,7 +433,10 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
             </thead>
             <tbody>
               {filteredDeals.map((deal) => {
-                const { qualityScore, cocReturn } = calculatorSummaryByDealId.get(deal.id) || {};
+                const summary = calculatorSummaryByDealId.get(deal.id) || {};
+                const { qualityScore, cocReturn } = summary;
+                const displayAsking = summary.askingPrice ?? deal.askingPrice;
+                const displayEbitda = summary.ebitda ?? deal.ebitda;
                 const qp =
                   qualityScore != null && Number.isFinite(qualityScore)
                     ? getQualityPresentation(qualityScore)
@@ -455,8 +465,8 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
                       {getDealProgressLabel(deal) || '—'}
                     </span>
                   </td>
-                  <td>{formatMoney(deal.askingPrice)}</td>
-                  <td>{formatMoney(deal.ebitda)}</td>
+                  <td>{formatMoney(displayAsking)}</td>
+                  <td>{formatMoney(displayEbitda)}</td>
                   <td>
                     {qp ? (
                       <span className="my-deals-quality-score" style={{ color: qp.scoreColor }} title={qp.text}>
@@ -564,6 +574,23 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
   descriptionEditModeRef.current = descriptionEditMode;
   overviewEditModeRef.current = overviewEditMode;
 
+  const calculatorDefaults = useMemo(() => getCalculatorDefaultsFromSettings(settings), [settings]);
+
+  const persistListingPayload = useCallback(
+    async (payload) => {
+      const dealRow = dealRef.current;
+      const calculatorState = patchCalculatorStateListingFinancials(
+        dealRow,
+        { askingPrice: payload.askingPrice, ebitda: payload.ebitda },
+        calculatorDefaults
+      );
+      await dealsAPI.updateDeal(dealRow.id, { ...payload, calculatorState });
+      saveCalculatorState(dealRow.id, calculatorState);
+      onUpdate();
+    },
+    [calculatorDefaults, onUpdate]
+  );
+
   useEffect(() => {
     setNotes(deal.notes || '');
     setBrokerInfo({
@@ -594,13 +621,12 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
         brokerInfoRef.current,
         dealRef.current
       );
-      await dealsAPI.updateDeal(dealRef.current.id, payload);
-      onUpdate();
+      await persistListingPayload(payload);
     } catch (e) {
       console.error('Saved deal listing persist failed:', e);
       alert('Failed to save deal details: ' + e.message);
     }
-  }, [onUpdate]);
+  }, [persistListingPayload]);
 
   const schedulePersistListing = useCallback(() => {
     if (persistListingTimerRef.current) clearTimeout(persistListingTimerRef.current);
@@ -612,14 +638,13 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
           brokerInfoRef.current,
           dealRef.current
         );
-        await dealsAPI.updateDeal(dealRef.current.id, payload);
-        onUpdate();
+        await persistListingPayload(payload);
       } catch (e) {
         console.error('Saved deal listing persist failed:', e);
         alert('Failed to save deal details: ' + e.message);
       }
     }, 1000);
-  }, [onUpdate]);
+  }, [persistListingPayload]);
 
   const handleListingEditChange = (key, value) => {
     setListingEdits((prev) => ({ ...prev, [key]: value }));
@@ -907,6 +932,7 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
           onClose={onClose}
           settings={settings}
           onSaveCalculatorDefaults={onSaveCalculatorDefaults}
+          onCalculatorPersisted={onUpdate}
           panelOnly
           showPositionToggle={false}
           showSaveButton={false}

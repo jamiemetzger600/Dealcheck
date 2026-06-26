@@ -48,7 +48,7 @@ export function normalizeDeal(deal) {
     updatedAt: deal.updated_at || deal.updatedAt,
     
     // Financial data
-    askingPrice: deal.asking_price || deal.askingPrice,
+    askingPrice: deal.asking_price ?? deal.askingPrice,
     ebitda: deal.ebitda,
     revenue: deal.revenue,
     

@@ -211,6 +211,7 @@ export default function DealDetailsPanel({
   onPositionChange,
   settings = null,
   onSaveCalculatorDefaults = null,
+  onCalculatorPersisted = null,
   panelOnly = false,
   showPositionToggle = true,
   showSaveButton = true,
@@ -467,6 +468,7 @@ export default function DealDetailsPanel({
         deal={deal}
         calculatorDefaults={calculatorDefaults}
         onSaveCalculatorDefaults={onSaveCalculatorDefaults}
+        onCalculatorPersisted={onCalculatorPersisted}
         onUseForIOI={handleUseForIOI}
       />
     ),

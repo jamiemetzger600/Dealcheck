@@ -23,6 +23,7 @@ import DealDetailsPanel from './DealDetailsPanel';
 import GatedPreviewText from './GatedPreviewText';
 
 const PER_PAGE = 50;
+const SHOW_SORT_TIP = false;
 const SEARCH_DEBOUNCE_MS = 300;
 const COLUMN_CONFIG = {
   name: { label: 'Name', default: true, required: true, sortable: true },
@@ -1382,53 +1383,67 @@ export default function DealAggregator({
             Settings
           </button>
         </div>
-        <div className="aggregator-welcome__buybox">
-          <h3 className="aggregator-welcome__buybox-title">
-            {buyBoxesUiState.buyBoxes[buyBoxesUiState.activeBuyBoxIndex]?.name?.trim() || 'Buy box'}
-          </h3>
-          {!hasAnyCriteria ? (
-            <p className="aggregator-welcome__buybox-empty">No criteria set. Configure in Buy Box.</p>
-          ) : (
-            <dl className="aggregator-welcome__buybox-list">
-              {(buyBox.minPrice != null || buyBox.maxPrice != null) && (
-                <>
-                  <dt>Price</dt>
-                  <dd>{fmt(effectiveMin(buyBox.minPrice)) ?? '—'} – {fmt(effectiveMax(buyBox.maxPrice)) ?? '—'}</dd>
-                </>
+        {(() => {
+          const activeSlot = buyBoxesUiState.buyBoxes[buyBoxesUiState.activeBuyBoxIndex];
+          const buyBoxTitle = activeSlot?.name?.trim() || 'Buy box';
+          const buyBoxSummaryProps = onConfigureBuyBox
+            ? {
+                type: 'button',
+                onClick: onConfigureBuyBox,
+                'aria-label': `Configure ${buyBoxTitle} buy box`,
+                className: 'aggregator-welcome__buybox aggregator-welcome__buybox--clickable'
+              }
+            : { className: 'aggregator-welcome__buybox' };
+          const BuyBoxSummaryTag = onConfigureBuyBox ? 'button' : 'div';
+
+          return (
+            <BuyBoxSummaryTag {...buyBoxSummaryProps}>
+              <h3 className="aggregator-welcome__buybox-title">{buyBoxTitle}</h3>
+              {!hasAnyCriteria ? (
+                <p className="aggregator-welcome__buybox-empty">No criteria set. Configure in Buy Box.</p>
+              ) : (
+                <dl className="aggregator-welcome__buybox-list">
+                  {(buyBox.minPrice != null || buyBox.maxPrice != null) && (
+                    <>
+                      <dt>Price</dt>
+                      <dd>{fmt(effectiveMin(buyBox.minPrice)) ?? '—'} – {fmt(effectiveMax(buyBox.maxPrice)) ?? '—'}</dd>
+                    </>
+                  )}
+                  {(buyBox.minEbitda != null || buyBox.maxEbitda != null) && (
+                    <>
+                      <dt>EBITDA</dt>
+                      <dd>{fmt(effectiveMin(buyBox.minEbitda)) ?? '—'} – {fmt(effectiveMax(buyBox.maxEbitda)) ?? '—'}</dd>
+                    </>
+                  )}
+                  {(buyBox.minRevenue != null || buyBox.maxRevenue != null) && (
+                    <>
+                      <dt>Revenue</dt>
+                      <dd>{fmt(effectiveMin(buyBox.minRevenue)) ?? '—'} – {fmt(effectiveMax(buyBox.maxRevenue)) ?? '—'}</dd>
+                    </>
+                  )}
+                  {buyBox.revenueMultiple != null && (
+                    <>
+                      <dt>Rev multiple</dt>
+                      <dd>≤ {fmtMult(effectiveMax(buyBox.revenueMultiple))}</dd>
+                    </>
+                  )}
+                  {hasTargetStates && (
+                    <>
+                      <dt>States</dt>
+                      <dd>{buyBox.targetStates.join(', ')}</dd>
+                    </>
+                  )}
+                  {flexPct > 0 && hasAnyCriteria && (
+                    <>
+                      <dt>Flexibility</dt>
+                      <dd>{flexPct}% (near matches included)</dd>
+                    </>
+                  )}
+                </dl>
               )}
-              {(buyBox.minEbitda != null || buyBox.maxEbitda != null) && (
-                <>
-                  <dt>EBITDA</dt>
-                  <dd>{fmt(effectiveMin(buyBox.minEbitda)) ?? '—'} – {fmt(effectiveMax(buyBox.maxEbitda)) ?? '—'}</dd>
-                </>
-              )}
-              {(buyBox.minRevenue != null || buyBox.maxRevenue != null) && (
-                <>
-                  <dt>Revenue</dt>
-                  <dd>{fmt(effectiveMin(buyBox.minRevenue)) ?? '—'} – {fmt(effectiveMax(buyBox.maxRevenue)) ?? '—'}</dd>
-                </>
-              )}
-              {buyBox.revenueMultiple != null && (
-                <>
-                  <dt>Rev multiple</dt>
-                  <dd>≤ {fmtMult(effectiveMax(buyBox.revenueMultiple))}</dd>
-                </>
-              )}
-              {hasTargetStates && (
-                <>
-                  <dt>States</dt>
-                  <dd>{buyBox.targetStates.join(', ')}</dd>
-                </>
-              )}
-              {flexPct > 0 && hasAnyCriteria && (
-                <>
-                  <dt>Flexibility</dt>
-                  <dd>{flexPct}% (near matches included)</dd>
-                </>
-              )}
-            </dl>
-          )}
-        </div>
+            </BuyBoxSummaryTag>
+          );
+        })()}
       </div>
 
       <div className="aggregator-table-container active" data-tour="deal-feed">
@@ -1692,7 +1707,7 @@ export default function DealAggregator({
           </div>
         </div>
 
-        {dealViewStyle === 'table' && (
+        {dealViewStyle === 'table' && SHOW_SORT_TIP && (
           <div className="sort-tip">
             <strong>Sorting tip:</strong> Click a column to sort. Hold <kbd>Shift</kbd> and click another column to add a tiebreaker (header numbers: 1 = first key, 2 = second key).
             {sortConfig.length >= 2 ? (

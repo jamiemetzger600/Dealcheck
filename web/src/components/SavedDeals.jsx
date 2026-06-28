@@ -10,6 +10,7 @@ import {
 } from '../utils/savedDealCalculatorSummary';
 import { saveCalculatorState } from '../utils/dealCalculatorStorage';
 import DealDetailsPanel from './DealDetailsPanel';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 /** Ordered pipeline options for saved-deal progress (My Deals modal). */
 const PROGRESS_STAGE_OPTIONS = [
@@ -94,6 +95,7 @@ function cocReturnTier(coc) {
 }
 
 export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCalculatorDefaults = null, onAddDeal = null }) {
+  const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('savedAt');
   const [sortDirection, setSortDirection] = useState('desc');
@@ -388,6 +390,42 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
         <div className="empty-state">
           <h3>No deals match your filters</h3>
           <p>Try adjusting your search or filters.</p>
+        </div>
+      ) : isMobile ? (
+        <div className="saved-deals-mobile-list">
+          {filteredDeals.map((deal) => {
+            const summary = calculatorSummaryByDealId.get(deal.id) || {};
+            const { qualityScore, cocReturn } = summary;
+            const displayAsking = summary.askingPrice ?? deal.askingPrice;
+            const displayEbitda = summary.ebitda ?? deal.ebitda;
+            const qp =
+              qualityScore != null && Number.isFinite(qualityScore)
+                ? getQualityPresentation(qualityScore)
+                : null;
+            const cocOk = cocReturn != null && Number.isFinite(cocReturn);
+            return (
+              <button
+                key={deal.id}
+                type="button"
+                className="saved-deal-mobile-card"
+                onClick={() => handleViewDeal(deal)}
+              >
+                <div className="saved-deal-mobile-card__header">
+                  <strong className="saved-deal-mobile-card__name">{deal.name || 'Unnamed Deal'}</strong>
+                  <span className="saved-deal-mobile-card__date">{formatDate(deal.savedAt)}</span>
+                </div>
+                <div className="saved-deal-mobile-card__metrics">
+                  <span>{formatMoney(displayAsking)}</span>
+                  <span>{formatMoney(displayEbitda)} CF</span>
+                  {qp ? <span style={{ color: qp.scoreColor }}>Q{qualityScore}</span> : null}
+                  {cocOk ? <span data-tier={cocReturnTier(cocReturn)}>{cocReturn.toFixed(0)}% CoC</span> : null}
+                </div>
+                <div className="saved-deal-mobile-card__progress">
+                  {getDealProgressLabel(deal) || 'No progress set'}
+                </div>
+              </button>
+            );
+          })}
         </div>
       ) : (
         <div className="my-deals-table-container">

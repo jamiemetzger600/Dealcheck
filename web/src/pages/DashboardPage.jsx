@@ -6,6 +6,7 @@ import { normalizeDeal } from '../utils/normalizeDeal';
 import DealAggregator from '../components/DealAggregator';
 import SavedDeals from '../components/SavedDeals';
 import Navigation from '../components/Navigation';
+import { useIsMobile } from '../hooks/useMediaQuery';
 import BuyBoxModal from '../components/BuyBoxModal';
 import { BUY_BOX_SLOT_COUNT } from '../utils/buyBoxes';
 import SourceManagerModal from '../components/SourceManagerModal';
@@ -82,6 +83,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [poolNewDealsFilter, setPoolNewDealsFilter] = useState(null);
   const [tourForceOpen, setTourForceOpen] = useState(false);
   const [tourPrepareStepId, setTourPrepareStepId] = useState(null);
+  const [mobileDeckActive, setMobileDeckActive] = useState(false);
+  const isMobile = useIsMobile();
   /** Skip guest tour + buy box onboarding after logout (user already knows the product). */
   const [suppressGuestOnboarding, setSuppressGuestOnboarding] = useState(() => {
     if (shouldSkipGuestOnboardingAfterLogout()) {
@@ -137,6 +140,17 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     setLoading(true);
     loadUserData();
   }, [loadUserData, authLoading]);
+
+  /** Live refresh when the Chrome extension saves/updates a deal on the web API. */
+  useEffect(() => {
+    if (isGuest) return;
+    const onExtensionDealsChanged = () => {
+      console.log('[Dashboard] Extension deals changed — refetching My Deals');
+      loadUserData();
+    };
+    window.addEventListener('vettr-deals-changed', onExtensionDealsChanged);
+    return () => window.removeEventListener('vettr-deals-changed', onExtensionDealsChanged);
+  }, [isGuest, loadUserData]);
 
   useEffect(() => {
     if (isGuest) logGuestEvent('guest_dashboard_view', { feedSource });
@@ -266,7 +280,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   }
 
   return (
-    <div className="app-page-shell">
+    <div className={`app-page-shell${mobileDeckActive && isMobile ? ' app-page-shell--mobile-deck' : ''}`}>
       {(isGuest || tourForceOpen) && (
         <GuestOnboardingTour
           autoShow={isGuest && !suppressGuestOnboarding}
@@ -298,6 +312,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         setActiveTab={handleTabChange}
         aggregatorCount={totalDeals}
         myDealsCount={savedDeals.length}
+        compact={mobileDeckActive && isMobile && activeTab === 'aggregator'}
         onOpenQuickCalculator={() => {
           if (isGuest) {
             requireSignup('default');
@@ -333,6 +348,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             persistSettings={persistSettings}
             requireSignup={requireSignup}
             initialOpenDealDbId={initialDealDbId}
+            onMobileDeckChange={setMobileDeckActive}
           />
         )}
 

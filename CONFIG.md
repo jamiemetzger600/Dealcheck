@@ -45,6 +45,7 @@ Single reference for all environment variables and deployment config. Copy the r
 | Variable | Required | Default / example | Notes |
 |----------|----------|-------------------|--------|
 | `VITE_API_URL` | **Yes** (prod) | — | Backend URL **including** `/api` (e.g. `https://your-app.koyeb.app/api`). Omit in dev to use Vite proxy. |
+| `VITE_EXTENSION_ID` | **Yes** (prod, web→ext link) | — | Chrome extension ID so logged-in web users auto-link the extension. See [docs/CHROME_WEB_STORE.md](docs/CHROME_WEB_STORE.md). |
 
 ---
 

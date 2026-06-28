@@ -1,4 +1,6 @@
 // In dev, always use the same-origin Vite proxy at `/api` so LAN clients don't try to call their own localhost.
+import { requestExtensionDealsSync } from './extensionBridge';
+
 const IS_DEV = Boolean(import.meta.env.DEV);
 const API_URL = IS_DEV ? '/api' : (import.meta.env.VITE_API_URL || '/api');
 
@@ -127,22 +129,42 @@ export const userAPI = {
 };
 
 // Deals API
+function notifyExtensionDealsSync() {
+  try {
+    requestExtensionDealsSync();
+  } catch (err) {
+    console.debug('[dealsAPI] extension sync notify skipped', err);
+  }
+}
+
 export const dealsAPI = {
   getSavedDeals: () => apiRequest('/deals'),
 
-  saveDeal: (deal) => apiRequest('/deals', {
-    method: 'POST',
-    body: JSON.stringify(deal)
-  }),
+  saveDeal: async (deal) => {
+    const result = await apiRequest('/deals', {
+      method: 'POST',
+      body: JSON.stringify(deal)
+    });
+    notifyExtensionDealsSync();
+    return result;
+  },
 
-  updateDeal: (id, updates) => apiRequest(`/deals/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(updates)
-  }),
+  updateDeal: async (id, updates) => {
+    const result = await apiRequest(`/deals/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+    notifyExtensionDealsSync();
+    return result;
+  },
 
-  deleteDeal: (id) => apiRequest(`/deals/${id}`, {
-    method: 'DELETE'
-  })
+  deleteDeal: async (id) => {
+    const result = await apiRequest(`/deals/${id}`, {
+      method: 'DELETE'
+    });
+    notifyExtensionDealsSync();
+    return result;
+  }
 };
 
 // Payments API

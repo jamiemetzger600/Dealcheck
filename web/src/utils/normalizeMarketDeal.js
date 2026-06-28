@@ -140,6 +140,8 @@ export function buildMarketDealsParams({
   restrictToDbIds = null,
   firstSeenAfter = null,
   firstSeenBefore = null,
+  /** Listings added or updated since this ISO timestamp (matches backend updated_after). */
+  updatedAfter = null,
 } = {}) {
   const params = new URLSearchParams();
   params.set('page', String(page));
@@ -216,6 +218,11 @@ export function buildMarketDealsParams({
   if (firstSeenBefore) {
     const t = new Date(firstSeenBefore);
     if (!Number.isNaN(t.getTime())) params.set('first_seen_before', t.toISOString());
+  }
+
+  if (updatedAfter) {
+    const t = new Date(updatedAfter);
+    if (!Number.isNaN(t.getTime())) params.set('updated_after', t.toISOString());
   }
 
   return params;

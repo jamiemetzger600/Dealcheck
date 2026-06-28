@@ -2882,6 +2882,76 @@
             .deal-panel.sidebar-mode { width: 100%; }
             .scenarios-container, .calculator-inputs { grid-template-columns: 1fr; }
         }
+        .vettr-account-bar {
+            margin: 0 0 16px 0;
+            padding: 14px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color, #e2e8f0);
+            background: var(--card-bg, #f8fafc);
+        }
+        .vettr-account-status {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: var(--text-secondary, #64748b);
+        }
+        .vettr-account-linked {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .vettr-account-synced {
+            color: #15803d;
+            font-size: 14px;
+        }
+        .vettr-account-signout {
+            background: none;
+            border: none;
+            color: var(--text-secondary, #64748b);
+            cursor: pointer;
+            font-size: 13px;
+            text-decoration: underline;
+        }
+        .vettr-account-fields {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .vettr-account-fields input {
+            flex: 1 1 140px;
+            min-width: 120px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color, #cbd5e1);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .vettr-account-login-btn {
+            padding: 8px 16px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .vettr-account-links {
+            margin: 8px 0 0;
+            font-size: 13px;
+        }
+        .vettr-account-links a {
+            color: #2563eb;
+        }
+        .vettr-account-error {
+            margin: 8px 0 0;
+            color: #dc2626;
+            font-size: 13px;
+        }
+        body.dark-mode .vettr-account-bar {
+            background: #1e293b;
+            border-color: #334155;
+        }
     </style>
 </head>
 <body>
@@ -3095,6 +3165,25 @@
 
     <!-- My Deals Tab (Existing Dashboard) -->
     <div class="tab-content" id="tab-my-deals">
+        <div id="vettr-account-bar" class="vettr-account-bar" data-vettr-account-root>
+            <p class="vettr-account-status" data-vettr-status>Sign in to sync My Deals with Vettr</p>
+            <div class="vettr-account-linked" data-vettr-linked style="display:none;">
+                <span class="vettr-account-synced">✓ Synced as <strong data-vettr-email></strong></span>
+                <button type="button" class="vettr-account-signout" data-vettr-signout-btn>Sign out</button>
+            </div>
+            <div class="vettr-account-signin" data-vettr-signin>
+                <div class="vettr-account-fields">
+                    <input type="email" data-vettr-email-input placeholder="Email" autocomplete="username">
+                    <input type="password" data-vettr-password-input placeholder="Password" autocomplete="current-password">
+                    <button type="button" class="vettr-account-login-btn" data-vettr-login-btn>Sign in</button>
+                </div>
+                <p class="vettr-account-links">
+                    <a href="#" data-vettr-open-web>Open Vettr in browser</a>
+                    · <a href="#" data-vettr-signup>Create account</a>
+                </p>
+                <p class="vettr-account-error" data-vettr-error style="display:none;"></p>
+            </div>
+        </div>
         <div class="stats" id="stats">
             <div class="stat-card">
                 <div class="stat-label">Total Deals</div>
@@ -4436,6 +4525,9 @@
     </div>
 
     <script src="version.js"></script>
+    <script src="utils/vettr-config.js"></script>
+    <script src="utils/vettr-cloud-sync.js"></script>
+    <script src="utils/vettr-account-ui.js"></script>
     <script src="utils/storage-manager.js"></script>
     <script src="utils/custom-source-manager.js"></script>
     <script src="scrapers/rss-parser.js"></script>

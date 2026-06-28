@@ -5,6 +5,7 @@
 
 const SET_SESSION = 'VETTR_SET_SESSION';
 const CLEAR_SESSION = 'VETTR_CLEAR_SESSION';
+const REQUEST_SYNC = 'VETTR_REQUEST_SYNC';
 
 function getExtensionId() {
   const id = import.meta.env.VITE_EXTENSION_ID;
@@ -38,7 +39,13 @@ export function pushSessionToChromeExtension(accessToken) {
   try {
     chromeApi.runtime.sendMessage(
       extId,
-      { type: SET_SESSION, token: accessToken, apiBaseUrl, webAppUrl: typeof window !== 'undefined' ? window.location.origin : '' },
+      {
+        type: SET_SESSION,
+        token: accessToken,
+        apiBaseUrl,
+        webAppUrl: typeof window !== 'undefined' ? window.location.origin : '',
+        email: typeof window !== 'undefined' ? (window.__vettrUserEmail || '') : ''
+      },
       () => {
         void chromeApi.runtime.lastError;
       }
@@ -60,5 +67,21 @@ export function clearChromeExtensionSession() {
     });
   } catch {
     /* ignore */
+  }
+}
+
+/** Ask the extension to pull latest My Deals from the API (after web save/update/delete). */
+export function requestExtensionDealsSync() {
+  if (typeof window === 'undefined') return;
+  const extId = getExtensionId();
+  if (!extId) return;
+  const chromeApi = window.chrome;
+  if (!chromeApi?.runtime?.sendMessage) return;
+  try {
+    chromeApi.runtime.sendMessage(extId, { type: REQUEST_SYNC }, () => {
+      void chromeApi.runtime.lastError;
+    });
+  } catch {
+    /* extension not installed */
   }
 }

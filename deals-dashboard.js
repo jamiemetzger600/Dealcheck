@@ -116,8 +116,12 @@ function switchTab(tabName) {
         updateJourneyStage('data');
     } else if (tabName === 'my-deals') {
         updateJourneyStage('wisdom');
-        // Load My Deals data when switching to My Deals tab
         loadMyDeals();
+        maybeVettrFullSync();
+        refreshVettrAccountBar();
+        startVettrMyDealsPoll();
+    } else {
+        stopVettrMyDealsPoll();
     }
 }
 
@@ -202,6 +206,8 @@ async function initializeDashboard() {
     console.log('  loadAggregatedDeals:', typeof loadAggregatedDeals !== 'undefined' ? '✅' : '❌');
     console.log('  getCustomSources:', typeof getCustomSources !== 'undefined' ? '✅' : '❌');
     console.log('  addCustomSource:', typeof addCustomSource !== 'undefined' ? '✅' : '❌');
+
+    initVettrAccountBar();
     console.log('  fetchAllCustomSources:', typeof fetchAllCustomSources !== 'undefined' ? '✅' : '❌');
     console.log('  openSourceManagementModal:', typeof openSourceManagementModal !== 'undefined' ? '✅' : '❌');
     console.log('  openManualDealModal:', typeof openManualDealModal !== 'undefined' ? '✅' : '❌');
@@ -2048,6 +2054,7 @@ async function saveDealFromAggregator(deal) {
         });
         
         showToast('✅ Deal saved to My Deals!', 'success');
+        queueVettrPostDeal(savedDeal, { aggregator: deal });
         
         // Update My Deals count
         document.getElementById('my-deals-count').textContent = formatNumber(existingDeals.length);
@@ -2060,10 +2067,11 @@ async function saveDealFromAggregator(deal) {
 
 // Convert aggregator deal to saved deal format
 function convertAggregatorDealToSaved(deal) {
-    return {
+        return {
         name: deal.name || 'Unnamed Deal',
         url: deal.url || '',
         savedAt: Date.now(),
+        dealId: deal.id || (deal.url && typeof VettrCloudSync !== 'undefined' ? VettrCloudSync.extensionDealIdFromUrl(deal.url) : undefined),
         status: 'none',
         inputs: {
             businessName: deal.name || '',
@@ -2083,6 +2091,7 @@ function convertAggregatorDealToSaved(deal) {
         location: deal.location || deal.city || '',
         industry: deal.industry || '',
         source: deal.source || 'Deal Aggregator',
+        description: deal.description || '',
         notes: ''
     };
 }
@@ -2495,6 +2504,7 @@ async function deleteSingleDeal(deal) {
         });
         
         showToast('Deal deleted', 'success');
+        queueVettrDeleteDeal(deal);
         await loadMyDeals();
         
     } catch (error) {
@@ -2515,6 +2525,7 @@ async function bulkDeleteDeals() {
     if (!confirm(`Delete ${selectedMyDeals.size} selected deals?`)) return;
     
     try {
+        const deleted = myDeals.filter(d => selectedMyDeals.has(d.savedAt));
         myDeals = myDeals.filter(d => !selectedMyDeals.has(d.savedAt));
         
         await new Promise((resolve, reject) => {
@@ -2528,6 +2539,7 @@ async function bulkDeleteDeals() {
         });
         
         showToast(`${selectedMyDeals.size} deals deleted`, 'success');
+        deleted.forEach((d) => queueVettrDeleteDeal(d));
         selectedMyDeals.clear();
         await loadMyDeals();
         
@@ -2913,6 +2925,7 @@ async function updateDealStatus(deal, newStatus) {
             });
             
             showToast('Status updated', 'success');
+            queueVettrUpdateDeal(deal);
             
             // Refresh My Deals if visible
             if (currentTab === 'my-deals') {
@@ -2929,10 +2942,8 @@ async function updateDealStatus(deal, newStatus) {
 // Update deal notes
 async function updateDealNotes(deal, newNotes) {
     try {
-        // Update deal object
         deal.notes = newNotes;
         
-        // Save to storage
         const existingDeals = await new Promise((resolve) => {
             chrome.storage.local.get(['savedDeals'], (result) => {
                 resolve(result.savedDeals || []);
@@ -2954,6 +2965,7 @@ async function updateDealNotes(deal, newNotes) {
             });
             
             console.log('✅ Notes auto-saved');
+            queueVettrUpdateDealDebounced(deal);
         }
         
     } catch (error) {
@@ -3998,6 +4010,7 @@ async function saveManualDeal() {
         
         // Also save to My Deals immediately (off-market deals are typically high-value)
         const savedDealFormat = convertAggregatorDealToSaved(manualDeal);
+        savedDealFormat.dealId = manualDeal.id;
         savedDealFormat.inputs.ebitdaSDE = manualDeal.ebitda;
         savedDealFormat.inputs.askingPrice = manualDeal.askingPrice;
         savedDealFormat.notes = notes;
@@ -4034,6 +4047,7 @@ async function saveManualDeal() {
         document.getElementById('my-deals-count').textContent = formatNumber(existingDeals.length);
         
         showToast('✅ Off-market deal added successfully!', 'success');
+        queueVettrPostDeal(savedDealFormat, { manual: manualDeal });
         closeManualDealModal();
         
     } catch (error) {
@@ -5821,6 +5835,7 @@ document.getElementById('deal-progress-status').addEventListener('change', (e) =
     saveDeals(allDeals, (success) => {
         if (success) {
             showToast(`Progress updated: ${status}`, 'success', 2000);
+            if (currentModalDeal) queueVettrUpdateDeal(currentModalDeal);
             loadProgressHistory(currentModalDeal);
             // Reset dropdown
             e.target.value = '';
@@ -6572,6 +6587,13 @@ function initializeAutoRefreshSettings() {
 
 // Listen for background refresh messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'VETTR_DEALS_REFRESH') {
+        console.log('☁️ My Deals refresh from sync');
+        loadMyDeals();
+        refreshVettrAccountBar();
+        sendResponse({ ok: true });
+        return true;
+    }
     if (message.action === 'backgroundRefresh') {
         console.log('🔄 Background refresh triggered at', new Date(message.timestamp).toLocaleTimeString());
         
@@ -6589,4 +6611,154 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Initialize
 loadDeals();
 initializeAutoRefreshSettings();
+
+// ===== VETTR ACCOUNT SYNC =====
+let vettrNotesSyncTimer = null;
+let vettrFullSyncTimer = null;
+let vettrPollTimer = null;
+let vettrAccountController = null;
+
+function vettrRuntimeMessage(msg) {
+    return new Promise((resolve) => {
+        if (!chrome?.runtime?.sendMessage) {
+            resolve({ ok: false, error: 'Extension runtime unavailable' });
+            return;
+        }
+        chrome.runtime.sendMessage(msg, (res) => {
+            if (chrome.runtime.lastError) {
+                resolve({ ok: false, error: chrome.runtime.lastError.message });
+                return;
+            }
+            resolve(res || { ok: false });
+        });
+    });
+}
+
+function isVettrLinkedQuick() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['vettrAuthToken'], (r) => resolve(Boolean(r.vettrAuthToken)));
+    });
+}
+
+function buildVettrPostBody(deal, ctx) {
+    if (!deal || typeof VettrCloudSync === 'undefined') return null;
+    if (ctx?.manual) return VettrCloudSync.buildManualDealRequest(ctx.manual);
+    if (ctx?.aggregator) return VettrCloudSync.buildAggregatorSavedDealRequest(ctx.aggregator);
+    return VettrCloudSync.buildDashboardSavedDealRequest(deal);
+}
+
+async function queueVettrPostDeal(deal, ctx) {
+    const linked = await isVettrLinkedQuick();
+    const body = buildVettrPostBody(deal, ctx);
+    if (!body) return;
+    if (!linked) {
+        showToast('Saved on this device. Sign in to sync with Vettr.', 'info', 4000);
+        return;
+    }
+    const res = await vettrRuntimeMessage({ type: 'VETTR_SYNC_DEAL', body });
+    if (res?.sessionExpired) {
+        refreshVettrAccountBar();
+        showToast('Session expired. Sign in again.', 'warning');
+        return;
+    }
+    if (!res?.ok) {
+        console.warn('☁️ Vettr sync failed:', res?.error);
+        showToast('Saved on this device. We\'ll sync when you\'re back online.', 'warning', 4000);
+        return;
+    }
+    if (res.result && deal) {
+        VettrCloudSync.applySaveResponse(deal, res.result);
+        if (!deal.dealId) deal.dealId = body.dealId;
+    }
+}
+
+async function queueVettrUpdateDeal(deal) {
+    if (!deal) return;
+    const linked = await isVettrLinkedQuick();
+    if (!linked) return;
+    if (!deal.vettrId) {
+        return queueVettrPostDeal(deal);
+    }
+    const body = typeof VettrCloudSync !== 'undefined' ? VettrCloudSync.buildUpdateRequest(deal) : { notes: deal.notes, status: deal.status };
+    const res = await vettrRuntimeMessage({ type: 'VETTR_UPDATE_DEAL', vettrId: deal.vettrId, body });
+    if (res?.sessionExpired) refreshVettrAccountBar();
+    else if (!res?.ok) console.warn('☁️ Vettr update failed:', res?.error);
+}
+
+function queueVettrDeleteDeal(deal) {
+    if (!deal?.vettrId) return;
+    vettrRuntimeMessage({ type: 'VETTR_DELETE_DEAL', vettrId: deal.vettrId }).then((res) => {
+        if (res?.sessionExpired) refreshVettrAccountBar();
+    });
+}
+
+function queueVettrUpdateDealDebounced(deal) {
+    clearTimeout(vettrNotesSyncTimer);
+    vettrNotesSyncTimer = setTimeout(() => queueVettrUpdateDeal(deal), 1000);
+}
+
+function maybeVettrFullSync() {
+    clearTimeout(vettrFullSyncTimer);
+    vettrFullSyncTimer = setTimeout(async () => {
+        const linked = await isVettrLinkedQuick();
+        if (!linked) return;
+        const res = await vettrRuntimeMessage({ type: 'VETTR_FULL_SYNC' });
+        if (res?.ok) {
+            await loadMyDeals();
+        } else if (res?.sessionExpired) {
+            refreshVettrAccountBar();
+        }
+    }, 500);
+}
+
+function startVettrMyDealsPoll() {
+    stopVettrMyDealsPoll();
+    vettrPollTimer = setInterval(async () => {
+        if (currentTab !== 'my-deals') return;
+        const linked = await isVettrLinkedQuick();
+        if (!linked) return;
+        await vettrRuntimeMessage({ type: 'VETTR_FULL_SYNC' });
+    }, 15000);
+}
+
+function stopVettrMyDealsPoll() {
+    if (vettrPollTimer) {
+        clearInterval(vettrPollTimer);
+        vettrPollTimer = null;
+    }
+}
+
+function refreshVettrAccountBar() {
+    if (vettrAccountController?.refresh) vettrAccountController.refresh();
+}
+
+function initVettrAccountBar() {
+    const root = document.querySelector('[data-vettr-account-root]');
+    if (!root || typeof VettrAccountUI === 'undefined') return;
+    vettrAccountController = VettrAccountUI.bindAccountForm(root, {
+        onSignedIn: () => {
+            showToast('Syncing your deals…', 'info', 2500);
+            vettrRuntimeMessage({ type: 'VETTR_FULL_SYNC' }).then((res) => {
+                if (res?.ok) {
+                    showToast('All set — your deals are synced', 'success', 3500);
+                    loadMyDeals();
+                }
+            });
+        },
+        onSignedOut: () => showToast('Signed out of Vettr', 'info', 2500)
+    });
+}
+
+if (chrome.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if (changes.savedDeals || changes.vettrLastSyncAt) {
+            if (currentTab === 'my-deals') {
+                loadMyDeals();
+            } else {
+                loadMyDealsCount();
+            }
+        }
+    });
+}
 

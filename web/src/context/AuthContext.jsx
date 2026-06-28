@@ -64,6 +64,9 @@ export function AuthProvider({ children }) {
     if (!user) return;
     const token = getToken();
     if (token) {
+      try {
+        window.__vettrUserEmail = user.email || '';
+      } catch {}
       pushSessionToChromeExtension(token);
     }
   }, [user]);

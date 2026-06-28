@@ -1,34 +1,44 @@
 // Background script to handle extension icon clicks and auto-refresh
-importScripts('utils/vettr-cloud-sync.js');
+importScripts('utils/vettr-config.js', 'utils/vettr-cloud-sync.js');
 console.log('🔧 Background service worker starting...');
 
-async function postVettrSaveDeal(body) {
-  const { vettrApiBaseUrl, vettrAuthToken } = await chrome.storage.local.get([
-    'vettrApiBaseUrl',
-    'vettrAuthToken'
-  ]);
+const SESSION_EXPIRED = 'SESSION_EXPIRED';
+let fullSyncInFlight = null;
+
+async function getVettrAuthConfig() {
+  const stored = await chrome.storage.local.get(['vettrApiBaseUrl', 'vettrAuthToken', 'vettrWebAppUrl']);
+  const apiBase = VettrCloudSync.normalizeApiBaseUrl(
+    stored.vettrApiBaseUrl || (typeof VettrConfig !== 'undefined' ? VettrConfig.getDefaultApiBaseUrl() : '')
+  );
+  return {
+    vettrApiBaseUrl: apiBase,
+    vettrAuthToken: stored.vettrAuthToken || '',
+    vettrWebAppUrl: stored.vettrWebAppUrl || (typeof VettrConfig !== 'undefined' ? VettrConfig.getDefaultWebAppUrl() : 'http://localhost:5173')
+  };
+}
+
+async function vettrApiFetch(path, options = {}) {
+  const { vettrApiBaseUrl, vettrAuthToken } = await getVettrAuthConfig();
   if (!vettrAuthToken || !vettrApiBaseUrl) {
-    throw new Error('Missing Vettr API URL or token (set in Deal Analyzer → Settings)');
+    throw new Error('Not signed in to Vettr');
   }
-  const base = VettrCloudSync.normalizeApiBaseUrl(vettrApiBaseUrl);
-  if (!base) {
-    throw new Error('Invalid Vettr API URL');
-  }
-  const url = base + '/deals';
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + vettrAuthToken
-    },
-    body: JSON.stringify(body)
-  });
+  const url = vettrApiBaseUrl + path;
+  const res = await fetch(url, Object.assign({}, options, {
+    headers: Object.assign(
+      { 'Content-Type': 'application/json', Authorization: 'Bearer ' + vettrAuthToken },
+      options.headers || {}
+    )
+  }));
   const text = await res.text();
   let data;
   try {
-    data = JSON.parse(text);
+    data = text ? JSON.parse(text) : {};
   } catch {
     data = { raw: text };
+  }
+  if (res.status === 401) {
+    await chrome.storage.local.remove(['vettrAuthToken', 'vettrUserEmail']);
+    throw new Error(SESSION_EXPIRED);
   }
   if (!res.ok) {
     throw new Error((data && data.error) || text || res.statusText);
@@ -36,9 +46,150 @@ async function postVettrSaveDeal(body) {
   return data;
 }
 
+function normalizeSaveResponse(data) {
+  return {
+    vettrId: data.vettrId || data.id || data.dealId,
+    savedAt: data.savedAt || data.saved_at,
+    updatedAt: data.updatedAt || data.updated_at || data.savedAt || data.saved_at,
+    deal_id: data.deal_id
+  };
+}
+
+async function postVettrSaveDeal(body) {
+  const data = await vettrApiFetch('/deals', { method: 'POST', body: JSON.stringify(body) });
+  return normalizeSaveResponse(data);
+}
+
+async function putVettrDeal(vettrId, body) {
+  const data = await vettrApiFetch('/deals/' + vettrId, { method: 'PUT', body: JSON.stringify(body) });
+  return normalizeSaveResponse(data);
+}
+
+async function deleteVettrDeal(vettrId) {
+  await vettrApiFetch('/deals/' + vettrId, { method: 'DELETE' });
+  return { ok: true };
+}
+
+async function pullVettrDeals() {
+  const data = await vettrApiFetch('/deals');
+  return data.deals || [];
+}
+
+async function runFullSync() {
+  if (fullSyncInFlight) return fullSyncInFlight;
+  fullSyncInFlight = (async () => {
+    const { savedDeals = [] } = await chrome.storage.local.get(['savedDeals']);
+    const cloudRows = await pullVettrDeals();
+    const plan = VettrCloudSync.mergeDealsForFullSync(savedDeals, cloudRows);
+    let merged = plan.merged;
+
+    for (let i = 0; i < plan.uploads.length; i++) {
+      const local = plan.uploads[i];
+      const body = VettrCloudSync.buildDashboardSavedDealRequest(local);
+      try {
+        const res = await postVettrSaveDeal(body);
+        VettrCloudSync.applySaveResponse(local, res);
+        if (!local.dealId) local.dealId = body.dealId;
+        const idx = merged.findIndex((d) => VettrCloudSync.resolveDealId(d) === VettrCloudSync.resolveDealId(local));
+        if (idx !== -1) merged[idx] = Object.assign({}, merged[idx], local);
+      } catch (err) {
+        console.warn('☁️ Vettr bulk upload failed for deal:', local.name, err.message);
+      }
+    }
+
+    for (let j = 0; j < plan.cloudUpdates.length; j++) {
+      const item = plan.cloudUpdates[j];
+      try {
+        const body = VettrCloudSync.buildUpdateRequest(item.local);
+        const res = await putVettrDeal(item.vettrId, body);
+        VettrCloudSync.applySaveResponse(item.local, res);
+      } catch (err) {
+        console.warn('☁️ Vettr cloud update failed:', item.local.name, err.message);
+      }
+    }
+
+    await chrome.storage.local.set({
+      savedDeals: merged,
+      vettrLastSyncAt: Date.now()
+    });
+    console.log('☁️ Vettr full sync complete:', merged.length, 'deals');
+    notifyExtensionDashboardRefresh();
+    notifyWebAppTabs();
+    return { ok: true, count: merged.length };
+  })().finally(() => {
+    fullSyncInFlight = null;
+  });
+  return fullSyncInFlight;
+}
+
+function scheduleFullSyncAfterLink() {
+  runFullSync().catch((err) => {
+    console.warn('☁️ Vettr full sync after link failed:', err.message);
+  });
+}
+
+/** Tell open Vettr web tabs to refetch My Deals (extension saved/updated/deleted a deal). */
+async function notifyWebAppTabs() {
+  const cfg = await getVettrAuthConfig();
+  const prefixes = new Set(
+    [cfg.vettrWebAppUrl, 'http://localhost:5173', 'https://vettr.pages.dev']
+      .filter(Boolean)
+      .map((u) => String(u).replace(/\/+$/, ''))
+  );
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    if (!tab.id || !tab.url) continue;
+    const url = tab.url;
+    const hit = [...prefixes].some((p) => url.startsWith(p));
+    if (!hit) continue;
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'VETTR_NOTIFY_WEB_REFRESH' });
+    } catch {
+      /* content script not ready on this tab */
+    }
+  }
+}
+
+/** Tell extension dashboard pages to reload My Deals from storage. */
+function notifyExtensionDashboardRefresh() {
+  try {
+    chrome.runtime.sendMessage({ type: 'VETTR_DEALS_REFRESH' }, () => {
+      void chrome.runtime.lastError;
+    });
+  } catch {
+    /* no listeners */
+  }
+}
+
+async function handleVettrLogin(email, password, apiBaseUrl, webAppUrl) {
+  const apiBase = VettrCloudSync.normalizeApiBaseUrl(
+    apiBaseUrl || (typeof VettrConfig !== 'undefined' ? VettrConfig.getDefaultApiBaseUrl() : 'http://localhost:3001/api')
+  );
+  const res = await fetch(apiBase + '/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Login failed');
+  }
+  await chrome.storage.local.set({
+    vettrAuthToken: data.token,
+    vettrApiBaseUrl: apiBase,
+    vettrUserEmail: data.user?.email || email,
+    vettrWebAppUrl: webAppUrl || (typeof VettrConfig !== 'undefined' ? VettrConfig.getDefaultWebAppUrl() : 'http://localhost:5173')
+  });
+  ensureVettrSyncAlarm();
+  scheduleFullSyncAfterLink();
+  return { ok: true, email: data.user?.email || email };
+}
+
 // ====== AUTO-REFRESH SCHEDULER ======
 const ALARM_NAME = 'autoRefreshDeals';
+const VETTR_SYNC_ALARM = 'vettrCloudSync';
 const DEFAULT_REFRESH_INTERVAL = 60; // minutes
+const VETTR_SYNC_INTERVAL_MIN = 1; // Chrome minimum alarm period
 
 // Initialize auto-refresh on install/update
 chrome.runtime.onInstalled.addListener(async () => {
@@ -65,6 +216,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (autoRefreshEnabled !== false) {
     scheduleAutoRefresh(refreshInterval || DEFAULT_REFRESH_INTERVAL);
   }
+  ensureVettrSyncAlarm();
 });
 
 // Schedule the auto-refresh alarm
@@ -83,7 +235,24 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     console.log('🔄 Auto-refresh triggered at', new Date().toLocaleTimeString());
     await refreshDealsInBackground();
   }
+  if (alarm.name === VETTR_SYNC_ALARM) {
+    const { vettrAuthToken } = await chrome.storage.local.get(['vettrAuthToken']);
+    if (vettrAuthToken) {
+      runFullSync().catch((err) => {
+        console.warn('☁️ Scheduled Vettr sync failed:', err.message);
+      });
+    }
+  }
 });
+
+async function ensureVettrSyncAlarm() {
+  const { vettrAuthToken } = await chrome.storage.local.get(['vettrAuthToken']);
+  if (vettrAuthToken) {
+    chrome.alarms.create(VETTR_SYNC_ALARM, { periodInMinutes: VETTR_SYNC_INTERVAL_MIN });
+  } else {
+    chrome.alarms.clear(VETTR_SYNC_ALARM);
+  }
+}
 
 // Refresh deals in background
 async function refreshDealsInBackground() {
@@ -237,10 +406,14 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
     chrome.storage.local.set(
       {
         vettrAuthToken: message.token,
-        vettrApiBaseUrl: base || message.apiBaseUrl.trim()
+        vettrApiBaseUrl: base || message.apiBaseUrl.trim(),
+        vettrUserEmail: message.email || undefined,
+        vettrWebAppUrl: message.webAppUrl || (typeof VettrConfig !== 'undefined' ? VettrConfig.getDefaultWebAppUrl() : 'http://localhost:5173')
       },
       () => {
         console.log('☁️ Vettr session received from web app (My Deals sync enabled)');
+        scheduleFullSyncAfterLink();
+        ensureVettrSyncAlarm();
         sendResponse({ ok: true });
       }
     );
@@ -248,37 +421,23 @@ chrome.runtime.onMessageExternal.addListener((message, _sender, sendResponse) =>
   }
 
   if (message?.type === 'VETTR_LOGIN' && message.email && message.password) {
-    const apiBase = VettrCloudSync.normalizeApiBaseUrl(message.apiBaseUrl || 'http://localhost:3001/api');
-    fetch(apiBase + '/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: message.email, password: message.password })
-    })
-      .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
-      .then(({ ok, data }) => {
-        if (!ok) {
-          sendResponse({ ok: false, error: data?.error || 'Login failed' });
-          return;
-        }
-        chrome.storage.local.set({
-          vettrAuthToken: data.token,
-          vettrApiBaseUrl: apiBase,
-          vettrUserEmail: data.user?.email || '',
-          vettrWebAppUrl: message.webAppUrl || 'http://localhost:5173'
-        }, () => {
-          console.log('☁️ Vettr extension login OK');
-          sendResponse({ ok: true, email: data.user?.email });
-        });
-      })
+    handleVettrLogin(message.email, message.password, message.apiBaseUrl, message.webAppUrl)
+      .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
 
   if (message?.type === 'VETTR_CLEAR_SESSION') {
-    chrome.storage.local.remove(['vettrAuthToken'], () => {
+    chrome.storage.local.remove(['vettrAuthToken', 'vettrUserEmail'], () => {
       console.log('☁️ Vettr session cleared (logout on web)');
       sendResponse({ ok: true });
     });
+    return true;
+  }
+  if (message?.type === 'VETTR_REQUEST_SYNC') {
+    runFullSync()
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
   return false;
@@ -294,14 +453,76 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === 'VETTR_SYNC_DEAL' && message.body) {
     postVettrSaveDeal(message.body)
-      .then(() => {
+      .then((result) => {
         console.log('☁️ Vettr Cloud: deal synced');
-        sendResponse({ ok: true });
+        notifyWebAppTabs();
+        sendResponse({ ok: true, result: result });
       })
       .catch((err) => {
         console.warn('☁️ Vettr Cloud sync failed:', err.message);
-        sendResponse({ ok: false, error: err.message });
+        sendResponse({ ok: false, error: err.message, sessionExpired: err.message === SESSION_EXPIRED });
       });
+    return true;
+  }
+  if (message.type === 'VETTR_UPDATE_DEAL' && message.vettrId && message.body) {
+    putVettrDeal(message.vettrId, message.body)
+      .then((result) => {
+        notifyWebAppTabs();
+        sendResponse({ ok: true, result: result });
+      })
+      .catch((err) => sendResponse({ ok: false, error: err.message, sessionExpired: err.message === SESSION_EXPIRED }));
+    return true;
+  }
+  if (message.type === 'VETTR_DELETE_DEAL' && message.vettrId) {
+    deleteVettrDeal(message.vettrId)
+      .then(() => {
+        notifyWebAppTabs();
+        sendResponse({ ok: true });
+      })
+      .catch((err) => sendResponse({ ok: false, error: err.message, sessionExpired: err.message === SESSION_EXPIRED }));
+    return true;
+  }
+  if (message.type === 'VETTR_PULL_DEALS') {
+    pullVettrDeals()
+      .then((deals) => sendResponse({ ok: true, deals: deals }))
+      .catch((err) => sendResponse({ ok: false, error: err.message, sessionExpired: err.message === SESSION_EXPIRED }));
+    return true;
+  }
+  if (message.type === 'VETTR_FULL_SYNC') {
+    runFullSync()
+      .then((result) => sendResponse({ ok: true, result: result }))
+      .catch((err) => sendResponse({ ok: false, error: err.message, sessionExpired: err.message === SESSION_EXPIRED }));
+    return true;
+  }
+  if (message.type === 'VETTR_REQUEST_SYNC') {
+    runFullSync()
+      .then((result) => sendResponse({ ok: true, result: result }))
+      .catch((err) => sendResponse({ ok: false, error: err.message, sessionExpired: err.message === SESSION_EXPIRED }));
+    return true;
+  }
+  if (message.type === 'VETTR_LINK_STATUS') {
+    getVettrAuthConfig().then(async (cfg) => {
+      const stored = await chrome.storage.local.get(['vettrUserEmail', 'vettrLastSyncAt']);
+      sendResponse({
+        linked: Boolean(cfg.vettrAuthToken),
+        email: stored.vettrUserEmail || '',
+        apiBase: cfg.vettrApiBaseUrl,
+        webAppUrl: cfg.vettrWebAppUrl,
+        lastSyncAt: stored.vettrLastSyncAt || null
+      });
+    });
+    return true;
+  }
+  if (message.type === 'VETTR_LOGIN' && message.email && message.password) {
+    handleVettrLogin(message.email, message.password, message.apiBaseUrl, message.webAppUrl)
+      .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+  if (message.type === 'VETTR_SIGN_OUT') {
+    chrome.storage.local.remove(['vettrAuthToken', 'vettrUserEmail'], () => {
+      sendResponse({ ok: true });
+    });
     return true;
   }
   return false;
@@ -310,6 +531,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Listen for settings changes
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local') {
+    if (changes.vettrAuthToken) {
+      ensureVettrSyncAlarm();
+    }
     if (changes.autoRefreshEnabled || changes.refreshInterval) {
       const enabled = changes.autoRefreshEnabled?.newValue ?? true;
       const interval = changes.refreshInterval?.newValue ?? DEFAULT_REFRESH_INTERVAL;

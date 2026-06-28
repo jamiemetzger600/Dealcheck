@@ -9,7 +9,6 @@ import {
   buildMarketDealsParams,
   mapSortField,
   encodeMarketDealsSortSpec,
-  normalizeGeoScalar
 } from '../utils/normalizeMarketDeal';
 import {
   criteriaFromSlot,
@@ -20,7 +19,19 @@ import {
   patchActiveBuyBoxFlexibility
 } from '../utils/buyBoxes';
 import DealDetailsPanel from './DealDetailsPanel';
+import DealSwipeDeck from './DealSwipeDeck';
+import MobileFeedToolbar from './MobileFeedToolbar';
 import GatedPreviewText from './GatedPreviewText';
+import { useIsMobile, useOrientation, startOfLocalDayISO } from '../hooks/useMediaQuery';
+import {
+  cardMetricLocation,
+  cardViewDescriptionPreview,
+  formatMoneyShort,
+  formatRatio,
+  formatDealDate,
+  getListingAgeClass,
+  listingAgeTitle,
+} from '../utils/dealCardDisplay';
 
 const PER_PAGE = 50;
 const SHOW_SORT_TIP = false;
@@ -107,25 +118,9 @@ const FLEXIBILITY_OPTIONS = [
 const SWIPE_THRESHOLD = 80;
 const DRAG_CLICK_THRESHOLD = 8;
 const MAX_DRAG = 320;
-const MOBILE_BREAKPOINT_PX = 768;
 
 const CARD_COLUMNS_OPTIONS = [1, 2, 3, 4, 6, 8];
 const DEFAULT_CARD_COLUMNS = 4;
-
-/** State for card metrics; else city, county, country; then combined location line. */
-function cardMetricLocation(deal) {
-  const state = normalizeGeoScalar(deal?.state);
-  if (state) return { label: 'State', value: state };
-  const city = normalizeGeoScalar(deal?.city);
-  if (city) return { label: 'City', value: city };
-  const county = normalizeGeoScalar(deal?.county);
-  if (county) return { label: 'County', value: county };
-  const country = normalizeGeoScalar(deal?.country);
-  if (country) return { label: 'Country', value: country };
-  const locationLine = normalizeGeoScalar(deal?.location);
-  if (locationLine) return { label: 'Location', value: locationLine };
-  return null;
-}
 
 /** Returns page numbers to show: e.g. [1, 2, 3, 4, 5, '…', 50] for currentPage 3, totalPages 50. */
 function getPaginationPages(currentPage, totalPages) {
@@ -141,31 +136,6 @@ function getPaginationPages(currentPage, totalPages) {
   if (right < totalPages - 1) pages.push('…');
   if (totalPages > 1) pages.push(totalPages);
   return pages;
-}
-
-/** Collapse whitespace for card description text. */
-function normalizeCardDescription(description) {
-  if (description == null) return '';
-  return String(description).replace(/\s+/g, ' ').trim();
-}
-
-/**
- * First `maxSentences` sentences for card preview (split on . ! ? followed by space).
- * Appends … when there are more sentences. `full` is the full normalized string for tooltips.
- */
-function cardViewDescriptionPreview(description, maxSentences = 4) {
-  const full = normalizeCardDescription(description);
-  if (!full) return { preview: '', full: '', truncated: false };
-  const sentences = full.split(/(?<=[.!?])\s+/).filter((s) => s.length > 0);
-  if (sentences.length === 0) return { preview: full, full, truncated: false };
-  if (sentences.length <= maxSentences) {
-    return { preview: sentences.join(' '), full, truncated: false };
-  }
-  return {
-    preview: `${sentences.slice(0, maxSentences).join(' ')} …`,
-    full,
-    truncated: true
-  };
 }
 
 /** Stored in hidden_deal_ids for market rows; maps 1:1 to market_deals.id (PK). */
@@ -376,6 +346,7 @@ export default function DealAggregator({
   requireSignup = null,
   initialOpenDealDbId = null,
   tourPrepareStepId = null,
+  onMobileDeckChange = null,
 }) {
   const navigate = useNavigate();
   const settingsRef = useRef(settings);
@@ -444,9 +415,13 @@ export default function DealAggregator({
   }, [tourPrepareStepId]);
   /** After account/local column prefs are applied, allow debounced API writes. */
   const columnsPrefsReadyRef = useRef(false);
-  const [isMobileViewport, setIsMobileViewport] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
-  );
+  const isMobileViewport = useIsMobile();
+  const { isPortrait } = useOrientation();
+  /** Mobile feed layout: swipe deck, card grid, or table. */
+  const [mobileFeedMode, setMobileFeedMode] = useState('deck');
+  const [deckScope, setDeckScope] = useState('daily');
+  const prefetchRequestedRef = useRef(false);
+  const orientationKey = isPortrait ? 'portrait' : 'landscape';
 
   // List API returns truncated description; merge full row when a deal is opened (logged-in only).
   useEffect(() => {
@@ -507,12 +482,45 @@ export default function DealAggregator({
   const hideSavedDealsInFeed = Boolean(settings?.preferences?.hideSavedDealsInFeed);
   const showSavedHighlightInFeed = settings?.preferences?.showSavedHighlightInFeed !== false;
 
+  const showMobileDeck = isMobileViewport
+    && !showHiddenDeals
+    && viewMode === 'matches'
+    && mobileFeedMode === 'deck'
+    && !poolNewMode;
+
+  const showMobileToolbar = isMobileViewport
+    && !showHiddenDeals
+    && viewMode === 'matches'
+    && !poolNewMode;
+
+  const mobileDailyFilter = showMobileToolbar && deckScope === 'daily';
+
   useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX - 1}px)`);
-    const handler = () => setIsMobileViewport(mql.matches);
-    handler();
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
+    if (typeof onMobileDeckChange === 'function') {
+      onMobileDeckChange(showMobileDeck);
+    }
+  }, [showMobileDeck, onMobileDeckChange]);
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      setMobileFeedMode('deck');
+    }
+  }, [isMobileViewport]);
+
+  const handleMobileFeedModeChange = useCallback((mode) => {
+    setMobileFeedMode(mode);
+    if (mode === 'card') {
+      setDealViewStyle('card');
+      setCardColumnsPerRow(1);
+    } else if (mode === 'table') {
+      setDealViewStyle('table');
+    }
+    setCurrentPage(1);
+  }, []);
+
+  const handleDeckScopeChange = useCallback((scope) => {
+    setDeckScope(scope);
+    setCurrentPage(1);
   }, []);
 
   useEffect(() => {
@@ -585,7 +593,12 @@ export default function DealAggregator({
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger]);
+  }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger, deckScope, mobileDailyFilter]);
+
+  // Reset prefetch flag when filters change
+  useEffect(() => {
+    prefetchRequestedRef.current = false;
+  }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger, deckScope, currentPage]);
 
   // New search/exclude params must not reuse a prior list ETag
   useEffect(() => {
@@ -675,6 +688,7 @@ export default function DealAggregator({
       restrictToDbIds,
       firstSeenAfter,
       firstSeenBefore,
+      updatedAfter: mobileDailyFilter ? startOfLocalDayISO() : null,
     });
 
     if (
@@ -737,13 +751,13 @@ export default function DealAggregator({
         setIsFetching(false);
       }
     }
-  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords]);
+  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords, mobileDailyFilter, deckScope]);
 
   // Fetch on mount, filter/sort/page/search/hidden-ids change, and manual refresh
   useEffect(() => {
     if (settings) fetchServerDeals();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when inputs to fetchServerDeals change; avoid tying to unstable parent callbacks
-  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint]);
+  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint, deckScope, mobileDailyFilter]);
 
   const updateUserFilterSettings = async (nextValues) => {
     try {
@@ -928,6 +942,16 @@ export default function DealAggregator({
   }, [deals, hiddenDealIds, showHiddenDeals, hideSavedDealsInFeed, savedDealIdSet]);
 
   const buyBoxesUiState = useMemo(() => normalizeBuyBoxesState(settings), [settings]);
+
+  const handleDeckNeedMore = useCallback(() => {
+    if (prefetchRequestedRef.current || currentPage >= totalPages || isFetching) return;
+    prefetchRequestedRef.current = true;
+    setCurrentPage((p) => p + 1);
+  }, [currentPage, totalPages, isFetching]);
+
+  useEffect(() => {
+    if (!isFetching) prefetchRequestedRef.current = false;
+  }, [isFetching]);
 
   if (loading) {
     return <div className="loading">Loading deals...</div>;
@@ -1281,8 +1305,26 @@ export default function DealAggregator({
 
   const hasMultiplePages = totalPages > 1;
 
+  const handleDeckHide = async (deal) => {
+    if (!isDealHidden(deal, hiddenDealIds)) {
+      await handleToggleHidden(deal);
+    }
+  };
+
+  const handleDeckPass = () => {
+    console.debug('[DealAggregator] deck pass (no persist)');
+  };
+
   return (
-    <div className="deal-aggregator">
+    <div
+      className={[
+        'deal-aggregator',
+        showMobileDeck ? ' deal-aggregator--deck-mode' : '',
+        isMobileViewport ? ' deal-aggregator--mobile' : '',
+        isMobileViewport ? (isPortrait ? ' deal-aggregator--mobile-portrait' : ' deal-aggregator--mobile-landscape') : '',
+        isMobileViewport && !showMobileDeck ? ' deal-aggregator--mobile-browse' : '',
+      ].join('')}
+    >
       {feedError && (
         <div className="aggregator-feed-error" role="alert">
           {feedError}
@@ -1302,7 +1344,38 @@ export default function DealAggregator({
         </div>
       )}
       {isFetching && <div className="aggregator-loading-bar" aria-live="polite" />}
-      <div className="aggregator-welcome">
+
+      {showMobileToolbar && (
+        <MobileFeedToolbar
+          feedMode={mobileFeedMode}
+          onFeedModeChange={handleMobileFeedModeChange}
+          deckScope={deckScope}
+          onScopeChange={handleDeckScopeChange}
+          onConfigureBuyBox={onConfigureBuyBox}
+          isPortrait={isPortrait}
+        />
+      )}
+
+      {showMobileDeck ? (
+        <DealSwipeDeck
+          deals={dealsToShow}
+          deckScope={deckScope}
+          isPortrait={isPortrait}
+          orientationKey={orientationKey}
+          totalFromAPI={totalFromAPI}
+          isFetching={isFetching}
+          isGuest={isGuest}
+          entitlements={entitlements}
+          requireSignup={requireSignup}
+          onHide={handleDeckHide}
+          onSave={handleSaveDeal}
+          onPass={handleDeckPass}
+          onOpenDetails={setSelectedDeal}
+          onNeedMore={handleDeckNeedMore}
+        />
+      ) : (
+      <>
+      <div className={`aggregator-welcome${isMobileViewport ? ' aggregator-welcome--mobile-collapsed' : ''}`}>
         <div className="aggregator-welcome__main">
           <h2>Discover Business Deals</h2>
           <p>
@@ -1460,7 +1533,7 @@ export default function DealAggregator({
               />
             </div>
 
-            <div className="view-style-toggle" role="group" aria-label="View style">
+            <div className={`view-style-toggle${showMobileToolbar ? ' view-style-toggle--desktop-only' : ''}`} role="group" aria-label="View style">
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'table' ? 'active' : ''}`} onClick={() => handleViewStyleChange('table')}>Table</button>
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'card' ? 'active' : ''}`} onClick={() => handleViewStyleChange('card')}>Card</button>
               {dealViewStyle === 'card' && (
@@ -1778,7 +1851,7 @@ export default function DealAggregator({
                     {visibleColumns.date !== false && (
                       <td data-col="date">
                         <span className={`deal-date-age ${getListingAgeClass(deal.discoveredAt)}`} title={listingAgeTitle(deal.discoveredAt)}>
-                          {formatDate(deal.discoveredAt)}
+                          {formatDealDate(deal.discoveredAt)}
                         </span>
                       </td>
                     )}
@@ -1906,7 +1979,7 @@ export default function DealAggregator({
 
         {dealViewStyle === 'card' && (
           <div className="aggregator-cards-scroll">
-            <div className="aggregator-cards-grid" data-cols={cardColumnsPerRow}>
+            <div className="aggregator-cards-grid" data-cols={isMobileViewport ? 1 : cardColumnsPerRow}>
               {deals.length === 0 ? (
                 <div className="aggregator-cards-empty">No deals found. Try adjusting your filters or search.</div>
               ) : dealsToShow.length === 0 ? (
@@ -1947,7 +2020,7 @@ export default function DealAggregator({
                       </div>
                       <div className="deal-card__date">
                         <span className={`deal-date-age ${getListingAgeClass(deal.discoveredAt)}`} title={listingAgeTitle(deal.discoveredAt)}>
-                          Date Added: {formatDate(deal.discoveredAt)}
+                          Date Added: {formatDealDate(deal.discoveredAt)}
                         </span>
                       </div>
                       <p className="deal-card__subtitle" title={descCard.full || undefined}>
@@ -2029,6 +2102,9 @@ export default function DealAggregator({
           </div>
         )}
       </div>
+      </>
+      )}
+
       <DealDetailsPanel
         isOpen={Boolean(selectedDeal)}
         deal={selectedDeal}
@@ -2059,67 +2135,6 @@ export default function DealAggregator({
 function formatMoney(value) {
   if (!value) return '—';
   return `$${value.toLocaleString()}`;
-}
-
-/** Compact form for card metrics: e.g. 1100000 → $1.1M, 399000 → $399K */
-function formatMoneyShort(value) {
-  if (value == null || value === '') return '—';
-  const n = Number(value);
-  if (Number.isNaN(n)) return '—';
-  if (n >= 1_000_000) {
-    const m = n / 1_000_000;
-    return m % 1 === 0 ? `$${m}M` : `$${m.toFixed(1)}M`;
-  }
-  if (n >= 1_000) {
-    const k = n / 1_000;
-    return k % 1 === 0 ? `$${k}K` : `$${k.toFixed(1)}K`;
-  }
-  return `$${n.toLocaleString()}`;
-}
-
-function formatRatio(value) {
-  if (value === null || value === undefined || value === '') return '—';
-  const numeric = Number(value);
-  return Number.isNaN(numeric) ? '—' : numeric.toFixed(2);
-}
-
-function formatDate(value) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString();
-}
-
-const MS_PER_DAY = 86_400_000;
-const AGE_BUCKETS = [
-  { max: 14, cls: 'deal-date-age--fresh',  label: 'fresh' },
-  { max: 28, cls: 'deal-date-age--recent', label: 'recent' },
-  { max: 56, cls: 'deal-date-age--aging',  label: 'aging' },
-];
-
-function getListingAgeDays(discoveredAt) {
-  if (!discoveredAt) return null;
-  const d = new Date(discoveredAt);
-  if (Number.isNaN(d.getTime())) return null;
-  return Math.floor((Date.now() - d.getTime()) / MS_PER_DAY);
-}
-
-function getListingAgeClass(discoveredAt) {
-  const days = getListingAgeDays(discoveredAt);
-  if (days == null) return '';
-  for (const b of AGE_BUCKETS) {
-    if (days < b.max) return b.cls;
-  }
-  return 'deal-date-age--older';
-}
-
-function listingAgeTitle(discoveredAt) {
-  const days = getListingAgeDays(discoveredAt);
-  const dateStr = formatDate(discoveredAt);
-  if (days == null) return dateStr;
-  if (days === 0) return `${dateStr} — today`;
-  if (days === 1) return `${dateStr} — 1 day ago`;
-  return `${dateStr} — ${days} days ago`;
 }
 
 function isEmptyVisibleColumnsOnAccount(raw) {

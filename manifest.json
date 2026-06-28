@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Vettr - Find it.Vet it. Save it.",
-  "version": "4.3.0",
-  "description": "Complete deal acquisition platform: Aggregate deals from 10+ sources, filter with AI-powered buy box, analyze with scenario calculator, and track through due diligence. Data \u2192 Information \u2192 Knowledge \u2192 Insight \u2192 Wisdom.",
+  "name": "Find it. Vett it. Save it.",
+  "version": "4.4.5",
+  "homepage_url": "https://vettr.pages.dev",
+  "description": "Find, vet, and save acquisition deals. Aggregate listings, run scenario analysis, and sync My Deals with Vettr.",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -49,8 +50,10 @@
         "version.js",
         "i18n.js",
         "jspdf.min.js",
+        "utils/vettr-config.js",
         "utils/vettr-cloud-sync.js",
         "utils/extension-auth.js",
+        "utils/vettr-account-ui.js",
         "content.js"
       ],
       "run_at": "document_idle"
@@ -65,7 +68,9 @@
         "scrapers/rss-parser.js",
         "utils/storage-manager.js",
         "utils/vettr-cloud-sync.js",
+        "utils/vettr-config.js",
         "utils/custom-source-manager.js",
+        "utils/vettr-account-ui.js",
         "icons/venmo-qr.png"
       ],
       "matches": [
@@ -80,7 +85,8 @@
     "matches": [
       "http://localhost/*",
       "http://127.0.0.1/*",
-      "https://*.pages.dev/*"
+      "https://*.pages.dev/*",
+      "https://vettr.pages.dev/*"
     ]
   },
   "oauth2": {

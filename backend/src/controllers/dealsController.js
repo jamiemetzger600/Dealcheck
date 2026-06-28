@@ -86,8 +86,11 @@ export const saveDeal = async (req, res) => {
         );
         return res.status(200).json({
           message: 'Deal already saved; listing info updated',
+          vettrId: existingId,
           dealId: existingId,
-          savedAt: byUrl.rows[0].saved_at
+          deal_id: dealId,
+          savedAt: byUrl.rows[0].saved_at,
+          updatedAt: new Date().toISOString()
         });
       }
     }
@@ -123,8 +126,11 @@ export const saveDeal = async (req, res) => {
 
     res.status(201).json({
       message: 'Deal saved successfully',
+      vettrId: result.rows[0].id,
       dealId: result.rows[0].id,
-      savedAt: result.rows[0].saved_at
+      deal_id: dealId,
+      savedAt: result.rows[0].saved_at,
+      updatedAt: result.rows[0].saved_at
     });
 
   } catch (error) {

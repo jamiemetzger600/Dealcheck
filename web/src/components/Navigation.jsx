@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import pkg from '../../package.json';
 
@@ -14,10 +15,45 @@ export default function Navigation({
   myDealsCount = 0,
   onOpenQuickCalculator = null,
   onStartTour = null,
+  compact = false,
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const actionLinks = (
+    <>
+      {isGuest ? (
+        <>
+          <Link to="/login" className="header-link" onClick={() => setMenuOpen(false)}>Sign in</Link>
+          <Link to="/register" className="header-link header-link--primary" onClick={() => setMenuOpen(false)}>Sign up</Link>
+        </>
+      ) : (
+        <>
+          <span className="nav-user-pill">{user?.email}</span>
+          <Link to="/settings" className="header-link" onClick={() => setMenuOpen(false)}>Settings</Link>
+          <Link to="/billing" className="header-link" onClick={() => setMenuOpen(false)}>Billing</Link>
+          <button type="button" onClick={() => { logout(); setMenuOpen(false); }} className="header-link">Logout</button>
+        </>
+      )}
+      {typeof onStartTour === 'function' && (
+        <button type="button" className="header-link" onClick={() => { onStartTour(); setMenuOpen(false); }}>
+          Take a tour
+        </button>
+      )}
+      {typeof onOpenQuickCalculator === 'function' && (
+        <button
+          type="button"
+          className="header-link header-link--calculator"
+          onClick={() => { onOpenQuickCalculator(); setMenuOpen(false); }}
+        >
+          Quick Deal Calculator
+        </button>
+      )}
+    </>
+  );
+
   return (
     <>
-      <nav className="app-header">
+      <nav className={`app-header${compact ? ' app-header--compact' : ''}`}>
         <div className="app-header-brand">
           <img
             className="app-header-logo"
@@ -27,51 +63,43 @@ export default function Navigation({
             height={120}
             decoding="async"
           />
-          <div className="app-header-copy">
-            <h1>{pageTitle}</h1>
-            {pageSubtitle != null && pageSubtitle !== '' ? <p>{pageSubtitle}</p> : null}
-          </div>
+          {!compact && (
+            <div className="app-header-copy">
+              <h1>{pageTitle}</h1>
+              {pageSubtitle != null && pageSubtitle !== '' ? <p>{pageSubtitle}</p> : null}
+            </div>
+          )}
         </div>
 
-        <div className="app-header-actions">
-          {isGuest ? (
-            <>
-              <Link to="/login" className="header-link">Sign in</Link>
-              <Link to="/register" className="header-link header-link--primary">Sign up</Link>
-            </>
-          ) : (
-            <>
-              <span className="nav-user-pill">{user?.email}</span>
-              <Link to="/settings" className="header-link">Settings</Link>
-              <Link to="/billing" className="header-link">Billing</Link>
-              <button type="button" onClick={logout} className="header-link">Logout</button>
-            </>
-          )}
-          {typeof onStartTour === 'function' && (
-            <button type="button" className="header-link" onClick={onStartTour}>
-              Take a tour
-            </button>
-          )}
-          {typeof onOpenQuickCalculator === 'function' && (
-            <button
-              type="button"
-              className="header-link header-link--calculator"
-              onClick={onOpenQuickCalculator}
-            >
-              Quick Deal Calculator
-            </button>
-          )}
+        <div className="app-header-actions app-header-actions--desktop">
+          {actionLinks}
         </div>
+
+        <button
+          type="button"
+          className="app-header-menu-btn"
+          aria-expanded={menuOpen}
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          {menuOpen ? '✕' : '☰'}
+        </button>
       </nav>
 
+      {menuOpen && (
+        <div className="app-header-mobile-menu" role="menu">
+          {actionLinks}
+        </div>
+      )}
+
       {showTabs && (
-        <div className="tab-navigation">
+        <div className={`tab-navigation${compact ? ' tab-navigation--compact' : ''}`}>
           <button
             type="button"
             className={`tab-btn ${activeTab === 'aggregator' ? 'active' : ''}`}
             onClick={() => setActiveTab('aggregator')}
           >
-            <span>Deal Aggregator</span>
+            <span>{compact ? 'Discover' : 'Deal Aggregator'}</span>
             <span className="tab-badge">{aggregatorCount}</span>
           </button>
           <button
@@ -83,7 +111,9 @@ export default function Navigation({
             <span>My Deals</span>
             <span className="tab-badge">{myDealsCount}</span>
           </button>
-          <span className="app-header-version tab-navigation-version" title="App version">v{pkg.version}</span>
+          {!compact && (
+            <span className="app-header-version tab-navigation-version" title="App version">v{pkg.version}</span>
+          )}
         </div>
       )}
     </>

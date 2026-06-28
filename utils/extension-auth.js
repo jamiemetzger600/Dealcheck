@@ -1,8 +1,12 @@
 (function (global) {
   'use strict';
 
-  var DEFAULT_WEB_APP = 'http://localhost:5173';
-  var DEFAULT_API = 'http://localhost:3001/api';
+  var DEFAULT_WEB_APP = (typeof VettrConfig !== 'undefined' && VettrConfig.getDefaultWebAppUrl)
+    ? VettrConfig.getDefaultWebAppUrl()
+    : 'http://localhost:5173';
+  var DEFAULT_API = (typeof VettrConfig !== 'undefined' && VettrConfig.getDefaultApiBaseUrl)
+    ? VettrConfig.getDefaultApiBaseUrl()
+    : 'http://localhost:3001/api';
 
   function normalizeApiBaseUrl(input) {
     var u = (input || '').trim().replace(/\/+$/, '');

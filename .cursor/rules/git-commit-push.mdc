@@ -1,0 +1,19 @@
+---
+description: When the user asks to commit or push, the agent runs git commands — do not hand off steps.
+alwaysApply: true
+---
+
+# Git Commit & Push (agent executes)
+
+When the user asks to **commit**, **push**, or go **live** with committed work:
+
+1. **Run the git commands yourself** — do not reply with instructions for the user to run locally unless a command fails and needs their credentials or approval.
+2. **Push:** If the user asks to push (or agrees when you offer push for live testing), run `git push` immediately in the same turn. Do not stop at “your branch is ahead” without pushing.
+3. **Commit:** Follow the existing commit workflow (status, diff, log, stage, commit). Only commit when the user explicitly requests it.
+4. **After push:** If the commit touches `backend/` or `web/`, follow `.cursor/rules/deploy-after-commit.mdc` — run Koyeb redeploy and note Cloudflare auto-deploy; do not only list manual steps unless a deploy command fails.
+
+## Safety (unchanged)
+
+- Never force-push to `main`/`master` without explicit user request.
+- Never skip hooks unless the user explicitly asks.
+- Never commit secrets (`.env`, credentials).

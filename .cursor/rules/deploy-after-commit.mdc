@@ -7,6 +7,8 @@ alwaysApply: false
 
 When planning or completing work that touches the **backend** or **database**, or the **web** app, ensure the right deployment step runs so the live site is updated.
 
+**Agent responsibility:** When the user asks to push, go live, or deploy after a commit, **run** push and redeploy commands yourself. Do not only tell the user what to run unless a command fails (e.g. missing Koyeb login).
+
 ## Koyeb (backend + DB)
 
 - **Service:** `database/vettr` (app-name/service-name).
@@ -26,8 +28,8 @@ When planning or completing work that touches the **backend** or **database**, o
 
 ## Workflow after commit
 
-1. **Backend-only or DB change:** Commit and push, then run `koyeb services redeploy database/vettr` (and run migrations on Koyeb if needed).
-2. **Web-only change:** Commit and push to `main`; Cloudflare will deploy if connected.
-3. **Backend and web change:** Commit and push; run `koyeb services redeploy database/vettr`; Cloudflare will deploy from the push.
+1. **Backend-only or DB change:** Commit, **push**, then run `koyeb services redeploy database/vettr` (and run migrations on Koyeb if needed).
+2. **Web-only change:** Commit and **push** to `main`; Cloudflare will deploy if connected.
+3. **Backend and web change:** Commit, **push**, run `koyeb services redeploy database/vettr`; Cloudflare will deploy from the push.
 
-When completing a commit that affects backend or DB, offer to run the Koyeb redeploy command (user must have `koyeb` CLI logged in). When the commit affects `web/`, remind that pushing to `main` will trigger Cloudflare if auto-deploy is enabled.
+When completing a commit that affects backend or DB, **run** the Koyeb redeploy command (report success or the exact error if CLI is not logged in). When the commit affects `web/`, confirm push completed and Cloudflare will build from `main`.

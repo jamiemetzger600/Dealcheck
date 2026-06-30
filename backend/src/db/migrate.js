@@ -401,6 +401,61 @@ const migrations = [
     up: `
       ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS calculator_state JSONB DEFAULT NULL;
     `
+  },
+  {
+    name: 'crm_core_tables_v5',
+    up: `
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS market_deal_id BIGINT REFERENCES market_deals(id);
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS listing_snapshot_at TIMESTAMPTZ;
+
+      CREATE INDEX IF NOT EXISTS idx_saved_deals_market_deal_id ON saved_deals(market_deal_id);
+
+      CREATE TABLE IF NOT EXISTS companies (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        domain TEXT,
+        phone TEXT,
+        company_type VARCHAR(50),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_companies_user_id ON companies(user_id);
+
+      CREATE TABLE IF NOT EXISTS contacts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL,
+        name TEXT,
+        email TEXT,
+        phone TEXT,
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_contacts_user_id ON contacts(user_id);
+      CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(user_id, email);
+
+      CREATE TABLE IF NOT EXISTS deal_contacts (
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE,
+        contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+        role VARCHAR(50) NOT NULL DEFAULT 'broker',
+        PRIMARY KEY (saved_deal_id, contact_id, role)
+      );
+
+      CREATE TABLE IF NOT EXISTS activities (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE,
+        contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL,
+        activity_type VARCHAR(50) NOT NULL,
+        body TEXT,
+        metadata JSONB DEFAULT '{}'::jsonb,
+        occurred_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_activities_saved_deal ON activities(saved_deal_id, occurred_at DESC);
+    `
   }
 ];
 

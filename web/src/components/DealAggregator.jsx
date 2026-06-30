@@ -872,6 +872,7 @@ export default function DealAggregator({
         brokerCompany: deal.brokerCompany,
         brokerEmail: deal.brokerEmail,
         brokerPhone: deal.brokerPhone,
+        marketDealId: deal.dbId,
         ...(calculatorState ? { calculatorState } : {})
       });
       if (calculatorState && data?.dealId != null) {

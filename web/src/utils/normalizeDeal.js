@@ -23,7 +23,10 @@ export function normalizeDeal(deal) {
   return {
     // Identity
     id: deal.id,
+    vettrId: deal.id,
     dealId: deal.deal_id || deal.dealId,
+    marketDealId: deal.market_deal_id ?? deal.marketDealId ?? null,
+    listingSnapshotAt: deal.listing_snapshot_at || deal.listingSnapshotAt,
     
     // Basic info
     name: deal.name,

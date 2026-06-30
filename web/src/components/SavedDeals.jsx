@@ -4,6 +4,7 @@ import { dealsAPI } from '../utils/api';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
 import { getQualityPresentation } from '../utils/dealCalculatorMath';
 import { formatDate, formatMoney, getDealProgressLabel } from '../utils/normalizeDeal';
+import { PIPELINE_STAGE_OPTIONS } from '../utils/pipelineStages';
 import {
   getSavedDealCalculatorSummary,
   patchCalculatorStateListingFinancials
@@ -12,23 +13,7 @@ import { saveCalculatorState } from '../utils/dealCalculatorStorage';
 import DealDetailsPanel from './DealDetailsPanel';
 import { useIsMobile } from '../hooks/useMediaQuery';
 
-/** Ordered pipeline options for saved-deal progress (My Deals modal). */
-const PROGRESS_STAGE_OPTIONS = [
-  'Requested NDA',
-  'Signed NDA',
-  'Review CIM',
-  'Passed On Deal',
-  'Send IOI',
-  'Review Financials',
-  'Preliminary Valuation',
-  'Review Tax Returns',
-  'Seller Call',
-  'Bank Pre-Approval',
-  'LOI Sent',
-  'LOI Signed',
-  'Starting Due Diligence',
-  'Custom Status'
-];
+const PROGRESS_STAGE_OPTIONS = PIPELINE_STAGE_OPTIONS;
 
 function listingEditsFromDeal(d) {
   return {

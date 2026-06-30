@@ -5,6 +5,7 @@ import { userAPI, dealsAPI, paymentsAPI } from '../utils/api';
 import { normalizeDeal } from '../utils/normalizeDeal';
 import DealAggregator from '../components/DealAggregator';
 import SavedDeals from '../components/SavedDeals';
+import CrmDashboard from '../components/crm/CrmDashboard';
 import Navigation from '../components/Navigation';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import BuyBoxModal from '../components/BuyBoxModal';
@@ -312,6 +313,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         setActiveTab={handleTabChange}
         aggregatorCount={totalDeals}
         myDealsCount={savedDeals.length}
+        crmCount={savedDeals.length}
         compact={mobileDeckActive && isMobile && activeTab === 'aggregator'}
         onOpenQuickCalculator={() => {
           if (isGuest) {
@@ -363,6 +365,19 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onUpdate={loadUserData}
             onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
             onAddDeal={() => setShowManualDealModal(true)}
+          />
+        )}
+
+        {activeTab === 'crm' && isGuest && (
+          <GuestMyDealsEmpty onRequireSignup={requireSignup} />
+        )}
+
+        {activeTab === 'crm' && !isGuest && (
+          <CrmDashboard
+            deals={savedDeals}
+            settings={settings}
+            onRefresh={loadUserData}
+            onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
           />
         )}
       </div>

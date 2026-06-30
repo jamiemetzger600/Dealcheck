@@ -1,4 +1,5 @@
 import pool from '../db/pool.js';
+import { hydrateCrmForSavedDeal } from '../services/crmHydration.js';
 
 /** Normalize URL for matching: same listing may appear with different fragments/casing. */
 function normalizeUrl(url) {
@@ -18,7 +19,7 @@ export const getSavedDeals = async (req, res) => {
         asking_price, ebitda, revenue, location, city, state, county, country,
         industry, years_established, franchise, remote, listing_id,
         notes, status, progress_stage, progress_history,
-        calculator_state,
+        calculator_state, market_deal_id, listing_snapshot_at,
         saved_at, updated_at
       FROM saved_deals 
       WHERE user_id = $1 
@@ -42,7 +43,7 @@ export const saveDeal = async (req, res) => {
     askingPrice, ebitda, revenue, location, city, state, county, country,
     industry, yearsEstablished, franchise, remote, listingId,
     notes, status, progressStage,
-    calculatorState
+    calculatorState, marketDealId
   } = req.body;
 
   if (!dealId || !name) {
@@ -84,6 +85,10 @@ export const saveDeal = async (req, res) => {
             req.user.userId, existingId
           ]
         );
+        await hydrateCrmForSavedDeal(req.user.userId, existingId, {
+          dealId, marketDealId, listingId, source,
+          brokerName, brokerCompany, brokerEmail, brokerPhone
+        });
         return res.status(200).json({
           message: 'Deal already saved; listing info updated',
           vettrId: existingId,
@@ -124,10 +129,17 @@ export const saveDeal = async (req, res) => {
       ]
     );
 
+    const savedDealId = result.rows[0].id;
+
+    await hydrateCrmForSavedDeal(req.user.userId, savedDealId, {
+      dealId, marketDealId, listingId, source,
+      brokerName, brokerCompany, brokerEmail, brokerPhone
+    });
+
     res.status(201).json({
       message: 'Deal saved successfully',
-      vettrId: result.rows[0].id,
-      dealId: result.rows[0].id,
+      vettrId: savedDealId,
+      dealId: savedDealId,
       deal_id: dealId,
       savedAt: result.rows[0].saved_at,
       updatedAt: result.rows[0].saved_at

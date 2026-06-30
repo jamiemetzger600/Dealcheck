@@ -13,6 +13,7 @@ export default function Navigation({
   showTabs = true,
   aggregatorCount = 0,
   myDealsCount = 0,
+  crmCount = 0,
   onOpenQuickCalculator = null,
   onStartTour = null,
   compact = false,
@@ -110,6 +111,15 @@ export default function Navigation({
           >
             <span>My Deals</span>
             <span className="tab-badge">{myDealsCount}</span>
+          </button>
+          <button
+            type="button"
+            className={`tab-btn ${activeTab === 'crm' ? 'active' : ''}`}
+            data-tour="crm-tab"
+            onClick={() => setActiveTab('crm')}
+          >
+            <span>CRM</span>
+            <span className="tab-badge">{crmCount}</span>
           </button>
           {!compact && (
             <span className="app-header-version tab-navigation-version" title="App version">v{pkg.version}</span>

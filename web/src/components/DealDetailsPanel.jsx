@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import DealCalculator from './DealCalculator';
 import IOIModal from './IOIModal';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
+import { loadCalculatorState } from '../utils/dealCalculatorStorage';
 import GatedPreviewText from './GatedPreviewText';
 
 const POSITION_OPTIONS = ['left', 'center', 'right'];
@@ -59,6 +61,13 @@ function SectionIcon({ name }) {
         <svg {...props}>
           <path d="M12 20h9" />
           <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </svg>
+      );
+    case 'ioi':
+      return (
+        <svg {...props}>
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+          <polyline points="22,6 12,13 2,6" />
         </svg>
       );
     default:
@@ -233,13 +242,15 @@ export default function DealDetailsPanel({
   const [ioiData, setIoiData] = useState(null);
   const [ioiModalKey, setIoiModalKey] = useState(0);
 
+  const dealRowId = deal?.id ?? deal?.vettrId ?? null;
+
   useEffect(() => {
-    if (!deal) return;
+    if (!dealRowId) return;
     setPrimarySection(DEFAULT_PRIMARY);
     setPinnedSection(DEFAULT_PINNED);
     setPinnedIds(new Set([DEFAULT_PINNED]));
     setFocusedSection(DEFAULT_PRIMARY);
-  }, [deal]);
+  }, [dealRowId]);
 
   useEffect(() => {
     if (!isOpen && !panelOnly) return;
@@ -248,14 +259,38 @@ export default function DealDetailsPanel({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, panelOnly, onClose]);
 
-  const handleUseForIOI = useCallback((data) => {
+  const resolveIOIScenarios = useCallback(() => {
+    if (!deal?.id) return null;
+    const fromLs = loadCalculatorState(deal.id);
+    if (fromLs?.scenarios?.length) {
+      return { scenarios: fromLs.scenarios, activeScenario: fromLs.activeScenario ?? 0 };
+    }
+    const fromApi = deal.calculatorState;
+    if (fromApi?.scenarios?.length) {
+      return { scenarios: fromApi.scenarios, activeScenario: fromApi.activeScenario ?? 0 };
+    }
+    return null;
+  }, [deal?.id, deal?.calculatorState]);
+
+  const openIOIModal = useCallback((data) => {
     if (isGuest && typeof requireSignup === 'function') {
       requireSignup('ioi', { dealDbId: deal?.dbId });
-      return;
+      return false;
     }
-    setIoiData(data);
+    const payload = data?.scenarios?.length ? data : resolveIOIScenarios();
+    if (!payload?.scenarios?.length) {
+      setPrimarySection('calculator');
+      setFocusedSection('calculator');
+      return false;
+    }
+    setIoiData(payload);
     setIoiModalKey((k) => k + 1);
-  }, [isGuest, requireSignup, deal?.dbId]);
+    return true;
+  }, [isGuest, requireSignup, deal?.dbId, resolveIOIScenarios]);
+
+  const handleUseForIOI = useCallback((data) => {
+    openIOIModal(data);
+  }, [openIOIModal]);
 
   const handleCloseIOI = useCallback(() => {
     setIoiData(null);
@@ -292,11 +327,17 @@ export default function DealDetailsPanel({
     });
   }, []);
 
-  const coreSections = useMemo(() => ([
-    { id: 'description', label: 'Description', icon: 'description' },
-    { id: 'overview', label: 'Deal Overview', icon: 'overview' },
-    { id: 'calculator', label: 'Deal Analyzer Calculator', icon: 'calculator' },
-  ]), []);
+  const coreSections = useMemo(() => {
+    const sections = [
+      { id: 'description', label: 'Description', icon: 'description' },
+      { id: 'overview', label: 'Deal Overview', icon: 'overview' },
+      { id: 'calculator', label: 'Deal Analyzer Calculator', icon: 'calculator' },
+    ];
+    if (onIOISent) {
+      sections.push({ id: 'ioi', label: 'Quick IOI', icon: 'ioi' });
+    }
+    return sections;
+  }, [onIOISent]);
 
   const allSections = useMemo(() => {
     const extras = (extraSections || []).map((s) => ({
@@ -469,9 +510,28 @@ export default function DealDetailsPanel({
         calculatorDefaults={calculatorDefaults}
         onSaveCalculatorDefaults={onSaveCalculatorDefaults}
         onCalculatorPersisted={onCalculatorPersisted}
-        onUseForIOI={handleUseForIOI}
+        onUseForIOI={onIOISent ? handleUseForIOI : null}
       />
     ),
+    ioi: onIOISent ? (
+      <div className="deal-ioi-launch">
+        <p className="deal-ioi-launch__lead">
+          Draft an indicative offer email from your calculator scenarios. Configure financing in the Deal Analyzer, then generate and send the IOI here.
+        </p>
+        <button
+          type="button"
+          className="btn-primary deal-ioi-launch__btn"
+          onClick={() => openIOIModal()}
+        >
+          Open Quick IOI
+        </button>
+        {!resolveIOIScenarios() ? (
+          <p className="deal-ioi-launch__hint">
+            No calculator scenarios saved yet — open the Deal Analyzer section first and set up at least one scenario.
+          </p>
+        ) : null}
+      </div>
+    ) : null,
   };
 
   extraSections.forEach((extra) => {
@@ -541,6 +601,15 @@ export default function DealDetailsPanel({
           ) : null}
         </div>
         <div className="deal-details-header-actions">
+          {onIOISent ? (
+            <button
+              type="button"
+              className="btn-primary deal-details-ioi-header-btn"
+              onClick={() => openIOIModal()}
+            >
+              Quick IOI
+            </button>
+          ) : null}
           {showPositionToggle && (
             <div className="panel-position-toggle" aria-label="Panel position">
               {POSITION_OPTIONS.map((option) => (
@@ -573,7 +642,7 @@ export default function DealDetailsPanel({
         </div>
       </div>
 
-      {ioiData && (
+      {ioiData && createPortal(
         <IOIModal
           key={ioiModalKey}
           deal={deal}
@@ -587,7 +656,8 @@ export default function DealDetailsPanel({
           onClose={handleCloseIOI}
           onIOISent={onIOISent ? (text) => { onIOISent(text); handleCloseIOI(); } : null}
           onIOIPrefsSaved={onIOIPrefsSaved}
-        />
+        />,
+        document.body
       )}
 
       <div className="deal-details-footer">

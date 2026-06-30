@@ -167,6 +167,29 @@ export const dealsAPI = {
   }
 };
 
+export const crmAPI = {
+  getToday: () => apiRequest('/crm/today'),
+
+  getKanban: () => apiRequest('/crm/kanban'),
+
+  updateStage: (savedDealId, progressStage) =>
+    apiRequest(`/crm/deals/${savedDealId}/stage`, {
+      method: 'PATCH',
+      body: JSON.stringify({ progressStage: progressStage ?? null })
+    }),
+
+  getDealActivities: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/activities`),
+
+  addActivity: (savedDealId, { body, activityType = 'note' }) =>
+    apiRequest(`/crm/deals/${savedDealId}/activities`, {
+      method: 'POST',
+      body: JSON.stringify({ body, activityType })
+    }),
+
+  refreshFromListing: (savedDealId) =>
+    apiRequest(`/crm/deals/${savedDealId}/refresh-from-listing`, { method: 'POST' })
+};
+
 // Payments API
 export const paymentsAPI = {
   createCheckoutSession: (plan) => apiRequest('/payments/create-checkout-session', {

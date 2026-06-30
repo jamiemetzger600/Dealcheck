@@ -70,6 +70,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   });
   const [settings, setSettings] = useState(null);
   const [savedDeals, setSavedDeals] = useState([]);
+  const [crmBadgeCount, setCrmBadgeCount] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
   const [totalDeals, setTotalDeals] = useState(0);
   const [newTodayCount, setNewTodayCount] = useState(0);
@@ -314,6 +315,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         aggregatorCount={totalDeals}
         myDealsCount={savedDeals.length}
         crmCount={savedDeals.length}
+        crmBadgeCount={crmBadgeCount}
         compact={mobileDeckActive && isMobile && activeTab === 'aggregator'}
         onOpenQuickCalculator={() => {
           if (isGuest) {
@@ -378,6 +380,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             settings={settings}
             onRefresh={loadUserData}
             onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
+            onTodayLoaded={setCrmBadgeCount}
           />
         )}
       </div>

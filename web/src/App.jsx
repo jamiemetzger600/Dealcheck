@@ -5,6 +5,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import BillingPage from './pages/BillingPage';
 import SettingsPage from './pages/SettingsPage';
+import DdPortalPage from './pages/DdPortalPage';
 
 /** Full-screen splash shown while backend wakes from cold start (temporary — remove on paid plan). */
 function WakeUpSplash() {
@@ -64,6 +65,7 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route path="/dd/:token" element={<DdPortalPage />} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>

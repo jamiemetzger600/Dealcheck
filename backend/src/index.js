@@ -6,6 +6,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import dealsRoutes from './routes/deals.js';
 import crmRoutes from './routes/crm.js';
+import ddPublicRoutes from './routes/ddPublic.js';
 import paymentsRoutes from './routes/payments.js';
 import airtableDealsRoutes from './routes/airtableDeals.js';
 import marketDealsRoutes from './routes/marketDeals.js';
@@ -57,7 +58,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '5.0.4' });
+  res.json({ status: 'ok', version: '5.0.5' });
 });
 
 // Routes
@@ -65,6 +66,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/crm', crmRoutes);
+app.use('/api/dd/public', ddPublicRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/airtable-deals', airtableDealsRoutes);
 app.use('/api/market-deals', marketDealsRoutes);

@@ -3,6 +3,8 @@ import DealDetailsPanel from '../DealDetailsPanel';
 import { crmAPI, dealsAPI } from '../../utils/api';
 import { formatDate, getDealProgressLabel } from '../../utils/normalizeDeal';
 import { PIPELINE_STAGE_OPTIONS } from '../../utils/pipelineStages';
+import QuickFollowUp from './QuickFollowUp';
+import DdChecklist from './dd/DdChecklist';
 
 function activityLabel(type) {
   const labels = {
@@ -213,6 +215,26 @@ export default function CrmDealWorkspace({
       )
     },
     {
+      id: 'crm-followup',
+      label: 'Follow up',
+      icon: 'notes',
+      render: () => (
+        <QuickFollowUp
+          dealId={dealId}
+          dealName={deal?.name}
+          onCreated={onRefresh}
+        />
+      )
+    },
+    {
+      id: 'crm-dd',
+      label: 'Due Diligence',
+      icon: 'broker-progress',
+      render: () => (
+        <DdChecklist dealId={dealId} onRefresh={onRefresh} />
+      )
+    },
+    {
       id: 'crm-timeline',
       label: 'CRM timeline',
       icon: 'notes',
@@ -298,6 +320,7 @@ export default function CrmDealWorkspace({
     handleProgressSelectChange,
     handleRefreshListing,
     handleAddCrmNote,
+    dealId,
     handleNotesChange
   ]);
 

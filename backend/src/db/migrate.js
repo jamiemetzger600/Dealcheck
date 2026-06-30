@@ -456,6 +456,138 @@ const migrations = [
 
       CREATE INDEX IF NOT EXISTS idx_activities_saved_deal ON activities(saved_deal_id, occurred_at DESC);
     `
+  },
+  {
+    name: 'crm_tasks_reminders_v5_1',
+    up: `
+      CREATE TABLE IF NOT EXISTS tasks (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        status VARCHAR(20) DEFAULT 'open',
+        due_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        source VARCHAR(30) DEFAULT 'manual',
+        metadata JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_tasks_user_due ON tasks(user_id, status, due_at);
+      CREATE INDEX IF NOT EXISTS idx_tasks_saved_deal ON tasks(saved_deal_id);
+
+      CREATE TABLE IF NOT EXISTS reminders (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        saved_deal_id INTEGER REFERENCES saved_deals(id) ON DELETE CASCADE,
+        task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+        remind_at TIMESTAMPTZ NOT NULL,
+        channel VARCHAR(20) DEFAULT 'in_app',
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_reminders_user_remind ON reminders(user_id, remind_at);
+    `
+  },
+  {
+    name: 'crm_dd_tables_v5_2',
+    up: `
+      CREATE TABLE IF NOT EXISTS dd_templates (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        asset_type VARCHAR(20) DEFAULT 'business',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS dd_template_groups (
+        id SERIAL PRIMARY KEY,
+        template_id INTEGER NOT NULL REFERENCES dd_templates(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        sort_order INT DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS dd_template_items (
+        id SERIAL PRIMARY KEY,
+        group_id INTEGER NOT NULL REFERENCES dd_template_groups(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        requests_document BOOLEAN DEFAULT FALSE,
+        sort_order INT DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS dd_checklists (
+        id SERIAL PRIMARY KEY,
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE UNIQUE,
+        template_id INTEGER REFERENCES dd_templates(id),
+        started_at TIMESTAMPTZ DEFAULT NOW(),
+        completed_at TIMESTAMPTZ
+      );
+
+      CREATE TABLE IF NOT EXISTS dd_groups (
+        id SERIAL PRIMARY KEY,
+        checklist_id INTEGER NOT NULL REFERENCES dd_checklists(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        sort_order INT DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS dd_items (
+        id SERIAL PRIMARY KEY,
+        group_id INTEGER NOT NULL REFERENCES dd_groups(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        status VARCHAR(30) DEFAULT 'not_started',
+        due_at TIMESTAMPTZ,
+        requests_document BOOLEAN DEFAULT FALSE,
+        sort_order INT DEFAULT 0,
+        completed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS dd_item_assignees (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER NOT NULL REFERENCES dd_items(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        name VARCHAR(255),
+        role_label VARCHAR(100),
+        notified_at TIMESTAMPTZ,
+        UNIQUE(item_id, email)
+      );
+
+      CREATE TABLE IF NOT EXISTS dd_item_comments (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER NOT NULL REFERENCES dd_items(id) ON DELETE CASCADE,
+        author_email VARCHAR(255),
+        author_name VARCHAR(255),
+        body TEXT NOT NULL,
+        is_external BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS dd_share_links (
+        id SERIAL PRIMARY KEY,
+        checklist_id INTEGER NOT NULL REFERENCES dd_checklists(id) ON DELETE CASCADE,
+        token VARCHAR(64) UNIQUE NOT NULL,
+        label VARCHAR(255),
+        mode VARCHAR(20) NOT NULL DEFAULT 'view_only',
+        password_hash TEXT,
+        expires_at TIMESTAMPTZ,
+        revoked_at TIMESTAMPTZ,
+        show_deal_name BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS dd_share_access_log (
+        id SERIAL PRIMARY KEY,
+        share_link_id INTEGER NOT NULL REFERENCES dd_share_links(id) ON DELETE CASCADE,
+        ip_hash VARCHAR(64),
+        action VARCHAR(50),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_dd_items_due ON dd_items(due_at) WHERE status NOT IN ('complete', 'na');
+    `
   }
 ];
 

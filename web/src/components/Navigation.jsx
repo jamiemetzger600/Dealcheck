@@ -14,6 +14,7 @@ export default function Navigation({
   aggregatorCount = 0,
   myDealsCount = 0,
   crmCount = 0,
+  crmBadgeCount = 0,
   onOpenQuickCalculator = null,
   onStartTour = null,
   compact = false,
@@ -119,7 +120,9 @@ export default function Navigation({
             onClick={() => setActiveTab('crm')}
           >
             <span>CRM</span>
-            <span className="tab-badge">{crmCount}</span>
+            <span className={`tab-badge${crmBadgeCount > 0 ? ' tab-badge--alert' : ''}`}>
+              {crmBadgeCount > 0 ? crmBadgeCount : crmCount}
+            </span>
           </button>
           {!compact && (
             <span className="app-header-version tab-navigation-version" title="App version">v{pkg.version}</span>

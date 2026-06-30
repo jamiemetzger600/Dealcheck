@@ -1,5 +1,6 @@
 import pool from '../db/pool.js';
 import { PIPELINE_STAGES } from '../constants/pipelineStages.js';
+import { suggestedTaskForStage } from '../constants/stageTaskSuggestions.js';
 
 function normalizeProgressHistory(raw) {
   if (!raw) return [];
@@ -77,6 +78,7 @@ export async function updateDealPipelineStage(userId, savedDealId, newStage, { p
     savedDealId,
     progressStage: trimmed || null,
     progressHistory: newHistory,
-    previousStage: previousStage || null
+    previousStage: previousStage || null,
+    suggestedTask: trimmed ? suggestedTaskForStage(trimmed) : null
   };
 }

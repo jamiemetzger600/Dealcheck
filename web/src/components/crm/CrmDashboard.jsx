@@ -3,14 +3,16 @@ import { crmAPI } from '../../utils/api';
 import { normalizeDeal } from '../../utils/normalizeDeal';
 import CrmKanban from './CrmKanban';
 import CrmDealWorkspace from './CrmDealWorkspace';
+import CrmToday from './CrmToday';
 
 export default function CrmDashboard({
   deals = [],
   settings = null,
   onRefresh,
-  onSaveCalculatorDefaults = null
+  onSaveCalculatorDefaults = null,
+  onTodayLoaded = null
 }) {
-  const [crmView, setCrmView] = useState('pipeline');
+  const [crmView, setCrmView] = useState('today');
   const [today, setToday] = useState(null);
   const [selectedDealId, setSelectedDealId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,12 +24,13 @@ export default function CrmDashboard({
     try {
       const data = await crmAPI.getToday();
       setToday(data);
+      onTodayLoaded?.(data?.badgeCount ?? 0);
     } catch (err) {
       setError(err.message || 'Failed to load CRM');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onTodayLoaded]);
 
   useEffect(() => {
     loadToday();
@@ -61,6 +64,7 @@ export default function CrmDashboard({
   }
 
   const dealList = deals.length > 0 ? deals : [];
+  const taskSummary = today?.tasks || {};
 
   return (
     <div className="crm-dashboard">
@@ -71,6 +75,9 @@ export default function CrmDashboard({
           onClick={() => setCrmView('today')}
         >
           Today
+          {(today?.badgeCount ?? 0) > 0 ? (
+            <span className="crm-subnav__badge">{today.badgeCount}</span>
+          ) : null}
         </button>
         <button
           type="button"
@@ -85,60 +92,44 @@ export default function CrmDashboard({
         <>
           <div className="crm-today-strip">
             <div className="crm-today-stat">
-              <span className="crm-today-stat__value">{today?.dealCount ?? dealList.length}</span>
-              <span className="crm-today-stat__label">Deals in CRM</span>
+              <span className="crm-today-stat__value">{taskSummary.overdue?.length ?? 0}</span>
+              <span className="crm-today-stat__label">Overdue</span>
             </div>
             <div className="crm-today-stat">
-              <span className="crm-today-stat__value">{today?.recentActivities?.length ?? 0}</span>
-              <span className="crm-today-stat__label">Recent activities</span>
+              <span className="crm-today-stat__value">{taskSummary.dueToday?.length ?? 0}</span>
+              <span className="crm-today-stat__label">Due today</span>
             </div>
-            <p className="crm-today-hint">
-              Switch to Pipeline to drag deals across acquisition stages.
-            </p>
+            <div className="crm-today-stat">
+              <span className="crm-today-stat__value">{today?.staleListings?.length ?? 0}</span>
+              <span className="crm-today-stat__label">Stale listings</span>
+            </div>
           </div>
+
+          <CrmToday
+            today={today}
+            onSelectDeal={(id) => {
+              setSelectedDealId(id);
+            }}
+            onRefresh={handleRefresh}
+          />
 
           {dealList.length === 0 ? (
             <div className="crm-empty">
               <h2>No deals in CRM yet</h2>
               <p>Save a deal from the Aggregator or My Deals — it will show up here with broker and financials filled in.</p>
             </div>
-          ) : (
-            <div className="crm-layout">
-              <aside className="crm-deal-list">
-                <h3 className="crm-section-title">Your pursuits</h3>
-                <ul className="crm-deal-list__items">
-                  {dealList.map((deal) => {
-                    const id = deal.vettrId ?? deal.id;
-                    const active = id === selectedDealId;
-                    return (
-                      <li key={id}>
-                        <button
-                          type="button"
-                          className={`crm-deal-card${active ? ' crm-deal-card--active' : ''}`}
-                          onClick={() => setSelectedDealId(id)}
-                        >
-                          <span className="crm-deal-card__name">{deal.name || 'Untitled deal'}</span>
-                          {deal.progressStage ? (
-                            <span className="crm-deal-card__stage">{deal.progressStage}</span>
-                          ) : null}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </aside>
-
-              <section className="crm-workspace">
-                <CrmDealWorkspace
-                  deal={selectedDeal}
-                  dealId={selectedDealId}
-                  settings={settings}
-                  onRefresh={handleRefresh}
-                  onSaveCalculatorDefaults={onSaveCalculatorDefaults}
-                />
-              </section>
-            </div>
-          )}
+          ) : selectedDeal ? (
+            <section className="crm-workspace crm-workspace--below-kanban">
+              <CrmDealWorkspace
+                deal={selectedDeal}
+                dealId={selectedDealId}
+                settings={settings}
+                onRefresh={handleRefresh}
+                onSaveCalculatorDefaults={onSaveCalculatorDefaults}
+                onClose={() => setSelectedDealId(null)}
+              />
+            </section>
+          ) : null}
         </>
       )}
 

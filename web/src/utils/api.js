@@ -187,7 +187,57 @@ export const crmAPI = {
     }),
 
   refreshFromListing: (savedDealId) =>
-    apiRequest(`/crm/deals/${savedDealId}/refresh-from-listing`, { method: 'POST' })
+    apiRequest(`/crm/deals/${savedDealId}/refresh-from-listing`, { method: 'POST' }),
+
+  getDealTasks: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/tasks`),
+
+  createTask: (savedDealId, payload) =>
+    apiRequest(`/crm/deals/${savedDealId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  quickFollowUp: (savedDealId, payload) =>
+    apiRequest(`/crm/deals/${savedDealId}/follow-up`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  updateTask: (taskId, payload) =>
+    apiRequest(`/crm/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  getDealDd: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/dd`),
+
+  startDealDd: (savedDealId) =>
+    apiRequest(`/crm/deals/${savedDealId}/dd/start`, { method: 'POST' }),
+
+  patchDdItem: (savedDealId, itemId, payload) =>
+    apiRequest(`/crm/deals/${savedDealId}/dd/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  createDdShareLink: (savedDealId, payload) =>
+    apiRequest(`/crm/deals/${savedDealId}/dd/share-links`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  revokeDdShareLink: (savedDealId, linkId) =>
+    apiRequest(`/crm/deals/${savedDealId}/dd/share-links/${linkId}`, { method: 'DELETE' })
+};
+
+export const ddPublicAPI = {
+  getPortal: (token) => apiRequest(`/dd/public/${token}`),
+
+  patchItem: (token, itemId, payload) =>
+    apiRequest(`/dd/public/${token}/items/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    })
 };
 
 // Payments API

@@ -2,6 +2,15 @@ import pool from '../db/pool.js';
 import { hydrateCrmForSavedDeal } from '../services/crmHydration.js';
 import { PIPELINE_STAGES, UNSTAGED_KEY, KANBAN_COLUMNS, kanbanColumnForStage } from '../constants/pipelineStages.js';
 import { updateDealPipelineStage } from '../services/crmStageService.js';
+import { findStaleListings } from '../services/crmStaleListing.js';
+import {
+  getTodayTaskSummary,
+  listDealTasks,
+  createTask,
+  createQuickFollowUp,
+  updateTask
+} from '../services/crmTaskService.js';
+import { getDdOverdueForToday } from '../services/ddChecklistService.js';
 
 const KANBAN_DEAL_FIELDS = `
   id, deal_id, name, url, progress_stage, progress_history, status,
@@ -102,10 +111,18 @@ export const getCrmToday = async (req, res) => {
       [userId]
     );
 
+    const taskSummary = await getTodayTaskSummary(userId);
+    const staleListings = await findStaleListings(userId);
+    const ddOverdue = await getDdOverdueForToday(userId);
+
     res.json({
       dealCount: dealsResult.rows.length,
       deals: dealsResult.rows,
-      recentActivities: recentActivities.rows
+      recentActivities: recentActivities.rows,
+      tasks: taskSummary,
+      staleListings,
+      ddOverdue,
+      badgeCount: taskSummary.badgeCount + staleListings.length + ddOverdue.length
     });
   } catch (error) {
     console.error('[crm] getCrmToday error:', error);
@@ -205,6 +222,53 @@ export const refreshDealFromListing = async (req, res) => {
     res.json({ message: 'Listing data refreshed', ...result });
   } catch (error) {
     console.error('[crm] refreshDealFromListing error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const getDealTasks = async (req, res) => {
+  try {
+    const tasks = await listDealTasks(req.user.userId, req.params.id);
+    res.json({ tasks });
+  } catch (error) {
+    if (error.status === 404) return res.status(404).json({ error: error.message });
+    console.error('[crm] getDealTasks error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const postDealTask = async (req, res) => {
+  try {
+    const { title, dueAt, source, metadata } = req.body;
+    const task = await createTask(req.user.userId, req.params.id, { title, dueAt, source, metadata });
+    res.status(201).json({ task });
+  } catch (error) {
+    if (error.status === 404) return res.status(404).json({ error: error.message });
+    if (error.status === 400) return res.status(400).json({ error: error.message });
+    console.error('[crm] postDealTask error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const postQuickFollowUp = async (req, res) => {
+  try {
+    const { preset, dueAt, title } = req.body;
+    const task = await createQuickFollowUp(req.user.userId, req.params.id, { preset, dueAt, title });
+    res.status(201).json({ task });
+  } catch (error) {
+    if (error.status === 404) return res.status(404).json({ error: error.message });
+    console.error('[crm] postQuickFollowUp error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const patchTask = async (req, res) => {
+  try {
+    const task = await updateTask(req.user.userId, req.params.taskId, req.body);
+    res.json({ task });
+  } catch (error) {
+    if (error.status === 404) return res.status(404).json({ error: error.message });
+    console.error('[crm] patchTask error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };

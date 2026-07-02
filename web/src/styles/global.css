@@ -687,6 +687,16 @@ a {
 
 .dashboard-content {
   width: 100%;
+  position: relative;
+}
+
+.dashboard-tab-pane {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-tab-pane--active {
+  isolation: isolate;
 }
 
 /* Greeting Banner */
@@ -4226,7 +4236,7 @@ button.aggregator-welcome__buybox {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
   padding: 20px;
 }
 
@@ -7398,7 +7408,7 @@ button.aggregator-welcome__buybox {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10001;
   padding: 16px;
 }
 

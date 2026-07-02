@@ -182,8 +182,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     return () => { cancelled = true; };
   }, [isGuest, checkoutSessionId]);
 
-  const tourActive = tourForceOpen || guestTourBlocking;
-
   useEffect(() => {
     if (user) {
       setSuppressGuestOnboarding(false);
@@ -334,7 +332,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       />
 
       <div className="dashboard-content">
-        {(activeTab === 'aggregator' || tourActive) && (
+        {activeTab === 'aggregator' && (
+          <div className="dashboard-tab-pane dashboard-tab-pane--active">
           <DealAggregator
             tourPrepareStepId={tourPrepareStepId}
             settings={settings}
@@ -360,16 +359,20 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             initialOpenDealDbId={initialDealDbId}
             onMobileDeckChange={setMobileDeckActive}
           />
+          </div>
         )}
 
         {activeTab === 'saved-deals' && isGuest && (
+          <div className="dashboard-tab-pane dashboard-tab-pane--active">
           <GuestMyDealsEmpty
             onRequireSignup={requireSignup}
             onBackToAggregator={() => setActiveTab('aggregator')}
           />
+          </div>
         )}
 
         {activeTab === 'saved-deals' && !isGuest && (
+          <div className="dashboard-tab-pane dashboard-tab-pane--active">
           <SavedDeals
             deals={savedDeals}
             settings={settings}
@@ -381,16 +384,20 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
               setActiveTab('crm');
             }}
           />
+          </div>
         )}
 
         {activeTab === 'crm' && isGuest && (
+          <div className="dashboard-tab-pane dashboard-tab-pane--active">
           <GuestMyDealsEmpty
             onRequireSignup={requireSignup}
             onBackToAggregator={() => setActiveTab('aggregator')}
           />
+          </div>
         )}
 
         {activeTab === 'crm' && !isGuest && (
+          <div className="dashboard-tab-pane dashboard-tab-pane--active">
           <CrmDashboard
             deals={savedDeals}
             settings={settings}
@@ -400,6 +407,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             initialDealId={crmInitialDealId}
             initialCrmView={initialCrmView}
           />
+          </div>
         )}
       </div>
 

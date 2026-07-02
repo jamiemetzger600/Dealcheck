@@ -1,6 +1,85 @@
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 import pool from '../db/pool.js';
 import { BUSINESS_ACQUISITION_DD_TEMPLATE } from '../data/ddBusinessTemplate.js';
+import { sendEmail } from './emailService.js';
+
+const WEB_APP_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
+
+async function loadCommentsForChecklist(checklistId) {
+  const res = await pool.query(
+    `SELECT c.id, c.item_id, c.author_email, c.author_name, c.body, c.is_external, c.created_at
+     FROM dd_item_comments c
+     INNER JOIN dd_items i ON i.id = c.item_id
+     INNER JOIN dd_groups g ON g.id = i.group_id
+     WHERE g.checklist_id = $1
+     ORDER BY c.created_at ASC`,
+    [checklistId]
+  );
+  const byItem = new Map();
+  for (const row of res.rows) {
+    if (!byItem.has(row.item_id)) byItem.set(row.item_id, []);
+    byItem.get(row.item_id).push({
+      id: row.id,
+      authorEmail: row.author_email,
+      authorName: row.author_name,
+      body: row.body,
+      isExternal: row.is_external,
+      createdAt: row.created_at
+    });
+  }
+  return byItem;
+}
+
+async function notifyDealOwnerPortalComment(userId, savedDealId, { dealName, itemTitle, authorName, body }) {
+  const user = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+  const ownerEmail = user.rows[0]?.email;
+  const author = authorName || 'Portal guest';
+  const preview = body.length > 120 ? `${body.slice(0, 117)}…` : body;
+
+  await pool.query(
+    `INSERT INTO reminders (user_id, saved_deal_id, remind_at, channel)
+     VALUES ($1, $2, NOW(), 'in_app')`,
+    [userId, savedDealId]
+  );
+
+  if (!ownerEmail) {
+    console.warn('[dd] portal comment alert skipped — no owner email', { userId, savedDealId });
+    return;
+  }
+
+  try {
+    await sendEmail({
+      to: ownerEmail,
+      subject: `DD portal comment on ${dealName}`,
+      html: `<p><strong>${author}</strong> commented on <em>${itemTitle}</em>:</p>
+             <blockquote style="margin:12px 0;padding:8px 12px;border-left:3px solid #7eb8ff;">${preview}</blockquote>
+             <p><a href="${WEB_APP_URL}/dashboard">Open deal in Vettr CRM</a></p>`
+    });
+    console.log(`[dd] portal comment alert emailed to ${ownerEmail} deal=${savedDealId}`);
+  } catch (err) {
+    console.warn('[dd] portal comment email failed:', err.message);
+  }
+}
+
+export async function getRecentPortalComments(userId, days = 7) {
+  const result = await pool.query(
+    `SELECT c.id, c.body, c.author_name, c.author_email, c.created_at,
+            i.title AS item_title, i.id AS item_id,
+            sd.id AS saved_deal_id, sd.name AS deal_name
+     FROM dd_item_comments c
+     JOIN dd_items i ON i.id = c.item_id
+     JOIN dd_groups g ON g.id = i.group_id
+     JOIN dd_checklists cl ON cl.id = g.checklist_id
+     JOIN saved_deals sd ON sd.id = cl.saved_deal_id AND sd.user_id = $1
+     WHERE c.is_external = true
+       AND c.created_at >= NOW() - ($2::int || ' days')::interval
+     ORDER BY c.created_at DESC
+     LIMIT 30`,
+    [userId, days]
+  );
+  return result.rows;
+}
 
 export async function ensureSystemDdTemplate() {
   const existing = await pool.query(
@@ -61,6 +140,7 @@ export async function getChecklistForDeal(userId, savedDealId) {
   if (!cl.rows.length) return null;
 
   const checklistId = cl.rows[0].id;
+  const commentsByItem = await loadCommentsForChecklist(checklistId);
   const groupsRes = await pool.query(
     `SELECT id, name, sort_order FROM dd_groups WHERE checklist_id = $1 ORDER BY sort_order`,
     [checklistId]
@@ -103,7 +183,8 @@ export async function getChecklistForDeal(userId, savedDealId) {
       }
       return {
         ...i,
-        assignees: assigneesByItem.get(i.id) || []
+        assignees: assigneesByItem.get(i.id) || [],
+        comments: commentsByItem.get(i.id) || []
       };
     });
 
@@ -233,13 +314,203 @@ export async function patchDdItem(userId, savedDealId, itemId, patch) {
          ON CONFLICT (item_id, email) DO UPDATE SET name = EXCLUDED.name, role_label = EXCLUDED.role_label`,
         [itemId, email, patch.assignee.name || null, patch.assignee.roleLabel || null]
       );
+      notifyAssigneeEmail(email, patch.assignee.name, item.title, itemId, savedDealId, userId).catch((err) => {
+        console.warn('[dd] assignee notify failed:', err.message);
+      });
     }
   }
 
   return getChecklistForDeal(userId, savedDealId);
 }
 
-export async function createShareLink(userId, savedDealId, { label, mode = 'view_only', expiresAt = null, showDealName = true }) {
+async function notifyAssigneeEmail(email, name, itemTitle, itemId, savedDealId, userId) {
+  const deal = await pool.query('SELECT name FROM saved_deals WHERE id = $1', [savedDealId]);
+  const dealName = deal.rows[0]?.name || 'a deal';
+  await sendEmail({
+    to: email,
+    subject: `DD request: ${itemTitle}`,
+    html: `<p>Hi${name ? ` ${name}` : ''},</p>
+           <p>You were assigned a due diligence item on <strong>${dealName}</strong>:</p>
+           <p><strong>${itemTitle}</strong></p>
+           <p>The buyer will share a collaborative portal link separately if needed.</p>`
+  });
+  await pool.query(
+    `UPDATE dd_item_assignees SET notified_at = NOW() WHERE item_id = $1 AND email = $2`,
+    [itemId, email]
+  );
+}
+
+export async function addDdGroup(userId, savedDealId, { name }) {
+  const checklist = await getChecklistForDeal(userId, savedDealId);
+  if (!checklist) {
+    const err = new Error('Start a DD checklist first');
+    err.status = 400;
+    throw err;
+  }
+  const trimmed = (name || '').trim();
+  if (!trimmed) {
+    const err = new Error('Group name required');
+    err.status = 400;
+    throw err;
+  }
+  const maxOrder = await pool.query(
+    'SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM dd_groups WHERE checklist_id = $1',
+    [checklist.id]
+  );
+  await pool.query(
+    'INSERT INTO dd_groups (checklist_id, name, sort_order) VALUES ($1, $2, $3)',
+    [checklist.id, trimmed, maxOrder.rows[0].next]
+  );
+  return getChecklistForDeal(userId, savedDealId);
+}
+
+export async function addDdItem(userId, savedDealId, groupId, { title, requestsDocument = false }) {
+  await assertDealOwned(userId, savedDealId);
+  const trimmed = (title || '').trim();
+  if (!trimmed) {
+    const err = new Error('Item title required');
+    err.status = 400;
+    throw err;
+  }
+  const maxOrder = await pool.query(
+    'SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM dd_items WHERE group_id = $1',
+    [groupId]
+  );
+  await pool.query(
+    `INSERT INTO dd_items (group_id, title, requests_document, sort_order, status)
+     VALUES ($1, $2, $3, $4, 'not_started')`,
+    [groupId, trimmed, !!requestsDocument, maxOrder.rows[0].next]
+  );
+  return getChecklistForDeal(userId, savedDealId);
+}
+
+export async function addDdItemComment(userId, savedDealId, itemId, { body, authorName, isExternal = false }) {
+  await assertDealOwned(userId, savedDealId);
+  const text = (body || '').trim();
+  if (!text) {
+    const err = new Error('Comment required');
+    err.status = 400;
+    throw err;
+  }
+  const user = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+  await pool.query(
+    `INSERT INTO dd_item_comments (item_id, author_email, author_name, body, is_external)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [itemId, user.rows[0]?.email || null, authorName || null, text, isExternal]
+  );
+  return getChecklistForDeal(userId, savedDealId);
+}
+
+export async function addDdItemDocument(userId, savedDealId, itemId, { filename, mimeType, storageKey, isExternal = false }) {
+  await assertDealOwned(userId, savedDealId);
+  const name = (filename || '').trim();
+  if (!name) {
+    const err = new Error('Filename required');
+    err.status = 400;
+    throw err;
+  }
+  const user = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+  await pool.query(
+    `INSERT INTO dd_item_documents (item_id, filename, mime_type, storage_key, uploaded_by_email, is_external)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [itemId, name, mimeType || null, storageKey || name, user.rows[0]?.email || null, isExternal]
+  );
+  return getChecklistForDeal(userId, savedDealId);
+}
+
+export async function addPublicDdComment(token, itemId, { body, authorName, authorEmail }) {
+  const link = await pool.query(
+    `SELECT sl.mode, sl.label, c.saved_deal_id, sd.user_id, sd.name AS deal_name
+     FROM dd_share_links sl
+     JOIN dd_checklists c ON c.id = sl.checklist_id
+     JOIN saved_deals sd ON sd.id = c.saved_deal_id
+     WHERE sl.token = $1 AND sl.revoked_at IS NULL AND sl.mode = 'collaborative'`,
+    [token]
+  );
+  if (!link.rows.length) {
+    const err = new Error('Collaborative access required');
+    err.status = 403;
+    throw err;
+  }
+  const { saved_deal_id: savedDealId, user_id: userId, deal_name: dealName, label: linkLabel } = link.rows[0];
+
+  const itemRow = await pool.query(
+    `SELECT i.id, i.title
+     FROM dd_items i
+     JOIN dd_groups g ON g.id = i.group_id
+     JOIN dd_checklists c ON c.id = g.checklist_id
+     WHERE i.id = $1 AND c.saved_deal_id = $2`,
+    [itemId, savedDealId]
+  );
+  if (!itemRow.rows.length) {
+    const err = new Error('Checklist item not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const text = (body || '').trim();
+  if (!text) {
+    const err = new Error('Comment required');
+    err.status = 400;
+    throw err;
+  }
+
+  const author = (authorName || '').trim() || linkLabel || 'Portal guest';
+  const email = (authorEmail || '').trim().toLowerCase() || null;
+
+  await pool.query(
+    `INSERT INTO dd_item_comments (item_id, author_email, author_name, body, is_external)
+     VALUES ($1, $2, $3, $4, true)`,
+    [itemId, email, author, text]
+  );
+
+  const itemTitle = itemRow.rows[0].title;
+  await pool.query(
+    `INSERT INTO activities (user_id, saved_deal_id, activity_type, body, metadata)
+     VALUES ($1, $2, 'dd_portal_comment', $3, $4)`,
+    [
+      userId,
+      savedDealId,
+      `${author} commented on "${itemTitle}"`,
+      JSON.stringify({ itemId, author, body: text })
+    ]
+  );
+
+  notifyDealOwnerPortalComment(userId, savedDealId, {
+    dealName,
+    itemTitle,
+    authorName: author,
+    body: text
+  }).catch((err) => console.warn('[dd] portal comment notify failed:', err.message));
+
+  console.log(`[dd] portal comment on item=${itemId} deal=${savedDealId} by ${author}`);
+  return getChecklistForDeal(userId, savedDealId);
+}
+
+export async function addPublicDdDocument(token, itemId, { filename, mimeType, storageKey, authorEmail }) {
+  const link = await pool.query(
+    `SELECT sl.mode, c.saved_deal_id, sd.user_id
+     FROM dd_share_links sl
+     JOIN dd_checklists c ON c.id = sl.checklist_id
+     JOIN saved_deals sd ON sd.id = c.saved_deal_id
+     WHERE sl.token = $1 AND sl.revoked_at IS NULL AND sl.mode = 'collaborative'`,
+    [token]
+  );
+  if (!link.rows.length) {
+    const err = new Error('Collaborative access required');
+    err.status = 403;
+    throw err;
+  }
+  const { saved_deal_id: savedDealId, user_id: userId } = link.rows[0];
+  return addDdItemDocument(userId, savedDealId, itemId, {
+    filename,
+    mimeType,
+    storageKey,
+    isExternal: true
+  });
+}
+
+export async function createShareLink(userId, savedDealId, { label, mode = 'view_only', expiresAt = null, showDealName = true, password = null }) {
   const checklist = await getChecklistForDeal(userId, savedDealId);
   if (!checklist) {
     const err = new Error('Start a DD checklist first');
@@ -248,11 +519,12 @@ export async function createShareLink(userId, savedDealId, { label, mode = 'view
   }
 
   const token = crypto.randomBytes(32).toString('hex');
+  const passwordHash = password ? await bcrypt.hash(String(password), 10) : null;
   const result = await pool.query(
-    `INSERT INTO dd_share_links (checklist_id, token, label, mode, expires_at, show_deal_name)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO dd_share_links (checklist_id, token, label, mode, expires_at, show_deal_name, password_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id, token, label, mode, expires_at, show_deal_name, created_at`,
-    [checklist.id, token, label || 'Share link', mode, expiresAt, showDealName]
+    [checklist.id, token, label || 'Share link', mode, expiresAt, showDealName, passwordHash]
   );
 
   return result.rows[0];

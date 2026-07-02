@@ -75,6 +75,19 @@ async function pullVettrDeals() {
   return data.deals || [];
 }
 
+async function updateCrmBadge() {
+  try {
+    const data = await vettrApiFetch('/crm/today');
+    const n = data.badgeCount || 0;
+    await chrome.action.setBadgeBackgroundColor({ color: '#e74c3c' });
+    await chrome.action.setBadgeText({ text: n > 0 ? String(Math.min(n, 99)) : '' });
+  } catch (err) {
+    if (err.message !== 'Not signed in to Vettr' && err.message !== SESSION_EXPIRED) {
+      console.debug('[crm] badge update skipped:', err.message);
+    }
+  }
+}
+
 async function runFullSync() {
   if (fullSyncInFlight) return fullSyncInFlight;
   fullSyncInFlight = (async () => {
@@ -115,6 +128,7 @@ async function runFullSync() {
     console.log('☁️ Vettr full sync complete:', merged.length, 'deals');
     notifyExtensionDashboardRefresh();
     notifyWebAppTabs();
+    updateCrmBadge().catch(() => {});
     return { ok: true, count: merged.length };
   })().finally(() => {
     fullSyncInFlight = null;

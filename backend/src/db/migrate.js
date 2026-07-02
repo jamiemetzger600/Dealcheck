@@ -345,6 +345,15 @@ const migrations = [
       UPDATE market_deals SET source_id = trim(both from source_id)
       WHERE source_id IS NOT NULL AND source_id <> trim(both from source_id);
 
+      UPDATE saved_deals sd
+      SET market_deal_id = d.keep_id
+      FROM (
+        SELECT md.id AS dup_id,
+          MAX(md.id) OVER (PARTITION BY md.source, md.source_id) AS keep_id
+        FROM market_deals md
+      ) d
+      WHERE sd.market_deal_id = d.dup_id AND d.dup_id <> d.keep_id;
+
       DELETE FROM market_deals md
       WHERE md.id IN (
         SELECT id FROM (
@@ -354,12 +363,24 @@ const migrations = [
         ) sub WHERE rn > 1
       );
 
+      UPDATE saved_deals sd
+      SET market_deal_id = d.keep_id
+      FROM (
+        SELECT md.id AS dup_id,
+          MAX(md.id) OVER (
+            PARTITION BY lower(trim(split_part(md.listing_url, '#', 1)))
+          ) AS keep_id
+        FROM market_deals md
+        WHERE md.listing_url IS NOT NULL AND trim(md.listing_url) <> ''
+      ) d
+      WHERE sd.market_deal_id = d.dup_id AND d.dup_id <> d.keep_id;
+
       DELETE FROM market_deals md
       WHERE md.id IN (
         SELECT id FROM (
           SELECT id,
             ROW_NUMBER() OVER (
-              PARTITION BY source, lower(trim(listing_url))
+              PARTITION BY lower(trim(split_part(listing_url, '#', 1)))
               ORDER BY id DESC
             ) AS rn
           FROM market_deals
@@ -376,6 +397,10 @@ const migrations = [
           ALTER TABLE market_deals ADD CONSTRAINT market_deals_source_source_id_key UNIQUE (source, source_id);
         END IF;
       END $$;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_market_deals_source_listing_url
+        ON market_deals (source, lower(trim(split_part(listing_url, '#', 1))))
+        WHERE listing_url IS NOT NULL AND trim(listing_url) <> '';
     `
   },
   {
@@ -588,20 +613,101 @@ const migrations = [
 
       CREATE INDEX IF NOT EXISTS idx_dd_items_due ON dd_items(due_at) WHERE status NOT IN ('complete', 'na');
     `
+  },
+  {
+    name: 'crm_phase4_extras_v5_3',
+    up: `
+      CREATE TABLE IF NOT EXISTS dd_item_documents (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER NOT NULL REFERENCES dd_items(id) ON DELETE CASCADE,
+        filename TEXT,
+        storage_key TEXT,
+        mime_type TEXT,
+        uploaded_by_email VARCHAR(255),
+        is_external BOOLEAN DEFAULT FALSE,
+        uploaded_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS deal_documents (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE,
+        doc_type VARCHAR(50) DEFAULT 'other',
+        filename TEXT NOT NULL,
+        storage_key TEXT,
+        mime_type TEXT,
+        notes TEXT,
+        uploaded_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_deal_documents_saved_deal ON deal_documents(saved_deal_id);
+
+      CREATE TABLE IF NOT EXISTS calendar_connections (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(20) DEFAULT 'google',
+        access_token TEXT,
+        refresh_token TEXT,
+        token_expires_at TIMESTAMPTZ,
+        calendar_id TEXT,
+        connected_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id)
+      );
+    `
+  },
+  {
+    name: 'crm_reminder_recipients_v5_4',
+    up: `
+      ALTER TABLE reminders ADD COLUMN IF NOT EXISTS recipient_email TEXT;
+      ALTER TABLE reminders ADD COLUMN IF NOT EXISTS recipient_name TEXT;
+      ALTER TABLE reminders ADD COLUMN IF NOT EXISTS recipient_contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL;
+    `
+  },
+  {
+    name: 'crm_calendar_events_v5_5',
+    up: `
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        google_event_id TEXT,
+        task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+        saved_deal_id INTEGER REFERENCES saved_deals(id) ON DELETE SET NULL,
+        source VARCHAR(20) NOT NULL DEFAULT 'vettr',
+        title TEXT NOT NULL,
+        description TEXT,
+        starts_at TIMESTAMPTZ NOT NULL,
+        ends_at TIMESTAMPTZ NOT NULL,
+        all_day BOOLEAN DEFAULT FALSE,
+        google_updated_at TIMESTAMPTZ,
+        deleted_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_events_user_google
+        ON calendar_events(user_id, google_event_id)
+        WHERE google_event_id IS NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_calendar_events_user_range
+        ON calendar_events(user_id, starts_at, ends_at)
+        WHERE deleted_at IS NULL;
+    `
   }
 ];
 
-async function migrate() {
+export async function runMigrations(poolInstance = pool) {
   console.log('🔄 Running database migrations...');
-  
+  for (const migration of migrations) {
+    console.log(`  Running: ${migration.name}`);
+    await poolInstance.query(migration.up);
+    console.log(`  ✅ ${migration.name} completed`);
+  }
+  console.log('✅ All migrations completed successfully');
+}
+
+async function migrateCli() {
   try {
-    for (const migration of migrations) {
-      console.log(`  Running: ${migration.name}`);
-      await pool.query(migration.up);
-      console.log(`  ✅ ${migration.name} completed`);
-    }
-    
-    console.log('✅ All migrations completed successfully');
+    await runMigrations();
     process.exit(0);
   } catch (error) {
     console.error('❌ Migration failed:', error);
@@ -609,4 +715,8 @@ async function migrate() {
   }
 }
 
-migrate();
+const isMigrateCli = process.argv[1]?.replace(/\\/g, '/').endsWith('/src/db/migrate.js')
+  || process.argv[1]?.endsWith('migrate.js');
+if (isMigrateCli) {
+  migrateCli();
+}

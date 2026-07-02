@@ -1,6 +1,4 @@
-import { Link } from 'react-router-dom';
-
-export default function GuestMyDealsEmpty({ onRequireSignup }) {
+export default function GuestMyDealsEmpty({ onRequireSignup, onBackToAggregator }) {
   return (
     <div className="guest-my-deals-empty">
       <h2>My Deals is for members</h2>
@@ -9,9 +7,9 @@ export default function GuestMyDealsEmpty({ onRequireSignup }) {
         <button type="button" className="btn-primary" onClick={() => onRequireSignup?.('save')}>
           Sign up free
         </button>
-        <Link to="/dashboard" className="btn-secondary">
+        <button type="button" className="btn-secondary" onClick={() => onBackToAggregator?.()}>
           Back to Deal Aggregator
-        </Link>
+        </button>
       </div>
     </div>
   );

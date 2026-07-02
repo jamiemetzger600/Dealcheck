@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import pool from '../db/pool.js';
 import { sendEmail } from './emailService.js';
 import { dealMatchesBuyBox } from '../lib/buyBoxMatcher.js';
+import { processDueReminders, sendCrmDailyDigests } from './crmReminderService.js';
 
 // Simulated deal fetching (in production, fetch from Opensheet/sources)
 async function fetchDealsForMatching() {
@@ -122,6 +123,24 @@ cron.schedule('*/15 * * * *', async () => {
 
   } catch (error) {
     console.error('❌ Instant notification job error:', error);
+  }
+});
+
+// CRM task reminders (every 15 minutes)
+cron.schedule('*/15 * * * *', async () => {
+  try {
+    await processDueReminders();
+  } catch (error) {
+    console.error('❌ CRM reminder job error:', error);
+  }
+});
+
+// CRM daily digest (9:00 AM — opt-in via preferences.crmEmailDigest)
+cron.schedule('0 9 * * *', async () => {
+  try {
+    await sendCrmDailyDigests();
+  } catch (error) {
+    console.error('❌ CRM daily digest error:', error);
   }
 });
 

@@ -79,7 +79,7 @@ function cocReturnTier(coc) {
   return 'bad';
 }
 
-export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCalculatorDefaults = null, onAddDeal = null }) {
+export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCalculatorDefaults = null, onAddDeal = null, onOpenInCrm = null }) {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('savedAt');
@@ -514,6 +514,14 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <div className="actions">
+                      <button
+                        type="button"
+                        className="action-btn"
+                        title="Open in CRM"
+                        onClick={() => onOpenInCrm?.(deal.id)}
+                      >
+                        CRM
+                      </button>
                       <button
                         type="button"
                         className="action-btn"

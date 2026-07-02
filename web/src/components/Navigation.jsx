@@ -120,9 +120,11 @@ export default function Navigation({
             onClick={() => setActiveTab('crm')}
           >
             <span>CRM</span>
-            <span className={`tab-badge${crmBadgeCount > 0 ? ' tab-badge--alert' : ''}`}>
-              {crmBadgeCount > 0 ? crmBadgeCount : crmCount}
-            </span>
+            {!isGuest ? (
+              <span className={`tab-badge${crmBadgeCount > 0 ? ' tab-badge--alert' : ''}`}>
+                {crmBadgeCount > 0 ? crmBadgeCount : crmCount}
+              </span>
+            ) : null}
           </button>
           {!compact && (
             <span className="app-header-version tab-navigation-version" title="App version">v{pkg.version}</span>

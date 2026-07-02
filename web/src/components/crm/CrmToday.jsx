@@ -36,6 +36,7 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
   const dueToday = tasks.dueToday || [];
   const stale = today?.staleListings || [];
   const ddOverdue = today?.ddOverdue || [];
+  const portalComments = today?.portalComments || [];
 
   const handleCompleteTask = async (taskId) => {
     try {
@@ -50,7 +51,8 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
     overdue.length > 0 ||
     dueToday.length > 0 ||
     stale.length > 0 ||
-    ddOverdue.length > 0;
+    ddOverdue.length > 0 ||
+    portalComments.length > 0;
 
   if (!hasWork) {
     return (
@@ -114,6 +116,34 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
                     {item.deal_name}
                   </button>
                   <span className="crm-today-task__title">{item.title}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {portalComments.length > 0 ? (
+        <section className="crm-today-section">
+          <h3 className="crm-today-section__title">
+            DD portal comments ({portalComments.length})
+          </h3>
+          <ul className="crm-today-task-list">
+            {portalComments.map((comment) => (
+              <li key={comment.id} className="crm-today-task">
+                <div className="crm-today-task__body">
+                  <button
+                    type="button"
+                    className="crm-today-task__deal"
+                    onClick={() => onSelectDeal?.(comment.saved_deal_id)}
+                  >
+                    {comment.deal_name}
+                  </button>
+                  <span className="crm-today-task__title">{comment.item_title}</span>
+                  <span className="crm-today-task__due">
+                    {comment.author_name || 'Guest'} · {formatDate(comment.created_at)}
+                  </span>
+                  <span className="crm-portal-comment-preview">{comment.body}</span>
                 </div>
               </li>
             ))}

@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState(null);
   const [notificationFrequency, setNotificationFrequency] = useState('daily');
   const [hideSavedDealsInFeed, setHideSavedDealsInFeed] = useState(false);
+  const [crmEmailDigest, setCrmEmailDigest] = useState(false);
   const [showSavedHighlightInFeed, setShowSavedHighlightInFeed] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -72,11 +73,26 @@ export default function SettingsPage() {
       setSettings(data);
       setNotificationFrequency(data.notificationFrequency || 'daily');
       setHideSavedDealsInFeed(Boolean(data.preferences?.hideSavedDealsInFeed));
+      setCrmEmailDigest(Boolean(data.preferences?.crmEmailDigest));
       setShowSavedHighlightInFeed(data.preferences?.showSavedHighlightInFeed !== false);
     } catch (error) {
       console.error('Failed to load settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleCrmEmailDigest = async (checked) => {
+    const prev = crmEmailDigest;
+    setCrmEmailDigest(checked);
+    try {
+      await userAPI.updateSettings({ preferences: { crmEmailDigest: checked } });
+      setSettings((s) =>
+        s ? { ...s, preferences: { ...s.preferences, crmEmailDigest: checked } } : s
+      );
+    } catch {
+      setCrmEmailDigest(prev);
+      alert('Failed to update CRM email preference');
     }
   };
 
@@ -300,6 +316,23 @@ export default function SettingsPage() {
             </label>
           </div>
         </div>
+
+        {user ? (
+          <div className="settings-section">
+            <h2>CRM</h2>
+            <p>Email reminders for due tasks are sent when SMTP is configured on the server.</p>
+            <label className="settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={crmEmailDigest}
+                onChange={(e) => handleToggleCrmEmailDigest(e.target.checked)}
+              />
+              <span>
+                <strong>Daily CRM digest</strong> — morning email with overdue tasks, due-today items, and DD deadlines.
+              </span>
+            </label>
+          </div>
+        ) : null}
 
         <div className="settings-section">
           <h2>Chrome extension (free tier)</h2>

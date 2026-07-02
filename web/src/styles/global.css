@@ -6703,6 +6703,65 @@ button.aggregator-welcome__buybox {
   padding: 0;
 }
 
+.crm-today-task__source {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.crm-today-task--done {
+  opacity: 0.65;
+}
+
+.crm-today-task--done .crm-today-task__title {
+  text-decoration: line-through;
+}
+
+.crm-task-list__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.crm-task-list__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.crm-task-list__items {
+  margin-top: 0;
+}
+
+.crm-task-status {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.crm-task-status--open {
+  color: #60a5fa;
+}
+
+.crm-task-status--done {
+  color: #4ade80;
+}
+
+.crm-subnav__badge--muted {
+  background: rgba(255, 255, 255, 0.15);
+  color: inherit;
+}
+  background: none;
+  border: none;
+  color: var(--accent, #7eb8ff);
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0;
+}
+
 .crm-today-empty {
   padding: 24px;
   text-align: center;
@@ -6715,6 +6774,67 @@ button.aggregator-welcome__buybox {
 }
 
 .crm-quick-followup__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.crm-chip--active {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.crm-quick-followup__custom {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.crm-quick-followup__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.crm-quick-followup__recipients {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crm-quick-followup__recipients legend {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.crm-quick-followup__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.crm-quick-followup__check input {
+  margin-top: 2px;
+}
+
+.crm-quick-followup__hint {
+  margin: 0;
+  font-size: 12px;
+}
+
+.crm-quick-followup__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -6775,6 +6895,37 @@ button.aggregator-welcome__buybox {
 .dd-group__title {
   margin: 0 0 8px;
   font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dd-group__add-item {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.dd-group__add-item--active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dd-add-item-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px dashed rgba(126, 184, 255, 0.4);
+  border-radius: 6px;
+  background: rgba(126, 184, 255, 0.06);
+  list-style: none;
+}
+
+.dd-add-item-form .modal-input {
+  flex: 1;
+  min-width: 160px;
 }
 
 .dd-item-list {
@@ -6794,6 +6945,73 @@ button.aggregator-welcome__buybox {
   padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 6px;
+}
+
+.dd-item--stacked,
+.dd-item--portal {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.dd-item__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.dd-item__comments {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dd-item__comment {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dd-item__comment--external {
+  border-color: rgba(126, 184, 255, 0.35);
+  background: rgba(126, 184, 255, 0.08);
+}
+
+.dd-item__comment-meta {
+  display: block;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 4px;
+}
+
+.dd-item__comment-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.crm-portal-comment-preview {
+  width: 100%;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: pre-wrap;
+}
+
+.dd-portal__author {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 280px;
+  margin: 12px auto 0;
+  font-size: 13px;
+  text-align: left;
 }
 
 .dd-item__badge {
@@ -6823,4 +7041,398 @@ button.aggregator-welcome__buybox {
 .btn-secondary--sm {
   font-size: 12px;
   padding: 4px 10px;
+}
+
+.crm-suggested-task {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border: 1px solid rgba(126, 184, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(126, 184, 255, 0.08);
+}
+
+.crm-suggested-task__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.crm-contacts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.crm-contacts-table th,
+.crm-contacts-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+}
+
+.crm-contacts-deal-link {
+  background: none;
+  border: none;
+  color: var(--accent, #7eb8ff);
+  cursor: pointer;
+  padding: 0 6px 0 0;
+  font-size: inherit;
+}
+
+.crm-analytics-funnel {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.crm-analytics-funnel__row {
+  display: grid;
+  grid-template-columns: 140px 1fr 40px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.crm-analytics-funnel__bar-wrap {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.crm-analytics-funnel__bar {
+  display: block;
+  height: 100%;
+  background: var(--accent, #7eb8ff);
+  border-radius: 4px;
+}
+
+.dd-share-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.dd-add-group {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.dd-add-group-form {
+  margin-bottom: 12px;
+}
+
+.dd-item__due-input,
+.dd-item__assignee {
+  max-width: 160px;
+  font-size: 12px;
+}
+
+.crm-calendar__flash {
+  color: #4ade80;
+  margin: 0 0 12px;
+}
+
+.crm-calendar__redirect {
+  word-break: break-all;
+}
+
+.crm-calendar__redirect code {
+  font-size: 12px;
+}
+
+.crm-calendar-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crm-calendar-view__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crm-calendar-view__nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-calendar-view__title {
+  margin: 0 0 0 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.crm-calendar-view__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-calendar-view__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+.crm-cal-legend {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.crm-cal-event {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin: 2px 0;
+  font-size: 11px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.crm-cal-event--vettr {
+  background: rgba(59, 130, 246, 0.25);
+  color: #93c5fd;
+}
+
+.crm-cal-event--google {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+}
+
+.crm-cal-event__title {
+  display: block;
+  font-weight: 500;
+}
+
+.crm-cal-event__time {
+  display: block;
+  opacity: 0.85;
+  font-size: 10px;
+}
+
+.crm-cal-month {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.crm-cal-month__head,
+.crm-cal-month__row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.crm-cal-month__dow {
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.crm-cal-month__cell {
+  min-height: 96px;
+  padding: 6px;
+  border: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.15);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.crm-cal-month__cell:nth-child(7n) {
+  border-right: none;
+}
+
+.crm-cal-month__cell--muted {
+  opacity: 0.45;
+}
+
+.crm-cal-month__cell--today {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.crm-cal-month__date {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.crm-cal-month__events {
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-cal-week {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.crm-cal-week__head {
+  display: grid;
+  grid-template-columns: 48px repeat(7, 1fr);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.crm-cal-week__gutter {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.crm-cal-week__dayhead {
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.crm-cal-week__dayhead--today {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.crm-cal-week__body {
+  display: grid;
+  grid-template-columns: 48px repeat(7, 1fr);
+  max-height: 640px;
+  overflow-y: auto;
+}
+
+.crm-cal-week__hours {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.crm-cal-week__hour {
+  height: 48px;
+  padding: 4px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.crm-cal-week__col {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.crm-cal-week__slot {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 2px;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.crm-cal-week__slot:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.crm-cal-day {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  max-height: 640px;
+  overflow-y: auto;
+}
+
+.crm-cal-day__row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  width: 100%;
+  min-height: 48px;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.crm-cal-day__row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.crm-cal-day__hour {
+  padding: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.crm-cal-day__slot {
+  padding: 4px;
+}
+
+.crm-cal-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.crm-cal-modal {
+  width: min(480px, 100%);
+  background: #1a1f2e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crm-cal-modal h3 {
+  margin: 0;
+}
+
+.crm-cal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.crm-cal-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dd-portal-comment {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }

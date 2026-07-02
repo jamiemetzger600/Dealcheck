@@ -13,6 +13,8 @@ import marketDealsRoutes from './routes/marketDeals.js';
 import './services/notificationScheduler.js'; // Start notification jobs
 import './services/airtableScraper.js';
 import { validateConfig } from './config.js';
+import pool from './db/pool.js';
+import { runMigrations } from './db/migrate.js';
 
 dotenv.config();
 validateConfig(); // Exits in production if required env vars missing (see CONFIG.md)
@@ -58,7 +60,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '5.0.5' });
+  res.json({ status: 'ok', version: '5.0.22' });
 });
 
 // Routes
@@ -82,8 +84,21 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Vettr API server running on port ${PORT}`);
-  console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 Web app URL: ${process.env.WEB_APP_URL || 'http://localhost:5173'}`);
-});
+async function startServer() {
+  app.listen(PORT, () => {
+    console.log(`🚀 Vettr API server running on port ${PORT}`);
+    console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 Web app URL: ${process.env.WEB_APP_URL || 'http://localhost:5173'}`);
+  });
+
+  try {
+    await runMigrations(pool);
+  } catch (err) {
+    console.error('❌ Startup migrations failed:', err);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  }
+}
+
+startServer();

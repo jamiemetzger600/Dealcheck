@@ -289,6 +289,7 @@
       notes: savedDeal.notes || '',
       status: savedDeal.status || 'none',
       progressStage: savedDeal.progressStage || null,
+      progressHistory: savedDeal.progressHistory || [],
       calculatorState: calc
     };
   }
@@ -341,6 +342,7 @@
       notes: (dealData && dealData.notes) || '',
       status: (dealData && dealData.status) || 'none',
       progressStage: null,
+      progressHistory: (dealData && dealData.progressHistory) || [],
       calculatorState: buildCalculatorState(inputs, overrides, prefs, dealData && dealData.calculatorState)
     };
   }
@@ -493,8 +495,13 @@
         var localTs = parseTs(local.vettrUpdatedAt);
         var cloudTs = parseTs(cloud.updated_at);
         if (localTs > cloudTs && local.vettrId) {
-          cloudUpdates.push({ local: Object.assign({}, local, fromCloud), vettrId: cloud.id });
-          merged.push(Object.assign({}, fromCloud, local));
+          var mergedLocal = Object.assign({}, fromCloud, local);
+          if ((local.progressHistory || []).length > (fromCloud.progressHistory || []).length) {
+            mergedLocal.progressHistory = local.progressHistory;
+            mergedLocal.progressStage = local.progressStage || fromCloud.progressStage;
+          }
+          cloudUpdates.push({ local: mergedLocal, vettrId: cloud.id });
+          merged.push(mergedLocal);
         } else {
           merged.push(Object.assign({}, local, fromCloud));
         }

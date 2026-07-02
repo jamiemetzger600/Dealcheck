@@ -16,7 +16,9 @@ const OPTIONAL_BUT_RECOMMENDED = [
   { key: 'STRIPE_WEBHOOK_SECRET', hint: 'Required for Stripe webhooks' },
   { key: 'STRIPE_MONTHLY_PRICE_ID', hint: 'Stripe Price ID for monthly plan' },
   { key: 'STRIPE_YEARLY_PRICE_ID', hint: 'Stripe Price ID for yearly plan' },
-  { key: 'SMTP_HOST', hint: 'Required for email notifications' }
+  { key: 'SMTP_HOST', hint: 'Required for email notifications' },
+  { key: 'GOOGLE_CALENDAR_CLIENT_ID', hint: 'Required for CRM Google Calendar OAuth' },
+  { key: 'GOOGLE_CALENDAR_CLIENT_SECRET', hint: 'Required for CRM Google Calendar OAuth' }
 ];
 
 function validateConfig() {
@@ -40,6 +42,10 @@ function validateConfig() {
     if (!value || String(value).trim() === '') {
       console.warn(`[config] Optional env not set: ${key} — ${hint}`);
     }
+  }
+
+  if (process.env.GOOGLE_CALENDAR_CLIENT_ID?.trim() && process.env.GOOGLE_CALENDAR_CLIENT_SECRET?.trim()) {
+    console.log('[config] Google Calendar OAuth configured');
   }
 }
 

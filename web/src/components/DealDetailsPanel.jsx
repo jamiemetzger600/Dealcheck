@@ -479,29 +479,27 @@ export default function DealDetailsPanel({
             )}
           </div>
         </div>
-        {!listingEdit ? (
-          <div className="deal-broker-condensed">
-            <h3>Broker Information</h3>
-            {entitlements?.brokerContactVisible !== false ? (
-              <div className="deal-broker-grid">
-                <BrokerItem label="Broker Name" value={brokerName} />
-                <BrokerItem label="Company" value={brokerCompany} />
-                <BrokerItem label="Email" value={brokerEmail} href={brokerEmail !== '-' ? `mailto:${brokerEmail}` : null} />
-                <BrokerItem label="Phone" value={brokerPhone} href={brokerPhone !== '-' ? `tel:${brokerPhone}` : null} />
-                <BrokerItem label="Listed" value={listedDate} wide />
-              </div>
-            ) : (
-              <GatedPreviewText
-                text={[brokerName, brokerCompany, brokerEmail, brokerPhone].filter((v) => v && v !== '-').join(' · ') || 'Broker contact available after sign up.'}
-                limit={entitlements?.previewCharLimit ?? 120}
-                entitlements={entitlements}
-                reason="broker_click"
-                className="deal-details-description"
-                onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
-              />
-            )}
-          </div>
-        ) : null}
+        <div className="deal-broker-condensed">
+          <h3>Broker Information</h3>
+          {entitlements?.brokerContactVisible !== false ? (
+            <div className="deal-broker-grid">
+              <BrokerItem label="Broker Name" value={brokerName} />
+              <BrokerItem label="Company" value={brokerCompany} />
+              <BrokerItem label="Email" value={brokerEmail} href={brokerEmail !== '-' ? `mailto:${brokerEmail}` : null} />
+              <BrokerItem label="Phone" value={brokerPhone} href={brokerPhone !== '-' ? `tel:${brokerPhone}` : null} />
+              <BrokerItem label="Listed" value={listedDate} wide />
+            </div>
+          ) : (
+            <GatedPreviewText
+              text={[brokerName, brokerCompany, brokerEmail, brokerPhone].filter((v) => v && v !== '-').join(' · ') || 'Broker contact available after sign up.'}
+              limit={entitlements?.previewCharLimit ?? 120}
+              entitlements={entitlements}
+              reason="broker_click"
+              className="deal-details-description"
+              onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
+            />
+          )}
+        </div>
       </div>
     ),
     calculator: (

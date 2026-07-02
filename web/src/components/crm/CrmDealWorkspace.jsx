@@ -5,13 +5,17 @@ import { formatDate, getDealProgressLabel } from '../../utils/normalizeDeal';
 import { PIPELINE_STAGE_OPTIONS } from '../../utils/pipelineStages';
 import QuickFollowUp from './QuickFollowUp';
 import DdChecklist from './dd/DdChecklist';
+import { useAuth } from '../../context/AuthContext';
 
 function activityLabel(type) {
   const labels = {
     deal_saved: 'Saved to CRM',
     listing_hydrated: 'Listing synced',
     note: 'Note',
-    stage_change: 'Stage change'
+    stage_change: 'Stage change',
+    dd_portal_comment: 'DD portal comment',
+    dd_started: 'DD started',
+    task_created: 'Task created'
   };
   return labels[type] || type;
 }
@@ -22,10 +26,10 @@ export default function CrmDealWorkspace({
   settings = null,
   onRefresh,
   onSaveCalculatorDefaults = null,
-  onClose = null
+  onClose = null,
+  onStageChanged = null
 }) {
-  const [notes, setNotes] = useState(deal?.notes || '');
-  const [notesTimeout, setNotesTimeout] = useState(null);
+  const { user } = useAuth();
   const [progressStage, setProgressStage] = useState(deal?.progressStage || '');
   const [progressHistory, setProgressHistory] = useState(deal?.progressHistory || []);
   const [progressSaving, setProgressSaving] = useState(false);
@@ -37,7 +41,6 @@ export default function CrmDealWorkspace({
 
   useEffect(() => {
     if (!deal) return;
-    setNotes(deal.notes || '');
     setProgressStage(deal.progressStage || '');
     setProgressHistory(deal.progressHistory || []);
   }, [deal]);
@@ -81,21 +84,6 @@ export default function CrmDealWorkspace({
     }
   };
 
-  const handleNotesChange = (newNotes) => {
-    setNotes(newNotes);
-    if (!deal?.id) return;
-    if (notesTimeout) clearTimeout(notesTimeout);
-    const timeout = setTimeout(async () => {
-      try {
-        await dealsAPI.updateDeal(deal.id, { notes: newNotes });
-        onRefresh?.();
-      } catch (err) {
-        console.error('[CrmDealWorkspace] notes save failed', err);
-      }
-    }, 1000);
-    setNotesTimeout(timeout);
-  };
-
   const handleAddCrmNote = async () => {
     if (!dealId || !noteText.trim()) return;
     setSavingNote(true);
@@ -127,10 +115,9 @@ export default function CrmDealWorkspace({
     setProgressHistory(newHistory);
     setProgressSaving(true);
     try {
-      await dealsAPI.updateDeal(deal.id, {
-        progressStage: newStage,
-        progressHistory: newHistory
-      });
+      const result = await crmAPI.updateStage(deal.id, newStage);
+      if (result.progressHistory) setProgressHistory(result.progressHistory);
+      onStageChanged?.(result, deal.name);
       onRefresh?.();
       await loadDetail();
     } catch (error) {
@@ -153,7 +140,8 @@ export default function CrmDealWorkspace({
       minute: '2-digit'
     });
     const separator = `\n\n--- IOI Sent ${dateLabel} ---\n`;
-    const updatedNotes = (notes ? notes + separator : `--- IOI Sent ${dateLabel} ---\n`) + ioiText;
+    const currentNotes = deal?.notes || '';
+    const updatedNotes = (currentNotes ? currentNotes + separator : `--- IOI Sent ${dateLabel} ---\n`) + ioiText;
     const newHistory = [...progressHistory, { stage: 'Send IOI', timestamp }];
 
     try {
@@ -162,7 +150,6 @@ export default function CrmDealWorkspace({
         progressStage: 'Send IOI',
         progressHistory: newHistory
       });
-      setNotes(updatedNotes);
       setProgressStage('Send IOI');
       setProgressHistory(newHistory);
       onRefresh?.();
@@ -178,7 +165,65 @@ export default function CrmDealWorkspace({
     return getDealProgressLabel({ ...deal, progressHistory, progressStage }) || '';
   }, [progressStage, progressHistory, deal]);
 
+  const dealWithBroker = useMemo(() => {
+    if (!deal) return deal;
+    const brokerContact = detail?.contacts?.find((c) => c.role === 'broker')
+      || detail?.contacts?.[0];
+    if (!brokerContact) return deal;
+    return {
+      ...deal,
+      brokerName: deal.brokerName || brokerContact.name || deal.broker,
+      brokerCompany: deal.brokerCompany || brokerContact.company_name || deal.source,
+      brokerEmail: deal.brokerEmail || brokerContact.email,
+      brokerPhone: deal.brokerPhone || brokerContact.phone
+    };
+  }, [deal, detail]);
+
   const extraSections = useMemo(() => [
+    {
+      id: 'broker-contact',
+      label: 'Broker contact',
+      icon: 'broker-progress',
+      render: () => {
+        const name = dealWithBroker?.brokerName || dealWithBroker?.broker || '—';
+        const company = dealWithBroker?.brokerCompany || dealWithBroker?.source || '—';
+        const email = dealWithBroker?.brokerEmail || '—';
+        const phone = dealWithBroker?.brokerPhone || '—';
+        const hasContact = [name, company, email, phone].some((v) => v && v !== '—');
+        return (
+          <div className="deal-broker-condensed crm-broker-contact">
+            {hasContact ? (
+              <div className="deal-broker-grid">
+                <div className="deal-broker-item">
+                  <div className="deal-broker-label">Broker Name</div>
+                  <div className="deal-broker-value">{name}</div>
+                </div>
+                <div className="deal-broker-item">
+                  <div className="deal-broker-label">Company</div>
+                  <div className="deal-broker-value">{company}</div>
+                </div>
+                <div className="deal-broker-item">
+                  <div className="deal-broker-label">Email</div>
+                  <div className="deal-broker-value">
+                    {email !== '—' ? <a href={`mailto:${email}`}>{email}</a> : '—'}
+                  </div>
+                </div>
+                <div className="deal-broker-item">
+                  <div className="deal-broker-label">Phone</div>
+                  <div className="deal-broker-value">
+                    {phone !== '—' ? <a href={`tel:${phone}`}>{phone}</a> : '—'}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="crm-muted">
+                No broker contact on file. Use &ldquo;Refresh from listing&rdquo; in Pipeline stage to pull broker details from the listing.
+              </p>
+            )}
+          </div>
+        );
+      }
+    },
     {
       id: 'crm-progress',
       label: 'Pipeline stage',
@@ -222,6 +267,8 @@ export default function CrmDealWorkspace({
         <QuickFollowUp
           dealId={dealId}
           dealName={deal?.name}
+          contacts={detail?.contacts || []}
+          userEmail={user?.email || ''}
           onCreated={onRefresh}
         />
       )
@@ -274,37 +321,6 @@ export default function CrmDealWorkspace({
           ) : (
             <p className="crm-muted">No CRM activity yet.</p>
           )}
-          {detail?.contacts?.length ? (
-            <div className="crm-contacts-inline">
-              <h4>Contacts</h4>
-              <ul className="crm-contact-list">
-                {detail.contacts.map((c) => (
-                  <li key={`${c.id}-${c.role}`}>
-                    <strong>{c.name || c.email || 'Contact'}</strong>
-                    <span className="crm-contact-role">{c.role}</span>
-                    {c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-      )
-    },
-    {
-      id: 'notes',
-      label: 'Notes',
-      icon: 'notes',
-      render: () => (
-        <div className="deal-notes-content">
-          <textarea
-            value={notes}
-            onChange={(e) => handleNotesChange(e.target.value)}
-            placeholder="Add notes about this deal..."
-            rows={6}
-            className="modal-notes"
-          />
-          <p className="notes-hint">Notes are auto-saved as you type</p>
         </div>
       )
     }
@@ -316,12 +332,14 @@ export default function CrmDealWorkspace({
     detail,
     noteText,
     savingNote,
-    notes,
     handleProgressSelectChange,
     handleRefreshListing,
     handleAddCrmNote,
     dealId,
-    handleNotesChange
+    dealWithBroker,
+    deal?.name,
+    user?.email,
+    onRefresh
   ]);
 
   const footer = (
@@ -356,7 +374,7 @@ export default function CrmDealWorkspace({
     <div className="crm-deal-panel">
       <DealDetailsPanel
         isOpen
-        deal={deal}
+        deal={dealWithBroker || deal}
         position="center"
         onClose={onClose || (() => {})}
         settings={settings}

@@ -1,6 +1,7 @@
 import pool from '../db/pool.js';
 import { register } from './scraperRegistry.js';
 import { pruneStaleMarketDeals } from './marketDealsPrune.js';
+import { dedupeMarketDeals } from './marketDealsDedupe.js';
 
 // ---------------------------------------------------------------------------
 // Config — all tuneable via env vars
@@ -230,23 +231,14 @@ function isSundayFullSyncWindowPacific() {
 
 /** Collapse same-listing rows after switching source_id scheme (e.g. numeric → rec…). */
 async function dedupeAirtableRowsByListingUrl(client) {
-  await client.query(
-    `DELETE FROM market_deals md
-     WHERE md.source = $1 AND md.id IN (
-       SELECT id FROM (
-         SELECT id,
-           ROW_NUMBER() OVER (
-             PARTITION BY lower(trim(listing_url))
-             ORDER BY id DESC
-           ) AS rn
-         FROM market_deals
-         WHERE source = $1
-           AND listing_url IS NOT NULL
-           AND trim(listing_url) <> ''
-       ) t WHERE rn > 1
-     )`,
-    [SOURCE_KEY]
-  );
+  await dedupeMarketDeals(client, { source: SOURCE_KEY });
+}
+
+function normalizeListingUrlKey(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  return trimmed.split('#')[0].trim().toLowerCase();
 }
 
 // ---------------------------------------------------------------------------
@@ -268,8 +260,75 @@ async function upsertDeals(deals) {
       const rawKey = deal.airtable_record_id ?? deal.airtable_id;
       if (rawKey == null || String(rawKey).trim() === '') continue;
       const sourceId = String(rawKey).trim();
+      const urlKey = normalizeListingUrlKey(deal.listing_url);
+      const params = [
+        SOURCE_KEY,
+        sourceId,
+        deal.name || null,
+        deal.description || null,
+        deal.industries || null,
+        deal.listing_url || null,
+        deal.asking_price ?? null,
+        deal.annual_revenue ?? null,
+        deal.annual_profit ?? null,
+        deal.profit_multiple ?? null,
+        deal.revenue_multiple ?? null,
+        deal.city || null,
+        deal.county || null,
+        deal.state || null,
+        deal.country || null,
+        deal.years_established ?? null,
+        deal.remote_relocatable || null,
+        deal.franchise || null,
+        deal.five_plus_years || null,
+        deal.broker_name || null,
+        deal.broker_company || null,
+        deal.broker_contact || null,
+        deal.broker_email || null,
+        deal.airtable_updated_at || null,
+        deal.airtable_added_at || null,
+      ];
 
-      const result = await client.query(
+      let result;
+      if (urlKey) {
+        result = await client.query(
+          `UPDATE market_deals SET
+            source_id = $2,
+            name = $3,
+            description = $4,
+            industries = $5,
+            listing_url = $6,
+            asking_price = $7,
+            annual_revenue = $8,
+            annual_profit = $9,
+            profit_multiple = $10,
+            revenue_multiple = $11,
+            city = $12,
+            county = $13,
+            state = $14,
+            country = $15,
+            years_established = $16,
+            remote_relocatable = $17,
+            franchise = $18,
+            five_plus_years = $19,
+            broker_name = $20,
+            broker_company = $21,
+            broker_contact = $22,
+            broker_email = $23,
+            source_updated_at = $24,
+            source_added_at = $25,
+            last_scraped_at = NOW(),
+            is_active = true
+           WHERE source = $1
+             AND listing_url IS NOT NULL
+             AND lower(trim(split_part(listing_url, '#', 1))) = $26
+           RETURNING id, false AS is_insert`,
+          [...params, urlKey]
+        );
+      }
+
+      if (!result?.rows?.length) {
+        result = await client.query(
         `INSERT INTO market_deals (
           source, source_id, name, description, industries, listing_url,
           asking_price, annual_revenue, annual_profit, profit_multiple, revenue_multiple,
@@ -314,34 +373,9 @@ async function upsertDeals(deals) {
           last_scraped_at   = NOW(),
           is_active         = true
         RETURNING id, (xmax = 0) AS is_insert`,
-        [
-          SOURCE_KEY,
-          sourceId,
-          deal.name || null,
-          deal.description || null,
-          deal.industries || null,
-          deal.listing_url || null,
-          deal.asking_price ?? null,
-          deal.annual_revenue ?? null,
-          deal.annual_profit ?? null,
-          deal.profit_multiple ?? null,
-          deal.revenue_multiple ?? null,
-          deal.city || null,
-          deal.county || null,
-          deal.state || null,
-          deal.country || null,
-          deal.years_established ?? null,
-          deal.remote_relocatable || null,
-          deal.franchise || null,
-          deal.five_plus_years || null,
-          deal.broker_name || null,
-          deal.broker_company || null,
-          deal.broker_contact || null,
-          deal.broker_email || null,
-          deal.airtable_updated_at || null,
-          deal.airtable_added_at || null,
-        ]
-      );
+        params
+        );
+      }
 
       const ret = result.rows[0];
       if (ret?.is_insert) {

@@ -58,8 +58,13 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [searchParams] = useSearchParams();
   const initialDealDbId = searchParams.get('dealDbId') || null;
   const checkoutSessionId = searchParams.get('session_id');
+  const initialCrmView = searchParams.get('crmSubview') || null;
 
-  const [activeTab, setActiveTab] = useState('aggregator');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === 'undefined') return 'aggregator';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') === 'crm' ? 'crm' : 'aggregator';
+  });
   const [guestTourBlocking, setGuestTourBlocking] = useState(() => {
     if (!isGuest) return false;
     try {
@@ -71,6 +76,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [settings, setSettings] = useState(null);
   const [savedDeals, setSavedDeals] = useState([]);
   const [crmBadgeCount, setCrmBadgeCount] = useState(0);
+  const [crmInitialDealId, setCrmInitialDealId] = useState(null);
   const [matchCount, setMatchCount] = useState(0);
   const [totalDeals, setTotalDeals] = useState(0);
   const [newTodayCount, setNewTodayCount] = useState(0);
@@ -357,7 +363,10 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         )}
 
         {activeTab === 'saved-deals' && isGuest && (
-          <GuestMyDealsEmpty onRequireSignup={requireSignup} />
+          <GuestMyDealsEmpty
+            onRequireSignup={requireSignup}
+            onBackToAggregator={() => setActiveTab('aggregator')}
+          />
         )}
 
         {activeTab === 'saved-deals' && !isGuest && (
@@ -367,11 +376,18 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onUpdate={loadUserData}
             onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
             onAddDeal={() => setShowManualDealModal(true)}
+            onOpenInCrm={(dealId) => {
+              setCrmInitialDealId(dealId);
+              setActiveTab('crm');
+            }}
           />
         )}
 
         {activeTab === 'crm' && isGuest && (
-          <GuestMyDealsEmpty onRequireSignup={requireSignup} />
+          <GuestMyDealsEmpty
+            onRequireSignup={requireSignup}
+            onBackToAggregator={() => setActiveTab('aggregator')}
+          />
         )}
 
         {activeTab === 'crm' && !isGuest && (
@@ -381,6 +397,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onRefresh={loadUserData}
             onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
             onTodayLoaded={setCrmBadgeCount}
+            initialDealId={crmInitialDealId}
+            initialCrmView={initialCrmView}
           />
         )}
       </div>

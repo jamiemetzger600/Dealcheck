@@ -4,19 +4,27 @@ import { normalizeDeal } from '../../utils/normalizeDeal';
 import CrmKanban from './CrmKanban';
 import CrmDealWorkspace from './CrmDealWorkspace';
 import CrmToday from './CrmToday';
+import CrmTaskList from './CrmTaskList';
+import CrmContactList from './CrmContactList';
+import CrmAnalytics from './CrmAnalytics';
+import CrmCalendar from './CrmCalendar';
+import SuggestedTaskPrompt from './SuggestedTaskPrompt';
 
 export default function CrmDashboard({
   deals = [],
   settings = null,
   onRefresh,
   onSaveCalculatorDefaults = null,
-  onTodayLoaded = null
+  onTodayLoaded = null,
+  initialDealId = null,
+  initialCrmView = null
 }) {
-  const [crmView, setCrmView] = useState('today');
+  const [crmView, setCrmView] = useState(initialCrmView || 'today');
   const [today, setToday] = useState(null);
-  const [selectedDealId, setSelectedDealId] = useState(null);
+  const [selectedDealId, setSelectedDealId] = useState(initialDealId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [stagePrompt, setStagePrompt] = useState(null);
 
   const loadToday = useCallback(async () => {
     setLoading(true);
@@ -36,8 +44,24 @@ export default function CrmDashboard({
     loadToday();
   }, [loadToday, deals.length]);
 
+  useEffect(() => {
+    if (initialCrmView) {
+      setCrmView(initialCrmView);
+    }
+  }, [initialCrmView]);
+
+  useEffect(() => {
+    if (initialDealId) {
+      setSelectedDealId(initialDealId);
+      setCrmView('today');
+    }
+  }, [initialDealId]);
+
   const selectedDeal = useMemo(() => {
-    const raw = deals.find((d) => d.vettrId === selectedDealId || d.id === selectedDealId);
+    const id = selectedDealId == null ? '' : String(selectedDealId);
+    const raw = deals.find(
+      (d) => String(d.vettrId ?? '') === id || String(d.id ?? '') === id
+    );
     return raw ? normalizeDeal(raw) : null;
   }, [deals, selectedDealId]);
 
@@ -45,9 +69,56 @@ export default function CrmDashboard({
     setSelectedDealId(id);
   };
 
+  useEffect(() => {
+    if (!selectedDealId || !selectedDeal) return;
+    const frame = requestAnimationFrame(() => {
+      document.querySelector('.crm-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selectedDealId, selectedDeal]);
+
   const handleRefresh = async () => {
     await loadToday();
     onRefresh?.();
+  };
+
+  const handleStageChanged = (result, dealName) => {
+    if (!result || result.unchanged) return;
+    const stage = result.progressStage;
+    if (result.suggestedTask || stage === 'Starting Due Diligence') {
+      setStagePrompt({
+        dealId: result.savedDealId,
+        dealName: dealName || selectedDeal?.name,
+        stage,
+        suggestedTask: result.suggestedTask
+      });
+    }
+  };
+
+  const handleAddSuggestedTask = async () => {
+    if (!stagePrompt?.dealId || !stagePrompt.suggestedTask) return;
+    try {
+      await crmAPI.createTask(stagePrompt.dealId, {
+        title: stagePrompt.suggestedTask,
+        source: 'stage_suggestion'
+      });
+      setStagePrompt(null);
+      await handleRefresh();
+    } catch (err) {
+      alert('Failed to add task: ' + err.message);
+    }
+  };
+
+  const handleStartDdFromPrompt = async () => {
+    if (!stagePrompt?.dealId) return;
+    try {
+      await crmAPI.startDealDd(stagePrompt.dealId);
+      setStagePrompt(null);
+      setSelectedDealId(stagePrompt.dealId);
+      await handleRefresh();
+    } catch (err) {
+      alert('Failed to start DD: ' + err.message);
+    }
   };
 
   if (loading && !today) {
@@ -65,6 +136,21 @@ export default function CrmDashboard({
 
   const dealList = deals.length > 0 ? deals : [];
   const taskSummary = today?.tasks || {};
+  const openTaskCount = taskSummary.openCount ?? 0;
+
+  const workspace = selectedDeal ? (
+    <section className="crm-workspace crm-workspace--below-kanban">
+      <CrmDealWorkspace
+        deal={selectedDeal}
+        dealId={selectedDealId}
+        settings={settings}
+        onRefresh={handleRefresh}
+        onSaveCalculatorDefaults={onSaveCalculatorDefaults}
+        onClose={() => setSelectedDealId(null)}
+        onStageChanged={(result) => handleStageChanged(result, selectedDeal.name)}
+      />
+    </section>
+  ) : null;
 
   return (
     <div className="crm-dashboard">
@@ -81,12 +167,54 @@ export default function CrmDashboard({
         </button>
         <button
           type="button"
+          className={`crm-subnav__btn${crmView === 'tasks' ? ' crm-subnav__btn--active' : ''}`}
+          onClick={() => setCrmView('tasks')}
+        >
+          Tasks
+          {openTaskCount > 0 ? (
+            <span className="crm-subnav__badge crm-subnav__badge--muted">{openTaskCount}</span>
+          ) : null}
+        </button>
+        <button
+          type="button"
           className={`crm-subnav__btn${crmView === 'pipeline' ? ' crm-subnav__btn--active' : ''}`}
           onClick={() => setCrmView('pipeline')}
         >
           Pipeline
         </button>
+        <button
+          type="button"
+          className={`crm-subnav__btn${crmView === 'contacts' ? ' crm-subnav__btn--active' : ''}`}
+          onClick={() => setCrmView('contacts')}
+        >
+          Contacts
+        </button>
+        <button
+          type="button"
+          className={`crm-subnav__btn${crmView === 'calendar' ? ' crm-subnav__btn--active' : ''}`}
+          onClick={() => setCrmView('calendar')}
+        >
+          Calendar
+        </button>
+        <button
+          type="button"
+          className={`crm-subnav__btn${crmView === 'analytics' ? ' crm-subnav__btn--active' : ''}`}
+          onClick={() => setCrmView('analytics')}
+        >
+          Analytics
+        </button>
       </nav>
+
+      {stagePrompt ? (
+        <SuggestedTaskPrompt
+          dealName={stagePrompt.dealName}
+          stage={stagePrompt.stage}
+          suggestedTask={stagePrompt.suggestedTask}
+          onAddTask={handleAddSuggestedTask}
+          onStartDd={stagePrompt.stage === 'Starting Due Diligence' ? handleStartDdFromPrompt : null}
+          onDismiss={() => setStagePrompt(null)}
+        />
+      ) : null}
 
       {crmView === 'today' && (
         <>
@@ -107,9 +235,7 @@ export default function CrmDashboard({
 
           <CrmToday
             today={today}
-            onSelectDeal={(id) => {
-              setSelectedDealId(id);
-            }}
+            onSelectDeal={handleSelectDeal}
             onRefresh={handleRefresh}
           />
 
@@ -118,18 +244,14 @@ export default function CrmDashboard({
               <h2>No deals in CRM yet</h2>
               <p>Save a deal from the Aggregator or My Deals — it will show up here with broker and financials filled in.</p>
             </div>
-          ) : selectedDeal ? (
-            <section className="crm-workspace crm-workspace--below-kanban">
-              <CrmDealWorkspace
-                deal={selectedDeal}
-                dealId={selectedDealId}
-                settings={settings}
-                onRefresh={handleRefresh}
-                onSaveCalculatorDefaults={onSaveCalculatorDefaults}
-                onClose={() => setSelectedDealId(null)}
-              />
-            </section>
-          ) : null}
+          ) : workspace}
+        </>
+      )}
+
+      {crmView === 'tasks' && (
+        <>
+          <CrmTaskList onSelectDeal={handleSelectDeal} onRefresh={handleRefresh} />
+          {workspace}
         </>
       )}
 
@@ -141,21 +263,22 @@ export default function CrmDashboard({
             selectedDealId={selectedDealId}
             onSelectDeal={handleSelectDeal}
             onRefresh={handleRefresh}
+            onStageChanged={handleStageChanged}
           />
-          {selectedDeal ? (
-            <section className="crm-workspace crm-workspace--below-kanban">
-              <CrmDealWorkspace
-                deal={selectedDeal}
-                dealId={selectedDealId}
-                settings={settings}
-                onRefresh={handleRefresh}
-                onSaveCalculatorDefaults={onSaveCalculatorDefaults}
-                onClose={() => setSelectedDealId(null)}
-              />
-            </section>
-          ) : null}
+          {workspace}
         </>
       )}
+
+      {crmView === 'contacts' && (
+        <>
+          <CrmContactList deals={deals} onSelectDeal={handleSelectDeal} />
+          {workspace}
+        </>
+      )}
+
+      {crmView === 'calendar' && <CrmCalendar />}
+
+      {crmView === 'analytics' && <CrmAnalytics />}
     </div>
   );
 }

@@ -56,7 +56,8 @@ export default function CrmKanban({
   settings = null,
   selectedDealId = null,
   onSelectDeal,
-  onRefresh
+  onRefresh,
+  onStageChanged = null
 }) {
   const [kanban, setKanban] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -150,7 +151,8 @@ export default function CrmKanban({
 
     setMoving(true);
     try {
-      await crmAPI.updateStage(dealId, targetStage);
+      const result = await crmAPI.updateStage(dealId, targetStage);
+      onStageChanged?.(result, deal.name);
       await loadKanban();
       onRefresh?.();
     } catch (err) {

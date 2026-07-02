@@ -46,6 +46,8 @@ async function apiRequest(endpoint, options = {}) {
     ...options.headers
   };
 
+  const isAuthAttempt = endpoint === '/auth/login' || endpoint === '/auth/register';
+
   let lastError;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
@@ -54,7 +56,7 @@ async function apiRequest(endpoint, options = {}) {
         headers
       });
 
-      if (response.status === 401) {
+      if (response.status === 401 && !isAuthAttempt) {
         removeToken();
         const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
         if (!path.startsWith('/dashboard')) {
@@ -64,8 +66,17 @@ async function apiRequest(endpoint, options = {}) {
       }
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(error.error || 'Request failed');
+        const error = await response.json().catch(() => ({}));
+        if (response.status === 401 && isAuthAttempt) {
+          throw new Error(error.error || 'Invalid email or password');
+        }
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          throw new Error(
+            error.error
+              || 'The API is temporarily unavailable. If you are developing locally, ensure the backend is running on port 3001.'
+          );
+        }
+        throw new Error(error.error || `Request failed (${response.status})`);
       }
 
       return response.json();
@@ -170,12 +181,59 @@ export const dealsAPI = {
 export const crmAPI = {
   getToday: () => apiRequest('/crm/today'),
 
+  getTasks: (status = 'open') => apiRequest(`/crm/tasks?status=${encodeURIComponent(status)}`),
+
+  getContacts: () => apiRequest('/crm/contacts'),
+
+  getAnalytics: () => apiRequest('/crm/analytics'),
+
+  getCalendarStatus: () => apiRequest('/crm/calendar/status'),
+
+  getCalendarOAuthConfig: () => apiRequest('/crm/calendar/oauth-config'),
+
+  startCalendarOAuth: () => apiRequest('/crm/calendar/oauth/start'),
+
+  disconnectCalendar: () =>
+    apiRequest('/crm/calendar/connection', { method: 'DELETE' }),
+
+  getCalendarEvents: (start, end) =>
+    apiRequest(`/crm/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`),
+
+  createCalendarEvent: (payload) =>
+    apiRequest('/crm/calendar/events', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  updateCalendarEvent: (eventId, payload) =>
+    apiRequest(`/crm/calendar/events/${eventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  deleteCalendarEvent: (eventId) =>
+    apiRequest(`/crm/calendar/events/${eventId}`, { method: 'DELETE' }),
+
+  syncCalendar: (start, end) =>
+    apiRequest('/crm/calendar/sync', {
+      method: 'POST',
+      body: JSON.stringify({ start, end })
+    }),
+
   getKanban: () => apiRequest('/crm/kanban'),
 
   updateStage: (savedDealId, progressStage) =>
     apiRequest(`/crm/deals/${savedDealId}/stage`, {
       method: 'PATCH',
       body: JSON.stringify({ progressStage: progressStage ?? null })
+    }),
+
+  getDealDocuments: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/documents`),
+
+  addDealDocument: (savedDealId, payload) =>
+    apiRequest(`/crm/deals/${savedDealId}/documents`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
     }),
 
   getDealActivities: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/activities`),
@@ -220,6 +278,24 @@ export const crmAPI = {
       body: JSON.stringify(payload)
     }),
 
+  addDdGroup: (savedDealId, name) =>
+    apiRequest(`/crm/deals/${savedDealId}/dd/groups`, {
+      method: 'POST',
+      body: JSON.stringify({ name })
+    }),
+
+  addDdItem: (savedDealId, groupId, payload) =>
+    apiRequest(`/crm/deals/${savedDealId}/dd/groups/${groupId}/items`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  addDdItemDocument: (savedDealId, itemId, payload) =>
+    apiRequest(`/crm/deals/${savedDealId}/dd/items/${itemId}/documents`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
   createDdShareLink: (savedDealId, payload) =>
     apiRequest(`/crm/deals/${savedDealId}/dd/share-links`, {
       method: 'POST',
@@ -236,6 +312,18 @@ export const ddPublicAPI = {
   patchItem: (token, itemId, payload) =>
     apiRequest(`/dd/public/${token}/items/${itemId}`, {
       method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  addComment: (token, itemId, payload) =>
+    apiRequest(`/dd/public/${token}/items/${itemId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  addDocument: (token, itemId, payload) =>
+    apiRequest(`/dd/public/${token}/items/${itemId}/documents`, {
+      method: 'POST',
       body: JSON.stringify(payload)
     })
 };

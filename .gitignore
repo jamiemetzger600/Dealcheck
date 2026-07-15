@@ -78,3 +78,9 @@ Desktop.ini
 
 # Firecrawl CLI scrape/search artifacts
 .firecrawl/
+.local-tunnel-url
+.cloudflare-tunnel-id
+.cloudflare-tunnel-token
+
+# Cloudflare Workers local state
+workers/**/.wrangler/

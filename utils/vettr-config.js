@@ -6,7 +6,8 @@
   'use strict';
 
   var PROD_WEB_APP_URL = 'https://vettr.pages.dev';
-  var PROD_API_BASE_URL = 'https://database-vettr-65d5dc25.koyeb.app/api';
+  // Local Mac API via Cloudflare Tunnel (must match live Pages VITE_API_URL while off Koyeb)
+  var PROD_API_BASE_URL = 'https://flowers-frankfurt-den-roger.trycloudflare.com/api';
   var DEV_WEB_APP_URL = 'http://localhost:5173';
   var DEV_API_BASE_URL = 'http://localhost:3001/api';
 

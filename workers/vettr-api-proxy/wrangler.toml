@@ -1,0 +1,9 @@
+name = "vettr-api"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+workers_dev = true
+account_id = "b5fb063c1e439dd0d0ce3ffb317ec52c"
+
+[vars]
+# Overwritten by scripts/sync-tunnel-origin.sh on each tunnel start
+TUNNEL_ORIGIN = "https://flowers-frankfurt-den-roger.trycloudflare.com"

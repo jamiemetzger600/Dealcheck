@@ -939,9 +939,10 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
       )}
       <DealShareMenu
         deal={mergedDeal}
-        onShared={() => {
+        onShared={({ action } = {}) => {
           onUpdate?.();
-          onClose?.();
+          // Keep personal modal open after share so the deal remains visible in My Deals
+          if (action === 'unshare') onClose?.();
         }}
       />
       <button type="button" className="btn-secondary" onClick={onExport}>Export CSV</button>

@@ -148,12 +148,14 @@ export default function DealShareMenu({ deal, className = 'btn-secondary', onSha
       setOpen(false);
       if (data?.pending) {
         alert(
-          `Share requested for ${teamName || 'the team'}. An admin must approve before the deal joins the team.`
+          `Share requested for ${teamName || 'the team'}. An admin must approve before the deal joins the team. Your personal copy stays in My Deals.`
         );
         onShared?.({ action: 'share_pending', teamId, dealId });
       } else {
-        alert(`Deal shared with ${teamName || 'the team'}. Notes are visible for catch-up.`);
-        onShared?.({ action: 'share', teamId, dealId });
+        alert(
+          `Deal shared with ${teamName || 'the team'}. Your personal copy stays in My Deals; the team has its own copy.`
+        );
+        onShared?.({ action: 'share', teamId, dealId, teamSavedDealId: data?.teamSavedDealId });
       }
     } catch (err) {
       console.error('[DealShareMenu] share to team failed', err);
@@ -165,7 +167,7 @@ export default function DealShareMenu({ deal, className = 'btn-secondary', onSha
 
   const handleUnshare = async () => {
     if (!dealId || busy) return;
-    if (!window.confirm('Remove this deal from the team? It returns to the owner’s personal pipeline.')) return;
+    if (!window.confirm('Remove this deal from the team? Personal copies in My Deals are kept.')) return;
     setBusy(true);
     try {
       await teamsAPI.unshareDeal(dealId);

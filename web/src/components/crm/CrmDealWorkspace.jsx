@@ -116,9 +116,9 @@ export default function CrmDealWorkspace({
       const data = await teamsAPI.shareDeal(teamId, dealId);
       await handleRefresh();
       if (data?.pending) {
-        alert('Share requested. An admin must approve before the deal joins the team.');
+        alert('Share requested. An admin must approve before the deal joins the team. Your personal copy stays in My Deals.');
       } else {
-        alert('Deal shared with the team. Notes are visible for catch-up.');
+        alert('Deal shared with the team. Your personal copy stays in My Deals; the team has its own copy.');
       }
     } catch (err) {
       alert(err.message || 'Failed to share');
@@ -129,7 +129,7 @@ export default function CrmDealWorkspace({
 
   const handleUnshare = async () => {
     if (!dealId) return;
-    if (!window.confirm('Remove this deal from the team? It returns to the owner’s personal pipeline.')) return;
+    if (!window.confirm('Remove this deal from the team? Personal copies in My Deals are kept.')) return;
     setSharing(true);
     try {
       await teamsAPI.unshareDeal(dealId);

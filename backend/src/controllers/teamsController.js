@@ -101,28 +101,108 @@ function parseInviteRole(raw, { allowAdmin = true } = {}) {
   return { role };
 }
 
-async function promoteDealToTeam({
+/**
+ * Copy a personal saved deal onto a team workspace.
+ * Personal row is left unchanged so it stays in My Deals.
+ */
+async function copyPersonalDealToTeam({
   savedDealId,
   teamId,
   sharedByUserId,
   actorUserId,
   message
 }) {
+  const src = await pool.query(
+    `SELECT * FROM saved_deals WHERE id = $1 AND team_id IS NULL`,
+    [savedDealId]
+  );
+  const deal = src.rows[0];
+  if (!deal) {
+    const err = new Error('Personal deal not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const dup = await pool.query(
+    `SELECT id FROM saved_deals WHERE team_id = $1 AND deal_id = $2`,
+    [teamId, deal.deal_id]
+  );
+  if (dup.rows[0]) {
+    const err = new Error('This listing is already on the team');
+    err.status = 400;
+    throw err;
+  }
+
+  const inserted = await pool.query(
+    `INSERT INTO saved_deals (
+      user_id, deal_id, name, url, description, broker, broker_name, broker_company,
+      broker_email, broker_phone, source, source_type, discovered_at,
+      asking_price, ebitda, revenue, location, city, state, county, country,
+      industry, years_established, franchise, remote, listing_id,
+      notes, status, progress_stage, progress_history, calculator_state,
+      team_id, shared_by_user_id, market_deal_id, listing_snapshot_at
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8,
+      $9, $10, $11, $12, $13,
+      $14, $15, $16, $17, $18, $19, $20, $21,
+      $22, $23, $24, $25, $26,
+      $27, $28, $29, $30, $31,
+      $32, $33, $34, $35
+    ) RETURNING id`,
+    [
+      deal.user_id,
+      deal.deal_id,
+      deal.name,
+      deal.url,
+      deal.description,
+      deal.broker,
+      deal.broker_name,
+      deal.broker_company,
+      deal.broker_email,
+      deal.broker_phone,
+      deal.source,
+      deal.source_type,
+      deal.discovered_at,
+      deal.asking_price,
+      deal.ebitda,
+      deal.revenue,
+      deal.location,
+      deal.city,
+      deal.state,
+      deal.county,
+      deal.country,
+      deal.industry,
+      deal.years_established,
+      deal.franchise,
+      deal.remote,
+      deal.listing_id,
+      deal.notes,
+      deal.status,
+      deal.progress_stage,
+      deal.progress_history || [],
+      deal.calculator_state,
+      teamId,
+      sharedByUserId,
+      deal.market_deal_id,
+      deal.listing_snapshot_at
+    ]
+  );
+  const teamSavedDealId = inserted.rows[0].id;
+  const actor = actorUserId || sharedByUserId;
+  const body = message || 'Deal shared with the team';
+
   await pool.query(
-    `UPDATE saved_deals
-     SET team_id = $1, shared_by_user_id = $2, updated_at = CURRENT_TIMESTAMP
-     WHERE id = $3 AND team_id IS NULL`,
-    [teamId, sharedByUserId, savedDealId]
+    `INSERT INTO deal_messages (saved_deal_id, author_user_id, body, message_kind)
+     VALUES ($1, $2, $3, 'system')`,
+    [teamSavedDealId, actor, body]
   );
   await pool.query(
     `INSERT INTO deal_messages (saved_deal_id, author_user_id, body, message_kind)
      VALUES ($1, $2, $3, 'system')`,
-    [
-      savedDealId,
-      actorUserId || sharedByUserId,
-      message || 'Deal shared with the team'
-    ]
+    [savedDealId, actor, body]
   );
+
+  return { teamSavedDealId, personalSavedDealId: savedDealId, dealId: deal.deal_id };
 }
 
 export const listTeams = async (req, res) => {
@@ -532,23 +612,31 @@ export const shareDealToTeam = async (req, res) => {
     const access = await getDealAccess(req.user.userId, savedDealId);
     assertCanRead(access);
     if (access.deal.team_id) {
-      return res.status(400).json({ error: 'Deal is already on a team' });
+      return res.status(400).json({ error: 'Open the personal copy of this deal to share it' });
     }
     if (access.deal.user_id !== req.user.userId) {
       return res.status(403).json({ error: 'Only the deal owner can share it' });
     }
 
-    // Admin: share immediately
+    // Admin: copy onto team immediately (personal deal stays)
     if (membership.role === 'admin') {
-      await promoteDealToTeam({
+      const copied = await copyPersonalDealToTeam({
         savedDealId,
         teamId,
         sharedByUserId: req.user.userId,
         actorUserId: req.user.userId,
         message: `${req.user.email || 'Someone'} shared this deal with the team`
       });
-      console.log(`[teams] deal=${savedDealId} shared to team=${teamId} by admin`);
-      return res.json({ shared: true, pending: false, teamId, savedDealId });
+      console.log(
+        `[teams] deal=${savedDealId} copied to team=${teamId} as ${copied.teamSavedDealId} by admin`
+      );
+      return res.json({
+        shared: true,
+        pending: false,
+        teamId,
+        savedDealId,
+        teamSavedDealId: copied.teamSavedDealId
+      });
     }
 
     // Member: queue for admin approval (deal stays personal until approved)
@@ -594,7 +682,7 @@ export const shareDealToTeam = async (req, res) => {
   }
 };
 
-/** Remove deal from team → back to original owner personal. */
+/** Remove the team copy of a deal. Personal copy is left alone. */
 export const unshareDeal = async (req, res) => {
   const savedDealId = Number(req.params.dealId);
   try {
@@ -608,20 +696,19 @@ export const unshareDeal = async (req, res) => {
     }
 
     const ownerId = access.deal.user_id;
-    await pool.query(
-      `UPDATE saved_deals
-       SET team_id = NULL, shared_by_user_id = NULL, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
+    const result = await pool.query(
+      `DELETE FROM saved_deals
+       WHERE id = $1 AND team_id IS NOT NULL
+       RETURNING id, deal_id, team_id`,
       [savedDealId]
     );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Team deal not found' });
+    }
 
-    await pool.query(
-      `INSERT INTO deal_messages (saved_deal_id, author_user_id, body, message_kind)
-       VALUES ($1, $2, $3, 'system')`,
-      [savedDealId, req.user.userId, `${req.user.email || 'Someone'} removed this deal from the team`]
+    console.log(
+      `[teams] deal=${savedDealId} removed from team=${result.rows[0].team_id}; personal owner=${ownerId}`
     );
-
-    console.log(`[teams] deal=${savedDealId} unshared; owner=${ownerId}`);
     res.json({ unshared: true, savedDealId, ownerId });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
@@ -702,21 +789,30 @@ export const reviewApproval = async (req, res) => {
       }
 
       const dealRow = await pool.query(
-        `SELECT id, team_id, user_id FROM saved_deals WHERE id = $1`,
+        `SELECT id, team_id, user_id, deal_id FROM saved_deals WHERE id = $1`,
         [approval.saved_deal_id]
       );
       const deal = dealRow.rows[0];
       if (!deal) {
         return res.status(404).json({ error: 'Deal not found' });
       }
+
+      let teamSavedDealId = null;
       if (!deal.team_id) {
-        await promoteDealToTeam({
-          savedDealId: approval.saved_deal_id,
-          teamId: approval.team_id,
-          sharedByUserId: approval.requested_by,
-          actorUserId: req.user.userId,
-          message: `${req.user.email || 'Admin'} approved sharing this deal with the team`
-        });
+        try {
+          const copied = await copyPersonalDealToTeam({
+            savedDealId: approval.saved_deal_id,
+            teamId: approval.team_id,
+            sharedByUserId: approval.requested_by,
+            actorUserId: req.user.userId,
+            message: `${req.user.email || 'Admin'} approved sharing this deal with the team`
+          });
+          teamSavedDealId = copied.teamSavedDealId;
+        } catch (copyErr) {
+          // Already on team from a race / prior share — still clear the approval
+          if (copyErr.status !== 400) throw copyErr;
+          console.warn(`[teams] share approval=${approvalId}: ${copyErr.message}`);
+        }
       }
       await pool.query(
         `UPDATE deal_approvals
@@ -724,8 +820,15 @@ export const reviewApproval = async (req, res) => {
          WHERE id = $3`,
         [req.user.userId, note, approvalId]
       );
-      console.log(`[teams] share approval=${approvalId} approved deal=${approval.saved_deal_id}`);
-      return res.json({ status: 'approved', shared: true, savedDealId: approval.saved_deal_id });
+      console.log(
+        `[teams] share approval=${approvalId} approved personal=${approval.saved_deal_id} teamCopy=${teamSavedDealId}`
+      );
+      return res.json({
+        status: 'approved',
+        shared: true,
+        savedDealId: approval.saved_deal_id,
+        teamSavedDealId
+      });
     }
 
     const access = await getDealAccess(req.user.userId, approval.saved_deal_id);

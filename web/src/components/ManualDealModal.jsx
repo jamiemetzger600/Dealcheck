@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { dealsAPI } from '../utils/api';
+import { useTeam } from '../context/TeamContext';
 
 export default function ManualDealModal({ isOpen, onClose, onSaved }) {
+  const { saveTeamId } = useTeam();
   const [form, setForm] = useState({
     name: '', description: '', city: '', state: '', industry: '', askingPrice: '', revenue: '', ebitda: '', brokerName: '', brokerPhone: '', brokerEmail: '', notes: ''
   });
@@ -56,7 +58,8 @@ export default function ManualDealModal({ isOpen, onClose, onSaved }) {
         source: 'Manual deal',
         sourceType: 'manual',
         discoveredAt: Date.now(),
-        notes: form.notes.trim() || null
+        notes: form.notes.trim() || null,
+        ...(saveTeamId ? { teamId: saveTeamId } : {})
       });
       if (typeof onSaved === 'function') {
         await Promise.resolve(onSaved());

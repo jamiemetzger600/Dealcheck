@@ -26,6 +26,7 @@ export function normalizeDeal(deal) {
     vettrId: deal.id,
     dealId: deal.deal_id || deal.dealId,
     marketDealId: deal.market_deal_id ?? deal.marketDealId ?? null,
+    teamId: deal.team_id ?? deal.teamId ?? null,
     listingSnapshotAt: deal.listing_snapshot_at || deal.listingSnapshotAt,
     
     // Basic info

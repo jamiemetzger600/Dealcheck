@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { userAPI } from '../utils/api';
 import Navigation from '../components/Navigation';
+import TeamsSettingsPanel from '../components/TeamsSettingsPanel';
 import { useAuth } from '../context/AuthContext';
 
 const SETTINGS_EXPORT_VERSION = 1;
@@ -358,6 +359,11 @@ export default function SettingsPage() {
             <strong>API base URL</strong> (for reference):{' '}
             {viteApiUrl || 'Use the same value as VITE_API_URL in production, or the Vite dev proxy at /api locally.'}
           </p>
+        </div>
+
+        <div className="settings-section">
+          <h2>Teams</h2>
+          <TeamsSettingsPanel />
         </div>
 
         <div className="settings-section">

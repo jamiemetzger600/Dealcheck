@@ -2,19 +2,19 @@ import pool from '../db/pool.js';
 import { assertDealOwned } from './crmTaskService.js';
 
 export async function listDealDocuments(userId, savedDealId) {
-  await assertDealOwned(userId, savedDealId);
+  await assertDealOwned(userId, savedDealId, { write: false });
   const result = await pool.query(
-    `SELECT id, doc_type, filename, mime_type, notes, uploaded_at
+    `SELECT id, doc_type, filename, mime_type, notes, uploaded_at, user_id
      FROM deal_documents
-     WHERE user_id = $1 AND saved_deal_id = $2
+     WHERE saved_deal_id = $1
      ORDER BY uploaded_at DESC`,
-    [userId, savedDealId]
+    [savedDealId]
   );
   return result.rows;
 }
 
 export async function addDealDocument(userId, savedDealId, { filename, docType = 'other', mimeType, notes, storageKey }) {
-  await assertDealOwned(userId, savedDealId);
+  await assertDealOwned(userId, savedDealId, { write: true });
   const name = (filename || '').trim();
   if (!name) {
     const err = new Error('Filename required');

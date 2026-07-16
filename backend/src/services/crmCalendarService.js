@@ -1,4 +1,5 @@
 import pool from '../db/pool.js';
+import { getDealAccess, assertCanWrite, VISIBLE_DEALS_SQL } from '../lib/teamAcl.js';
 import {
   listGoogleCalendarEvents,
   createGoogleCalendarEvent,
@@ -121,9 +122,9 @@ async function pushOpenTasksToGoogle(userId, startIso, endIso) {
     `SELECT t.id, t.title, t.due_at, t.saved_deal_id, t.status, sd.name AS deal_name,
             ce.google_event_id
      FROM tasks t
-     JOIN saved_deals sd ON sd.id = t.saved_deal_id AND sd.user_id = $1
+     JOIN saved_deals sd ON sd.id = t.saved_deal_id
      LEFT JOIN calendar_events ce ON ce.task_id = t.id AND ce.user_id = $1 AND ce.deleted_at IS NULL
-     WHERE t.user_id = $1
+     WHERE ${VISIBLE_DEALS_SQL}
        AND t.status = 'open'
        AND t.due_at IS NOT NULL
        AND t.due_at >= $2::timestamptz
@@ -251,15 +252,8 @@ export async function createCalendarEvent(userId, { title, description, startsAt
   }
 
   if (savedDealId) {
-    const deal = await pool.query(
-      'SELECT id FROM saved_deals WHERE user_id = $1 AND id = $2',
-      [userId, savedDealId]
-    );
-    if (!deal.rows.length) {
-      const err = new Error('Deal not found');
-      err.status = 404;
-      throw err;
-    }
+    const access = await getDealAccess(userId, savedDealId);
+    assertCanWrite(access);
   }
 
   const inserted = await pool.query(

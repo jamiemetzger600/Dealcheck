@@ -10,6 +10,7 @@ import ddPublicRoutes from './routes/ddPublic.js';
 import paymentsRoutes from './routes/payments.js';
 import airtableDealsRoutes from './routes/airtableDeals.js';
 import marketDealsRoutes from './routes/marketDeals.js';
+import teamsRoutes from './routes/teams.js';
 import './services/notificationScheduler.js'; // Start notification jobs
 import './services/airtableScraper.js';
 import { validateConfig } from './config.js';
@@ -60,7 +61,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '5.0.27' });
+  res.json({ status: 'ok', version: '5.0.38' });
 });
 
 // Routes
@@ -68,6 +69,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/crm', crmRoutes);
+app.use('/api/teams', teamsRoutes);
 app.use('/api/dd/public', ddPublicRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/airtable-deals', airtableDealsRoutes);

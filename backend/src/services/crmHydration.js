@@ -95,7 +95,7 @@ async function applyMarketSnapshot(savedDealId, userId, marketRow) {
       source = COALESCE($22, source),
       listing_snapshot_at = NOW(),
       updated_at = CURRENT_TIMESTAMP
-     WHERE id = $23 AND user_id = $24`,
+     WHERE id = $23`,
     [
       marketRow.id,
       marketRow.name,
@@ -121,8 +121,7 @@ async function applyMarketSnapshot(savedDealId, userId, marketRow) {
         ? `${marketRow.broker_name} (${marketRow.broker_company})`
         : (marketRow.broker_name || marketRow.broker_company),
       marketRow.source,
-      savedDealId,
-      userId
+      savedDealId
     ]
   );
 }
@@ -212,16 +211,16 @@ export async function hydrateCrmForSavedDeal(userId, savedDealId, payload = {}) 
         await applyMarketSnapshot(savedDealId, userId, marketRow);
       } else {
         await pool.query(
-          `UPDATE saved_deals SET market_deal_id = $1, listing_snapshot_at = NOW() WHERE id = $2 AND user_id = $3`,
-          [marketDealId, savedDealId, userId]
+          `UPDATE saved_deals SET market_deal_id = $1, listing_snapshot_at = NOW() WHERE id = $2`,
+          [marketDealId, savedDealId]
         );
       }
     }
 
     const dealRow = await pool.query(
       `SELECT broker_name, broker_company, broker_email, broker_phone, name, source
-       FROM saved_deals WHERE id = $1 AND user_id = $2`,
-      [savedDealId, userId]
+       FROM saved_deals WHERE id = $1`,
+      [savedDealId]
     );
     const deal = dealRow.rows[0];
     if (!deal) return { marketDealId, contactId: null };

@@ -3,6 +3,12 @@ import bcrypt from 'bcrypt';
 import pool from '../db/pool.js';
 import { BUSINESS_ACQUISITION_DD_TEMPLATE } from '../data/ddBusinessTemplate.js';
 import { sendEmail } from './emailService.js';
+import {
+  getDealAccess,
+  assertCanRead,
+  assertCanWrite,
+  VISIBLE_DEALS_SQL
+} from '../lib/teamAcl.js';
 
 const WEB_APP_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
 
@@ -71,8 +77,9 @@ export async function getRecentPortalComments(userId, days = 7) {
      JOIN dd_items i ON i.id = c.item_id
      JOIN dd_groups g ON g.id = i.group_id
      JOIN dd_checklists cl ON cl.id = g.checklist_id
-     JOIN saved_deals sd ON sd.id = cl.saved_deal_id AND sd.user_id = $1
-     WHERE c.is_external = true
+     JOIN saved_deals sd ON sd.id = cl.saved_deal_id
+     WHERE ${VISIBLE_DEALS_SQL}
+       AND c.is_external = true
        AND c.created_at >= NOW() - ($2::int || ' days')::interval
      ORDER BY c.created_at DESC
      LIMIT 30`,
@@ -115,21 +122,19 @@ export async function ensureSystemDdTemplate() {
   return templateId;
 }
 
-async function assertDealOwned(userId, savedDealId) {
-  const row = await pool.query(
-    'SELECT id, name, progress_stage FROM saved_deals WHERE user_id = $1 AND id = $2',
-    [userId, savedDealId]
-  );
-  if (!row.rows.length) {
-    const err = new Error('Deal not found');
-    err.status = 404;
-    throw err;
-  }
-  return row.rows[0];
+async function assertDealOwned(userId, savedDealId, { write = true } = {}) {
+  const access = await getDealAccess(userId, savedDealId);
+  if (write) assertCanWrite(access);
+  else assertCanRead(access);
+  return {
+    id: access.deal.id,
+    name: access.deal.name,
+    progress_stage: access.deal.progress_stage
+  };
 }
 
 export async function getChecklistForDeal(userId, savedDealId) {
-  await assertDealOwned(userId, savedDealId);
+  await assertDealOwned(userId, savedDealId, { write: false });
   const cl = await pool.query(
     `SELECT c.id, c.template_id, c.started_at, c.completed_at, t.name AS template_name
      FROM dd_checklists c
@@ -596,8 +601,9 @@ export async function getDdOverdueForToday(userId) {
      FROM dd_items i
      JOIN dd_groups g ON g.id = i.group_id
      JOIN dd_checklists c ON c.id = g.checklist_id
-     JOIN saved_deals sd ON sd.id = c.saved_deal_id AND sd.user_id = $1
-     WHERE i.status NOT IN ('complete', 'na')
+     JOIN saved_deals sd ON sd.id = c.saved_deal_id
+     WHERE ${VISIBLE_DEALS_SQL}
+       AND i.status NOT IN ('complete', 'na')
        AND i.due_at IS NOT NULL AND i.due_at < NOW()
      ORDER BY i.due_at ASC
      LIMIT 20`,

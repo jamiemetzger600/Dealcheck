@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTeam } from '../context/TeamContext';
 import { userAPI, dealsAPI, paymentsAPI } from '../utils/api';
 import { normalizeDeal } from '../utils/normalizeDeal';
 import DealAggregator from '../components/DealAggregator';
@@ -54,6 +55,7 @@ function clearSkipGuestOnboardingAfterLogout() {
 
 export default function DashboardPage({ feedSource = 'airtable' }) {
   const { user, logout, loading: authLoading } = useAuth();
+  const { activeTeamId } = useTeam();
   const { isGuest, entitlements, requireSignup } = useGuestAccess(user);
   const [searchParams] = useSearchParams();
   const initialDealDbId = searchParams.get('dealDbId') || null;
@@ -75,6 +77,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   });
   const [settings, setSettings] = useState(null);
   const [savedDeals, setSavedDeals] = useState([]);
+  /** All personal + team saves — used for aggregator “already saved” markers only. */
+  const [savedDealIndex, setSavedDealIndex] = useState([]);
   const [crmBadgeCount, setCrmBadgeCount] = useState(0);
   const [crmInitialDealId, setCrmInitialDealId] = useState(null);
   const [matchCount, setMatchCount] = useState(0);
@@ -101,6 +105,63 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     }
     return false;
   });
+  const teamScopeBootstrappedRef = useRef(false);
+
+  const loadScopedSavedDeals = useCallback(async () => {
+    if (authLoading || isGuest) return;
+    const dealsOpts = activeTeamId
+      ? { scope: 'team', teamId: activeTeamId }
+      : { scope: 'personal' };
+    const dealsData = await dealsAPI.getSavedDeals(dealsOpts);
+    const normalized = (dealsData.deals || []).map(normalizeDeal);
+    console.log('[Dashboard] scoped saved deals loaded', {
+      scope: dealsOpts.scope,
+      teamId: dealsOpts.teamId ?? null,
+      count: normalized.length
+    });
+    setSavedDeals(normalized);
+  }, [authLoading, isGuest, activeTeamId]);
+
+  const loadSavedDealIndex = useCallback(async () => {
+    if (authLoading || isGuest) return;
+    const dealsData = await dealsAPI.getSavedDeals({ scope: 'all' });
+    setSavedDealIndex((dealsData.deals || []).map(normalizeDeal));
+  }, [authLoading, isGuest]);
+
+  const loadSettings = useCallback(async () => {
+    if (authLoading) return;
+    if (isGuest) {
+      setSettings(loadGuestSettings());
+      setSavedDeals([]);
+      setSavedDealIndex([]);
+      return;
+    }
+    const settingsData = await userAPI.getSettings();
+    setSettings(settingsData);
+  }, [authLoading, isGuest]);
+
+  /** Full refresh after save / settings change — does not block the dashboard UI. */
+  const loadUserData = useCallback(async () => {
+    if (authLoading) return;
+
+    if (isGuest) {
+      await loadSettings();
+      setLoading(false);
+      return;
+    }
+
+    try {
+      await Promise.all([
+        loadSettings(),
+        loadScopedSavedDeals(),
+        loadSavedDealIndex()
+      ]);
+    } catch (error) {
+      console.error('Failed to load user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [authLoading, isGuest, loadSettings, loadScopedSavedDeals, loadSavedDealIndex]);
 
   const persistSettings = useCallback(
     async (patch) => {
@@ -113,41 +174,28 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       await loadUserData();
       return updated;
     },
-    [isGuest]
+    [isGuest, loadUserData]
   );
 
-  const loadUserData = useCallback(async () => {
-    if (authLoading) return;
-
-    if (isGuest) {
-      const guestSettings = loadGuestSettings();
-      setSettings(guestSettings);
-      setSavedDeals([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const [settingsData, dealsData] = await Promise.all([
-        userAPI.getSettings(),
-        dealsAPI.getSavedDeals(),
-      ]);
-
-      setSettings(settingsData);
-      const normalized = (dealsData.deals || []).map(normalizeDeal);
-      setSavedDeals(normalized);
-    } catch (error) {
-      console.error('Failed to load user data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [isGuest, authLoading]);
-
+  /** Initial dashboard boot only — team switches must not unmount the aggregator. */
   useEffect(() => {
     if (authLoading) return;
     setLoading(true);
     loadUserData();
-  }, [loadUserData, authLoading]);
+  }, [authLoading, isGuest]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Team workspace change: refresh My Deals / CRM list silently; market feed stays mounted. */
+  useEffect(() => {
+    if (authLoading || isGuest) return;
+    if (!teamScopeBootstrappedRef.current) {
+      teamScopeBootstrappedRef.current = true;
+      return;
+    }
+    setSavedDeals([]);
+    loadScopedSavedDeals().catch((err) => {
+      console.error('[Dashboard] team saved deals refresh failed:', err);
+    });
+  }, [activeTeamId, authLoading, isGuest, loadScopedSavedDeals]);
 
   /** Live refresh when the Chrome extension saves/updates a deal on the web API. */
   useEffect(() => {
@@ -253,12 +301,44 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     }
   };
 
+  const aggregatorSavedEntries = useMemo(() => savedDealIndex, [savedDealIndex]);
+
   const savedRowIdByMarketDealId = useMemo(() => {
     const map = {};
-    for (const d of savedDeals) {
+    for (const d of aggregatorSavedEntries) {
       if (d.dealId != null && d.dealId !== '') {
         map[String(d.dealId)] = d.id;
       }
+      if (d.marketDealId != null && d.marketDealId !== '') {
+        map[String(d.marketDealId)] = d.id;
+      }
+    }
+    return map;
+  }, [aggregatorSavedEntries]);
+
+  const aggregatorSavedDealIds = useMemo(() => {
+    const ids = [];
+    for (const d of aggregatorSavedEntries) {
+      if (d.dealId != null && d.dealId !== '') ids.push(String(d.dealId));
+      if (d.marketDealId != null && d.marketDealId !== '') ids.push(String(d.marketDealId));
+    }
+    return ids;
+  }, [aggregatorSavedEntries]);
+
+  const saveScopeSavedDealIds = useMemo(() => {
+    const ids = [];
+    for (const d of savedDeals) {
+      if (d.dealId != null && d.dealId !== '') ids.push(String(d.dealId));
+      if (d.marketDealId != null && d.marketDealId !== '') ids.push(String(d.marketDealId));
+    }
+    return ids;
+  }, [savedDeals]);
+
+  const saveScopeRowIdByMarketDealId = useMemo(() => {
+    const map = {};
+    for (const d of savedDeals) {
+      if (d.dealId != null && d.dealId !== '') map[String(d.dealId)] = d.id;
+      if (d.marketDealId != null && d.marketDealId !== '') map[String(d.marketDealId)] = d.id;
     }
     return map;
   }, [savedDeals]);
@@ -348,8 +428,10 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
               setShowBuyBoxModal(true);
             }}
             feedSource={feedSource}
-            savedDealIds={savedDeals.map((d) => d.dealId ?? d.id).filter(Boolean)}
+            savedDealIds={aggregatorSavedDealIds}
             savedRowIdByMarketDealId={savedRowIdByMarketDealId}
+            saveScopeSavedDealIds={saveScopeSavedDealIds}
+            saveScopeRowIdByMarketDealId={saveScopeRowIdByMarketDealId}
             poolNewDealsFilter={poolNewDealsFilter}
             onClearPoolNewDealsFilter={() => setPoolNewDealsFilter(null)}
             isGuest={isGuest}

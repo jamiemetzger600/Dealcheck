@@ -29,11 +29,14 @@ import {
   deleteCalendarEvent,
   syncCalendarRange
 } from '../services/crmCalendarService.js';
+import { getDealAccess, assertCanRead, assertCanWrite, getMembership, VISIBLE_DEALS_SQL } from '../lib/teamAcl.js';
+import { getUnreadCounts } from '../services/dealThreadService.js';
 
 const KANBAN_DEAL_FIELDS = `
   id, deal_id, name, url, progress_stage, progress_history, status,
   asking_price, ebitda, revenue, city, state, industry, source,
-  market_deal_id, calculator_state, saved_at, updated_at
+  market_deal_id, calculator_state, saved_at, updated_at,
+  team_id, shared_by_user_id, user_id
 `;
 
 function normalizeProgressHistory(raw) {
@@ -47,18 +50,77 @@ function normalizeProgressHistory(raw) {
   }
 }
 
+async function queryScopedDeals(userId, { scope, teamId, fields }) {
+  let params;
+  let whereSql;
+
+  if (scope === 'team' && teamId) {
+    const membership = await getMembership(userId, teamId);
+    if (!membership) {
+      const err = new Error('Not a team member');
+      err.status = 403;
+      throw err;
+    }
+    // Do not pass unused $1 (userId) — Postgres 42P18 with node-pg.
+    params = [teamId];
+    whereSql = `team_id = $1`;
+  } else if (scope === 'all') {
+    params = [userId];
+    whereSql = `(
+      (user_id = $1 AND team_id IS NULL)
+      OR (
+        team_id IS NOT NULL AND EXISTS (
+          SELECT 1 FROM team_members tm
+          WHERE tm.team_id = saved_deals.team_id
+            AND tm.user_id = $1 AND tm.status = 'active'
+        )
+      )
+    )`;
+  } else {
+    params = [userId];
+    whereSql = `user_id = $1 AND team_id IS NULL`;
+  }
+
+  return pool.query(
+    `SELECT ${fields} FROM saved_deals WHERE ${whereSql} ORDER BY updated_at DESC`,
+    params
+  );
+}
+
 export const getCrmKanban = async (req, res) => {
   try {
     const userId = req.user.userId;
+    const scope = String(req.query.scope || 'personal').toLowerCase();
+    const teamId = req.query.teamId ? Number(req.query.teamId) : null;
 
-    const result = await pool.query(
-      `SELECT ${KANBAN_DEAL_FIELDS} FROM saved_deals WHERE user_id = $1 ORDER BY updated_at DESC`,
-      [userId]
+    const result = await queryScopedDeals(userId, {
+      scope,
+      teamId,
+      fields: KANBAN_DEAL_FIELDS
+    });
+
+    const unread = await getUnreadCounts(
+      userId,
+      result.rows.map((r) => r.id)
+    ).catch(() => ({}));
+
+    const pendingApprovals = teamId
+      ? await pool.query(
+          `SELECT saved_deal_id, id, to_value, from_value, status, requested_by
+           FROM deal_approvals
+           WHERE team_id = $1 AND status = 'pending'`,
+          [teamId]
+        ).catch(() => ({ rows: [] }))
+      : { rows: [] };
+    const pendingByDeal = new Map(
+      pendingApprovals.rows.map((a) => [a.saved_deal_id, a])
     );
 
     const deals = result.rows.map((row) => ({
       ...row,
-      progress_history: normalizeProgressHistory(row.progress_history)
+      progress_history: normalizeProgressHistory(row.progress_history),
+      unread_messages: unread[row.id] || 0,
+      pending_approval: pendingByDeal.get(row.id) || null
     }));
 
     const buckets = new Map(KANBAN_COLUMNS.map((col) => [col.id, []]));
@@ -81,9 +143,12 @@ export const getCrmKanban = async (req, res) => {
       unstagedKey: UNSTAGED_KEY,
       stages: PIPELINE_STAGES,
       kanbanColumns: KANBAN_COLUMNS.map(({ id, label }) => ({ id, label })),
-      totalDeals: deals.length
+      totalDeals: deals.length,
+      scope,
+      teamId: teamId || null
     });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('[crm] getCrmKanban error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -101,6 +166,9 @@ export const patchDealStage = async (req, res) => {
     if (error.status === 404) {
       return res.status(404).json({ error: 'Deal not found' });
     }
+    if (error.status === 403) {
+      return res.status(403).json({ error: error.message });
+    }
     if (error.message === 'Invalid pipeline stage') {
       return res.status(400).json({ error: error.message });
     }
@@ -112,11 +180,27 @@ export const patchDealStage = async (req, res) => {
 export const getCrmToday = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const dealsResult = await pool.query(
-      `SELECT id, deal_id, name, progress_stage, market_deal_id, saved_at, updated_at
-       FROM saved_deals WHERE user_id = $1 ORDER BY updated_at DESC`,
+    const scope = String(req.query.scope || 'all').toLowerCase();
+    const teamId = req.query.teamId ? Number(req.query.teamId) : null;
+
+    const dealsResult = await queryScopedDeals(userId, {
+      scope: scope === 'team' ? 'team' : scope === 'personal' ? 'personal' : 'all',
+      teamId,
+      fields: 'id, deal_id, name, progress_stage, market_deal_id, saved_at, updated_at, team_id'
+    });
+
+    const approvals = await pool.query(
+      `SELECT a.id, a.saved_deal_id, a.team_id, a.from_value, a.to_value, a.created_at,
+              sd.name AS deal_name, u.email AS requester_email
+       FROM deal_approvals a
+       JOIN saved_deals sd ON sd.id = a.saved_deal_id
+       JOIN users u ON u.id = a.requested_by
+       JOIN team_members tm ON tm.team_id = a.team_id AND tm.user_id = $1
+         AND tm.status = 'active' AND tm.role = 'admin'
+       WHERE a.status = 'pending'
+       ORDER BY a.created_at ASC`,
       [userId]
-    );
+    ).catch(() => ({ rows: [] }));
 
     const taskSummary = await getTodayTaskSummary(userId).catch((err) => {
       console.warn('[crm] getTodayTaskSummary skipped:', err.message);
@@ -139,8 +223,8 @@ export const getCrmToday = async (req, res) => {
       `SELECT a.id, a.saved_deal_id, a.activity_type, a.body, a.occurred_at, a.metadata,
               sd.name AS deal_name
        FROM activities a
-       JOIN saved_deals sd ON sd.id = a.saved_deal_id AND sd.user_id = $1
-       WHERE a.user_id = $1
+       JOIN saved_deals sd ON sd.id = a.saved_deal_id
+       WHERE ${VISIBLE_DEALS_SQL}
        ORDER BY a.occurred_at DESC
        LIMIT 50`,
       [userId]
@@ -154,10 +238,16 @@ export const getCrmToday = async (req, res) => {
       staleListings,
       ddOverdue,
       portalComments,
+      pendingApprovals: approvals.rows,
       badgeCount:
-        taskSummary.badgeCount + staleListings.length + ddOverdue.length + portalComments.length
+        taskSummary.badgeCount
+        + staleListings.length
+        + ddOverdue.length
+        + portalComments.length
+        + approvals.rows.length
     });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('[crm] getCrmToday error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -166,13 +256,8 @@ export const getCrmToday = async (req, res) => {
 export const getDealActivities = async (req, res) => {
   const { id } = req.params;
   try {
-    const dealCheck = await pool.query(
-      'SELECT id FROM saved_deals WHERE user_id = $1 AND id = $2',
-      [req.user.userId, id]
-    );
-    if (dealCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Deal not found' });
-    }
+    const access = await getDealAccess(req.user.userId, id);
+    assertCanRead(access);
 
     const contacts = await pool.query(
       `SELECT c.id, c.name, c.email, c.phone, dc.role, co.name AS company_name
@@ -186,13 +271,24 @@ export const getDealActivities = async (req, res) => {
     const activities = await pool.query(
       `SELECT id, activity_type, body, metadata, occurred_at, contact_id
        FROM activities
-       WHERE user_id = $1 AND saved_deal_id = $2
+       WHERE saved_deal_id = $1
        ORDER BY occurred_at DESC`,
-      [req.user.userId, id]
+      [id]
     );
 
-    res.json({ contacts: contacts.rows, activities: activities.rows });
+    res.json({
+      contacts: contacts.rows,
+      activities: activities.rows,
+      access: {
+        canWrite: access.canWrite,
+        canUnshare: access.canUnshare,
+        canApprove: access.canApprove,
+        role: access.role,
+        teamId: access.deal.team_id
+      }
+    });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('[crm] getDealActivities error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -207,13 +303,8 @@ export const addDealActivity = async (req, res) => {
   }
 
   try {
-    const dealCheck = await pool.query(
-      'SELECT id FROM saved_deals WHERE user_id = $1 AND id = $2',
-      [req.user.userId, id]
-    );
-    if (dealCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Deal not found' });
-    }
+    const access = await getDealAccess(req.user.userId, id);
+    assertCanWrite(access);
 
     const result = await pool.query(
       `INSERT INTO activities (user_id, saved_deal_id, activity_type, body)
@@ -224,6 +315,7 @@ export const addDealActivity = async (req, res) => {
 
     res.status(201).json({ activity: result.rows[0] });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('[crm] addDealActivity error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -232,10 +324,13 @@ export const addDealActivity = async (req, res) => {
 export const refreshDealFromListing = async (req, res) => {
   const { id } = req.params;
   try {
+    const access = await getDealAccess(req.user.userId, id);
+    assertCanWrite(access);
+
     const dealRow = await pool.query(
       `SELECT id, deal_id, listing_id, source, broker_name, broker_company, broker_email, broker_phone
-       FROM saved_deals WHERE user_id = $1 AND id = $2`,
-      [req.user.userId, id]
+       FROM saved_deals WHERE id = $1`,
+      [id]
     );
     if (dealRow.rows.length === 0) {
       return res.status(404).json({ error: 'Deal not found' });
@@ -254,6 +349,7 @@ export const refreshDealFromListing = async (req, res) => {
 
     res.json({ message: 'Listing data refreshed', ...result });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('[crm] refreshDealFromListing error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -331,6 +427,7 @@ export const patchTask = async (req, res) => {
 export const getCrmContacts = async (req, res) => {
   try {
     const userId = req.user.userId;
+    // Contacts owned by user OR linked to any visible (personal/team) deal
     const result = await pool.query(
       `SELECT c.id, c.name, c.email, c.phone, co.name AS company_name,
               COALESCE(linked.deals, '[]'::json) AS linked_deals,
@@ -341,10 +438,25 @@ export const getCrmContacts = async (req, res) => {
          SELECT json_agg(json_build_object('id', sd.id, 'name', sd.name) ORDER BY sd.name) AS deals,
                 COUNT(DISTINCT sd.id)::int AS deal_count
          FROM deal_contacts dc
-         JOIN saved_deals sd ON sd.id = dc.saved_deal_id AND sd.user_id = $1
+         JOIN saved_deals sd ON sd.id = dc.saved_deal_id
          WHERE dc.contact_id = c.id
+           AND ${VISIBLE_DEALS_SQL}
        ) linked ON true
        WHERE c.user_id = $1
+          OR EXISTS (
+            SELECT 1 FROM deal_contacts dc2
+            JOIN saved_deals sd2 ON sd2.id = dc2.saved_deal_id
+            WHERE dc2.contact_id = c.id
+              AND (
+                (sd2.user_id = $1 AND sd2.team_id IS NULL)
+                OR (
+                  sd2.team_id IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM team_members tm
+                    WHERE tm.team_id = sd2.team_id AND tm.user_id = $1 AND tm.status = 'active'
+                  )
+                )
+              )
+          )
        ORDER BY c.name NULLS LAST, c.email`,
       [userId]
     );
@@ -357,7 +469,9 @@ export const getCrmContacts = async (req, res) => {
 
 export const getCrmAnalytics = async (req, res) => {
   try {
-    const analytics = await getCrmFunnelAnalytics(req.user.userId);
+    const scope = String(req.query.scope || 'all').toLowerCase();
+    const teamId = req.query.teamId ? Number(req.query.teamId) : null;
+    const analytics = await getCrmFunnelAnalytics(req.user.userId, { scope, teamId });
     res.json(analytics);
   } catch (error) {
     console.error('[crm] getCrmAnalytics error:', error);
@@ -393,7 +507,7 @@ export const getCalendarOAuthConfig = async (req, res) => {
     const configured = isGoogleCalendarOAuthConfigured();
     res.json({
       oauthConfigured: configured,
-      redirectUri: configured ? getGoogleCalendarRedirectUri() : null
+      redirectUri: getGoogleCalendarRedirectUri()
     });
   } catch (error) {
     console.error('[crm] getCalendarOAuthConfig error:', error);

@@ -28,6 +28,13 @@ import {
   postDealDocument
 } from '../controllers/crmController.js';
 import {
+  getThread,
+  postThreadMessage,
+  postReaction,
+  patchResolve,
+  getThreadMembers
+} from '../controllers/dealThreadController.js';
+import {
   getDealDd,
   startDealDd,
   patchDealDdItem,
@@ -62,6 +69,12 @@ router.patch('/deals/:id/stage', patchDealStage);
 router.get('/deals/:id/activities', getDealActivities);
 router.post('/deals/:id/activities', addDealActivity);
 router.post('/deals/:id/refresh-from-listing', refreshDealFromListing);
+
+router.get('/deals/:id/thread', getThread);
+router.get('/deals/:id/thread/members', getThreadMembers);
+router.post('/deals/:id/thread', postThreadMessage);
+router.post('/deals/:id/thread/messages/:messageId/reactions', postReaction);
+router.patch('/deals/:id/thread/messages/:messageId/resolve', patchResolve);
 
 router.get('/deals/:id/tasks', getDealTasks);
 router.post('/deals/:id/tasks', postDealTask);

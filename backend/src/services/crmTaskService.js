@@ -1,4 +1,10 @@
 import pool from '../db/pool.js';
+import {
+  getDealAccess,
+  assertCanRead,
+  assertCanWrite,
+  VISIBLE_DEALS_SQL
+} from '../lib/teamAcl.js';
 
 const FOLLOW_UP_PRESETS = {
   tomorrow: 1,
@@ -13,17 +19,17 @@ function addDays(days) {
   return d.toISOString();
 }
 
-export async function assertDealOwned(userId, savedDealId) {
-  const row = await pool.query(
-    'SELECT id, name FROM saved_deals WHERE user_id = $1 AND id = $2',
-    [userId, savedDealId]
-  );
-  if (!row.rows.length) {
-    const err = new Error('Deal not found');
-    err.status = 404;
-    throw err;
-  }
-  return row.rows[0];
+/** Team-ACL aware deal gate (name kept for existing imports). */
+export async function assertDealOwned(userId, savedDealId, { write = true } = {}) {
+  const access = await getDealAccess(userId, savedDealId);
+  if (write) assertCanWrite(access);
+  else assertCanRead(access);
+  return {
+    id: access.deal.id,
+    name: access.deal.name,
+    team_id: access.deal.team_id,
+    user_id: access.deal.user_id
+  };
 }
 
 async function resolveNotifyRecipients(userId, savedDealId, rawRecipients) {
@@ -42,8 +48,8 @@ async function resolveNotifyRecipients(userId, savedDealId, rawRecipients) {
         `SELECT c.id, c.name, c.email
          FROM contacts c
          JOIN deal_contacts dc ON dc.contact_id = c.id
-         WHERE c.user_id = $1 AND dc.saved_deal_id = $2 AND c.id = $3`,
-        [userId, savedDealId, r.contactId]
+         WHERE dc.saved_deal_id = $1 AND c.id = $2`,
+        [savedDealId, r.contactId]
       );
       const contact = row.rows[0];
       if (contact?.email) {
@@ -118,8 +124,8 @@ export async function listAllTasks(userId, { status = 'open' } = {}) {
     `SELECT t.id, t.saved_deal_id, t.title, t.status, t.due_at, t.completed_at, t.source, t.metadata, t.created_at,
             sd.name AS deal_name, sd.progress_stage
      FROM tasks t
-     JOIN saved_deals sd ON sd.id = t.saved_deal_id AND sd.user_id = $1
-     WHERE t.user_id = $1 ${statusClause}
+     JOIN saved_deals sd ON sd.id = t.saved_deal_id
+     WHERE ${VISIBLE_DEALS_SQL} ${statusClause}
      ORDER BY
        CASE WHEN t.status = 'open' THEN 0 ELSE 1 END,
        t.due_at ASC NULLS LAST,
@@ -130,13 +136,13 @@ export async function listAllTasks(userId, { status = 'open' } = {}) {
 }
 
 export async function listDealTasks(userId, savedDealId) {
-  await assertDealOwned(userId, savedDealId);
+  await assertDealOwned(userId, savedDealId, { write: false });
   const result = await pool.query(
-    `SELECT id, saved_deal_id, title, status, due_at, completed_at, source, metadata, created_at
+    `SELECT id, saved_deal_id, title, status, due_at, completed_at, source, metadata, created_at, user_id
      FROM tasks
-     WHERE user_id = $1 AND saved_deal_id = $2
+     WHERE saved_deal_id = $1
      ORDER BY due_at ASC NULLS LAST, created_at DESC`,
-    [userId, savedDealId]
+    [savedDealId]
   );
   return result.rows;
 }
@@ -146,7 +152,7 @@ export async function createTask(
   savedDealId,
   { title, dueAt, source = 'manual', metadata = {}, notifyRecipients }
 ) {
-  const deal = await assertDealOwned(userId, savedDealId);
+  const deal = await assertDealOwned(userId, savedDealId, { write: true });
   const trimmed = (title || '').trim();
   if (!trimmed) {
     const err = new Error('Task title is required');
@@ -202,7 +208,7 @@ export async function createQuickFollowUp(
 ) {
   const days = FOLLOW_UP_PRESETS[preset];
   const resolvedDue = dueAt || (days != null ? addDays(days) : addDays(3));
-  const deal = await assertDealOwned(userId, savedDealId);
+  const deal = await assertDealOwned(userId, savedDealId, { write: true });
   const taskTitle = (title || '').trim() || `Follow up: ${deal.name}`;
   return createTask(userId, savedDealId, {
     title: taskTitle,
@@ -214,10 +220,7 @@ export async function createQuickFollowUp(
 }
 
 export async function updateTask(userId, taskId, patch) {
-  const existing = await pool.query(
-    'SELECT * FROM tasks WHERE user_id = $1 AND id = $2',
-    [userId, taskId]
-  );
+  const existing = await pool.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
   if (!existing.rows.length) {
     const err = new Error('Task not found');
     err.status = 404;
@@ -225,6 +228,8 @@ export async function updateTask(userId, taskId, patch) {
   }
 
   const task = existing.rows[0];
+  await assertDealOwned(userId, task.saved_deal_id, { write: true });
+
   const title = patch.title != null ? String(patch.title).trim() : task.title;
   const status = patch.status != null ? patch.status : task.status;
   const dueAt = patch.dueAt !== undefined ? patch.dueAt : task.due_at;
@@ -237,8 +242,8 @@ export async function updateTask(userId, taskId, patch) {
 
   const result = await pool.query(
     `UPDATE tasks SET title = $1, status = $2, due_at = $3, completed_at = $4
-     WHERE user_id = $5 AND id = $6 RETURNING *`,
-    [title, status, dueAt, completedAt, userId, taskId]
+     WHERE id = $5 RETURNING *`,
+    [title, status, dueAt, completedAt, taskId]
   );
 
   if (status === 'done' && task.status !== 'done') {
@@ -263,8 +268,8 @@ export async function getTodayTaskSummary(userId) {
     `SELECT t.id, t.saved_deal_id, t.title, t.status, t.due_at, t.source,
             sd.name AS deal_name, sd.progress_stage
      FROM tasks t
-     JOIN saved_deals sd ON sd.id = t.saved_deal_id AND sd.user_id = $1
-     WHERE t.user_id = $1 AND t.status = 'open'
+     JOIN saved_deals sd ON sd.id = t.saved_deal_id
+     WHERE ${VISIBLE_DEALS_SQL} AND t.status = 'open'
      ORDER BY t.due_at ASC NULLS LAST, t.created_at DESC`,
     [userId]
   );

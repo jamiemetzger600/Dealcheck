@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { dealsAPI, userAPI } from '../utils/api';
 import { loadCalculatorState, saveCalculatorState } from '../utils/dealCalculatorStorage';
@@ -23,6 +24,7 @@ import DealSwipeDeck from './DealSwipeDeck';
 import MobileFeedToolbar from './MobileFeedToolbar';
 import GatedPreviewText from './GatedPreviewText';
 import { useIsMobile, useOrientation, startOfLocalDayISO } from '../hooks/useMediaQuery';
+import { useTeam } from '../context/TeamContext';
 import {
   cardMetricLocation,
   cardViewDescriptionPreview,
@@ -182,10 +184,17 @@ function hiddenStorageTokensForDeal(deal) {
   return tokens;
 }
 
+/** Listing keys used to match market deals ↔ saved rows (deal_id and market_deals.id). */
+function marketDealMatchKeys(deal) {
+  const keys = [];
+  if (deal?.id != null && deal.id !== '') keys.push(String(deal.id));
+  if (deal?.dbId != null && deal.dbId !== '') keys.push(String(deal.dbId));
+  return keys;
+}
+
 function isDealInSavedList(deal, savedIdSet) {
-  if (!deal?.id || !savedIdSet?.size) return false;
-  const key = String(deal.id);
-  return savedIdSet.has(key);
+  if (!savedIdSet?.size || !deal) return false;
+  return marketDealMatchKeys(deal).some((key) => savedIdSet.has(key));
 }
 
 /** Card in list view. When enableSwipe (mobile only): swipe left = hide, swipe right = heart/save. Desktop: plain click. */
@@ -338,6 +347,8 @@ export default function DealAggregator({
   feedSource = 'airtable',
   savedDealIds = [],
   savedRowIdByMarketDealId = {},
+  saveScopeSavedDealIds = null,
+  saveScopeRowIdByMarketDealId = null,
   poolNewDealsFilter = null,
   onClearPoolNewDealsFilter,
   isGuest = false,
@@ -349,6 +360,8 @@ export default function DealAggregator({
   onMobileDeckChange = null,
 }) {
   const navigate = useNavigate();
+  const { saveTeamId, activeTeam } = useTeam();
+  const saveTargetLabel = saveTeamId && activeTeam?.name ? activeTeam.name : 'My Deals';
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const saveSettings = useCallback(
@@ -478,6 +491,13 @@ export default function DealAggregator({
     () => new Set((savedDealIds || []).filter(Boolean).map((id) => String(id))),
     [savedDealIds]
   );
+
+  const saveScopeDealIdSet = useMemo(
+    () => new Set((saveScopeSavedDealIds ?? savedDealIds ?? []).filter(Boolean).map((id) => String(id))),
+    [saveScopeSavedDealIds, savedDealIds]
+  );
+
+  const saveScopeRowIdMap = saveScopeRowIdByMarketDealId ?? savedRowIdByMarketDealId;
 
   const hideSavedDealsInFeed = Boolean(settings?.preferences?.hideSavedDealsInFeed);
   const showSavedHighlightInFeed = settings?.preferences?.showSavedHighlightInFeed !== false;
@@ -801,11 +821,14 @@ export default function DealAggregator({
 
   const getSavedRowIdForMarketDeal = useCallback(
     (deal) => {
-      if (!deal?.id) return null;
-      const rowId = savedRowIdByMarketDealId[String(deal.id)];
-      return rowId != null ? rowId : null;
+      if (!deal) return null;
+      for (const key of marketDealMatchKeys(deal)) {
+        const rowId = saveScopeRowIdMap[key];
+        if (rowId != null) return rowId;
+      }
+      return null;
     },
-    [savedRowIdByMarketDealId]
+    [saveScopeRowIdMap]
   );
 
   const handleUnsaveDeal = async (deal) => {
@@ -818,7 +841,7 @@ export default function DealAggregator({
     setSavingDealId(deal.id);
     try {
       await dealsAPI.deleteDeal(rowId);
-      setSaveToast('Removed from My Deals');
+      setSaveToast(saveTeamId ? `Removed from ${saveTargetLabel}` : 'Removed from My Deals');
       onSaveDeal();
     } catch (error) {
       alert('Failed to remove deal: ' + error.message);
@@ -828,7 +851,7 @@ export default function DealAggregator({
   };
 
   const handleToggleSaveDeal = async (deal) => {
-    if (isDealInSavedList(deal, savedDealIdSet)) {
+    if (isDealInSavedList(deal, saveScopeDealIdSet)) {
       await handleUnsaveDeal(deal);
     } else {
       await handleSaveDeal(deal);
@@ -842,7 +865,27 @@ export default function DealAggregator({
       }
       return;
     }
-    if (isDealInSavedList(deal, savedDealIdSet)) return;
+    if (isDealInSavedList(deal, saveScopeDealIdSet)) {
+      const alreadyMsg = saveTeamId
+        ? `Already saved to ${saveTargetLabel}`
+        : 'Already saved to My Deals';
+      console.log('[DealAggregator] save skipped — already in workspace', {
+        dealId: deal?.id,
+        dbId: deal?.dbId,
+        saveTeamId,
+        toast: alreadyMsg
+      });
+      setSaveToast(alreadyMsg);
+      return;
+    }
+    const teamIdForSave = saveTeamId != null ? Number(saveTeamId) : null;
+    const payloadTeamId = Number.isFinite(teamIdForSave) && teamIdForSave > 0 ? teamIdForSave : null;
+    console.log('[DealAggregator] saving deal', {
+      dealId: deal?.id,
+      dbId: deal?.dbId,
+      teamId: payloadTeamId,
+      saveTargetLabel
+    });
     setSavingDealId(deal.id);
     try {
       const calculatorState = loadCalculatorState(deal.id);
@@ -873,14 +916,30 @@ export default function DealAggregator({
         brokerEmail: deal.brokerEmail,
         brokerPhone: deal.brokerPhone,
         marketDealId: deal.dbId,
-        ...(calculatorState ? { calculatorState } : {})
+        ...(calculatorState ? { calculatorState } : {}),
+        ...(payloadTeamId ? { teamId: payloadTeamId } : {})
       });
       if (calculatorState && data?.dealId != null) {
         saveCalculatorState(data.dealId, calculatorState);
       }
-      setSaveToast('Deal saved to My Deals');
-      onSaveDeal();
+      const toastMsg = payloadTeamId
+        ? `Saved to ${saveTargetLabel}`
+        : 'Deal saved to My Deals';
+      console.log('[DealAggregator] save succeeded — setting toast', {
+        toast: toastMsg,
+        vettrId: data?.vettrId ?? data?.dealId,
+        responseTeamId: data?.teamId ?? null
+      });
+      setSaveToast(toastMsg);
+      if (typeof onSaveDeal === 'function') {
+        await onSaveDeal();
+      }
     } catch (error) {
+      console.error('[DealAggregator] save failed', {
+        dealId: deal?.id,
+        teamId: payloadTeamId,
+        error: error?.message
+      });
       alert('Failed to save deal: ' + error.message);
     } finally {
       setSavingDealId(null);
@@ -2114,7 +2173,9 @@ export default function DealAggregator({
         onSaveDeal={handleSaveDeal}
         onUnsaveDeal={handleUnsaveDeal}
         isSavingDeal={savingDealId != null && selectedDeal?.id === savingDealId}
-        dealSavedInMyDeals={selectedDeal ? isDealInSavedList(selectedDeal, savedDealIdSet) : false}
+        dealSavedInMyDeals={selectedDeal ? isDealInSavedList(selectedDeal, saveScopeDealIdSet) : false}
+        saveButtonLabel={saveTeamId ? `Save to ${saveTargetLabel}` : 'Save to My Deals'}
+        unsaveButtonTitle={saveTeamId ? `Remove from ${saveTargetLabel}` : 'Click to remove from My Deals'}
         savedHighlightStyle={showSavedHighlightInFeed}
         onPositionChange={handleDealPanelPositionChange}
         settings={settings}
@@ -2124,10 +2185,11 @@ export default function DealAggregator({
         entitlements={entitlements}
         requireSignup={requireSignup}
       />
-      {saveToast && (
+      {saveToast && createPortal(
         <div className="save-toast" role="status" aria-live="polite">
           {saveToast}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

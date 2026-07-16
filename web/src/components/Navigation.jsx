@@ -1,6 +1,77 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import pkg from '../../package.json';
+import { useTeam } from '../context/TeamContext';
+
+const TEAM_SAVE_BANNER_AUTO_HIDE_MS = 4000;
+const TEAM_SAVE_BANNER_FADE_MS = 300;
+
+function TeamSaveBanner({ activeTeam, setActiveTeamId }) {
+  const [phase, setPhase] = useState('hidden');
+  const dismissedRef = useRef(false);
+  const fadeTimerRef = useRef(null);
+
+  const hideBanner = useCallback(() => {
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    setPhase('hiding');
+    fadeTimerRef.current = setTimeout(() => {
+      setPhase('hidden');
+      fadeTimerRef.current = null;
+    }, TEAM_SAVE_BANNER_FADE_MS);
+  }, []);
+
+  const dismiss = useCallback(() => {
+    dismissedRef.current = true;
+    hideBanner();
+  }, [hideBanner]);
+
+  useEffect(() => {
+    if (!activeTeam) {
+      dismissedRef.current = false;
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      setPhase('hidden');
+      return undefined;
+    }
+
+    dismissedRef.current = false;
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    setPhase('visible');
+
+    const autoHideTimer = setTimeout(() => {
+      if (!dismissedRef.current) hideBanner();
+    }, TEAM_SAVE_BANNER_AUTO_HIDE_MS);
+
+    return () => {
+      clearTimeout(autoHideTimer);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    };
+  }, [activeTeam?.id, hideBanner]);
+
+  if (!activeTeam || phase === 'hidden') return null;
+
+  return (
+    <div
+      className={`team-save-banner${phase === 'hiding' ? ' team-save-banner--hiding' : ''}`}
+      role="status"
+    >
+      <span className="team-save-banner__text">
+        Saving to <strong>{activeTeam.name}</strong>
+        {' · '}
+        <button type="button" className="team-save-banner__link" onClick={() => setActiveTeamId(null)}>
+          Switch to personal
+        </button>
+      </span>
+      <button
+        type="button"
+        className="team-save-banner__close"
+        aria-label="Dismiss"
+        onClick={dismiss}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
 
 export default function Navigation({
   user,
@@ -20,9 +91,31 @@ export default function Navigation({
   compact = false,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { teams, activeTeamId, setActiveTeamId, activeTeam, isTeamMode } = useTeam();
+
+  const teamSwitcher = !isGuest && user ? (
+    <label className="nav-team-switcher">
+      <span className="nav-team-switcher__label">Workspace</span>
+      <select
+        value={activeTeamId != null ? String(activeTeamId) : ''}
+        onChange={(e) => setActiveTeamId(e.target.value || null)}
+        aria-label="Active team"
+      >
+        <option value="">Personal</option>
+        {teams.map((t) => (
+          <option key={t.id} value={t.id}>{t.name}</option>
+        ))}
+      </select>
+    </label>
+  ) : null;
+
+  const saveBanner = isTeamMode && activeTeam ? (
+    <TeamSaveBanner activeTeam={activeTeam} setActiveTeamId={setActiveTeamId} />
+  ) : null;
 
   const actionLinks = (
     <>
+      {teamSwitcher}
       {isGuest ? (
         <>
           <Link to="/login" className="header-link" onClick={() => setMenuOpen(false)}>Sign in</Link>
@@ -88,6 +181,8 @@ export default function Navigation({
         </button>
       </nav>
 
+      {saveBanner}
+
       {menuOpen && (
         <div className="app-header-mobile-menu" role="menu">
           {actionLinks}
@@ -109,8 +204,9 @@ export default function Navigation({
             className={`tab-btn ${activeTab === 'saved-deals' ? 'active' : ''}`}
             data-tour="my-deals-tab"
             onClick={() => setActiveTab('saved-deals')}
+            title={isTeamMode && activeTeam ? `Saved deals for ${activeTeam.name}` : 'Your saved deals'}
           >
-            <span>My Deals</span>
+            <span>{isTeamMode && activeTeam ? activeTeam.name : 'My Deals'}</span>
             <span className="tab-badge">{myDealsCount}</span>
           </button>
           <button

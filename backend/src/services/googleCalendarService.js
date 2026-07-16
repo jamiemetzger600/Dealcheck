@@ -15,10 +15,15 @@ const VETTR_EXTENDED_PROP = 'vettrEventId';
 const TASK_EXTENDED_PROP = 'vettrTaskId';
 
 export function isGoogleCalendarOAuthConfigured() {
-  return Boolean(
-    process.env.GOOGLE_CALENDAR_CLIENT_ID?.trim() &&
-    process.env.GOOGLE_CALENDAR_CLIENT_SECRET?.trim()
-  );
+  return Boolean(getGoogleCalendarClientId() && process.env.GOOGLE_CALENDAR_CLIENT_SECRET?.trim());
+}
+
+function getGoogleCalendarClientId() {
+  const raw = process.env.GOOGLE_CALENDAR_CLIENT_ID?.trim();
+  if (!raw) return '';
+  // Accept either the bare ID or the full *.apps.googleusercontent.com value.
+  if (raw.includes('.apps.googleusercontent.com')) return raw;
+  return `${raw}.apps.googleusercontent.com`;
 }
 
 export function getGoogleCalendarRedirectUri() {
@@ -54,7 +59,7 @@ export function getGoogleCalendarAuthUrl(userId) {
   }
 
   const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CALENDAR_CLIENT_ID.trim(),
+    client_id: getGoogleCalendarClientId(),
     redirect_uri: getGoogleCalendarRedirectUri(),
     response_type: 'code',
     scope: SCOPES,
@@ -86,7 +91,7 @@ async function refreshAccessToken(connection) {
   }
 
   const body = new URLSearchParams({
-    client_id: process.env.GOOGLE_CALENDAR_CLIENT_ID.trim(),
+    client_id: getGoogleCalendarClientId(),
     client_secret: process.env.GOOGLE_CALENDAR_CLIENT_SECRET.trim(),
     refresh_token: connection.refresh_token,
     grant_type: 'refresh_token'
@@ -223,7 +228,7 @@ export async function exchangeCodeAndStoreTokens(userId, code) {
   }
 
   const body = new URLSearchParams({
-    client_id: process.env.GOOGLE_CALENDAR_CLIENT_ID.trim(),
+    client_id: getGoogleCalendarClientId(),
     client_secret: process.env.GOOGLE_CALENDAR_CLIENT_SECRET.trim(),
     code,
     grant_type: 'authorization_code',

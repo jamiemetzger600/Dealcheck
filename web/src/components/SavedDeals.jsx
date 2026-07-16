@@ -11,6 +11,7 @@ import {
 } from '../utils/savedDealCalculatorSummary';
 import { saveCalculatorState } from '../utils/dealCalculatorStorage';
 import DealDetailsPanel from './DealDetailsPanel';
+import DealShareMenu from './DealShareMenu';
 import { useIsMobile } from '../hooks/useMediaQuery';
 
 const PROGRESS_STAGE_OPTIONS = PIPELINE_STAGE_OPTIONS;
@@ -807,16 +808,6 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
     }
   };
 
-  const handleShareDeal = () => {
-    const shareText = `Deal: ${mergedDeal.name}\nAsking: ${formatMoney(mergedDeal.askingPrice)}\nEBITDA: ${formatMoney(mergedDeal.ebitda)}\n${mergedDeal.url || ''}`;
-    if (navigator.share) {
-      navigator.share({ title: mergedDeal.name, text: shareText, url: mergedDeal.url || '' }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(shareText);
-      alert('Deal details copied to clipboard!');
-    }
-  };
-
   const handleIOISent = async (ioiText) => {
     const timestamp = new Date().toISOString();
     const dateLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -946,7 +937,7 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
       ) : (
         <button type="button" className="btn-secondary" disabled aria-label="No listing URL">No Listing URL Available</button>
       )}
-      <button type="button" className="btn-secondary" onClick={handleShareDeal}>Share</button>
+      <DealShareMenu deal={mergedDeal} />
       <button type="button" className="btn-secondary" onClick={onExport}>Export CSV</button>
       <button type="button" className="btn-danger" onClick={() => onDelete(deal.id)}>Delete</button>
       <button type="button" className="btn-primary" onClick={onClose}>Close</button>

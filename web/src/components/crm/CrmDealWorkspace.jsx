@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import DealDetailsPanel from '../DealDetailsPanel';
-import { crmAPI, dealsAPI } from '../../utils/api';
+import { crmAPI, dealsAPI, teamsAPI } from '../../utils/api';
 import { formatDate, getDealProgressLabel } from '../../utils/normalizeDeal';
 import { PIPELINE_STAGE_OPTIONS } from '../../utils/pipelineStages';
 import QuickFollowUp from './QuickFollowUp';
 import DdChecklist from './dd/DdChecklist';
+import DealThread from './DealThread';
 import { useAuth } from '../../context/AuthContext';
+import { useTeam } from '../../context/TeamContext';
 
 function activityLabel(type) {
   const labels = {
@@ -30,6 +32,7 @@ export default function CrmDealWorkspace({
   onStageChanged = null
 }) {
   const { user } = useAuth();
+  const { teams, activeTeamId } = useTeam();
   const [progressStage, setProgressStage] = useState(deal?.progressStage || '');
   const [progressHistory, setProgressHistory] = useState(deal?.progressHistory || []);
   const [progressSaving, setProgressSaving] = useState(false);
@@ -38,6 +41,9 @@ export default function CrmDealWorkspace({
   const [detailLoading, setDetailLoading] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [sharing, setSharing] = useState(false);
+
+  const writeEnabled = detail?.access ? Boolean(detail.access.canWrite) : true;
 
   useEffect(() => {
     if (!deal) return;
@@ -96,6 +102,38 @@ export default function CrmDealWorkspace({
       alert('Failed to add note: ' + err.message);
     } finally {
       setSavingNote(false);
+    }
+  };
+
+  const handleShareToTeam = async () => {
+    const teamId = activeTeamId || teams[0]?.id;
+    if (!teamId || !dealId) {
+      alert('Create or select a team in Settings first, then share.');
+      return;
+    }
+    setSharing(true);
+    try {
+      await teamsAPI.shareDeal(teamId, dealId);
+      await handleRefresh();
+      alert('Deal shared with the team. Notes are visible for catch-up.');
+    } catch (err) {
+      alert(err.message || 'Failed to share');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleUnshare = async () => {
+    if (!dealId) return;
+    if (!window.confirm('Remove this deal from the team? It returns to the owner’s personal pipeline.')) return;
+    setSharing(true);
+    try {
+      await teamsAPI.unshareDeal(dealId);
+      await handleRefresh();
+    } catch (err) {
+      alert(err.message || 'Failed to unshare');
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -236,7 +274,7 @@ export default function CrmDealWorkspace({
               value={progressStage}
               onChange={handleProgressSelectChange}
               className="modal-input"
-              disabled={progressSaving}
+              disabled={progressSaving || !writeEnabled}
               aria-label="Current pipeline stage"
             >
               <option value="">Select stage</option>
@@ -247,11 +285,14 @@ export default function CrmDealWorkspace({
                 <option value={progressStage}>{progressStage} (saved)</option>
               ) : null}
             </select>
+            {!writeEnabled ? (
+              <p className="crm-muted" style={{ marginTop: 8 }}>Viewer role — stage changes are read-only.</p>
+            ) : null}
           </div>
           <button
             type="button"
             className="btn-secondary"
-            disabled={refreshing}
+            disabled={refreshing || !writeEnabled}
             onClick={handleRefreshListing}
           >
             {refreshing ? 'Refreshing…' : 'Refresh from listing'}
@@ -270,6 +311,7 @@ export default function CrmDealWorkspace({
           contacts={detail?.contacts || []}
           userEmail={user?.email || ''}
           onCreated={onRefresh}
+          disabled={!writeEnabled}
         />
       )
     },
@@ -278,12 +320,18 @@ export default function CrmDealWorkspace({
       label: 'Due Diligence',
       icon: 'broker-progress',
       render: () => (
-        <DdChecklist dealId={dealId} onRefresh={onRefresh} />
+        <DdChecklist dealId={dealId} onRefresh={onRefresh} canWrite={writeEnabled} />
       )
     },
     {
+      id: 'crm-talk',
+      label: 'Talk',
+      icon: 'notes',
+      render: () => <DealThread dealId={dealId} />
+    },
+    {
       id: 'crm-timeline',
-      label: 'CRM timeline',
+      label: 'Notes & history',
       icon: 'notes',
       render: () => (
         <div className="crm-timeline-inline">
@@ -291,14 +339,15 @@ export default function CrmDealWorkspace({
             <textarea
               className="crm-note-input"
               rows={2}
-              placeholder="Add a CRM note…"
+              placeholder={writeEnabled ? 'Add a catch-up note…' : 'Viewer — notes are read-only'}
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
+              disabled={!writeEnabled}
             />
             <button
               type="button"
               className="btn-primary"
-              disabled={savingNote || !noteText.trim()}
+              disabled={!writeEnabled || savingNote || !noteText.trim()}
               onClick={handleAddCrmNote}
             >
               {savingNote ? 'Saving…' : 'Add note'}
@@ -332,6 +381,7 @@ export default function CrmDealWorkspace({
     detail,
     noteText,
     savingNote,
+    writeEnabled,
     handleProgressSelectChange,
     handleRefreshListing,
     handleAddCrmNote,
@@ -342,8 +392,22 @@ export default function CrmDealWorkspace({
     onRefresh
   ]);
 
+  const teamIdOnDeal = deal?.team_id || deal?.teamId || detail?.access?.teamId;
+  const canShare = writeEnabled && !teamIdOnDeal && teams.length > 0;
+  const canUnshare = writeEnabled && Boolean(teamIdOnDeal) && detail?.access?.canUnshare !== false;
+
   const footer = (
     <>
+      {canShare ? (
+        <button type="button" className="btn-secondary" disabled={sharing} onClick={handleShareToTeam}>
+          {sharing ? 'Sharing…' : 'Share to team'}
+        </button>
+      ) : null}
+      {canUnshare ? (
+        <button type="button" className="btn-secondary" disabled={sharing} onClick={handleUnshare}>
+          Remove from team
+        </button>
+      ) : null}
       {deal?.url ? (
         <a
           href={deal.url}

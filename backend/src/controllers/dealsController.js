@@ -1,5 +1,12 @@
 import pool from '../db/pool.js';
 import { hydrateCrmForSavedDeal } from '../services/crmHydration.js';
+import {
+  getDealAccess,
+  assertCanRead,
+  assertCanWrite,
+  getMembership
+} from '../lib/teamAcl.js';
+import { getUnreadCounts } from '../services/dealThreadService.js';
 
 /** Normalize URL for matching: same listing may appear with different fragments/casing. */
 function normalizeUrl(url) {
@@ -9,26 +16,72 @@ function normalizeUrl(url) {
   return withoutHash.toLowerCase();
 }
 
-// Get all saved deals for user
+const DEAL_SELECT_FIELDS = `
+  id, deal_id, name, url, description, broker, broker_name, broker_company,
+  broker_email, broker_phone, source, source_type, discovered_at,
+  asking_price, ebitda, revenue, location, city, state, county, country,
+  industry, years_established, franchise, remote, listing_id,
+  notes, status, progress_stage, progress_history,
+  calculator_state, market_deal_id, listing_snapshot_at,
+  team_id, shared_by_user_id, user_id,
+  saved_at, updated_at
+`;
+
+// Get saved deals — scope=personal|team|all (default personal for backward compat when no teamId)
 export const getSavedDeals = async (req, res) => {
   try {
+    const userId = req.user.userId;
+    const scope = String(req.query.scope || 'personal').toLowerCase();
+    const teamId = req.query.teamId ? Number(req.query.teamId) : null;
+
+    let whereSql;
+    let params;
+
+    if (scope === 'team' && teamId) {
+      const membership = await getMembership(userId, teamId);
+      if (!membership) {
+        return res.status(403).json({ error: 'Not a team member' });
+      }
+      // Do not pass unused $1 (userId) — Postgres 42P18 with node-pg.
+      params = [teamId];
+      whereSql = `team_id = $1`;
+    } else if (scope === 'all') {
+      params = [userId];
+      whereSql = `(
+        (user_id = $1 AND team_id IS NULL)
+        OR (
+          team_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM team_members tm
+            WHERE tm.team_id = saved_deals.team_id
+              AND tm.user_id = $1 AND tm.status = 'active'
+          )
+        )
+      )`;
+    } else {
+      // personal (default)
+      params = [userId];
+      whereSql = `user_id = $1 AND team_id IS NULL`;
+    }
+
     const result = await pool.query(
-      `SELECT 
-        id, deal_id, name, url, description, broker, broker_name, broker_company,
-        broker_email, broker_phone, source, source_type, discovered_at,
-        asking_price, ebitda, revenue, location, city, state, county, country,
-        industry, years_established, franchise, remote, listing_id,
-        notes, status, progress_stage, progress_history,
-        calculator_state, market_deal_id, listing_snapshot_at,
-        saved_at, updated_at
-      FROM saved_deals 
-      WHERE user_id = $1 
-      ORDER BY saved_at DESC`,
-      [req.user.userId]
+      `SELECT ${DEAL_SELECT_FIELDS}
+       FROM saved_deals
+       WHERE ${whereSql}
+       ORDER BY saved_at DESC`,
+      params
     );
 
-    res.json({ deals: result.rows });
+    const unread = await getUnreadCounts(
+      userId,
+      result.rows.map((r) => r.id)
+    ).catch(() => ({}));
 
+    res.json({
+      deals: result.rows.map((d) => ({
+        ...d,
+        unread_messages: unread[d.id] || 0
+      }))
+    });
   } catch (error) {
     console.error('Get saved deals error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -43,28 +96,48 @@ export const saveDeal = async (req, res) => {
     askingPrice, ebitda, revenue, location, city, state, county, country,
     industry, yearsEstablished, franchise, remote, listingId,
     notes, status, progressStage,
-    calculatorState, marketDealId
+    calculatorState, marketDealId,
+    teamId: teamIdRaw
   } = req.body;
 
   if (!dealId || !name) {
     return res.status(400).json({ error: 'Deal ID and name required' });
   }
 
+  let teamId = teamIdRaw ? Number(teamIdRaw) : null;
+  if (teamId) {
+    const membership = await getMembership(req.user.userId, teamId);
+    if (!membership || (membership.role !== 'admin' && membership.role !== 'member')) {
+      return res.status(403).json({ error: 'Cannot save deals to this team' });
+    }
+  }
+
   try {
     const normalizedUrl = normalizeUrl(url);
 
-    // If we have a URL, check for existing saved deal with same listing (same normalized URL).
-    // Update that row with new listing data instead of creating a duplicate; never remove saved deals.
+    // If we have a URL, check for existing saved deal with same listing in the same scope.
+    // Team path must not pass an unused $1 — node-pg/Postgres 42P18 ("could not determine data type").
     if (normalizedUrl) {
-      const byUrl = await pool.query(
-        `SELECT id, saved_at FROM saved_deals
-         WHERE user_id = $1 AND url IS NOT NULL AND url != ''
-         AND LOWER(TRIM(SPLIT_PART(url, '#', 1))) = $2`,
-        [req.user.userId, normalizedUrl]
-      );
+      const byUrl = teamId
+        ? await pool.query(
+            `SELECT id, saved_at FROM saved_deals
+             WHERE url IS NOT NULL AND url != ''
+             AND LOWER(TRIM(SPLIT_PART(url, '#', 1))) = $1
+             AND team_id = $2`,
+            [normalizedUrl, teamId]
+          )
+        : await pool.query(
+            `SELECT id, saved_at FROM saved_deals
+             WHERE url IS NOT NULL AND url != ''
+             AND LOWER(TRIM(SPLIT_PART(url, '#', 1))) = $2
+             AND user_id = $1 AND team_id IS NULL`,
+            [req.user.userId, normalizedUrl]
+          );
 
       if (byUrl.rows.length > 0) {
         const existingId = byUrl.rows[0].id;
+        const access = await getDealAccess(req.user.userId, existingId);
+        assertCanWrite(access);
         await pool.query(
           `UPDATE saved_deals SET
             deal_id = $1, name = $2, url = $3, description = $4, broker = $5, broker_name = $6,
@@ -74,7 +147,7 @@ export const saveDeal = async (req, res) => {
             industry = $21, years_established = $22, franchise = $23, remote = $24, listing_id = $25,
             calculator_state = COALESCE($26::jsonb, calculator_state),
             updated_at = CURRENT_TIMESTAMP
-           WHERE user_id = $27 AND id = $28`,
+           WHERE id = $27`,
           [
             dealId, name, url || null, description || null, broker || null, brokerName || null, brokerCompany || null,
             brokerEmail || null, brokerPhone || null, source || null, sourceType || null, discoveredAt || null,
@@ -82,7 +155,7 @@ export const saveDeal = async (req, res) => {
             location || null, city || null, state || null, county || null, country || null,
             industry || null, yearsEstablished || null, franchise || null, remote || null, listingId || null,
             calculatorState !== undefined ? calculatorState : null,
-            req.user.userId, existingId
+            existingId
           ]
         );
         await hydrateCrmForSavedDeal(req.user.userId, existingId, {
@@ -94,21 +167,31 @@ export const saveDeal = async (req, res) => {
           vettrId: existingId,
           dealId: existingId,
           deal_id: dealId,
+          teamId: teamId || null,
           savedAt: byUrl.rows[0].saved_at,
           updatedAt: new Date().toISOString()
         });
       }
     }
 
-    // No existing row by URL; check by deal_id (avoid duplicate by id)
+    // No existing row by URL; check by deal_id in scope
     const existing = await pool.query(
-      'SELECT id FROM saved_deals WHERE user_id = $1 AND deal_id = $2',
-      [req.user.userId, dealId]
+      teamId
+        ? 'SELECT id FROM saved_deals WHERE team_id = $1 AND deal_id = $2'
+        : 'SELECT id FROM saved_deals WHERE user_id = $1 AND team_id IS NULL AND deal_id = $2',
+      teamId ? [teamId, dealId] : [req.user.userId, dealId]
     );
 
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Deal already saved' });
     }
+
+    const marketDealIdNum = marketDealId != null && marketDealId !== ''
+      ? Number(marketDealId)
+      : null;
+    const marketDealIdParam = Number.isFinite(marketDealIdNum) && marketDealIdNum > 0
+      ? marketDealIdNum
+      : null;
 
     const result = await pool.query(
       `INSERT INTO saved_deals (
@@ -116,37 +199,77 @@ export const saveDeal = async (req, res) => {
         broker_email, broker_phone, source, source_type, discovered_at,
         asking_price, ebitda, revenue, location, city, state, county, country,
         industry, years_established, franchise, remote, listing_id,
-        notes, status, progress_stage, calculator_state
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
-      RETURNING id, saved_at`,
+        notes, status, progress_stage, calculator_state,
+        team_id, shared_by_user_id, market_deal_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
+      RETURNING id, saved_at, team_id`,
       [
         req.user.userId, dealId, name, url, description, broker, brokerName, brokerCompany,
         brokerEmail, brokerPhone, source, sourceType, discoveredAt,
         askingPrice, ebitda, revenue, location, city, state, county, country,
         industry, yearsEstablished, franchise, remote, listingId,
         notes, status || 'none', progressStage,
-        calculatorState !== undefined ? calculatorState : null
+        calculatorState !== undefined ? calculatorState : null,
+        teamId,
+        teamId ? req.user.userId : null,
+        marketDealIdParam
       ]
     );
 
     const savedDealId = result.rows[0].id;
+    console.log('[deals] saved', {
+      savedDealId,
+      dealId,
+      teamId: result.rows[0].team_id,
+      userId: req.user.userId,
+      marketDealId: marketDealIdParam
+    });
 
     await hydrateCrmForSavedDeal(req.user.userId, savedDealId, {
       dealId, marketDealId, listingId, source,
       brokerName, brokerCompany, brokerEmail, brokerPhone
     });
 
+    if (teamId) {
+      await pool.query(
+        `INSERT INTO deal_messages (saved_deal_id, author_user_id, body, message_kind)
+         VALUES ($1, $2, $3, 'system')`,
+        [savedDealId, req.user.userId, `${req.user.email || 'Someone'} saved this deal to the team`]
+      ).catch((err) => console.warn('[deals] system message skipped:', err.message));
+    }
+
     res.status(201).json({
       message: 'Deal saved successfully',
       vettrId: savedDealId,
       dealId: savedDealId,
       deal_id: dealId,
+      teamId: result.rows[0].team_id,
       savedAt: result.rows[0].saved_at,
       updatedAt: result.rows[0].saved_at
     });
 
   } catch (error) {
-    console.error('Save deal error:', error);
+    if (error?.code === '23505') {
+      console.warn('[deals] unique conflict on save', {
+        dealId,
+        teamId,
+        userId: req.user.userId,
+        detail: error.detail
+      });
+      return res.status(409).json({
+        error: teamId
+          ? 'Deal already saved to this team'
+          : 'Deal already saved to My Deals'
+      });
+    }
+    console.error('Save deal error:', {
+      message: error?.message,
+      code: error?.code,
+      detail: error?.detail,
+      dealId,
+      teamId,
+      userId: req.user?.userId
+    });
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -167,9 +290,12 @@ export const updateSavedDeal = async (req, res) => {
   } = req.body;
 
   try {
+    const access = await getDealAccess(req.user.userId, id);
+    assertCanWrite(access);
+
     const updateFields = [];
-    const values = [req.user.userId, id];
-    let paramIndex = 3;
+    const values = [id];
+    let paramIndex = 2;
 
     if (notes !== undefined) {
       updateFields.push(`notes = $${paramIndex++}`);
@@ -292,9 +418,11 @@ export const updateSavedDeal = async (req, res) => {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
+
     const result = await pool.query(
       `UPDATE saved_deals SET ${updateFields.join(', ')} 
-       WHERE user_id = $1 AND id = $2 
+       WHERE id = $1 
        RETURNING id`,
       values
     );
@@ -306,6 +434,7 @@ export const updateSavedDeal = async (req, res) => {
     res.json({ message: 'Deal updated successfully' });
 
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('Update deal error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -316,9 +445,16 @@ export const deleteSavedDeal = async (req, res) => {
   const { id } = req.params;
 
   try {
+    const access = await getDealAccess(req.user.userId, id);
+    assertCanWrite(access);
+    // Only admin or original owner can delete team deals
+    if (access.deal.team_id && !access.canAdmin && access.deal.user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Only admin or deal owner can delete' });
+    }
+
     const result = await pool.query(
-      'DELETE FROM saved_deals WHERE user_id = $1 AND id = $2 RETURNING id',
-      [req.user.userId, id]
+      'DELETE FROM saved_deals WHERE id = $1 RETURNING id',
+      [id]
     );
 
     if (result.rows.length === 0) {
@@ -328,6 +464,7 @@ export const deleteSavedDeal = async (req, res) => {
     res.json({ message: 'Deal deleted successfully' });
 
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('Delete deal error:', error);
     res.status(500).json({ error: 'Server error' });
   }

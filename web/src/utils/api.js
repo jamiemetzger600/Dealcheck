@@ -76,7 +76,10 @@ async function apiRequest(endpoint, options = {}) {
               || 'The API is temporarily unavailable. If you are developing locally, ensure the backend is running on port 3001.'
           );
         }
-        throw new Error(error.error || `Request failed (${response.status})`);
+        const err = new Error(error.error || `Request failed (${response.status})`);
+        if (error.requiresPassword) err.requiresPassword = true;
+        if (error.code) err.inviteCode = error.code;
+        throw err;
       }
 
       return response.json();
@@ -149,7 +152,13 @@ function notifyExtensionDealsSync() {
 }
 
 export const dealsAPI = {
-  getSavedDeals: () => apiRequest('/deals'),
+  getSavedDeals: (opts = {}) => {
+    const params = new URLSearchParams();
+    if (opts.scope) params.set('scope', opts.scope);
+    if (opts.teamId) params.set('teamId', String(opts.teamId));
+    const qs = params.toString();
+    return apiRequest(`/deals${qs ? `?${qs}` : ''}`);
+  },
 
   saveDeal: async (deal) => {
     const result = await apiRequest('/deals', {
@@ -176,6 +185,64 @@ export const dealsAPI = {
     notifyExtensionDealsSync();
     return result;
   }
+};
+
+export const teamsAPI = {
+  list: () => apiRequest('/teams'),
+
+  create: (name) =>
+    apiRequest('/teams', {
+      method: 'POST',
+      body: JSON.stringify({ name })
+    }),
+
+  get: (teamId) => apiRequest(`/teams/${teamId}`),
+
+  invite: (teamId, { email, role = 'member' }) =>
+    apiRequest(`/teams/${teamId}/invites`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role })
+    }),
+
+  createInviteLink: (teamId, { role = 'member', expiresInDays = 14, password = '' } = {}) =>
+    apiRequest(`/teams/${teamId}/invite-links`, {
+      method: 'POST',
+      body: JSON.stringify({
+        role,
+        expiresInDays,
+        ...(password ? { password } : {})
+      })
+    }),
+
+  revokeInvite: (teamId, inviteId) =>
+    apiRequest(`/teams/${teamId}/invites/${inviteId}`, { method: 'DELETE' }),
+
+  acceptInvite: (token, { password } = {}) =>
+    apiRequest('/teams/invites/accept', {
+      method: 'POST',
+      body: JSON.stringify({
+        token,
+        ...(password ? { password } : {})
+      })
+    }),
+
+  removeMember: (teamId, userId) =>
+    apiRequest(`/teams/${teamId}/members/${userId}`, { method: 'DELETE' }),
+
+  shareDeal: (teamId, dealId) =>
+    apiRequest(`/teams/${teamId}/deals/${dealId}/share`, { method: 'POST' }),
+
+  unshareDeal: (dealId) =>
+    apiRequest(`/teams/deals/${dealId}/unshare`, { method: 'POST' }),
+
+  listApprovals: (teamId) =>
+    apiRequest(`/teams/approvals${teamId ? `?teamId=${teamId}` : ''}`),
+
+  reviewApproval: (approvalId, { decision, note }) =>
+    apiRequest(`/teams/approvals/${approvalId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ decision, note })
+    })
 };
 
 export const crmAPI = {
@@ -220,12 +287,44 @@ export const crmAPI = {
       body: JSON.stringify({ start, end })
     }),
 
-  getKanban: () => apiRequest('/crm/kanban'),
+  getKanban: (opts = {}) => {
+    const params = new URLSearchParams();
+    if (opts.scope) params.set('scope', opts.scope);
+    if (opts.teamId) params.set('teamId', String(opts.teamId));
+    const qs = params.toString();
+    return apiRequest(`/crm/kanban${qs ? `?${qs}` : ''}`);
+  },
 
   updateStage: (savedDealId, progressStage) =>
     apiRequest(`/crm/deals/${savedDealId}/stage`, {
       method: 'PATCH',
       body: JSON.stringify({ progressStage: progressStage ?? null })
+    }),
+
+  getThread: (savedDealId, afterId) => {
+    const qs = afterId ? `?afterId=${afterId}` : '';
+    return apiRequest(`/crm/deals/${savedDealId}/thread${qs}`);
+  },
+
+  getThreadMembers: (savedDealId) =>
+    apiRequest(`/crm/deals/${savedDealId}/thread/members`),
+
+  postThreadMessage: (savedDealId, { body, assigneeUserId }) =>
+    apiRequest(`/crm/deals/${savedDealId}/thread`, {
+      method: 'POST',
+      body: JSON.stringify({ body, assigneeUserId })
+    }),
+
+  reactThreadMessage: (savedDealId, messageId, emoji) =>
+    apiRequest(`/crm/deals/${savedDealId}/thread/messages/${messageId}/reactions`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji })
+    }),
+
+  resolveThreadMessage: (savedDealId, messageId, resolved = true) =>
+    apiRequest(`/crm/deals/${savedDealId}/thread/messages/${messageId}/resolve`, {
+      method: 'PATCH',
+      body: JSON.stringify({ resolved })
     }),
 
   getDealDocuments: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/documents`),

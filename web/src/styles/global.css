@@ -190,7 +190,7 @@ a {
   font-size: 16px;
   font-weight: 600;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-  z-index: 10000;
+  z-index: 10003;
   animation: toast-in 0.25s ease;
 }
 
@@ -3904,6 +3904,42 @@ button.aggregator-welcome__buybox {
   flex-shrink: 0;
 }
 
+.deal-share-menu {
+  position: fixed;
+  z-index: 10050;
+  min-width: 200px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--bg-secondary, #1e2430);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deal-share-menu__item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #f2f4f8);
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.deal-share-menu__item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.deal-share-menu__item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .deal-card {
   background: var(--bg-secondary);
   padding: 20px;
@@ -7445,4 +7481,341 @@ button.aggregator-welcome__buybox {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+/* —— Teams + Deal Thread —— */
+.nav-team-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+  font-size: 13px;
+}
+.nav-team-switcher__label {
+  color: var(--text-secondary, #666);
+}
+.nav-team-switcher select {
+  max-width: 140px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #ddd);
+  background: var(--surface, #fff);
+}
+.team-save-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: #eef6ff;
+  color: #1a3a5c;
+  text-align: center;
+  padding: 6px 36px 6px 12px;
+  font-size: 13px;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.team-save-banner--hiding {
+  opacity: 0;
+}
+.team-save-banner__text {
+  flex: 1;
+  text-align: center;
+}
+.team-save-banner__close {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #1a3a5c;
+  opacity: 0.65;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+.team-save-banner__close:hover {
+  opacity: 1;
+}
+.team-save-banner__link {
+  background: none;
+  border: none;
+  color: #1a5fb4;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font: inherit;
+}
+.deal-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 280px;
+  max-height: 60vh;
+}
+.deal-thread__header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.deal-thread__hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+}
+.deal-thread__list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 8px;
+}
+.deal-thread__msg {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2, #f6f7f9);
+}
+.deal-thread__msg--system {
+  background: transparent;
+  padding: 2px 0;
+}
+.deal-thread__system {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+  text-align: center;
+}
+.deal-thread__msg--resolved {
+  opacity: 0.65;
+}
+.deal-thread__msg-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.deal-thread__body {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.deal-thread__chip,
+.deal-thread__tag {
+  display: inline-block;
+  margin-top: 4px;
+  margin-right: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #e8eef6;
+}
+.deal-thread__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.deal-thread__react,
+.deal-thread__resolve,
+.deal-thread__tool {
+  border: 1px solid var(--border, #ddd);
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  min-height: 32px;
+}
+.deal-thread__composer {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface, #fff);
+  padding-top: 6px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.deal-thread__toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.deal-thread__input {
+  width: 100%;
+  resize: vertical;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #ddd);
+  font: inherit;
+}
+.deal-thread__send {
+  align-self: flex-end;
+}
+.deal-thread__mentions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  max-height: 140px;
+  overflow: auto;
+}
+.deal-thread__mentions button {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+}
+.deal-thread__error {
+  color: #b42318;
+  font-size: 13px;
+}
+.crm-kanban-card__pending {
+  display: inline-block;
+  font-size: 11px;
+  color: #9a3412;
+  background: #ffedd5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+.crm-kanban-card__unread {
+  display: inline-block;
+  font-size: 11px;
+  color: #1d4ed8;
+  margin-bottom: 4px;
+}
+.teams-settings__create,
+.teams-settings__invite,
+.teams-settings__list,
+.teams-settings__share-link-row,
+.teams-settings__share-link-url-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0;
+}
+.teams-settings__invite-hint {
+  width: 100%;
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+}
+.teams-settings__share-link {
+  margin: 16px 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+.teams-settings__share-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  max-width: 420px;
+}
+.teams-settings__share-link-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+.teams-settings__share-link-url-row input {
+  flex: 1;
+  min-width: 180px;
+  font-size: 12px;
+}
+.teams-settings__qr {
+  text-align: center;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  width: fit-content;
+}
+.teams-settings__qr img {
+  display: block;
+  margin: 0 auto 8px;
+}
+.teams-settings__revoke {
+  align-self: flex-start;
+}
+.teams-settings__pending-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.teams-settings__pending-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.teams-settings__pending-sub {
+  font-size: 12px;
+}
+.teams-settings__pending-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.team-invite-page__password {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+  align-items: center;
+}
+.team-invite-page__password input {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #ddd);
+  min-width: 200px;
+}
+.teams-settings .btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #1d4ed8;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.teams-settings .btn-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.teams-settings input,
+.teams-settings select {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #ddd);
+}
+.team-invite-page__body {
+  max-width: 480px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+@media (max-width: 640px) {
+  .deal-thread {
+    max-height: none;
+    min-height: 50vh;
+  }
+  .nav-team-switcher {
+    width: 100%;
+    margin: 8px 0;
+  }
+  .nav-team-switcher select {
+    max-width: none;
+    flex: 1;
+  }
 }

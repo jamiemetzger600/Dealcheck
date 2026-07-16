@@ -1,11 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { TeamProvider } from './context/TeamContext';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import BillingPage from './pages/BillingPage';
 import SettingsPage from './pages/SettingsPage';
 import DdPortalPage from './pages/DdPortalPage';
+import TeamInviteAcceptPage from './pages/TeamInviteAcceptPage';
 
 /** Full-screen splash shown while backend wakes from cold start (temporary — remove on paid plan). */
 function WakeUpSplash() {
@@ -44,30 +46,33 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/dashboard/airtable" element={<DashboardPage feedSource="airtable" />} />
-          <Route 
-            path="/billing" 
-            element={
-              <ProtectedRoute>
-                <BillingPage />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/settings" 
-            element={
-              <ProtectedRoute>
-                <SettingsPage />
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="/dd/:token" element={<DdPortalPage />} />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        <TeamProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/dashboard/airtable" element={<DashboardPage feedSource="airtable" />} />
+            <Route 
+              path="/billing" 
+              element={
+                <ProtectedRoute>
+                  <BillingPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="/teams/accept" element={<TeamInviteAcceptPage />} />
+            <Route path="/dd/:token" element={<DdPortalPage />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </TeamProvider>
       </AuthProvider>
     </BrowserRouter>
   );

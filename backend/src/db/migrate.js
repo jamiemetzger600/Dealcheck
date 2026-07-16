@@ -692,6 +692,152 @@ const migrations = [
         ON calendar_events(user_id, starts_at, ends_at)
         WHERE deleted_at IS NULL;
     `
+  },
+  {
+    name: 'teams_phase1_v5_6',
+    up: `
+      CREATE TABLE IF NOT EXISTS teams (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS team_members (
+        id SERIAL PRIMARY KEY,
+        team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role VARCHAR(20) NOT NULL DEFAULT 'member'
+          CHECK (role IN ('admin', 'member', 'viewer')),
+        status VARCHAR(20) NOT NULL DEFAULT 'active'
+          CHECK (status IN ('invited', 'active', 'removed')),
+        joined_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(team_id, user_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_members_user
+        ON team_members(user_id) WHERE status = 'active';
+      CREATE INDEX IF NOT EXISTS idx_team_members_team
+        ON team_members(team_id) WHERE status = 'active';
+
+      CREATE TABLE IF NOT EXISTS team_invites (
+        id SERIAL PRIMARY KEY,
+        team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'member'
+          CHECK (role IN ('admin', 'member', 'viewer')),
+        token VARCHAR(64) NOT NULL UNIQUE,
+        invited_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        accepted_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_team_invites_email
+        ON team_invites(LOWER(email)) WHERE accepted_at IS NULL;
+
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL;
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS shared_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_saved_deals_team_id ON saved_deals(team_id) WHERE team_id IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS deal_approvals (
+        id SERIAL PRIMARY KEY,
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE,
+        team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        requested_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        action_type VARCHAR(40) NOT NULL DEFAULT 'stage_change',
+        from_value TEXT,
+        to_value TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'approved', 'rejected')),
+        reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        note TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        reviewed_at TIMESTAMPTZ
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_deal_approvals_pending
+        ON deal_approvals(team_id, status) WHERE status = 'pending';
+      CREATE INDEX IF NOT EXISTS idx_deal_approvals_deal
+        ON deal_approvals(saved_deal_id);
+
+      CREATE TABLE IF NOT EXISTS deal_messages (
+        id SERIAL PRIMARY KEY,
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE,
+        author_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        message_kind VARCHAR(20) NOT NULL DEFAULT 'chat'
+          CHECK (message_kind IN ('chat', 'system')),
+        assignee_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        resolved_at TIMESTAMPTZ,
+        resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        tags TEXT[] DEFAULT '{}',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_deal_messages_deal
+        ON deal_messages(saved_deal_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS deal_message_mentions (
+        message_id INTEGER NOT NULL REFERENCES deal_messages(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        PRIMARY KEY (message_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS deal_message_reactions (
+        message_id INTEGER NOT NULL REFERENCES deal_messages(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        emoji VARCHAR(16) NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (message_id, user_id, emoji)
+      );
+
+      CREATE TABLE IF NOT EXISTS deal_thread_reads (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE,
+        last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, saved_deal_id)
+      );
+    `
+  },
+  {
+    // Team workspaces need a separate saved_deals row per team listing.
+    // The original UNIQUE(user_id, deal_id) blocked saving a listing to a team
+    // when the same user already had it in personal My Deals (Postgres 23505).
+    name: 'saved_deals_scoped_unique_deal_id',
+    up: `
+      ALTER TABLE saved_deals DROP CONSTRAINT IF EXISTS saved_deals_user_id_deal_id_key;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_deals_personal_deal_id
+        ON saved_deals (user_id, deal_id)
+        WHERE team_id IS NULL;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_deals_team_deal_id
+        ON saved_deals (team_id, deal_id)
+        WHERE team_id IS NOT NULL;
+    `
+  },
+  {
+    name: 'team_invites_link_kind',
+    up: `
+      ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS invite_kind VARCHAR(20) NOT NULL DEFAULT 'email';
+      ALTER TABLE team_invites ALTER COLUMN email DROP NOT NULL;
+    `
+  },
+  {
+    name: 'team_invites_code_password',
+    up: `
+      ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS invite_code VARCHAR(16);
+      ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+      UPDATE team_invites
+      SET invite_code = UPPER(SUBSTRING(md5(random()::text || id::text || COALESCE(token, '')) FROM 1 FOR 8))
+      WHERE invite_code IS NULL OR invite_code = '';
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_team_invites_invite_code
+        ON team_invites(invite_code);
+    `
   }
 ];
 
@@ -699,8 +845,17 @@ export async function runMigrations(poolInstance = pool) {
   console.log('🔄 Running database migrations...');
   for (const migration of migrations) {
     console.log(`  Running: ${migration.name}`);
-    await poolInstance.query(migration.up);
-    console.log(`  ✅ ${migration.name} completed`);
+    try {
+      await poolInstance.query(migration.up);
+      console.log(`  ✅ ${migration.name} completed`);
+    } catch (err) {
+      // Many ups are idempotent (IF NOT EXISTS). Older data migrations can fail on
+      // re-run (e.g. unique conflicts) and must not block later schema (teams, etc.).
+      console.error(`  ⚠️ ${migration.name} failed:`, err.message);
+      if (process.env.NODE_ENV === 'production' && !/duplicate key|already exists/i.test(err.message || '')) {
+        throw err;
+      }
+    }
   }
   console.log('✅ All migrations completed successfully');
 }

@@ -3,6 +3,7 @@ import DealCalculator from './DealCalculator';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
 import { dealsAPI } from '../utils/api';
 import { saveCalculatorState } from '../utils/dealCalculatorStorage';
+import { useTeam } from '../context/TeamContext';
 
 /** Stable id so calculator inputs persist in localStorage between sessions. */
 export const QUICK_CALCULATOR_DEAL = {
@@ -18,6 +19,7 @@ export default function QuickDealCalculatorModal({
   onSaveCalculatorDefaults = null,
   onDealSaved = null
 }) {
+  const { saveTeamId } = useTeam();
   const [businessName, setBusinessName] = useState('');
   const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -66,7 +68,8 @@ export default function QuickDealCalculatorModal({
       source: 'Quick calculator',
       sourceType: 'manual',
       discoveredAt: Date.now(),
-      calculatorState
+      calculatorState,
+      ...(saveTeamId ? { teamId: saveTeamId } : {})
     });
 
     if (data?.dealId != null) {

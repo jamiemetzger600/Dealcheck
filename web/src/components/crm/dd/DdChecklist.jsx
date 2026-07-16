@@ -11,7 +11,7 @@ const DD_STATUSES = [
   { value: 'na', label: 'N/A' }
 ];
 
-export default function DdChecklist({ dealId, onRefresh }) {
+export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
   const [checklist, setChecklist] = useState(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -203,9 +203,10 @@ export default function DdChecklist({ dealId, onRefresh }) {
       <div className="dd-start-prompt">
         <h3>Due Diligence</h3>
         <p>Start from the business acquisition template (~35 checklist items across 9 groups).</p>
-        <button type="button" className="btn-primary" disabled={starting} onClick={handleStart}>
+        <button type="button" className="btn-primary" disabled={starting || !canWrite} onClick={handleStart}>
           {starting ? 'Starting…' : 'Start DD checklist'}
         </button>
+        {!canWrite ? <p className="crm-muted">Viewer role — DD is read-only.</p> : null}
       </div>
     );
   }
@@ -223,9 +224,13 @@ export default function DdChecklist({ dealId, onRefresh }) {
           </p>
         </div>
         <div className="dd-checklist__actions">
-          <button type="button" className="btn-secondary" onClick={() => setShareForm({ ...shareForm, open: true, mode: 'view_only' })}>
-            Share link…
-          </button>
+          {canWrite ? (
+            <button type="button" className="btn-secondary" onClick={() => setShareForm({ ...shareForm, open: true, mode: 'view_only' })}>
+              Share link…
+            </button>
+          ) : (
+            <span className="crm-muted">Viewer — read only</span>
+          )}
         </div>
       </header>
 
@@ -379,6 +384,7 @@ export default function DdChecklist({ dealId, onRefresh }) {
                     className="modal-input dd-item__status"
                     value={item.status}
                     onChange={(e) => handleStatusChange(item.id, e.target.value)}
+                    disabled={!canWrite}
                     aria-label={`Status for ${item.title}`}
                   >
                     {DD_STATUSES.map((s) => (

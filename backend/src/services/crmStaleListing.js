@@ -1,4 +1,5 @@
 import pool from '../db/pool.js';
+import { VISIBLE_DEALS_SQL } from '../lib/teamAcl.js';
 
 /**
  * Deals whose saved financials differ from the live market_deals feed.
@@ -13,7 +14,7 @@ export async function findStaleListings(userId) {
             md.source_updated_at AS feed_updated_at
      FROM saved_deals sd
      INNER JOIN market_deals md ON md.id = sd.market_deal_id
-     WHERE sd.user_id = $1
+     WHERE ${VISIBLE_DEALS_SQL}
        AND (
          (sd.asking_price IS NOT NULL AND md.asking_price IS NOT NULL AND sd.asking_price IS DISTINCT FROM md.asking_price)
          OR (sd.ebitda IS NOT NULL AND md.annual_profit IS NOT NULL AND sd.ebitda IS DISTINCT FROM md.annual_profit)
@@ -39,6 +40,7 @@ export async function findStaleListings(userId) {
         ? { saved: row.revenue, feed: row.feed_revenue }
         : null
     },
+    listingSnapshotAt: row.listing_snapshot_at,
     feedUpdatedAt: row.feed_updated_at
   }));
 }

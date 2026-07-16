@@ -37,6 +37,7 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
   const stale = today?.staleListings || [];
   const ddOverdue = today?.ddOverdue || [];
   const portalComments = today?.portalComments || [];
+  const pendingApprovals = today?.pendingApprovals || [];
 
   const handleCompleteTask = async (taskId) => {
     try {
@@ -47,12 +48,23 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
     }
   };
 
+  const handleApproval = async (approvalId, decision) => {
+    try {
+      const { teamsAPI } = await import('../../utils/api');
+      await teamsAPI.reviewApproval(approvalId, { decision });
+      onRefresh?.();
+    } catch (err) {
+      alert(err.message || 'Approval failed');
+    }
+  };
+
   const hasWork =
     overdue.length > 0 ||
     dueToday.length > 0 ||
     stale.length > 0 ||
     ddOverdue.length > 0 ||
-    portalComments.length > 0;
+    portalComments.length > 0 ||
+    pendingApprovals.length > 0;
 
   if (!hasWork) {
     return (
@@ -65,6 +77,36 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
 
   return (
     <div className="crm-today-feed">
+      {pendingApprovals.length > 0 ? (
+        <section className="crm-today-section">
+          <h3 className="crm-today-section__title">Approvals ({pendingApprovals.length})</h3>
+          <ul className="crm-today-task-list">
+            {pendingApprovals.map((a) => (
+              <li key={a.id} className="crm-today-task">
+                <div className="crm-today-task__body">
+                  <button
+                    type="button"
+                    className="crm-today-task__deal"
+                    onClick={() => onSelectDeal?.(a.saved_deal_id)}
+                  >
+                    {a.deal_name || 'Deal'}
+                  </button>
+                  <span className="crm-today-task__title">
+                    {a.requester_email}: “{a.from_value || 'Inbox'}” → “{a.to_value}”
+                  </span>
+                </div>
+                <button type="button" className="btn-primary btn-secondary--sm" onClick={() => handleApproval(a.id, 'approve')}>
+                  Approve
+                </button>
+                <button type="button" className="btn-secondary btn-secondary--sm" onClick={() => handleApproval(a.id, 'reject')}>
+                  Reject
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {overdue.length > 0 ? (
         <section className="crm-today-section">
           <h3 className="crm-today-section__title crm-today-section__title--warn">

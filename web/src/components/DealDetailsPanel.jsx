@@ -216,6 +216,8 @@ export default function DealDetailsPanel({
   onUnsaveDeal = null,
   isSavingDeal = false,
   dealSavedInMyDeals = false,
+  saveButtonLabel = 'Save to My Deals',
+  unsaveButtonTitle = 'Click to remove from My Deals',
   savedHighlightStyle = true,
   onPositionChange,
   settings = null,
@@ -667,7 +669,7 @@ export default function DealDetailsPanel({
                   type="button"
                   className={savedHighlightStyle ? 'btn-save btn-save--saved' : 'btn-save btn-save--saved-muted'}
                   disabled={isSavingDeal || typeof onUnsaveDeal !== 'function'}
-                  title="Click to remove from My Deals"
+                  title={unsaveButtonTitle}
                   onClick={() => onUnsaveDeal && onUnsaveDeal(deal)}
                 >
                   {isSavingDeal ? 'Removing…' : 'Saved'}
@@ -677,7 +679,7 @@ export default function DealDetailsPanel({
                   if (isGuest && typeof requireSignup === 'function') requireSignup('save', { dealDbId: deal.dbId });
                   else onSaveDeal(deal);
                 }}>
-                  {isSavingDeal ? 'Saving...' : 'Save to My Deals'}
+                  {isSavingDeal ? 'Saving...' : saveButtonLabel}
                 </button>
               )
             )}

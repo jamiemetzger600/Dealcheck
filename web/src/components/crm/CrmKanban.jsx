@@ -11,19 +11,21 @@ import {
   kanbanColumnForStage,
   resolveDealStage
 } from '../../utils/pipelineStages';
+import { useTeam } from '../../context/TeamContext';
 
-function KanbanCard({ deal, summary, onSelect, dragging, isSelected, onDragStart, onDragEnd }) {
+function KanbanCard({ deal, summary, onSelect, dragging, isSelected, onDragStart, onDragEnd, draggable = true }) {
   const days = daysInCurrentStage(deal);
   const coc = summary?.cocReturn;
   const cocOk = coc != null && Number.isFinite(coc);
   const stageLabel = resolveDealStage(deal);
+  const pending = deal.pending_approval || deal.pendingApproval;
 
   return (
     <article
-      className={`crm-kanban-card${dragging ? ' crm-kanban-card--dragging' : ''}${isSelected ? ' crm-kanban-card--selected' : ''}`}
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      className={`crm-kanban-card${dragging ? ' crm-kanban-card--dragging' : ''}${isSelected ? ' crm-kanban-card--selected' : ''}${pending ? ' crm-kanban-card--pending' : ''}`}
+      draggable={draggable}
+      onDragStart={draggable ? onDragStart : undefined}
+      onDragEnd={draggable ? onDragEnd : undefined}
       onClick={() => onSelect(deal.id)}
       role="button"
       tabIndex={0}
@@ -35,6 +37,10 @@ function KanbanCard({ deal, summary, onSelect, dragging, isSelected, onDragStart
       }}
     >
       <h4 className="crm-kanban-card__title">{deal.name || 'Untitled deal'}</h4>
+      {pending ? <span className="crm-kanban-card__pending">Pending approval</span> : null}
+      {deal.unread_messages > 0 ? (
+        <span className="crm-kanban-card__unread">{deal.unread_messages} new</span>
+      ) : null}
       <div className="crm-kanban-card__meta">
         {deal.askingPrice != null ? <span>{formatMoney(deal.askingPrice)}</span> : null}
         {cocOk ? (
@@ -44,7 +50,7 @@ function KanbanCard({ deal, summary, onSelect, dragging, isSelected, onDragStart
         ) : null}
       </div>
       <div className="crm-kanban-card__footer">
-        {stageLabel ? <span className="crm-kanban-card__stage">{stageLabel}</span> : <span>New</span>}
+        {stageLabel ? <span className="crm-kanban-card__stage">{stageLabel}</span> : null}
         {days != null ? <span>{days}d</span> : null}
       </div>
     </article>
@@ -59,6 +65,8 @@ export default function CrmKanban({
   onRefresh,
   onStageChanged = null
 }) {
+  const { activeTeamId, activeTeam, isTeamMode } = useTeam();
+  const canWriteBoard = !isTeamMode || activeTeam?.role !== 'viewer';
   const [kanban, setKanban] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -84,14 +92,18 @@ export default function CrmKanban({
     setLoading(true);
     setError(null);
     try {
-      const data = await crmAPI.getKanban();
+      const data = await crmAPI.getKanban(
+        isTeamMode && activeTeamId
+          ? { scope: 'team', teamId: activeTeamId }
+          : { scope: 'personal' }
+      );
       setKanban(data);
     } catch (err) {
       setError(err.message || 'Failed to load pipeline');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeTeamId, isTeamMode]);
 
   useEffect(() => {
     loadKanban();
@@ -152,6 +164,9 @@ export default function CrmKanban({
     setMoving(true);
     try {
       const result = await crmAPI.updateStage(dealId, targetStage);
+      if (result.needsApproval) {
+        alert(`Approval requested for "${result.pendingApproval?.to_value || targetStage}". An admin will review.`);
+      }
       onStageChanged?.(result, deal.name);
       await loadKanban();
       onRefresh?.();
@@ -182,7 +197,9 @@ export default function CrmKanban({
     <div className="crm-kanban">
       <div className="crm-kanban-toolbar">
         <p className="crm-kanban-toolbar__hint">
-          Drag deals between columns to update pipeline stage. Changes are logged to the deal timeline.
+          {canWriteBoard
+            ? 'Drag deals between columns to update pipeline stage. Changes are logged to the deal timeline.'
+            : 'Viewer role — pipeline is read-only. Open a deal to use Talk.'}
         </p>
         <span className="crm-kanban-count">{totalDeals} deals</span>
       </div>
@@ -200,9 +217,9 @@ export default function CrmKanban({
               <section
                 key={col.id}
                 className={`crm-kanban-column${isDrop ? ' crm-kanban-column--drop' : ''}`}
-                onDragOver={(e) => handleDragOver(e, col.id)}
-                onDragLeave={() => setDropTarget((t) => (t === col.id ? null : t))}
-                onDrop={(e) => handleDrop(e, col.id)}
+                onDragOver={canWriteBoard ? (e) => handleDragOver(e, col.id) : undefined}
+                onDragLeave={canWriteBoard ? () => setDropTarget((t) => (t === col.id ? null : t)) : undefined}
+                onDrop={canWriteBoard ? (e) => handleDrop(e, col.id) : undefined}
               >
                 <header className="crm-kanban-column__header">
                   <h3>{col.label}</h3>
@@ -217,6 +234,7 @@ export default function CrmKanban({
                       dragging={dragDealId === deal.id}
                       isSelected={selectedDealId === deal.id}
                       onSelect={onSelectDeal}
+                      draggable={canWriteBoard}
                       onDragStart={(e) => handleDragStart(e, deal.id)}
                       onDragEnd={handleDragEnd}
                     />

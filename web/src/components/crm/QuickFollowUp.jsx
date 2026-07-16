@@ -36,7 +36,8 @@ export default function QuickFollowUp({
   dealName,
   contacts = [],
   userEmail = '',
-  onCreated
+  onCreated,
+  disabled = false
 }) {
   const [saving, setSaving] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
@@ -127,6 +128,9 @@ export default function QuickFollowUp({
 
   return (
     <div className="crm-quick-followup">
+      {disabled ? (
+        <p className="crm-muted">Viewer role — follow-ups are read-only.</p>
+      ) : null}
       <span className="crm-quick-followup__label">
         Follow up{dealName ? ` on ${dealName}` : ''}
       </span>
@@ -136,7 +140,7 @@ export default function QuickFollowUp({
             key={p.id}
             type="button"
             className="crm-chip"
-            disabled={saving}
+            disabled={saving || disabled}
             onClick={() => handlePreset(p.id)}
           >
             {p.label}

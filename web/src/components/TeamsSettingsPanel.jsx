@@ -31,28 +31,6 @@ function inviteLabel(i) {
   return `${i.email || i.label}${code} (${i.role})`;
 }
 
-/** When testing locally, rewrite prod accept URLs to the current origin (same token). */
-function localizeAcceptUrl(url) {
-  if (!url || typeof window === 'undefined') return url;
-  const host = window.location.hostname;
-  if (host !== 'localhost' && host !== '127.0.0.1') return url;
-  try {
-    const u = new URL(url);
-    if (u.hostname === host) return url;
-    u.protocol = window.location.protocol;
-    u.host = window.location.host;
-    return u.toString();
-  } catch {
-    return url;
-  }
-}
-
-function withLocalAcceptUrl(invite) {
-  if (!invite) return invite;
-  const acceptUrl = localizeAcceptUrl(invite.acceptUrl);
-  return acceptUrl === invite.acceptUrl ? invite : { ...invite, acceptUrl };
-}
-
 /** Create team, invite members, list membership — lives in Settings. */
 export default function TeamsSettingsPanel() {
   const { teams, refreshTeams, seatCap, setActiveTeamId, activeTeamId } = useTeam();
@@ -80,10 +58,7 @@ export default function TeamsSettingsPanel() {
     }
     try {
       const data = await teamsAPI.get(teamId);
-      setDetail({
-        ...data,
-        invites: (data.invites || []).map(withLocalAcceptUrl)
-      });
+      setDetail(data);
       setSelectedId(teamId);
     } catch (err) {
       console.error('[TeamsSettings] load failed', err);
@@ -159,9 +134,8 @@ export default function TeamsSettingsPanel() {
         role: inviteRole
       });
       setInviteEmail('');
-      const invited = withLocalAcceptUrl(data.invite);
-      const code = invited?.code ? ` [#${invited.code}]` : '';
-      setMessage(`Invite sent to ${invited?.email}${code}. Link: ${invited?.acceptUrl || '(check email)'}`);
+      const code = data.invite?.code ? ` [#${data.invite.code}]` : '';
+      setMessage(`Invite sent to ${data.invite?.email}${code}. Link: ${data.invite?.acceptUrl || '(check email)'}`);
       await loadDetail(selectedId);
     } catch (err) {
       setMessage(err.message || 'Invite failed');
@@ -181,7 +155,7 @@ export default function TeamsSettingsPanel() {
         expiresInDays: linkExpiresDays,
         password: linkPassword.trim()
       });
-      const invite = withLocalAcceptUrl(data.invite);
+      const invite = data.invite;
       if (!invite?.acceptUrl) {
         throw new Error('Invite link missing acceptUrl');
       }

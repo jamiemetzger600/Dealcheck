@@ -18,14 +18,12 @@ import {
 } from '../lib/teamAcl.js';
 
 function webAppBase() {
-  // Invite tokens live in the DB of the API that created them. Local .env often
-  // sets WEB_APP_URL to production for CORS — that must not mint prod accept URLs
-  // for local invites (prod won't have the token or the /teams/accept route yet).
-  if (process.env.NODE_ENV !== 'production') {
-    const local = process.env.WEB_APP_URL_LOCAL || 'http://localhost:5173';
-    return local.split(',')[0].trim().replace(/\/+$/, '');
-  }
-  const raw = process.env.WEB_APP_URL || 'http://localhost:5173';
+  // Always use WEB_APP_URL so invite links point at the live app (e.g. vettr.pages.dev).
+  // Optional WEB_APP_URL_LOCAL overrides only when explicitly set (local-only testing).
+  const raw =
+    process.env.WEB_APP_URL_LOCAL ||
+    process.env.WEB_APP_URL ||
+    'http://localhost:5173';
   return raw.split(',')[0].trim().replace(/\/+$/, '');
 }
 

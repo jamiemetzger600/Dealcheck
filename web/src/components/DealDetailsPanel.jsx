@@ -140,7 +140,9 @@ function SectionIconRail({
   return (
     <nav className="deal-section-rail" aria-label="Deal sections" ref={railRef}>
       {sections.map((section, index) => {
-        const isVisible = section.id === primarySection || section.id === pinnedSection;
+        const isVisible =
+          section.id === primarySection
+          || (section.id === pinnedSection && pinnedIds.has(section.id));
         const isPinned = pinnedIds.has(section.id);
         const isFocused = section.id === focusedSection;
         return (
@@ -193,7 +195,7 @@ function SectionSlot({
             onClick={onTogglePin}
             aria-pressed={isPinned}
             aria-label={isPinned ? `Unpin ${label}` : `Pin ${label}`}
-            title={isPinned ? 'Unpin — section may be replaced when browsing' : 'Pin — keep visible while browsing other sections'}
+            title={isPinned ? 'Unpin — hide this section' : 'Pin — keep visible while browsing other sections'}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M12 17v5" />
@@ -321,13 +323,44 @@ export default function DealDetailsPanel({
   }, [primarySection, pinnedSection, pinnedIds]);
 
   const handlePinToggle = useCallback((sectionId) => {
-    setPinnedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(sectionId)) next.delete(sectionId);
-      else next.add(sectionId);
-      return next;
+    setPinnedIds((prevPinned) => {
+      const wasPinned = prevPinned.has(sectionId);
+      const nextPinned = new Set(prevPinned);
+
+      if (wasPinned) {
+        nextPinned.delete(sectionId);
+        // Unpin = hide this section from the dual-pane view
+        setPinnedSection((pinned) => {
+          if (pinned !== sectionId) return pinned;
+          return [...nextPinned].find((id) => id !== primarySection) ?? null;
+        });
+        setPrimarySection((primary) => {
+          if (primary !== sectionId) return primary;
+          const fallback =
+            (pinnedSection && pinnedSection !== sectionId ? pinnedSection : null)
+            || [...nextPinned][0]
+            || (sectionId === DEFAULT_PRIMARY ? DEFAULT_PINNED : DEFAULT_PRIMARY);
+          if (fallback === pinnedSection) {
+            setPinnedSection(
+              [...nextPinned].find((id) => id !== fallback) ?? null
+            );
+          }
+          setFocusedSection(fallback);
+          console.log('[DealDetailsPanel] unpinned/hid section', sectionId, '→ primary', fallback);
+          return fallback;
+        });
+      } else {
+        nextPinned.add(sectionId);
+        // Pin = keep visible as the companion slot (unless it's already primary)
+        if (sectionId !== primarySection) {
+          setPinnedSection(sectionId);
+        }
+        console.log('[DealDetailsPanel] pinned section', sectionId);
+      }
+
+      return nextPinned;
     });
-  }, []);
+  }, [primarySection, pinnedSection]);
 
   const coreSections = useMemo(() => {
     const sections = [
@@ -540,7 +573,16 @@ export default function DealDetailsPanel({
     }
   });
 
-  const visibleSlots = [primarySection, pinnedSection].filter((id, i, arr) => id && arr.indexOf(id) === i);
+  // Companion slot only stays open when still pinned (unpin hides immediately)
+  const companionSection =
+    pinnedSection
+    && pinnedIds.has(pinnedSection)
+    && pinnedSection !== primarySection
+      ? pinnedSection
+      : [...pinnedIds].find((id) => id !== primarySection) ?? null;
+  const visibleSlots = [primarySection, companionSection].filter(
+    (id, i, arr) => id && arr.indexOf(id) === i
+  );
 
   const renderSlot = (sectionId) => {
     const meta = sectionMetaById[sectionId];

@@ -229,6 +229,12 @@ export const teamsAPI = {
   removeMember: (teamId, userId) =>
     apiRequest(`/teams/${teamId}/members/${userId}`, { method: 'DELETE' }),
 
+  updateMemberRole: (teamId, userId, role) =>
+    apiRequest(`/teams/${teamId}/members/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role })
+    }),
+
   shareDeal: (teamId, dealId) =>
     apiRequest(`/teams/${teamId}/deals/${dealId}/share`, { method: 'POST' }),
 

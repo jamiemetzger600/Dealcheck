@@ -937,7 +937,13 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
       ) : (
         <button type="button" className="btn-secondary" disabled aria-label="No listing URL">No Listing URL Available</button>
       )}
-      <DealShareMenu deal={mergedDeal} />
+      <DealShareMenu
+        deal={mergedDeal}
+        onShared={() => {
+          onUpdate?.();
+          onClose?.();
+        }}
+      />
       <button type="button" className="btn-secondary" onClick={onExport}>Export CSV</button>
       <button type="button" className="btn-danger" onClick={() => onDelete(deal.id)}>Delete</button>
       <button type="button" className="btn-primary" onClick={onClose}>Close</button>

@@ -113,9 +113,13 @@ export default function CrmDealWorkspace({
     }
     setSharing(true);
     try {
-      await teamsAPI.shareDeal(teamId, dealId);
+      const data = await teamsAPI.shareDeal(teamId, dealId);
       await handleRefresh();
-      alert('Deal shared with the team. Notes are visible for catch-up.');
+      if (data?.pending) {
+        alert('Share requested. An admin must approve before the deal joins the team.');
+      } else {
+        alert('Deal shared with the team. Notes are visible for catch-up.');
+      }
     } catch (err) {
       alert(err.message || 'Failed to share');
     } finally {

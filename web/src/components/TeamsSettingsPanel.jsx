@@ -209,6 +209,23 @@ export default function TeamsSettingsPanel() {
     }
   };
 
+  const handleMemberRoleChange = async (userId, role) => {
+    if (!selectedId || !userId || !role) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      await teamsAPI.updateMemberRole(selectedId, userId, role);
+      setMessage(`Updated role to ${role}`);
+      await refreshTeams();
+      await loadDetail(selectedId);
+    } catch (err) {
+      console.error('[TeamsSettings] role update failed', err);
+      setMessage(err.message || 'Could not update role');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const isAdmin = detail?.team?.role === 'admin';
 
   return (
@@ -260,9 +277,25 @@ export default function TeamsSettingsPanel() {
           <h3>{detail.team.name}</h3>
           <p>Your role: {detail.team.role}</p>
           <p className="teams-settings__members-label">Members ({(detail.members || []).length})</p>
-          <ul>
+          <ul className="teams-settings__members">
             {(detail.members || []).map((m) => (
-              <li key={m.user_id}>{m.email} — {m.role}</li>
+              <li key={m.user_id} className="teams-settings__member-row">
+                <span>{m.email}</span>
+                {isAdmin ? (
+                  <select
+                    value={m.role}
+                    disabled={busy}
+                    aria-label={`Role for ${m.email}`}
+                    onChange={(e) => handleMemberRoleChange(m.user_id, e.target.value)}
+                  >
+                    <option value="admin">Admin</option>
+                    <option value="member">Member</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                ) : (
+                  <span className="crm-muted">{m.role}</span>
+                )}
+              </li>
             ))}
           </ul>
 
@@ -270,7 +303,7 @@ export default function TeamsSettingsPanel() {
             <>
               <div className="teams-settings__invite">
                 <p className="teams-settings__invite-hint">
-                  Invite by email (max {seatCap} seats). They must sign in as that email.
+                  Invite by email (max {seatCap} seats). They must sign in as that email. Multiple admins allowed.
                 </p>
                 <input
                   type="email"
@@ -279,6 +312,7 @@ export default function TeamsSettingsPanel() {
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
                 <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)}>
+                  <option value="admin">Admin</option>
                   <option value="member">Member</option>
                   <option value="viewer">Viewer</option>
                 </select>
@@ -293,6 +327,7 @@ export default function TeamsSettingsPanel() {
                 </p>
                 <div className="teams-settings__share-link-row">
                   <select value={linkRole} onChange={(e) => setLinkRole(e.target.value)} aria-label="Link invite role">
+                    <option value="admin">Admin</option>
                     <option value="member">Member</option>
                     <option value="viewer">Viewer</option>
                   </select>

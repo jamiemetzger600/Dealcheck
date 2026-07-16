@@ -3509,6 +3509,13 @@ button.aggregator-welcome__buybox {
   margin-left: 0;
 }
 
+/* Same hairline used on top-level calc sections — separate A / B / C financing blocks */
+.deal-calculator-extension-style .calc-accordion--nested + .calc-accordion--nested {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .deal-calculator-extension-style .calc-accordion--kicker .calc-accordion-header {
   font-size: 11px;
   font-weight: 700;
@@ -3938,6 +3945,12 @@ button.aggregator-welcome__buybox {
 .deal-share-menu__item:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.deal-share-menu__sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .deal-card {
@@ -7553,15 +7566,17 @@ button.aggregator-welcome__buybox {
   gap: 10px;
   min-height: 280px;
   max-height: 60vh;
+  color: var(--text-primary);
 }
 .deal-thread__header h3 {
   margin: 0;
   font-size: 1rem;
+  color: var(--text-primary);
 }
 .deal-thread__hint {
   margin: 2px 0 0;
   font-size: 12px;
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
 }
 .deal-thread__list {
   flex: 1;
@@ -7574,16 +7589,19 @@ button.aggregator-welcome__buybox {
 .deal-thread__msg {
   padding: 8px 10px;
   border-radius: 10px;
-  background: var(--surface-2, #f6f7f9);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
 }
 .deal-thread__msg--system {
   background: transparent;
+  border: none;
   padding: 2px 0;
 }
 .deal-thread__system {
   margin: 0;
   font-size: 12px;
-  color: var(--text-secondary, #888);
+  color: var(--text-secondary);
   text-align: center;
 }
 .deal-thread__msg--resolved {
@@ -7595,11 +7613,13 @@ button.aggregator-welcome__buybox {
   gap: 8px;
   font-size: 12px;
   margin-bottom: 4px;
+  color: var(--text-secondary);
 }
 .deal-thread__body {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
+  color: var(--text-primary);
 }
 .deal-thread__chip,
 .deal-thread__tag {
@@ -7609,7 +7629,9 @@ button.aggregator-welcome__buybox {
   font-size: 11px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: #e8eef6;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
 }
 .deal-thread__actions {
   display: flex;
@@ -7620,37 +7642,72 @@ button.aggregator-welcome__buybox {
 .deal-thread__react,
 .deal-thread__resolve,
 .deal-thread__tool {
-  border: 1px solid var(--border, #ddd);
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   border-radius: 999px;
   padding: 4px 8px;
   font-size: 12px;
   cursor: pointer;
   min-height: 32px;
 }
+.deal-thread__react:hover,
+.deal-thread__resolve:hover,
+.deal-thread__tool:hover {
+  background: var(--bg-secondary);
+  border-color: var(--primary);
+}
 .deal-thread__composer {
   position: sticky;
   bottom: 0;
-  background: var(--surface, #fff);
-  padding-top: 6px;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border);
+  padding: 10px 0 calc(6px + env(safe-area-inset-bottom, 0));
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .deal-thread__toolbar {
   display: flex;
   gap: 8px;
   align-items: center;
 }
+.deal-thread__assign {
+  flex: 1;
+  min-width: 0;
+  max-width: 280px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+.deal-thread__assign option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
 .deal-thread__input {
   width: 100%;
   resize: vertical;
   min-height: 44px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 8px;
-  border: 1px solid var(--border, #ddd);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   font: inherit;
+}
+.deal-thread__input::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+.deal-thread__input:focus,
+.deal-thread__assign:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
 }
 .deal-thread__send {
   align-self: flex-end;
@@ -7659,22 +7716,27 @@ button.aggregator-welcome__buybox {
   list-style: none;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--border, #ddd);
+  border: 1px solid var(--border);
   border-radius: 8px;
   max-height: 140px;
   overflow: auto;
+  background: var(--bg-secondary);
 }
 .deal-thread__mentions button {
   width: 100%;
   text-align: left;
   padding: 10px 12px;
   border: none;
-  background: none;
+  background: transparent;
+  color: var(--text-primary);
   cursor: pointer;
   font: inherit;
 }
+.deal-thread__mentions button:hover {
+  background: var(--bg-tertiary);
+}
 .deal-thread__error {
-  color: #b42318;
+  color: var(--error, #e74c3c);
   font-size: 13px;
 }
 .crm-kanban-card__pending {
@@ -7745,6 +7807,23 @@ button.aggregator-welcome__buybox {
 }
 .teams-settings__revoke {
   align-self: flex-start;
+}
+.teams-settings__members {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.teams-settings__member-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.teams-settings__member-row select {
+  max-width: 140px;
 }
 .teams-settings__pending-item {
   display: flex;

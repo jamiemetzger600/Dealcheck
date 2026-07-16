@@ -81,6 +81,50 @@ async function assertAdmin(userId, teamId) {
   return m;
 }
 
+async function countActiveAdmins(teamId) {
+  const result = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM team_members
+     WHERE team_id = $1 AND status = 'active' AND role = 'admin'`,
+    [teamId]
+  );
+  return result.rows[0]?.n || 0;
+}
+
+function parseInviteRole(raw, { allowAdmin = true } = {}) {
+  const role = String(raw || 'member').trim();
+  if (!TEAM_ROLES.includes(role)) {
+    return { error: 'Role must be admin, member, or viewer' };
+  }
+  if (role === 'admin' && !allowAdmin) {
+    return { error: 'Role must be member or viewer' };
+  }
+  return { role };
+}
+
+async function promoteDealToTeam({
+  savedDealId,
+  teamId,
+  sharedByUserId,
+  actorUserId,
+  message
+}) {
+  await pool.query(
+    `UPDATE saved_deals
+     SET team_id = $1, shared_by_user_id = $2, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $3 AND team_id IS NULL`,
+    [teamId, sharedByUserId, savedDealId]
+  );
+  await pool.query(
+    `INSERT INTO deal_messages (saved_deal_id, author_user_id, body, message_kind)
+     VALUES ($1, $2, $3, 'system')`,
+    [
+      savedDealId,
+      actorUserId || sharedByUserId,
+      message || 'Deal shared with the team'
+    ]
+  );
+}
+
 export const listTeams = async (req, res) => {
   try {
     const teams = await listUserTeams(req.user.userId);
@@ -170,16 +214,14 @@ export const getTeam = async (req, res) => {
 export const inviteMember = async (req, res) => {
   const teamId = Number(req.params.teamId);
   const email = String(req.body?.email || '').trim().toLowerCase();
-  const role = String(req.body?.role || 'member').trim();
+  const parsed = parseInviteRole(req.body?.role || 'member');
+  if (parsed.error) {
+    return res.status(400).json({ error: parsed.error });
+  }
+  const role = parsed.role;
 
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'Valid email required' });
-  }
-  if (!TEAM_ROLES.includes(role) || role === 'admin') {
-    // Phase 1: invite as member or viewer only (one admin = creator)
-    if (role !== 'member' && role !== 'viewer') {
-      return res.status(400).json({ error: 'Role must be member or viewer' });
-    }
   }
 
   try {
@@ -252,13 +294,13 @@ export const inviteMember = async (req, res) => {
 /** Single-use invite link — any signed-in user can accept (no email required). */
 export const createInviteLink = async (req, res) => {
   const teamId = Number(req.params.teamId);
-  const role = String(req.body?.role || 'member').trim();
+  const parsed = parseInviteRole(req.body?.role || 'member');
+  if (parsed.error) {
+    return res.status(400).json({ error: parsed.error });
+  }
+  const role = parsed.role;
   const passwordRaw = req.body?.password != null ? String(req.body.password) : '';
   const password = passwordRaw.trim();
-
-  if (role !== 'member' && role !== 'viewer') {
-    return res.status(400).json({ error: 'Role must be member or viewer' });
-  }
   if (password && password.length < 4) {
     return res.status(400).json({ error: 'Password must be at least 4 characters' });
   }
@@ -413,8 +455,15 @@ export const removeMember = async (req, res) => {
   const targetUserId = Number(req.params.userId);
   try {
     await assertAdmin(req.user.userId, teamId);
-    if (targetUserId === req.user.userId) {
-      return res.status(400).json({ error: 'Cannot remove yourself as admin' });
+    const target = await getMembership(targetUserId, teamId);
+    if (!target) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+    if (target.role === 'admin') {
+      const adminCount = await countActiveAdmins(teamId);
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot remove the last admin. Promote another admin first.' });
+      }
     }
     const result = await pool.query(
       `UPDATE team_members SET status = 'removed'
@@ -425,6 +474,7 @@ export const removeMember = async (req, res) => {
     if (!result.rows.length) {
       return res.status(404).json({ error: 'Member not found' });
     }
+    console.log(`[teams] removed user=${targetUserId} from team=${teamId}`);
     res.json({ removed: true, userId: targetUserId });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
@@ -433,7 +483,43 @@ export const removeMember = async (req, res) => {
   }
 };
 
-/** Promote personal deal into a team (share). */
+/** Admin can change member roles (supports multiple admins). */
+export const updateMemberRole = async (req, res) => {
+  const teamId = Number(req.params.teamId);
+  const targetUserId = Number(req.params.userId);
+  const parsed = parseInviteRole(req.body?.role);
+  if (parsed.error) {
+    return res.status(400).json({ error: parsed.error });
+  }
+  const role = parsed.role;
+
+  try {
+    await assertAdmin(req.user.userId, teamId);
+    const target = await getMembership(targetUserId, teamId);
+    if (!target) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+    if (target.role === 'admin' && role !== 'admin') {
+      const adminCount = await countActiveAdmins(teamId);
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'Cannot demote the last admin. Promote another admin first.' });
+      }
+    }
+    await pool.query(
+      `UPDATE team_members SET role = $1
+       WHERE team_id = $2 AND user_id = $3 AND status = 'active'`,
+      [role, teamId, targetUserId]
+    );
+    console.log(`[teams] user=${targetUserId} role=${role} on team=${teamId}`);
+    res.json({ updated: true, userId: targetUserId, role });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error('[teams] updateMemberRole error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+/** Promote personal deal into a team (share). Admins share immediately; members need admin approval. */
 export const shareDealToTeam = async (req, res) => {
   const teamId = Number(req.params.teamId);
   const savedDealId = Number(req.params.dealId);
@@ -452,21 +538,55 @@ export const shareDealToTeam = async (req, res) => {
       return res.status(403).json({ error: 'Only the deal owner can share it' });
     }
 
-    await pool.query(
-      `UPDATE saved_deals
-       SET team_id = $1, shared_by_user_id = $2, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3 AND user_id = $2 AND team_id IS NULL`,
-      [teamId, req.user.userId, savedDealId]
+    // Admin: share immediately
+    if (membership.role === 'admin') {
+      await promoteDealToTeam({
+        savedDealId,
+        teamId,
+        sharedByUserId: req.user.userId,
+        actorUserId: req.user.userId,
+        message: `${req.user.email || 'Someone'} shared this deal with the team`
+      });
+      console.log(`[teams] deal=${savedDealId} shared to team=${teamId} by admin`);
+      return res.json({ shared: true, pending: false, teamId, savedDealId });
+    }
+
+    // Member: queue for admin approval (deal stays personal until approved)
+    const existing = await pool.query(
+      `SELECT id FROM deal_approvals
+       WHERE saved_deal_id = $1 AND team_id = $2 AND action_type = 'share' AND status = 'pending'`,
+      [savedDealId, teamId]
+    );
+    if (existing.rows[0]) {
+      return res.status(400).json({ error: 'Share already pending admin approval' });
+    }
+
+    const approval = await pool.query(
+      `INSERT INTO deal_approvals (
+         saved_deal_id, team_id, requested_by, action_type, from_value, to_value, status
+       ) VALUES ($1, $2, $3, 'share', 'personal', $4, 'pending')
+       RETURNING id, saved_deal_id, team_id, action_type, status, created_at`,
+      [savedDealId, teamId, req.user.userId, membership.team_name || String(teamId)]
     );
 
     await pool.query(
       `INSERT INTO deal_messages (saved_deal_id, author_user_id, body, message_kind)
        VALUES ($1, $2, $3, 'system')`,
-      [savedDealId, req.user.userId, `${req.user.email || 'Someone'} shared this deal with the team`]
+      [
+        savedDealId,
+        req.user.userId,
+        `${req.user.email || 'Someone'} requested to share this deal with the team (pending admin approval)`
+      ]
     );
 
-    console.log(`[teams] deal=${savedDealId} shared to team=${teamId}`);
-    res.json({ shared: true, teamId, savedDealId });
+    console.log(`[teams] deal=${savedDealId} share pending approval team=${teamId}`);
+    res.status(202).json({
+      shared: false,
+      pending: true,
+      approval: approval.rows[0],
+      teamId,
+      savedDealId
+    });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('[teams] shareDealToTeam error:', error);
@@ -555,6 +675,57 @@ export const reviewApproval = async (req, res) => {
     const approval = row.rows[0];
     if (!approval || approval.status !== 'pending') {
       return res.status(404).json({ error: 'Pending approval not found' });
+    }
+
+    // Share approvals: deal is still personal — authorize via team admin, not deal ACL
+    if (approval.action_type === 'share') {
+      await assertAdmin(req.user.userId, approval.team_id);
+
+      if (decision === 'reject') {
+        await pool.query(
+          `UPDATE deal_approvals
+           SET status = 'rejected', reviewed_by = $1, reviewed_at = NOW(), note = $2
+           WHERE id = $3`,
+          [req.user.userId, note, approvalId]
+        );
+        await pool.query(
+          `INSERT INTO deal_messages (saved_deal_id, author_user_id, body, message_kind)
+           VALUES ($1, $2, $3, 'system')`,
+          [
+            approval.saved_deal_id,
+            req.user.userId,
+            `Rejected share to team${note ? `: ${note}` : ''}`
+          ]
+        );
+        console.log(`[teams] share approval=${approvalId} rejected`);
+        return res.json({ status: 'rejected' });
+      }
+
+      const dealRow = await pool.query(
+        `SELECT id, team_id, user_id FROM saved_deals WHERE id = $1`,
+        [approval.saved_deal_id]
+      );
+      const deal = dealRow.rows[0];
+      if (!deal) {
+        return res.status(404).json({ error: 'Deal not found' });
+      }
+      if (!deal.team_id) {
+        await promoteDealToTeam({
+          savedDealId: approval.saved_deal_id,
+          teamId: approval.team_id,
+          sharedByUserId: approval.requested_by,
+          actorUserId: req.user.userId,
+          message: `${req.user.email || 'Admin'} approved sharing this deal with the team`
+        });
+      }
+      await pool.query(
+        `UPDATE deal_approvals
+         SET status = 'approved', reviewed_by = $1, reviewed_at = NOW(), note = $2
+         WHERE id = $3`,
+        [req.user.userId, note, approvalId]
+      );
+      console.log(`[teams] share approval=${approvalId} approved deal=${approval.saved_deal_id}`);
+      return res.json({ status: 'approved', shared: true, savedDealId: approval.saved_deal_id });
     }
 
     const access = await getDealAccess(req.user.userId, approval.saved_deal_id);

@@ -206,7 +206,7 @@ export default function Navigation({
             onClick={() => setActiveTab('saved-deals')}
             title={isTeamMode && activeTeam ? `Saved deals for ${activeTeam.name}` : 'Your saved deals'}
           >
-            <span>{isTeamMode && activeTeam ? activeTeam.name : 'My Deals'}</span>
+            <span>{isTeamMode && activeTeam ? `${activeTeam.name} Deals` : 'My Deals'}</span>
             <span className="tab-badge">{myDealsCount}</span>
           </button>
           <button

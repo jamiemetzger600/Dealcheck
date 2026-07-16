@@ -92,7 +92,9 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
                     {a.deal_name || 'Deal'}
                   </button>
                   <span className="crm-today-task__title">
-                    {a.requester_email}: “{a.from_value || 'Inbox'}” → “{a.to_value}”
+                    {a.action_type === 'share'
+                      ? `${a.requester_email} wants to share this deal with ${a.team_name || 'the team'}`
+                      : `${a.requester_email}: “${a.from_value || 'Inbox'}” → “${a.to_value}”`}
                   </span>
                 </div>
                 <button type="button" className="btn-primary btn-secondary--sm" onClick={() => handleApproval(a.id, 'approve')}>

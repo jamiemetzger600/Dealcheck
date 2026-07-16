@@ -190,11 +190,12 @@ export const getCrmToday = async (req, res) => {
     });
 
     const approvals = await pool.query(
-      `SELECT a.id, a.saved_deal_id, a.team_id, a.from_value, a.to_value, a.created_at,
-              sd.name AS deal_name, u.email AS requester_email
+      `SELECT a.id, a.saved_deal_id, a.team_id, a.action_type, a.from_value, a.to_value, a.created_at,
+              sd.name AS deal_name, u.email AS requester_email, t.name AS team_name
        FROM deal_approvals a
        JOIN saved_deals sd ON sd.id = a.saved_deal_id
        JOIN users u ON u.id = a.requested_by
+       JOIN teams t ON t.id = a.team_id
        JOIN team_members tm ON tm.team_id = a.team_id AND tm.user_id = $1
          AND tm.status = 'active' AND tm.role = 'admin'
        WHERE a.status = 'pending'

@@ -11,8 +11,17 @@ const DD_STATUSES = [
   { value: 'na', label: 'N/A' }
 ];
 
+function displayNameFromEmail(email) {
+  const local = String(email || '').split('@')[0] || 'Member';
+  return local
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim() || 'Member';
+}
+
 export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
   const [checklist, setChecklist] = useState(null);
+  const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [shareUrl, setShareUrl] = useState(null);
@@ -30,8 +39,12 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await crmAPI.getDealDd(dealId);
+      const [data, mem] = await Promise.all([
+        crmAPI.getDealDd(dealId),
+        crmAPI.getThreadMembers(dealId).catch(() => ({ members: [] }))
+      ]);
       setChecklist(data.checklist);
+      setMembers(mem.members || []);
     } catch (err) {
       setError(err.message);
       setChecklist(null);
@@ -77,17 +90,42 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
     }
   };
 
-  const handleAssignee = async (itemId, email, name) => {
-    const trimmed = (email || '').trim();
-    if (!trimmed) return;
+  const handleAssigneeChange = async (itemId, memberId) => {
+    if (!canWrite) return;
     try {
+      if (!memberId) {
+        const data = await crmAPI.patchDdItem(dealId, itemId, { assignee: null });
+        setChecklist(data.checklist);
+        console.log('[DdChecklist] cleared assignee item', itemId);
+        return;
+      }
+      const member = members.find((m) => String(m.id) === String(memberId));
+      if (!member?.email) return;
+      const displayName = member.displayName || displayNameFromEmail(member.email);
       const data = await crmAPI.patchDdItem(dealId, itemId, {
-        assignee: { email: trimmed, name: name || null }
+        assignee: {
+          email: member.email,
+          name: displayName,
+          roleLabel: member.role || null
+        }
       });
       setChecklist(data.checklist);
+      console.log('[DdChecklist] assigned item', itemId, 'to', displayName);
     } catch (err) {
       alert('Failed to assign: ' + err.message);
     }
+  };
+
+  const memberIdForEmail = (email) => {
+    if (!email) return '';
+    const hit = members.find((m) => String(m.email).toLowerCase() === String(email).toLowerCase());
+    return hit ? String(hit.id) : '';
+  };
+
+  const assigneeLabel = (assignee) => {
+    if (!assignee) return '';
+    if (assignee.name) return assignee.name;
+    return displayNameFromEmail(assignee.email);
   };
 
   const handleAddGroup = () => {
@@ -369,13 +407,43 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
                       onChange={(e) => handleDueChange(item.id, e.target.value ? new Date(e.target.value).toISOString() : null)}
                       aria-label={`Due date for ${item.title}`}
                     />
-                    <input
-                      type="email"
-                      className="modal-input dd-item__assignee"
-                      placeholder="Assignee email"
-                      defaultValue={item.assignees?.[0]?.email || ''}
-                      onBlur={(e) => handleAssignee(item.id, e.target.value, item.assignees?.[0]?.name)}
-                    />
+                    {(() => {
+                      const currentEmail = item.assignees?.[0]?.email || '';
+                      const memberId = memberIdForEmail(currentEmail);
+                      const selectValue = memberId || (currentEmail ? '__external__' : '');
+                      return (
+                        <select
+                          className="modal-input dd-item__assignee"
+                          value={selectValue}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === '__external__') return;
+                            handleAssigneeChange(item.id, v);
+                          }}
+                          disabled={!canWrite || (members.length === 0 && !currentEmail)}
+                          aria-label={`Assignee for ${item.title}`}
+                          title={
+                            members.length === 0
+                              ? 'Team members appear when this deal is on a team workspace'
+                              : 'Assign a Vettr team member'
+                          }
+                        >
+                          <option value="">
+                            {members.length === 0 ? 'No team members' : 'Unassigned'}
+                          </option>
+                          {members.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.displayName || displayNameFromEmail(m.email)}
+                            </option>
+                          ))}
+                          {currentEmail && !memberId ? (
+                            <option value="__external__">
+                              {assigneeLabel(item.assignees[0])} (external)
+                            </option>
+                          ) : null}
+                        </select>
+                      );
+                    })()}
                     {item.requests_document ? (
                       <button type="button" className="btn-secondary" onClick={() => handleDocLink(item.id)}>+ Doc</button>
                     ) : null}

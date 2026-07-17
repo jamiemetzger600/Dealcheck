@@ -310,9 +310,14 @@ export async function patchDdItem(userId, savedDealId, itemId, patch) {
 
   await pool.query(`UPDATE dd_items SET ${sets.join(', ')} WHERE id = $${idx}`, vals);
 
-  if (patch.assignee?.email) {
+  // Clear assignee(s)
+  if (patch.assignee === null) {
+    await pool.query(`DELETE FROM dd_item_assignees WHERE item_id = $1`, [itemId]);
+  } else if (patch.assignee?.email) {
     const email = String(patch.assignee.email).trim().toLowerCase();
     if (email) {
+      // Single primary assignee for Vettr team picks — replace prior rows
+      await pool.query(`DELETE FROM dd_item_assignees WHERE item_id = $1`, [itemId]);
       await pool.query(
         `INSERT INTO dd_item_assignees (item_id, email, name, role_label)
          VALUES ($1, $2, $3, $4)

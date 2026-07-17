@@ -79,7 +79,16 @@ export const getThreadMembers = async (req, res) => {
        ORDER BY u.email`,
       [access.deal.team_id]
     );
-    res.json({ members: members.rows });
+    // Friendly display labels (no raw email in pickers); email still used as identity
+    const mapped = members.rows.map((m) => {
+      const local = String(m.email || '').split('@')[0] || 'Member';
+      const displayName = local
+        .replace(/[._-]+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+        .trim() || 'Member';
+      return { ...m, displayName };
+    });
+    res.json({ members: mapped });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('[thread] getThreadMembers error:', error);

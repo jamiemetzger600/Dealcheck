@@ -30,7 +30,8 @@ import {
   syncCalendarRange
 } from '../services/crmCalendarService.js';
 import { getDealAccess, assertCanRead, assertCanWrite, getMembership, VISIBLE_DEALS_SQL } from '../lib/teamAcl.js';
-import { getUnreadCounts } from '../services/dealThreadService.js';
+import { getUnreadCounts, getUnreadMentions } from '../services/dealThreadService.js';
+import { countUnreadAlerts } from '../services/userAlertService.js';
 
 const KANBAN_DEAL_FIELDS = `
   id, deal_id, name, url, progress_stage, progress_history, status,
@@ -219,6 +220,14 @@ export const getCrmToday = async (req, res) => {
       console.warn('[crm] getRecentPortalComments skipped:', err.message);
       return [];
     });
+    const unreadMentions = await getUnreadMentions(userId).catch((err) => {
+      console.warn('[crm] getUnreadMentions skipped:', err.message);
+      return [];
+    });
+    const unreadAlertCount = await countUnreadAlerts(userId).catch((err) => {
+      console.warn('[crm] countUnreadAlerts skipped:', err.message);
+      return 0;
+    });
 
     const recentActivities = await pool.query(
       `SELECT a.id, a.saved_deal_id, a.activity_type, a.body, a.occurred_at, a.metadata,
@@ -240,12 +249,16 @@ export const getCrmToday = async (req, res) => {
       ddOverdue,
       portalComments,
       pendingApprovals: approvals.rows,
+      unreadMentions,
+      unreadAlertCount,
       badgeCount:
         taskSummary.badgeCount
         + staleListings.length
         + ddOverdue.length
         + portalComments.length
         + approvals.rows.length
+        // Prefer durable alert count for Talk pings; fall back to mention rows
+        + Math.max(unreadAlertCount, unreadMentions.length)
     });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });

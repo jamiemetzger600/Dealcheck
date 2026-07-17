@@ -17,11 +17,13 @@ export default function CrmDashboard({
   onSaveCalculatorDefaults = null,
   onTodayLoaded = null,
   initialDealId = null,
-  initialCrmView = null
+  initialCrmView = null,
+  initialFocusSection = null
 }) {
   const [crmView, setCrmView] = useState(initialCrmView || 'today');
   const [today, setToday] = useState(null);
   const [selectedDealId, setSelectedDealId] = useState(initialDealId);
+  const [workspaceFocusSection, setWorkspaceFocusSection] = useState(initialFocusSection);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stagePrompt, setStagePrompt] = useState(null);
@@ -57,6 +59,12 @@ export default function CrmDashboard({
     }
   }, [initialDealId]);
 
+  useEffect(() => {
+    if (initialFocusSection) {
+      setWorkspaceFocusSection(initialFocusSection);
+    }
+  }, [initialFocusSection, initialDealId]);
+
   const selectedDeal = useMemo(() => {
     const id = selectedDealId == null ? '' : String(selectedDealId);
     const raw = deals.find(
@@ -65,8 +73,9 @@ export default function CrmDashboard({
     return raw ? normalizeDeal(raw) : null;
   }, [deals, selectedDealId]);
 
-  const handleSelectDeal = (id) => {
+  const handleSelectDeal = (id, opts = {}) => {
     setSelectedDealId(id);
+    setWorkspaceFocusSection(opts.focusSection || null);
   };
 
   useEffect(() => {
@@ -146,8 +155,12 @@ export default function CrmDashboard({
         settings={settings}
         onRefresh={handleRefresh}
         onSaveCalculatorDefaults={onSaveCalculatorDefaults}
-        onClose={() => setSelectedDealId(null)}
+        onClose={() => {
+          setSelectedDealId(null);
+          setWorkspaceFocusSection(null);
+        }}
         onStageChanged={(result) => handleStageChanged(result, selectedDeal.name)}
+        focusSectionId={workspaceFocusSection}
       />
     </section>
   ) : null;

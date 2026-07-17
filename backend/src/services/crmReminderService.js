@@ -2,6 +2,7 @@ import pool from '../db/pool.js';
 import { sendEmail } from './emailService.js';
 import { getTodayTaskSummary } from './crmTaskService.js';
 import { getDdOverdueForToday } from './ddChecklistService.js';
+import { getUnreadMentions } from './dealThreadService.js';
 
 const WEB_APP_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
 
@@ -66,10 +67,12 @@ export async function sendCrmDailyDigests() {
 
     const tasks = await getTodayTaskSummary(user.id);
     const ddOverdue = await getDdOverdueForToday(user.id).catch(() => []);
-    const total = tasks.badgeCount + ddOverdue.length;
+    const mentions = await getUnreadMentions(user.id).catch(() => []);
+    const total = tasks.badgeCount + ddOverdue.length + mentions.length;
     if (total === 0) continue;
 
     const lines = [
+      ...mentions.map((m) => `<li>Mention: ${m.author_email} on ${m.deal_name || 'a deal'}</li>`),
       ...tasks.overdue.map((t) => `<li>Overdue: ${t.title} (${t.deal_name})</li>`),
       ...tasks.dueToday.map((t) => `<li>Due today: ${t.title} (${t.deal_name})</li>`),
       ...ddOverdue.map((d) => `<li>DD overdue: ${d.title} (${d.deal_name})</li>`)
@@ -80,7 +83,7 @@ export async function sendCrmDailyDigests() {
         to: user.email,
         subject: `Vettr Today — ${total} item${total === 1 ? '' : 's'} need attention`,
         html: `<p>Your CRM Today summary:</p><ul>${lines.join('')}</ul>
-               <p><a href="${WEB_APP_URL}/dashboard">Open Vettr</a></p>`
+               <p><a href="${WEB_APP_URL}/dashboard?tab=crm&crmSubview=today">Open Vettr Today</a></p>`
       });
       sent += 1;
     } catch (err) {

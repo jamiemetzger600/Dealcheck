@@ -265,7 +265,7 @@ export async function getTodayTaskSummary(userId) {
   endOfDay.setHours(23, 59, 59, 999);
 
   const result = await pool.query(
-    `SELECT t.id, t.saved_deal_id, t.title, t.status, t.due_at, t.source,
+    `SELECT t.id, t.user_id, t.saved_deal_id, t.title, t.status, t.due_at, t.source,
             sd.name AS deal_name, sd.progress_stage
      FROM tasks t
      JOIN saved_deals sd ON sd.id = t.saved_deal_id
@@ -281,7 +281,9 @@ export async function getTodayTaskSummary(userId) {
 
   for (const task of open) {
     if (!task.due_at) {
-      upcoming.push(task);
+      // Undated work assigned to me (e.g. Talk assign / mention follow-up) → Today
+      if (Number(task.user_id) === Number(userId)) dueToday.push(task);
+      else upcoming.push(task);
       continue;
     }
     const due = new Date(task.due_at);

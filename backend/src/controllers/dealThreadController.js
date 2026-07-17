@@ -25,7 +25,9 @@ export const postThreadMessage = async (req, res) => {
     const savedDealId = Number(req.params.id);
     const message = await postDealMessage(req.user.userId, savedDealId, {
       body: req.body?.body,
-      assigneeUserId: req.body?.assigneeUserId
+      assigneeUserId: req.body?.assigneeUserId,
+      dueAt: req.body?.dueAt,
+      linkedDdItemId: req.body?.linkedDdItemId
     });
     res.status(201).json({ message });
   } catch (error) {

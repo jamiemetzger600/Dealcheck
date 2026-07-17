@@ -35,6 +35,11 @@ import {
   getThreadMembers
 } from '../controllers/dealThreadController.js';
 import {
+  getUnreadAlerts,
+  patchAlertRead,
+  postAlertsReadAll
+} from '../controllers/userAlertController.js';
+import {
   getDealDd,
   startDealDd,
   patchDealDdItem,
@@ -53,6 +58,9 @@ router.get('/calendar/oauth-config', getCalendarOAuthConfig);
 router.use(authMiddleware);
 
 router.get('/today', getCrmToday);
+router.get('/alerts', getUnreadAlerts);
+router.patch('/alerts/:alertId/read', patchAlertRead);
+router.post('/alerts/read-all', postAlertsReadAll);
 router.get('/tasks', getCrmTasks);
 router.get('/kanban', getCrmKanban);
 router.get('/contacts', getCrmContacts);

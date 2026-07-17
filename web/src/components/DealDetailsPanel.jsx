@@ -238,6 +238,7 @@ export default function DealDetailsPanel({
   entitlements = null,
   isGuest = false,
   requireSignup = null,
+  focusSectionId = null,
 }) {
   const [primarySection, setPrimarySection] = useState(DEFAULT_PRIMARY);
   const [pinnedSection, setPinnedSection] = useState(DEFAULT_PINNED);
@@ -250,11 +251,15 @@ export default function DealDetailsPanel({
 
   useEffect(() => {
     if (!dealRowId) return;
-    setPrimarySection(DEFAULT_PRIMARY);
+    const start = focusSectionId || DEFAULT_PRIMARY;
+    setPrimarySection(start);
     setPinnedSection(DEFAULT_PINNED);
     setPinnedIds(new Set([DEFAULT_PINNED]));
-    setFocusedSection(DEFAULT_PRIMARY);
-  }, [dealRowId]);
+    setFocusedSection(start);
+    if (focusSectionId) {
+      console.log('[DealDetailsPanel] focus section', focusSectionId, 'deal', dealRowId);
+    }
+  }, [dealRowId, focusSectionId]);
 
   useEffect(() => {
     if (!isOpen && !panelOnly) return;

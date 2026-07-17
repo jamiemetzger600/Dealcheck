@@ -5,8 +5,44 @@ import {
   getMembership
 } from '../lib/teamAcl.js';
 import { sendEmail } from './emailService.js';
+import { createUserAlert, markDealTalkAlertsRead } from './userAlertService.js';
 
 const MENTION_RE = /@([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+const WEB_APP_URL = (
+  process.env.WEB_APP_URL_LOCAL ||
+  process.env.WEB_APP_URL ||
+  'http://localhost:5173'
+).replace(/\/$/, '');
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function talkDeepLink(savedDealId) {
+  return `${WEB_APP_URL}/dashboard?tab=crm&crmDeal=${savedDealId}&section=crm-talk`;
+}
+
+function talkAlertEmail({ subject, greeting, dealName, body, savedDealId }) {
+  const link = talkDeepLink(savedDealId);
+  return {
+    subject,
+    html: `
+      <p>${escapeHtml(greeting)}</p>
+      <p><strong>Deal:</strong> ${escapeHtml(dealName || 'Untitled deal')}</p>
+      <blockquote style="border-left:3px solid #ccc;padding-left:12px;color:#333;">
+        ${escapeHtml(body)}
+      </blockquote>
+      <p><a href="${link}" style="display:inline-block;background:#1f2937;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px;font-weight:600;">
+        Open Talk in Vettr
+      </a></p>
+      <p style="color:#666;font-size:12px;">Or paste this link: ${escapeHtml(link)}</p>
+    `
+  };
+}
 
 function extractEmailsFromBody(body) {
   const emails = new Set();
@@ -35,7 +71,7 @@ export async function listDealMessages(userId, savedDealId, { afterId } = {}) {
   const params = [savedDealId];
   let sql = `
     SELECT m.id, m.saved_deal_id, m.author_user_id, m.body, m.message_kind,
-           m.assignee_user_id, m.resolved_at, m.resolved_by, m.tags, m.created_at,
+           m.assignee_user_id, m.resolved_at, m.resolved_by, m.tags, m.metadata, m.created_at,
            u.email AS author_email,
            au.email AS assignee_email
     FROM deal_messages m
@@ -77,6 +113,9 @@ export async function listDealMessages(userId, savedDealId, { afterId } = {}) {
      DO UPDATE SET last_read_at = NOW()`,
     [userId, savedDealId]
   );
+  await markDealTalkAlertsRead(userId, savedDealId).catch((err) => {
+    console.warn('[dealThread] markDealTalkAlertsRead failed:', err.message);
+  });
 
   return {
     messages: messages.rows.map((msg) => ({
@@ -93,7 +132,47 @@ export async function listDealMessages(userId, savedDealId, { afterId } = {}) {
   };
 }
 
-export async function postDealMessage(userId, savedDealId, { body, assigneeUserId } = {}) {
+function parseDueAt(raw) {
+  if (raw == null || raw === '') return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) {
+    const err = new Error('Invalid due date');
+    err.status = 400;
+    throw err;
+  }
+  return d.toISOString();
+}
+
+async function resolveLinkedDdItem(savedDealId, linkedDdItemId) {
+  if (!linkedDdItemId) return null;
+  const itemId = Number(linkedDdItemId);
+  if (!itemId) {
+    const err = new Error('Invalid DD item');
+    err.status = 400;
+    throw err;
+  }
+  const row = await pool.query(
+    `SELECT i.id, i.title, i.status, g.name AS group_name
+     FROM dd_items i
+     JOIN dd_groups g ON g.id = i.group_id
+     JOIN dd_checklists c ON c.id = g.checklist_id
+     WHERE i.id = $1 AND c.saved_deal_id = $2`,
+    [itemId, savedDealId]
+  );
+  if (!row.rows[0]) {
+    const err = new Error('DD item not found on this deal');
+    err.status = 400;
+    throw err;
+  }
+  return {
+    ddItemId: row.rows[0].id,
+    ddItemTitle: row.rows[0].title,
+    ddGroupName: row.rows[0].group_name,
+    ddItemStatus: row.rows[0].status
+  };
+}
+
+export async function postDealMessage(userId, savedDealId, { body, assigneeUserId, dueAt, linkedDdItemId } = {}) {
   const access = await getDealAccess(userId, savedDealId);
   assertCanTalk(access);
 
@@ -121,16 +200,33 @@ export async function postDealMessage(userId, savedDealId, { body, assigneeUserI
     assignee = null;
   }
 
+  const parsedDueAt = parseDueAt(dueAt);
+  if (parsedDueAt && !assignee) {
+    const err = new Error('Pick an assignee when setting a due date');
+    err.status = 400;
+    throw err;
+  }
+
+  const linkedDd = await resolveLinkedDdItem(savedDealId, linkedDdItemId);
+  const metadata = {
+    ...(parsedDueAt ? { dueAt: parsedDueAt } : {}),
+    ...(linkedDd || {})
+  };
+
   const tags = extractTags(text);
   const result = await pool.query(
     `INSERT INTO deal_messages (
-       saved_deal_id, author_user_id, body, message_kind, assignee_user_id, tags
-     ) VALUES ($1, $2, $3, 'chat', $4, $5)
+       saved_deal_id, author_user_id, body, message_kind, assignee_user_id, tags, metadata
+     ) VALUES ($1, $2, $3, 'chat', $4, $5, $6)
      RETURNING id, saved_deal_id, author_user_id, body, message_kind,
-               assignee_user_id, resolved_at, tags, created_at`,
-    [savedDealId, userId, text, assignee, tags]
+               assignee_user_id, resolved_at, tags, metadata, created_at`,
+    [savedDealId, userId, text, assignee, tags, JSON.stringify(metadata)]
   );
   const message = result.rows[0];
+
+  const dealName = access.deal.name || 'Untitled deal';
+  const authorRes = await pool.query(`SELECT email FROM users WHERE id = $1`, [userId]);
+  const authorEmail = authorRes.rows[0]?.email || 'A teammate';
 
   // Mentions: match @email against team members
   if (access.deal.team_id) {
@@ -143,8 +239,6 @@ export async function postDealMessage(userId, savedDealId, { body, assigneeUserI
         [access.deal.team_id]
       );
       const byEmail = new Map(members.rows.map((r) => [r.email, r.id]));
-      const author = await pool.query(`SELECT email FROM users WHERE id = $1`, [userId]);
-      const authorEmail = author.rows[0]?.email || 'A teammate';
 
       for (const email of emails) {
         const mentionedId = byEmail.get(email);
@@ -154,53 +248,92 @@ export async function postDealMessage(userId, savedDealId, { body, assigneeUserI
            VALUES ($1, $2) ON CONFLICT DO NOTHING`,
           [message.id, mentionedId]
         );
-        const user = members.rows.find((r) => r.id === mentionedId);
-        if (user) {
-          await sendEmail({
-            to: email,
-            subject: `${authorEmail} mentioned you on a Vettr deal`,
-            html: `<p>${authorEmail} mentioned you:</p><blockquote>${text}</blockquote><p>Open the deal in Vettr to reply.</p>`
-          }).catch((err) => console.warn('[dealThread] mention email failed:', err.message));
-        }
+
+        await createUserAlert({
+          userId: mentionedId,
+          alertType: 'talk_mention',
+          title: `${authorEmail} mentioned you`,
+          body: text.slice(0, 500),
+          savedDealId,
+          messageId: message.id,
+          metadata: { dealName, authorEmail }
+        }).catch((err) => console.warn('[dealThread] mention alert failed:', err.message));
+
+        const mail = talkAlertEmail({
+          subject: `${authorEmail} mentioned you on “${dealName}”`,
+          greeting: `${authorEmail} mentioned you in Talk:`,
+          dealName,
+          body: text,
+          savedDealId
+        });
+        await sendEmail({ to: email, ...mail }).catch((err) => {
+          console.warn('[dealThread] mention email failed:', err.message);
+        });
       }
     }
 
     if (assignee && assignee !== userId) {
       const assigneeRow = await pool.query(`SELECT email FROM users WHERE id = $1`, [assignee]);
-      const author = await pool.query(`SELECT email FROM users WHERE id = $1`, [userId]);
       if (assigneeRow.rows[0]?.email) {
-        await sendEmail({
-          to: assigneeRow.rows[0].email,
-          subject: `Assigned on a Vettr deal`,
-          html: `<p>${author.rows[0]?.email || 'A teammate'} assigned you:</p><blockquote>${text}</blockquote>`
-        }).catch((err) => console.warn('[dealThread] assign email failed:', err.message));
+        await createUserAlert({
+          userId: assignee,
+          alertType: 'talk_assign',
+          title: `${authorEmail} assigned you`,
+          body: text.slice(0, 500),
+          savedDealId,
+          messageId: message.id,
+          metadata: {
+            dealName,
+            authorEmail,
+            dueAt: parsedDueAt || null
+          }
+        }).catch((err) => console.warn('[dealThread] assign alert failed:', err.message));
+
+        const mail = talkAlertEmail({
+          subject: `${authorEmail} assigned you on “${dealName}”`,
+          greeting: `${authorEmail} assigned you in Talk:`,
+          dealName,
+          body: text,
+          savedDealId
+        });
+        await sendEmail({ to: assigneeRow.rows[0].email, ...mail }).catch((err) => {
+          console.warn('[dealThread] assign email failed:', err.message);
+        });
       }
     }
   }
 
-  // Create linked task when assigning
+  // Create linked task when assigning (due date optional; undated still appears in Today for assignee)
   if (assignee && access.canWrite) {
+    const taskMeta = {
+      fromMessageId: message.id,
+      assignedBy: userId,
+      ...(linkedDd || {})
+    };
     await pool.query(
-      `INSERT INTO tasks (user_id, saved_deal_id, title, status, metadata)
-       VALUES ($1, $2, $3, 'open', $4)`,
+      `INSERT INTO tasks (user_id, saved_deal_id, title, status, due_at, source, metadata)
+       VALUES ($1, $2, $3, 'open', $4, 'talk_assign', $5)`,
       [
         assignee,
         savedDealId,
         text.slice(0, 200),
-        JSON.stringify({ fromMessageId: message.id, assignedBy: userId })
+        parsedDueAt,
+        JSON.stringify(taskMeta)
       ]
     ).catch((err) => {
-      // tasks.metadata may not exist — fall back without metadata
       console.warn('[dealThread] task create with metadata failed, retrying:', err.message);
       return pool.query(
-        `INSERT INTO tasks (user_id, saved_deal_id, title, status)
-         VALUES ($1, $2, $3, 'open')`,
-        [assignee, savedDealId, text.slice(0, 200)]
+        `INSERT INTO tasks (user_id, saved_deal_id, title, status, due_at, source)
+         VALUES ($1, $2, $3, 'open', $4, 'talk_assign')`,
+        [assignee, savedDealId, text.slice(0, 200), parsedDueAt]
       ).catch((e2) => console.warn('[dealThread] task create failed:', e2.message));
     });
   }
 
-  console.log(`[dealThread] message=${message.id} deal=${savedDealId} by=${userId}`);
+  console.log(
+    `[dealThread] message=${message.id} deal=${savedDealId} by=${userId}`
+    + ` assignee=${assignee || '-'} due=${parsedDueAt || '-'} dd=${linkedDd?.ddItemId || '-'}`
+  );
   return message;
 }
 
@@ -293,4 +426,32 @@ export async function getUnreadCounts(userId, savedDealIds) {
   const map = {};
   for (const row of result.rows) map[row.saved_deal_id] = row.unread;
   return map;
+}
+
+/**
+ * Unread @mentions for the user (Talk). Cleared when they open the deal thread
+ * (deal_thread_reads.last_read_at advances past the message).
+ */
+export async function getUnreadMentions(userId) {
+  const result = await pool.query(
+    `SELECT m.id AS message_id, m.saved_deal_id, m.body, m.created_at,
+            m.author_user_id, u.email AS author_email,
+            sd.name AS deal_name, sd.progress_stage
+     FROM deal_message_mentions dm
+     JOIN deal_messages m ON m.id = dm.message_id
+     JOIN saved_deals sd ON sd.id = m.saved_deal_id
+     JOIN users u ON u.id = m.author_user_id
+     LEFT JOIN deal_thread_reads r
+       ON r.saved_deal_id = m.saved_deal_id AND r.user_id = $1
+     WHERE dm.user_id = $1
+       AND m.message_kind = 'chat'
+       AND m.author_user_id <> $1
+       AND m.resolved_at IS NULL
+       AND (r.last_read_at IS NULL OR m.created_at > r.last_read_at)
+     ORDER BY m.created_at DESC
+     LIMIT 50`,
+    [userId]
+  );
+  console.log(`[dealThread] unreadMentions user=${userId} count=${result.rows.length}`);
+  return result.rows;
 }

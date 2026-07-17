@@ -838,6 +838,36 @@ const migrations = [
       CREATE UNIQUE INDEX IF NOT EXISTS idx_team_invites_invite_code
         ON team_invites(invite_code);
     `
+  },
+  {
+    name: 'deal_messages_metadata',
+    up: `
+      ALTER TABLE deal_messages
+        ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+    `
+  },
+  {
+    name: 'user_alerts',
+    up: `
+      CREATE TABLE IF NOT EXISTS user_alerts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        alert_type VARCHAR(40) NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT,
+        saved_deal_id INTEGER REFERENCES saved_deals(id) ON DELETE CASCADE,
+        message_id INTEGER REFERENCES deal_messages(id) ON DELETE CASCADE,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        read_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_alerts_unread
+        ON user_alerts (user_id, created_at DESC)
+        WHERE read_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_user_alerts_deal
+        ON user_alerts (user_id, saved_deal_id)
+        WHERE read_at IS NULL;
+    `
   }
 ];
 

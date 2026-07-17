@@ -29,7 +29,8 @@ export default function CrmDealWorkspace({
   onRefresh,
   onSaveCalculatorDefaults = null,
   onClose = null,
-  onStageChanged = null
+  onStageChanged = null,
+  focusSectionId = null
 }) {
   const { user } = useAuth();
   const { teams, activeTeamId } = useTeam();
@@ -42,6 +43,11 @@ export default function CrmDealWorkspace({
   const [savingNote, setSavingNote] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [localFocusSection, setLocalFocusSection] = useState(focusSectionId);
+
+  useEffect(() => {
+    setLocalFocusSection(focusSectionId);
+  }, [focusSectionId, dealId]);
 
   const writeEnabled = detail?.access ? Boolean(detail.access.canWrite) : true;
 
@@ -331,7 +337,16 @@ export default function CrmDealWorkspace({
       id: 'crm-talk',
       label: 'Talk',
       icon: 'notes',
-      render: () => <DealThread dealId={dealId} />
+      render: () => (
+        <DealThread
+          dealId={dealId}
+          onThreadRead={onRefresh}
+          onOpenSection={(sectionId) => {
+            console.log('[CrmDealWorkspace] open section from Talk', sectionId);
+            setLocalFocusSection(sectionId);
+          }}
+        />
+      )
     },
     {
       id: 'crm-timeline',
@@ -451,6 +466,7 @@ export default function CrmDealWorkspace({
         showPositionToggle={false}
         showSaveButton={false}
         extraSections={extraSections}
+        focusSectionId={localFocusSection}
         renderFooter={footer}
         onIOISent={handleIOISent}
         onIOIPrefsSaved={onRefresh}

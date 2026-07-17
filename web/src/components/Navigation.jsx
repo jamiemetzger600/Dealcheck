@@ -93,20 +93,41 @@ export default function Navigation({
   const [menuOpen, setMenuOpen] = useState(false);
   const { teams, activeTeamId, setActiveTeamId, activeTeam, isTeamMode } = useTeam();
 
+  const roleLabel = (role) => {
+    const r = String(role || '').toLowerCase();
+    if (r === 'admin') return 'Admin';
+    if (r === 'viewer') return 'Viewer';
+    if (r === 'member') return 'Member';
+    return role ? String(role) : null;
+  };
+  const activeRole = activeTeam ? roleLabel(activeTeam.role) : null;
+
   const teamSwitcher = !isGuest && user ? (
-    <label className="nav-team-switcher">
-      <span className="nav-team-switcher__label">Workspace</span>
-      <select
-        value={activeTeamId != null ? String(activeTeamId) : ''}
-        onChange={(e) => setActiveTeamId(e.target.value || null)}
-        aria-label="Active team"
-      >
-        <option value="">Personal</option>
-        {teams.map((t) => (
-          <option key={t.id} value={t.id}>{t.name}</option>
-        ))}
-      </select>
-    </label>
+    <div className="nav-team-switcher">
+      <label className="nav-team-switcher__control">
+        <span className="nav-team-switcher__label">Workspace</span>
+        <select
+          value={activeTeamId != null ? String(activeTeamId) : ''}
+          onChange={(e) => setActiveTeamId(e.target.value || null)}
+          aria-label="Active team workspace"
+        >
+          <option value="">Personal</option>
+          {teams.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}{t.role ? ` (${roleLabel(t.role)})` : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      {activeRole ? (
+        <span
+          className={`nav-team-role nav-team-role--${String(activeTeam.role || '').toLowerCase()}`}
+          title={`Your privilege on ${activeTeam.name}: ${activeRole}`}
+        >
+          {activeRole}
+        </span>
+      ) : null}
+    </div>
   ) : null;
 
   const saveBanner = isTeamMode && activeTeam ? (

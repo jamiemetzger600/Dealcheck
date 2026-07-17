@@ -254,6 +254,14 @@ export const teamsAPI = {
 export const crmAPI = {
   getToday: () => apiRequest('/crm/today'),
 
+  getAlerts: () => apiRequest('/crm/alerts'),
+
+  markAlertRead: (alertId) =>
+    apiRequest(`/crm/alerts/${alertId}/read`, { method: 'PATCH' }),
+
+  markAllAlertsRead: () =>
+    apiRequest('/crm/alerts/read-all', { method: 'POST' }),
+
   getTasks: (status = 'open') => apiRequest(`/crm/tasks?status=${encodeURIComponent(status)}`),
 
   getContacts: () => apiRequest('/crm/contacts'),
@@ -315,10 +323,10 @@ export const crmAPI = {
   getThreadMembers: (savedDealId) =>
     apiRequest(`/crm/deals/${savedDealId}/thread/members`),
 
-  postThreadMessage: (savedDealId, { body, assigneeUserId }) =>
+  postThreadMessage: (savedDealId, { body, assigneeUserId, dueAt, linkedDdItemId }) =>
     apiRequest(`/crm/deals/${savedDealId}/thread`, {
       method: 'POST',
-      body: JSON.stringify({ body, assigneeUserId })
+      body: JSON.stringify({ body, assigneeUserId, dueAt, linkedDdItemId })
     }),
 
   reactThreadMessage: (savedDealId, messageId, emoji) =>

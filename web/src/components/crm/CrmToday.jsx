@@ -38,6 +38,7 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
   const ddOverdue = today?.ddOverdue || [];
   const portalComments = today?.portalComments || [];
   const pendingApprovals = today?.pendingApprovals || [];
+  const unreadMentions = today?.unreadMentions || [];
 
   const handleCompleteTask = async (taskId) => {
     try {
@@ -58,13 +59,19 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
     }
   };
 
+  const openMention = (mention) => {
+    console.log('[CrmToday] open mention', mention.message_id, 'deal', mention.saved_deal_id);
+    onSelectDeal?.(mention.saved_deal_id, { focusSection: 'crm-talk' });
+  };
+
   const hasWork =
     overdue.length > 0 ||
     dueToday.length > 0 ||
     stale.length > 0 ||
     ddOverdue.length > 0 ||
     portalComments.length > 0 ||
-    pendingApprovals.length > 0;
+    pendingApprovals.length > 0 ||
+    unreadMentions.length > 0;
 
   if (!hasWork) {
     return (
@@ -77,6 +84,43 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
 
   return (
     <div className="crm-today-feed">
+      {unreadMentions.length > 0 ? (
+        <section className="crm-today-section">
+          <h3 className="crm-today-section__title crm-today-section__title--warn">
+            Mentions ({unreadMentions.length})
+          </h3>
+          <ul className="crm-today-task-list">
+            {unreadMentions.map((m) => (
+              <li key={m.message_id} className="crm-today-task">
+                <div className="crm-today-task__body">
+                  <button
+                    type="button"
+                    className="crm-today-task__deal"
+                    onClick={() => openMention(m)}
+                  >
+                    {m.deal_name || 'Deal'}
+                  </button>
+                  <span className="crm-today-task__title">
+                    {m.author_email || 'Teammate'} mentioned you
+                  </span>
+                  <span className="crm-today-task__due">
+                    {formatDate(m.created_at)} · no due date
+                  </span>
+                  <span className="crm-portal-comment-preview">{m.body}</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary btn-secondary--sm"
+                  onClick={() => openMention(m)}
+                >
+                  Open Talk
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {pendingApprovals.length > 0 ? (
         <section className="crm-today-section">
           <h3 className="crm-today-section__title">Approvals ({pendingApprovals.length})</h3>

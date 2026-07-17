@@ -2,11 +2,12 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
-import { userAPI, dealsAPI, paymentsAPI } from '../utils/api';
+import { userAPI, dealsAPI, paymentsAPI, crmAPI } from '../utils/api';
 import { normalizeDeal } from '../utils/normalizeDeal';
 import DealAggregator from '../components/DealAggregator';
 import SavedDeals from '../components/SavedDeals';
 import CrmDashboard from '../components/crm/CrmDashboard';
+import TalkAlertBanner from '../components/crm/TalkAlertBanner';
 import Navigation from '../components/Navigation';
 import { useIsMobile } from '../hooks/useMediaQuery';
 import BuyBoxModal from '../components/BuyBoxModal';
@@ -61,11 +62,13 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const initialDealDbId = searchParams.get('dealDbId') || null;
   const checkoutSessionId = searchParams.get('session_id');
   const initialCrmView = searchParams.get('crmSubview') || null;
+  const crmDealParam = searchParams.get('crmDeal');
+  const sectionParam = searchParams.get('section');
 
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window === 'undefined') return 'aggregator';
     const params = new URLSearchParams(window.location.search);
-    return params.get('tab') === 'crm' ? 'crm' : 'aggregator';
+    return params.get('tab') === 'crm' || params.get('crmDeal') ? 'crm' : 'aggregator';
   });
   const [guestTourBlocking, setGuestTourBlocking] = useState(() => {
     if (!isGuest) return false;
@@ -80,7 +83,13 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   /** All personal + team saves — used for aggregator “already saved” markers only. */
   const [savedDealIndex, setSavedDealIndex] = useState([]);
   const [crmBadgeCount, setCrmBadgeCount] = useState(0);
-  const [crmInitialDealId, setCrmInitialDealId] = useState(null);
+  const [crmInitialDealId, setCrmInitialDealId] = useState(() => {
+    const n = Number(crmDealParam);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
+  const [crmInitialFocusSection, setCrmInitialFocusSection] = useState(
+    () => sectionParam || null
+  );
   const [matchCount, setMatchCount] = useState(0);
   const [totalDeals, setTotalDeals] = useState(0);
   const [newTodayCount, setNewTodayCount] = useState(0);
@@ -183,6 +192,38 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     setLoading(true);
     loadUserData();
   }, [authLoading, isGuest]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Prefetch + poll Today badge so Talk mentions keep the red CRM badge fresh. */
+  useEffect(() => {
+    if (authLoading || isGuest) return;
+    let cancelled = false;
+    const pull = () => {
+      crmAPI.getToday()
+        .then((data) => {
+          if (!cancelled) {
+            setCrmBadgeCount(data?.badgeCount ?? 0);
+            console.log('[Dashboard] CRM badgeCount', data?.badgeCount ?? 0);
+          }
+        })
+        .catch((err) => console.warn('[Dashboard] CRM today prefetch failed', err.message));
+    };
+    pull();
+    const t = setInterval(pull, 45000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [authLoading, isGuest]);
+
+  /** Deep link: /dashboard?tab=crm&crmDeal=123&section=crm-talk */
+  useEffect(() => {
+    const n = Number(crmDealParam);
+    if (!Number.isFinite(n) || n <= 0) return;
+    setActiveTab('crm');
+    setCrmInitialDealId(n);
+    setCrmInitialFocusSection(sectionParam || 'crm-talk');
+    console.log('[Dashboard] deep link CRM deal', n, 'section', sectionParam);
+  }, [crmDealParam, sectionParam]);
 
   /** Team workspace change: refresh My Deals / CRM list silently; market feed stays mounted. */
   useEffect(() => {
@@ -488,10 +529,31 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onTodayLoaded={setCrmBadgeCount}
             initialDealId={crmInitialDealId}
             initialCrmView={initialCrmView}
+            initialFocusSection={crmInitialFocusSection}
           />
           </div>
         )}
       </div>
+
+      {!isGuest && (
+        <TalkAlertBanner
+          enabled={!authLoading}
+          onUnreadChange={() => {
+            crmAPI.getToday()
+              .then((data) => setCrmBadgeCount(data?.badgeCount ?? 0))
+              .catch(() => {});
+          }}
+          onOpenAlert={(alert) => {
+            if (!alert?.saved_deal_id) {
+              setActiveTab('crm');
+              return;
+            }
+            setActiveTab('crm');
+            setCrmInitialDealId(alert.saved_deal_id);
+            setCrmInitialFocusSection('crm-talk');
+          }}
+        />
+      )}
 
       <BuyBoxModal
         isOpen={showBuyBoxModal}

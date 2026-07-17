@@ -8,6 +8,7 @@ import MyFeedbackPanel from './MyFeedbackPanel';
 
 const FeedbackUiContext = createContext({
   openWidget: () => {},
+  openReportScreen: () => {},
   openMine: () => {},
   unreadCount: 0,
   isAdmin: false,
@@ -17,11 +18,21 @@ export function useFeedbackUi() {
   return useContext(FeedbackUiContext);
 }
 
+function parseFeedbackParam(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  const m = s.match(/^FB-?(\d+)$/i);
+  if (m) return Number(m[1]);
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export default function FeedbackShell({ children }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [widgetOpen, setWidgetOpen] = useState(false);
+  const [widgetMode, setWidgetMode] = useState('full');
   const [mineOpen, setMineOpen] = useState(false);
   const [mineId, setMineId] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -59,6 +70,16 @@ export default function FeedbackShell({ children }) {
       setGuestPrompt(true);
       return;
     }
+    setWidgetMode('full');
+    setWidgetOpen(true);
+  }, [user]);
+
+  const openReportScreen = useCallback(() => {
+    if (!user) {
+      setGuestPrompt(true);
+      return;
+    }
+    setWidgetMode('report-screen');
     setWidgetOpen(true);
   }, [user]);
 
@@ -73,43 +94,51 @@ export default function FeedbackShell({ children }) {
 
   useEffect(() => {
     const fid = searchParams.get('feedback');
-    if (fid && user) {
-      openMine(Number(fid));
+    const id = parseFeedbackParam(fid);
+    if (id && user) {
+      openMine(id);
       const next = new URLSearchParams(searchParams);
       next.delete('feedback');
       setSearchParams(next, { replace: true });
     }
   }, [searchParams, user, openMine, setSearchParams]);
 
+  // Shift+F → report this screen (fast path); Shift+G → full feedback form
   useEffect(() => {
     const onKey = (e) => {
       if (e.defaultPrevented) return;
       const tag = (e.target?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
-      if (e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+      if (!e.shiftKey) return;
+      if (e.key === 'F' || e.key === 'f') {
+        e.preventDefault();
+        openReportScreen();
+      } else if (e.key === 'G' || e.key === 'g') {
         e.preventDefault();
         openWidget();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [openWidget]);
+  }, [openReportScreen, openWidget]);
 
   const value = useMemo(
-    () => ({ openWidget, openMine, unreadCount, isAdmin }),
-    [openWidget, openMine, unreadCount, isAdmin]
+    () => ({ openWidget, openReportScreen, openMine, unreadCount, isAdmin }),
+    [openWidget, openReportScreen, openMine, unreadCount, isAdmin]
   );
 
   return (
     <FeedbackUiContext.Provider value={value}>
       {children}
       <FeedbackWidget
+        key={widgetMode}
         open={widgetOpen}
+        mode={widgetMode}
         onClose={() => setWidgetOpen(false)}
         onSubmitted={() => refreshUnread()}
-        onOpenMine={() => {
+        onOpenMine={(id) => {
           setWidgetOpen(false);
-          openMine();
+          openMine(id || null);
         }}
       />
       <MyFeedbackPanel

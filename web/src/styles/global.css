@@ -6654,6 +6654,19 @@ button.aggregator-welcome__buybox {
   color: var(--text-tertiary, var(--text-secondary));
 }
 
+.crm-kanban-card__touched {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-tertiary, var(--text-secondary));
+  line-height: 1.25;
+}
+
+.crm-workspace-last-touch {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+
 .crm-kanban-card__status {
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -8241,10 +8254,9 @@ button.aggregator-welcome__buybox {
 .feedback-pre {
   white-space: pre-wrap;
 }
-.feedback-public-id {
-  color: var(--accent, #3b82f6);
-  font-weight: 700;
-  margin-right: 4px;
+.feedback-required {
+  color: #f87171;
+  font-weight: 600;
 }
 .feedback-category-row,
 .feedback-severity-row {

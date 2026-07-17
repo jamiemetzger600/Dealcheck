@@ -67,8 +67,16 @@ export default function Navigation({
       <button
         type="button"
         className="header-link feedback-nav-btn"
+        onClick={() => { feedbackUi.openReportScreen(); setMenuOpen(false); }}
+        title="Report this screen (Shift+F)"
+      >
+        Report screen
+      </button>
+      <button
+        type="button"
+        className="header-link feedback-nav-btn"
         onClick={() => { feedbackUi.openWidget(); setMenuOpen(false); }}
-        title="Send feedback (Shift+F)"
+        title="Send feedback (Shift+G)"
       >
         Feedback
         {feedbackUi.unreadCount > 0 ? (

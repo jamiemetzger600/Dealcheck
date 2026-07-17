@@ -1,5 +1,6 @@
 // In dev, always use the same-origin Vite proxy at `/api` so LAN clients don't try to call their own localhost.
 import { requestExtensionDealsSync } from './extensionBridge';
+import { recordApiFailure } from './feedbackContext';
 
 const IS_DEV = Boolean(import.meta.env.DEV);
 const API_URL = IS_DEV ? '/api' : (import.meta.env.VITE_API_URL || '/api');
@@ -71,6 +72,12 @@ async function apiRequest(endpoint, options = {}) {
           throw new Error(error.error || 'Invalid email or password');
         }
         if (response.status === 502 || response.status === 503 || response.status === 504) {
+          recordApiFailure({
+            method: options.method || 'GET',
+            endpoint,
+            status: response.status,
+            message: error.error || 'API unavailable',
+          });
           throw new Error(
             error.error
               || 'The API is temporarily unavailable. If you are developing locally, ensure the backend is running on port 3001.'
@@ -85,6 +92,15 @@ async function apiRequest(endpoint, options = {}) {
           if (!String(error.code).includes('_')) err.inviteCode = error.code;
         }
         if (error.existingTask) err.existingTask = error.existingTask;
+        // Skip recording feedback endpoints themselves to avoid noise loops
+        if (!String(endpoint).startsWith('/feedback')) {
+          recordApiFailure({
+            method: options.method || 'GET',
+            endpoint,
+            status: response.status,
+            message: err.message,
+          });
+        }
         throw err;
       }
 
@@ -92,6 +108,14 @@ async function apiRequest(endpoint, options = {}) {
     } catch (err) {
       if (!isNetworkError(err)) throw err;
       lastError = err;
+      if (!String(endpoint).startsWith('/feedback')) {
+        recordApiFailure({
+          method: options.method || 'GET',
+          endpoint,
+          status: null,
+          message: err.message || 'network error',
+        });
+      }
       if (attempt < RETRY_DELAYS.length) {
         console.log(`[api] Network error, retrying in ${RETRY_DELAYS[attempt]}ms (attempt ${attempt + 1}/${MAX_ATTEMPTS})...`);
         await sleep(RETRY_DELAYS[attempt]);

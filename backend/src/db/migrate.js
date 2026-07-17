@@ -964,6 +964,14 @@ const migrations = [
       CREATE INDEX IF NOT EXISTS idx_dd_share_access_link_created
         ON dd_share_access_log (share_link_id, created_at DESC);
     `
+  },
+  {
+    name: 'feedback_repro_fields_v5_9',
+    up: `
+      ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS expected_result TEXT;
+      ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS actual_result TEXT;
+      ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS repro_steps TEXT;
+    `
   }
 ];
 

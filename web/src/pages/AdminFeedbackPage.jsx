@@ -122,7 +122,7 @@ export default function AdminFeedbackPage() {
                     onClick={() => setSearchParams({ id: String(item.id) })}
                   >
                     <span className="feedback-list__title">
-                      #{item.id} {item.title}
+                      {item.public_id || `#${item.id}`} {item.title}
                     </span>
                     <span className="feedback-list__meta">
                       <span className="feedback-chip">{item.category}</span>

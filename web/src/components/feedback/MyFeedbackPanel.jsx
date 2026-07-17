@@ -65,7 +65,9 @@ export default function MyFeedbackPanel({ open, onClose, initialId = null, onUnr
                     className="feedback-list__item"
                     onClick={() => setActiveId(item.id)}
                   >
-                    <span className="feedback-list__title">{item.title}</span>
+                    <span className="feedback-list__title">
+                      {item.public_id ? `${item.public_id} · ` : ''}{item.title}
+                    </span>
                     <span className="feedback-list__meta">
                       <span className="feedback-chip">{item.category}</span>
                       <span className={`feedback-status`}>{item.status_label}</span>

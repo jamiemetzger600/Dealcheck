@@ -48,8 +48,46 @@ function validateAttachment(att, { kind }) {
 }
 
 function webAppBase() {
-  const raw = (process.env.WEB_APP_URL || 'http://localhost:5173').split(',')[0].trim();
-  return raw.replace(/\/+$/, '');
+  // Prefer WEB_APP_URL so email deep links hit the live app (e.g. vettr.pages.dev).
+  // WEB_APP_URL_LOCAL overrides only when set for local email testing.
+  const raw =
+    process.env.WEB_APP_URL_LOCAL ||
+    process.env.WEB_APP_URL ||
+    'http://localhost:5173';
+  return raw.split(',')[0].trim().replace(/\/+$/, '');
+}
+
+/** Stable public id shown to users and in emails: FB-42 */
+export function toPublicId(id) {
+  const n = Number(id);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `FB-${n}`;
+}
+
+export function parsePublicId(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim();
+  const m = s.match(/^FB-?(\d+)$/i);
+  if (m) return Number(m[1]);
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function userThreadUrl(submissionId) {
+  return `${webAppBase()}/dashboard?feedback=${toPublicId(submissionId)}`;
+}
+
+function adminThreadUrl(submissionId) {
+  return `${webAppBase()}/admin/feedback?id=${submissionId}`;
+}
+
+function enrichSubmission(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    public_id: toPublicId(row.id),
+    status_label: statusLabel(row.status),
+  };
 }
 
 async function getUserEmail(userId) {
@@ -100,6 +138,17 @@ export function statusLabel(status) {
   return STATUS_LABELS[status] || status;
 }
 
+function buildMessageBody({ category, body, expected, actual, steps }) {
+  const parts = [];
+  if (category === 'bug') {
+    if (expected) parts.push(`Expected:\n${expected}`);
+    if (actual) parts.push(`Actual:\n${actual}`);
+    if (steps) parts.push(`Steps to reproduce:\n${steps}`);
+  }
+  if (body) parts.push(category === 'bug' && parts.length ? `Notes:\n${body}` : body);
+  return parts.join('\n\n').trim() || '(attachment only)';
+}
+
 export async function createSubmission(userId, payload) {
   const category = String(payload.category || '').toLowerCase();
   if (!CATEGORIES.has(category)) throw err(400, 'Invalid category');
@@ -109,6 +158,10 @@ export async function createSubmission(userId, payload) {
   else if (!SEVERITIES.has(severity)) throw err(400, 'Invalid severity');
 
   const body = String(payload.body || '').trim();
+  const expected = category === 'bug' ? String(payload.expected || payload.expectedResult || '').trim() : '';
+  const actual = category === 'bug' ? String(payload.actual || payload.actualResult || '').trim() : '';
+  const steps = category === 'bug' ? String(payload.steps || payload.reproSteps || '').trim() : '';
+
   const pageUrl = payload.pageUrl ? String(payload.pageUrl).slice(0, 2000) : null;
   const appVersion = payload.appVersion ? String(payload.appVersion).slice(0, 32) : null;
   const userAgent = payload.userAgent ? String(payload.userAgent).slice(0, 500) : null;
@@ -122,11 +175,20 @@ export async function createSubmission(userId, payload) {
     ? validateAttachment(payload.voice, { kind: 'voice' })
     : null;
 
-  if (!body && !screenshot && !voice) {
-    throw err(400, 'Add a note, screenshot, or voice note');
+  if (!body && !expected && !actual && !steps && !screenshot && !voice) {
+    throw err(400, 'Add a note, repro details, screenshot, or voice note');
+  }
+  if (category === 'bug' && !body && !expected && !actual && !steps) {
+    throw err(400, 'Bugs need a short description (Actual, Expected, Steps, or notes)');
   }
 
-  const title = buildTitle({ category, body, pageUrl });
+  const title = buildTitle({
+    category,
+    body: actual || body || expected,
+    pageUrl,
+  });
+  const msgBody = buildMessageBody({ category, body, expected, actual, steps });
+
   const client = await pool.connect();
   let submissionId;
   try {
@@ -134,8 +196,9 @@ export async function createSubmission(userId, payload) {
     const sub = await client.query(
       `INSERT INTO feedback_submissions (
          user_id, category, severity, status, title,
-         page_url, app_version, user_agent, viewport, metadata
-       ) VALUES ($1,$2,$3,'new',$4,$5,$6,$7,$8::jsonb,$9::jsonb)
+         page_url, app_version, user_agent, viewport, metadata,
+         expected_result, actual_result, repro_steps
+       ) VALUES ($1,$2,$3,'new',$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12)
        RETURNING *`,
       [
         userId,
@@ -147,11 +210,13 @@ export async function createSubmission(userId, payload) {
         userAgent,
         JSON.stringify(viewport),
         JSON.stringify(metadata),
+        expected || null,
+        actual || null,
+        steps || null,
       ]
     );
     submissionId = sub.rows[0].id;
 
-    const msgBody = body || '(attachment only)';
     const msg = await client.query(
       `INSERT INTO feedback_messages (submission_id, author_user_id, body, message_kind)
        VALUES ($1, $2, $3, 'user')
@@ -184,14 +249,15 @@ export async function createSubmission(userId, payload) {
     client.release();
   }
 
-  console.log(`[feedback] created #${submissionId} category=${category} user=${userId}`);
+  const pub = toPublicId(submissionId);
+  console.log(`[feedback] created ${pub} category=${category} user=${userId}`);
 
-  const link = `${webAppBase()}/admin/feedback?id=${submissionId}`;
   await notifyAdmins({
-    subject: `[Vettr Feedback] ${category}${severity === 'blocking' ? ' (blocking)' : ''}: ${title}`,
-    html: `<p>New <strong>${category}</strong> from user #${userId}</p>
+    subject: `[Vettr ${pub}] ${category}${severity === 'blocking' ? ' (blocking)' : ''}: ${title}`,
+    html: `<p>New <strong>${category}</strong> <strong>${pub}</strong> from user #${userId}</p>
       <p>${title}</p>
-      <p><a href="${link}">Open in admin</a></p>`,
+      <p><a href="${adminThreadUrl(submissionId)}">Open in admin</a></p>
+      <p><a href="${userThreadUrl(submissionId)}">User thread link</a></p>`,
   });
 
   return getSubmissionDetail(userId, submissionId, { asAdmin: false });
@@ -219,10 +285,7 @@ export async function listMine(userId) {
      LIMIT 100`,
     [userId]
   );
-  return r.rows.map((row) => ({
-    ...row,
-    status_label: statusLabel(row.status),
-  }));
+  return r.rows.map((row) => enrichSubmission(row));
 }
 
 export async function countUnreadForUser(userId) {
@@ -266,9 +329,11 @@ export async function listAdmin({ category, status, severity, q, limit = 50, off
     params.push(severity);
   }
   if (q) {
-    clauses.push(`(s.title ILIKE $${i} OR u.email ILIKE $${i})`);
+    clauses.push(`(s.title ILIKE $${i} OR u.email ILIKE $${i} OR CAST(s.id AS TEXT) = $${i + 1} OR CONCAT('FB-', s.id) ILIKE $${i})`);
     params.push(`%${String(q).slice(0, 100)}%`);
-    i += 1;
+    const idNum = parsePublicId(q);
+    params.push(idNum != null ? String(idNum) : String(q).replace(/^FB-/i, ''));
+    i += 2;
   }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   params.push(Math.min(Number(limit) || 50, 100), Number(offset) || 0);
@@ -285,10 +350,7 @@ export async function listAdmin({ category, status, severity, q, limit = 50, off
      LIMIT $${i++} OFFSET $${i}`,
     params
   );
-  return r.rows.map((row) => ({
-    ...row,
-    status_label: statusLabel(row.status),
-  }));
+  return r.rows.map((row) => enrichSubmission(row));
 }
 
 export async function getSubmissionDetail(viewerUserId, submissionId, { asAdmin = false } = {}) {
@@ -342,13 +404,12 @@ export async function getSubmissionDetail(viewerUserId, submissionId, { asAdmin 
   );
 
   return {
-    submission: {
+    submission: enrichSubmission({
       ...submission,
-      status_label: statusLabel(submission.status),
       my_me_too: myMeToo,
       is_owner: isOwner,
       can_reply: asAdmin || isOwner,
-    },
+    }),
     messages: messages.rows,
     attachments: attachments.rows,
   };
@@ -416,21 +477,21 @@ export async function addMessage(actorUserId, submissionId, { body, asAdmin = fa
     client.release();
   }
 
-  const linkUser = `${webAppBase()}/dashboard?feedback=${submissionId}`;
-  const linkAdmin = `${webAppBase()}/admin/feedback?id=${submissionId}`;
+  const pub = toPublicId(submissionId);
 
   if (asAdmin) {
     await notifyUser(submission.user_id, {
-      subject: `[Vettr] Reply on your feedback: ${submission.title}`,
-      html: `<p>We replied to your feedback:</p><blockquote>${text}</blockquote>
-        <p><a href="${linkUser}">View thread</a></p>`,
+      subject: `[Vettr ${pub}] Reply on your feedback`,
+      html: `<p>We replied to <strong>${pub}</strong> (${submission.title}):</p>
+        <blockquote>${text}</blockquote>
+        <p><a href="${userThreadUrl(submissionId)}">View thread</a></p>`,
     });
   } else {
     await notifyAdmins({
-      subject: `[Vettr Feedback] User reply on #${submissionId}`,
-      html: `<p>User replied on <strong>${submission.title}</strong></p>
+      subject: `[Vettr ${pub}] User reply`,
+      html: `<p>User replied on <strong>${pub}</strong> — ${submission.title}</p>
         <blockquote>${text}</blockquote>
-        <p><a href="${linkAdmin}">Open in admin</a></p>`,
+        <p><a href="${adminThreadUrl(submissionId)}">Open in admin</a></p>`,
     });
   }
 
@@ -458,14 +519,14 @@ export async function updateStatus(adminUserId, submissionId, status) {
     [submissionId, adminUserId, `Status changed to ${label}`]
   );
 
-  const linkUser = `${webAppBase()}/dashboard?feedback=${submissionId}`;
+  const pub = toPublicId(submissionId);
   await notifyUser(sub.rows[0].user_id, {
-    subject: `[Vettr] Feedback status: ${label}`,
-    html: `<p>Your feedback “${sub.rows[0].title}” is now <strong>${label}</strong>.</p>
-      <p><a href="${linkUser}">View thread</a></p>`,
+    subject: `[Vettr ${pub}] Status: ${label}`,
+    html: `<p>Your feedback <strong>${pub}</strong> (“${sub.rows[0].title}”) is now <strong>${label}</strong>.</p>
+      <p><a href="${userThreadUrl(submissionId)}">View thread</a></p>`,
   });
 
-  console.log(`[feedback] #${submissionId} status ${prev} → ${status}`);
+  console.log(`[feedback] ${pub} status ${prev} → ${status}`);
   return getSubmissionDetail(adminUserId, submissionId, { asAdmin: true });
 }
 
@@ -516,10 +577,7 @@ export async function listOpenBugsForMeToo(userId, { limit = 20 } = {}) {
      LIMIT $2`,
     [userId, Math.min(Number(limit) || 20, 50)]
   );
-  return r.rows.map((row) => ({
-    ...row,
-    status_label: statusLabel(row.status),
-  }));
+  return r.rows.map((row) => enrichSubmission(row));
 }
 
 export async function getAttachmentForUser(viewerUserId, attachmentId, { asAdmin = false } = {}) {

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import pkg from '../../../package.json';
 import { feedbackAPI } from '../../utils/api';
-import { dataUrlToBase64, getRecentClientErrors } from '../../utils/feedbackContext';
+import { dataUrlToBase64, collectClientDiagnostics } from '../../utils/feedbackContext';
 import ScreenshotAnnotator from './ScreenshotAnnotator';
 import VoiceRecorder from './VoiceRecorder';
 
@@ -18,11 +18,24 @@ const SEVERITIES = [
   { id: 'blocking', label: 'Blocking' },
 ];
 
-export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine }) {
+/**
+ * @param {'full' | 'report-screen'} mode
+ * report-screen: Bug + auto-capture, jump to markup + repro fields
+ */
+export default function FeedbackWidget({
+  open,
+  mode = 'full',
+  onClose,
+  onSubmitted,
+  onOpenMine,
+}) {
   const [step, setStep] = useState('compose'); // compose | capture | done
   const [category, setCategory] = useState('bug');
   const [severity, setSeverity] = useState('normal');
   const [body, setBody] = useState('');
+  const [expected, setExpected] = useState('');
+  const [actual, setActual] = useState('');
+  const [steps, setSteps] = useState('');
   const [rawShot, setRawShot] = useState(null);
   const [annotatedShot, setAnnotatedShot] = useState(null);
   const [voice, setVoice] = useState(null);
@@ -30,19 +43,26 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [openBugs, setOpenBugs] = useState([]);
+  const [createdPublicId, setCreatedPublicId] = useState(null);
   const [createdId, setCreatedId] = useState(null);
+  const autoCaptureStarted = useRef(false);
 
   const reset = () => {
     setStep('compose');
     setCategory('bug');
     setSeverity('normal');
     setBody('');
+    setExpected('');
+    setActual('');
+    setSteps('');
     setRawShot(null);
     setAnnotatedShot(null);
     setVoice(null);
     setError(null);
     setCreatedId(null);
+    setCreatedPublicId(null);
     setOpenBugs([]);
+    autoCaptureStarted.current = false;
   };
 
   const loadOpenBugs = async () => {
@@ -54,20 +74,10 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
     }
   };
 
-  useEffect(() => {
-    if (open && category === 'bug') loadOpenBugs();
-  }, [open, category]);
-
-  const handleClose = () => {
-    reset();
-    onClose?.();
-  };
-
   const capturePage = async () => {
     setCapturing(true);
     setError(null);
     try {
-      // Hide feedback UI so it is not in the shot
       const overlay = document.querySelector('.feedback-overlay');
       if (overlay) overlay.style.visibility = 'hidden';
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -89,27 +99,70 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
       setError('Could not capture screenshot. You can still send text or voice.');
       const overlay = document.querySelector('.feedback-overlay');
       if (overlay) overlay.style.visibility = '';
+      if (mode === 'report-screen') setStep('compose');
     } finally {
       setCapturing(false);
     }
+  };
+
+  useEffect(() => {
+    if (!open) {
+      autoCaptureStarted.current = false;
+      return;
+    }
+    if (category === 'bug') loadOpenBugs();
+    if (mode === 'report-screen' && !autoCaptureStarted.current) {
+      autoCaptureStarted.current = true;
+      setCategory('bug');
+      capturePage();
+    }
+  }, [open, mode, category]);
+
+  const handleClose = () => {
+    reset();
+    onClose?.();
   };
 
   const submit = async () => {
     setSubmitting(true);
     setError(null);
     try {
+      const exp = expected.trim();
+      const act = actual.trim();
+      const st = steps.trim();
+      const note = body.trim();
+      // Bugs need at least a short description — screenshot alone is not enough to triage
+      if (category === 'bug' && !exp && !act && !st && !note) {
+        setError('Add what went wrong: fill Actual (or Expected / Steps / notes) before sending.');
+        setSubmitting(false);
+        if (step === 'capture') {
+          // keep them on capture so fields are visible for report-screen
+        }
+        return;
+      }
+      if (mode === 'report-screen' && !act && !note) {
+        setError('Briefly say what looks wrong (Actual or notes) so we can triage the screenshot.');
+        setSubmitting(false);
+        return;
+      }
+
+      const diagnostics = collectClientDiagnostics({ captureMode: mode });
       const payload = {
         category,
         severity: category === 'bug' ? severity : 'normal',
-        body: body.trim(),
+        body: note,
+        expected: exp,
+        actual: act,
+        steps: st,
         pageUrl: window.location.href,
         appVersion: pkg.version,
-        userAgent: navigator.userAgent,
-        viewport: { w: window.innerWidth, h: window.innerHeight },
-        metadata: {
-          consoleErrors: getRecentClientErrors(),
-          path: window.location.pathname,
+        userAgent: diagnostics.browser?.userAgent || navigator.userAgent,
+        viewport: {
+          w: diagnostics.viewport?.innerWidth ?? window.innerWidth,
+          h: diagnostics.viewport?.innerHeight ?? window.innerHeight,
+          ...diagnostics.viewport,
         },
+        metadata: diagnostics,
       };
       if (annotatedShot) {
         payload.screenshot = {
@@ -122,6 +175,7 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
       }
       const detail = await feedbackAPI.create(payload);
       setCreatedId(detail.submission?.id);
+      setCreatedPublicId(detail.submission?.public_id || `FB-${detail.submission?.id}`);
       setStep('done');
       onSubmitted?.(detail);
     } catch (err) {
@@ -134,12 +188,54 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
 
   if (!open) return null;
 
+  const isReport = mode === 'report-screen';
+  const showBugRepro = category === 'bug';
+
+  const reproFields = showBugRepro ? (
+    <div className="feedback-repro">
+      <label className="feedback-label" htmlFor="feedback-actual">
+        What looks wrong? <span className="feedback-required">(required)</span>
+      </label>
+      <textarea
+        id="feedback-actual"
+        className="modal-input"
+        rows={2}
+        value={actual}
+        onChange={(e) => setActual(e.target.value)}
+        placeholder="e.g. Save spinner never stops / filters don’t apply"
+        required={isReport}
+      />
+      <label className="feedback-label" htmlFor="feedback-expected">Expected (optional)</label>
+      <textarea
+        id="feedback-expected"
+        className="modal-input"
+        rows={2}
+        value={expected}
+        onChange={(e) => setExpected(e.target.value)}
+        placeholder="What should happen?"
+      />
+      <label className="feedback-label" htmlFor="feedback-steps">Steps to reproduce (optional)</label>
+      <textarea
+        id="feedback-steps"
+        className="modal-input"
+        rows={3}
+        value={steps}
+        onChange={(e) => setSteps(e.target.value)}
+        placeholder={'1. …\n2. …\n3. …'}
+      />
+    </div>
+  ) : null;
+
   return (
     <div className="modal-overlay feedback-overlay" role="dialog" aria-modal="true">
       <div className="modal-card feedback-modal">
         <div className="modal-header">
           <h2>
-            {step === 'done' ? 'Thanks!' : step === 'capture' ? 'Mark up screenshot' : 'Send feedback'}
+            {step === 'done'
+              ? 'Thanks!'
+              : step === 'capture'
+                ? (isReport ? 'Report this screen' : 'Mark up screenshot')
+                : (isReport ? 'Report this screen' : 'Send feedback')}
           </h2>
           <button type="button" className="column-close-btn" onClick={handleClose} aria-label="Close">
             ✕
@@ -148,23 +244,27 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
 
         {step === 'compose' && (
           <>
-            <div className="feedback-category-row">
-              {CATEGORIES.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`feedback-chip-btn${category === c.id ? ' is-active' : ''}`}
-                  onClick={() => {
-                    setCategory(c.id);
-                    if (c.id === 'bug') loadOpenBugs();
-                  }}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
+            {!isReport ? (
+              <div className="feedback-category-row">
+                {CATEGORIES.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`feedback-chip-btn${category === c.id ? ' is-active' : ''}`}
+                    onClick={() => {
+                      setCategory(c.id);
+                      if (c.id === 'bug') loadOpenBugs();
+                    }}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="feedback-muted">Bug report with a screenshot of this page.</p>
+            )}
 
-            {category === 'bug' ? (
+            {showBugRepro ? (
               <div className="feedback-severity-row">
                 <span className="feedback-label">Severity</span>
                 {SEVERITIES.map((s) => (
@@ -180,7 +280,7 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
               </div>
             ) : null}
 
-            {category === 'bug' && openBugs.length > 0 ? (
+            {showBugRepro && openBugs.length > 0 ? (
               <div className="feedback-open-bugs">
                 <p className="feedback-label">Already reported? Tap Me too:</p>
                 <ul>
@@ -192,16 +292,17 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
                         disabled={b.my_me_too}
                         onClick={async () => {
                           try {
-                            await feedbackAPI.meToo(b.id);
+                            const detail = await feedbackAPI.meToo(b.id);
                             setCreatedId(b.id);
+                            setCreatedPublicId(detail.submission?.public_id || b.public_id || `FB-${b.id}`);
                             setStep('done');
-                            onSubmitted?.();
+                            onSubmitted?.(detail);
                           } catch (err) {
                             setError(err.message || 'Me too failed');
                           }
                         }}
                       >
-                        {b.title}
+                        {b.public_id ? `${b.public_id} · ` : ''}{b.title}
                         <span>
                           {b.my_me_too ? 'You joined' : `${b.me_too_count} me too`} · {b.status_label}
                         </span>
@@ -212,16 +313,18 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
               </div>
             ) : null}
 
+            {reproFields}
+
             <label className="feedback-label" htmlFor="feedback-body">
-              What happened / what would you like?
+              {showBugRepro ? 'Extra notes (optional)' : 'What happened / what would you like?'}
             </label>
             <textarea
               id="feedback-body"
               className="modal-input"
-              rows={4}
+              rows={showBugRepro ? 2 : 4}
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="Short description…"
+              placeholder={showBugRepro ? 'Anything else…' : 'Short description…'}
             />
 
             <VoiceRecorder onChange={setVoice} disabled={submitting} />
@@ -263,6 +366,7 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
 
         {step === 'capture' && rawShot ? (
           <>
+            {capturing ? <p className="feedback-muted">Capturing…</p> : null}
             <ScreenshotAnnotator
               imageSrc={rawShot}
               onChange={setAnnotatedShot}
@@ -272,10 +376,40 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
                 setStep('compose');
               }}
             />
+            {isReport ? (
+              <>
+                <div className="feedback-severity-row">
+                  <span className="feedback-label">Severity</span>
+                  {SEVERITIES.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className={`feedback-chip-btn${severity === s.id ? ' is-active' : ''}`}
+                      onClick={() => setSeverity(s.id)}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                {reproFields}
+                <label className="feedback-label" htmlFor="feedback-body-capture">Extra notes (optional)</label>
+                <textarea
+                  id="feedback-body-capture"
+                  className="modal-input"
+                  rows={2}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                />
+              </>
+            ) : null}
             {error ? <p className="feedback-error">{error}</p> : null}
             <div className="modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setStep('compose')}>
-                Back
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setStep('compose')}
+              >
+                {isReport ? 'Add more detail' : 'Back'}
               </button>
               <button
                 type="button"
@@ -283,7 +417,7 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
                 disabled={submitting}
                 onClick={submit}
               >
-                {submitting ? 'Sending…' : 'Send with markup'}
+                {submitting ? 'Sending…' : 'Send'}
               </button>
             </div>
           </>
@@ -292,14 +426,18 @@ export default function FeedbackWidget({ open, onClose, onSubmitted, onOpenMine 
         {step === 'done' ? (
           <div className="feedback-done">
             <p>Your feedback was submitted. We’ll update the status in your feedback list.</p>
-            {createdId ? <p className="feedback-muted">Reference #{createdId}</p> : null}
+            {createdPublicId ? (
+              <p className="feedback-muted">
+                Reference <strong>{createdPublicId}</strong>
+              </p>
+            ) : null}
             <div className="modal-actions">
               <button
                 type="button"
                 className="btn btn-secondary"
                 onClick={() => {
                   handleClose();
-                  onOpenMine?.();
+                  onOpenMine?.(createdId);
                 }}
               >
                 View my feedback

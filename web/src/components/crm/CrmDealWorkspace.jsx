@@ -471,6 +471,13 @@ export default function CrmDealWorkspace({
         onIOISent={handleIOISent}
         onIOIPrefsSaved={onRefresh}
         headerProgressLabel={headerProgressLabel}
+        headerProgressControl={{
+          value: progressStage,
+          onChange: handleProgressSelectChange,
+          options: PIPELINE_STAGE_OPTIONS,
+          saving: progressSaving,
+          disabled: !writeEnabled
+        }}
         listingEdit={{
           savedAtDisplay: deal.savedAt ? formatDate(deal.savedAt) : undefined
         }}

@@ -1,6 +1,6 @@
 {
   "name": "vettr-web",
-  "version": "5.0.50",
+  "version": "5.0.51",
   "description": "Vettr mobile web app (PWA)",
   "type": "module",
   "scripts": {

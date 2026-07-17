@@ -970,6 +970,12 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
           onIOISent={handleIOISent}
           onIOIPrefsSaved={onUpdate}
           headerProgressLabel={headerProgressLabel}
+          headerProgressControl={{
+            value: progressStage,
+            onChange: handleProgressSelectChange,
+            options: PROGRESS_STAGE_OPTIONS,
+            saving: progressSaving
+          }}
           listingEdit={{
             savedAtDisplay: formatDate(deal.savedAt),
             values: listingEdits,

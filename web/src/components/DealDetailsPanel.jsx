@@ -234,6 +234,8 @@ export default function DealDetailsPanel({
   onIOISent = null,
   onIOIPrefsSaved = null,
   headerProgressLabel = null,
+  /** Editable progress in the header: { value, onChange, options, disabled, saving } */
+  headerProgressControl = null,
   listingEdit = null,
   entitlements = null,
   isGuest = false,
@@ -626,23 +628,58 @@ export default function DealDetailsPanel({
           ) : (
             <h2>{deal.name || 'Deal Details'}</h2>
           )}
-          {(headerProgressLabel || deal.url) ? (
+          {(headerProgressControl || headerProgressLabel || deal.url) ? (
             <div className="deal-details-header-meta-row">
-              {headerProgressLabel ? (
+              {deal.url ? (
+                isGuest && !entitlements?.listingLinkEnabled ? (
+                  <button
+                    type="button"
+                    className="btn-secondary deal-details-header-listing-link"
+                    disabled
+                    title="Sign up to open the original listing"
+                    onClick={() => requireSignup?.('listing', { dealDbId: deal.dbId })}
+                  >
+                    View Original Listing
+                  </button>
+                ) : (
+                  <a
+                    href={deal.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary deal-details-header-listing-link"
+                  >
+                    View Original Listing
+                  </a>
+                )
+              ) : null}
+              {headerProgressControl ? (
+                <label className="deal-details-header-progress-control">
+                  <span className="deal-details-header-progress-control__label">Progress</span>
+                  <select
+                    className="deal-details-header-progress-select"
+                    value={headerProgressControl.value || ''}
+                    onChange={headerProgressControl.onChange}
+                    disabled={Boolean(headerProgressControl.disabled || headerProgressControl.saving)}
+                    aria-busy={Boolean(headerProgressControl.saving)}
+                    aria-label="Current progress status"
+                    title="Current progress status — change anytime"
+                  >
+                    <option value="">Select progress…</option>
+                    {(headerProgressControl.options || []).map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                    {headerProgressControl.value
+                      && !(headerProgressControl.options || []).includes(headerProgressControl.value) ? (
+                      <option value={headerProgressControl.value}>
+                        {headerProgressControl.value} (saved)
+                      </option>
+                    ) : null}
+                  </select>
+                </label>
+              ) : headerProgressLabel ? (
                 <p className="deal-details-header-progress" title="Current progress status">
                   <strong>{headerProgressLabel}</strong>
                 </p>
-              ) : null}
-              {deal.url ? (
-                entitlements?.listingLinkEnabled ? (
-                  <a href={deal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary deal-details-header-listing-link">
-                    View Original Listing
-                  </a>
-                ) : (
-                  <button type="button" className="btn-secondary deal-details-header-listing-link" disabled title="Sign up to open the original listing" onClick={() => requireSignup?.('listing', { dealDbId: deal.dbId })}>
-                    View Original Listing
-                  </button>
-                )
               ) : null}
             </div>
           ) : null}

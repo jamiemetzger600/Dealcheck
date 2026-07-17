@@ -1,8 +1,10 @@
 import pool from '../db/pool.js';
 import { sendEmail } from './emailService.js';
 import { getTodayTaskSummary } from './crmTaskService.js';
-import { getDdOverdueForToday } from './ddChecklistService.js';
+import { getDdOverdueForToday, getRecentPortalComments } from './ddChecklistService.js';
 import { getUnreadMentions } from './dealThreadService.js';
+import { findDormantDeals } from './crmPresenceService.js';
+import { findStaleListings } from './crmStaleListing.js';
 
 const WEB_APP_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
 
@@ -68,14 +70,50 @@ export async function sendCrmDailyDigests() {
     const tasks = await getTodayTaskSummary(user.id);
     const ddOverdue = await getDdOverdueForToday(user.id).catch(() => []);
     const mentions = await getUnreadMentions(user.id).catch(() => []);
-    const total = tasks.badgeCount + ddOverdue.length + mentions.length;
+    const portalComments = await getRecentPortalComments(user.id).catch(() => []);
+    const staleListings = await findStaleListings(user.id).catch(() => []);
+    const dormantDeals = await findDormantDeals(user.id, { days: 14, limit: 10 }).catch(() => []);
+
+    const approvals = await pool.query(
+      `SELECT a.id, sd.name AS deal_name, a.action_type, a.to_value, u.email AS requester_email
+       FROM deal_approvals a
+       JOIN saved_deals sd ON sd.id = a.saved_deal_id
+       JOIN users u ON u.id = a.requested_by
+       JOIN team_members tm ON tm.team_id = a.team_id AND tm.user_id = $1
+         AND tm.status = 'active' AND tm.role = 'admin'
+       WHERE a.status = 'pending'
+       ORDER BY a.created_at ASC
+       LIMIT 20`,
+      [user.id]
+    ).catch(() => ({ rows: [] }));
+
+    const total =
+      tasks.badgeCount
+      + ddOverdue.length
+      + mentions.length
+      + portalComments.length
+      + staleListings.length
+      + dormantDeals.length
+      + approvals.rows.length;
     if (total === 0) continue;
 
     const lines = [
       ...mentions.map((m) => `<li>Mention: ${m.author_email} on ${m.deal_name || 'a deal'}</li>`),
+      ...approvals.rows.map(
+        (a) =>
+          `<li>Approval: ${a.requester_email} — ${a.deal_name || 'deal'}${a.to_value ? ` → ${a.to_value}` : ''}</li>`
+      ),
       ...tasks.overdue.map((t) => `<li>Overdue: ${t.title} (${t.deal_name})</li>`),
       ...tasks.dueToday.map((t) => `<li>Due today: ${t.title} (${t.deal_name})</li>`),
-      ...ddOverdue.map((d) => `<li>DD overdue: ${d.title} (${d.deal_name})</li>`)
+      ...ddOverdue.map((d) => `<li>DD overdue: ${d.title} (${d.deal_name})</li>`),
+      ...portalComments.map(
+        (c) => `<li>Portal comment: ${c.item_title || 'item'} (${c.deal_name})</li>`
+      ),
+      ...staleListings.map((s) => `<li>Stale listing: ${s.name || s.deal_name || 'deal'}</li>`),
+      ...dormantDeals.map(
+        (d) =>
+          `<li>Dormant (${d.days_idle}d): ${d.deal_name}${d.progress_stage ? ` — ${d.progress_stage}` : ''}</li>`
+      )
     ];
 
     try {
@@ -86,6 +124,13 @@ export async function sendCrmDailyDigests() {
                <p><a href="${WEB_APP_URL}/dashboard?tab=crm&crmSubview=today">Open Vettr Today</a></p>`
       });
       sent += 1;
+      console.log('[crmReminder] digest sent', {
+        email: user.email,
+        total,
+        mentions: mentions.length,
+        approvals: approvals.rows.length,
+        dormant: dormantDeals.length
+      });
     } catch (err) {
       console.warn('[crmReminder] digest failed for', user.email, err.message);
     }

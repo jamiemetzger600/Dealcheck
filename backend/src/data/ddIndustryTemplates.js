@@ -166,11 +166,208 @@ const OVERLAYS = {
         ]
       }
     ]
+  },
+  environmental: {
+    industryKey: 'environmental',
+    name: 'Environmental / Industrial Services DD',
+    groups: [
+      {
+        name: 'Regulatory & Compliance',
+        items: [
+          { title: 'Operating licenses and certifications schedule', requestsDocument: true },
+          { title: 'Lab accreditation / proficiency records (if applicable)', requestsDocument: true },
+          { title: 'Chain-of-custody and QA/QC procedures', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Insurance',
+        items: [
+          { title: 'Pollution / professional liability and claims history', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Customer & Revenue',
+        items: [
+          { title: 'Top client SOWs and renewal / project pipeline', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Operations',
+        items: [
+          { title: 'Field equipment / vehicle list and calibration records', requestsDocument: true }
+        ]
+      }
+    ]
+  },
+  retail: {
+    industryKey: 'retail',
+    name: 'Retail / eCommerce DD',
+    groups: [
+      {
+        name: 'Financial & QoE',
+        items: [
+          { title: 'Inventory aging and shrink history', requestsDocument: true },
+          { title: 'Channel mix (store / marketplace / DTC) and contribution', requestsDocument: true },
+          { title: 'Return / chargeback rates', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Real Estate & Facilities',
+        items: [
+          { title: 'Lease / CAM / landlord consent for assignment', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'IT & Systems',
+        items: [
+          { title: 'POS / Shopify / marketplace account transfer plan', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Customer & Revenue',
+        items: [
+          { title: 'Customer / email list ownership and marketing consent', requestsDocument: false }
+        ]
+      }
+    ]
+  },
+  manufacturing: {
+    industryKey: 'manufacturing',
+    name: 'Manufacturing DD',
+    groups: [
+      {
+        name: 'Financial & QoE',
+        items: [
+          { title: 'COGS / BOM and margin by product line', requestsDocument: true },
+          { title: 'Capacity utilization and backlog', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Operations',
+        items: [
+          { title: 'Tooling / molds ownership and location', requestsDocument: true },
+          { title: 'OSHA / safety records and open citations', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Real Estate & Facilities',
+        items: [
+          { title: 'Environmental permits and Phase I (if applicable)', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Customer & Revenue',
+        items: [
+          { title: 'Top customers, contracts, and concentration', requestsDocument: true }
+        ]
+      }
+    ]
+  },
+  construction: {
+    industryKey: 'construction',
+    name: 'Construction / Trades DD',
+    groups: [
+      {
+        name: 'Financial & QoE',
+        items: [
+          { title: 'WIP schedule and retainage', requestsDocument: true },
+          { title: 'Bonding capacity and surety relationship', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Legal & Corporate',
+        items: [
+          { title: 'Licenses, union agreements, and lien history', requestsDocument: true },
+          { title: 'Equipment liens and vehicle titles', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Customer & Revenue',
+        items: [
+          { title: 'Backlog by job and customer concentration', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Insurance',
+        items: [
+          { title: 'GL / workers’ comp / builders risk certificates', requestsDocument: true }
+        ]
+      }
+    ]
+  },
+  auto: {
+    industryKey: 'auto',
+    name: 'Automotive DD',
+    groups: [
+      {
+        name: 'Financial & QoE',
+        items: [
+          { title: 'Parts inventory turns and aging', requestsDocument: true },
+          { title: 'Bay / lift utilization and RO volume', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Operations',
+        items: [
+          { title: 'OEM / dealer agreements and territory rights', requestsDocument: true },
+          { title: 'Lift certifications and environmental (oil / waste) compliance', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Real Estate & Facilities',
+        items: [
+          { title: 'Lease assignment and environmental site conditions', requestsDocument: true }
+        ]
+      }
+    ]
+  },
+  franchise: {
+    industryKey: 'franchise',
+    name: 'Franchise DD',
+    groups: [
+      {
+        name: 'Legal & Corporate',
+        items: [
+          { title: 'Current FDD and franchise agreement', requestsDocument: true },
+          { title: 'Franchisor transfer / approval requirements', requestsDocument: true },
+          { title: 'Territory rights and protected radius', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Financial & QoE',
+        items: [
+          { title: 'Royalty, ad fund, and other recurring fees schedule', requestsDocument: true },
+          { title: 'Remodel / CAPEX obligations and timeline', requestsDocument: true }
+        ]
+      },
+      {
+        name: 'Operations',
+        items: [
+          { title: 'Franchisee association / franchisee satisfaction notes', requestsDocument: false },
+          { title: 'Required vendors and supply restrictions', requestsDocument: true }
+        ]
+      }
+    ]
   }
 };
 
-/** Wave 2 industry keys with full packs (plus generic). */
-export const WAVE2_INDUSTRY_KEYS = ['generic', 'restaurant', 'healthcare', 'saas', 'services'];
+/** All system industry packs (Wave 2 + Wave 5). */
+export const DD_SYSTEM_INDUSTRY_KEYS = [
+  'generic',
+  'restaurant',
+  'healthcare',
+  'saas',
+  'services',
+  'environmental',
+  'retail',
+  'manufacturing',
+  'construction',
+  'auto',
+  'franchise'
+];
+
+/** @deprecated Use DD_SYSTEM_INDUSTRY_KEYS */
+export const WAVE2_INDUSTRY_KEYS = DD_SYSTEM_INDUSTRY_KEYS;
 
 /**
  * Merge base groups with overlay: append items into matching group names, else add groups.
@@ -209,7 +406,7 @@ export function mergeTemplateGroups(baseGroups, overlayGroups = []) {
  * @returns {DdTemplateDef}
  */
 export function buildDdTemplateForIndustry(industryKey) {
-  const key = WAVE2_INDUSTRY_KEYS.includes(industryKey) ? industryKey : 'generic';
+  const key = DD_SYSTEM_INDUSTRY_KEYS.includes(industryKey) ? industryKey : 'generic';
   const base = BUSINESS_ACQUISITION_DD_TEMPLATE;
 
   if (key === 'generic') {
@@ -225,6 +422,9 @@ export function buildDdTemplateForIndustry(industryKey) {
   }
 
   const overlay = OVERLAYS[key];
+  if (!overlay) {
+    return buildDdTemplateForIndustry('generic');
+  }
   return {
     industryKey: key,
     name: overlay.name,
@@ -234,5 +434,5 @@ export function buildDdTemplateForIndustry(industryKey) {
 }
 
 export function listWave2TemplateDefs() {
-  return WAVE2_INDUSTRY_KEYS.map((key) => buildDdTemplateForIndustry(key));
+  return DD_SYSTEM_INDUSTRY_KEYS.map((key) => buildDdTemplateForIndustry(key));
 }

@@ -1,6 +1,7 @@
 import pool from '../db/pool.js';
 import { PIPELINE_STAGES } from '../constants/pipelineStages.js';
 import { suggestedTaskForStage } from '../constants/stageTaskSuggestions.js';
+import { matchIndustryKey, isFranchiseTagged } from '../lib/industryMatcher.js';
 import {
   getDealAccess,
   assertCanWrite,
@@ -97,12 +98,16 @@ async function applyStageUpdate(actorUserId, deal, newStage, previousStage) {
 
   console.log(`[crmStage] deal=${deal.id} ${previousStage || '(none)'} -> ${trimmed || '(cleared)'}`);
 
+  const industryKey = isFranchiseTagged(deal.industry)
+    ? 'franchise'
+    : matchIndustryKey(deal.industry);
   return {
     savedDealId: deal.id,
     progressStage: trimmed || null,
     progressHistory: newHistory,
     previousStage: previousStage || null,
-    suggestedTask: trimmed ? suggestedTaskForStage(trimmed) : null
+    suggestedTask: trimmed ? suggestedTaskForStage(trimmed, industryKey) : null,
+    suggestedIndustryKey: industryKey
   };
 }
 
@@ -116,7 +121,7 @@ export async function updateDealPipelineStage(userId, savedDealId, newStage, { p
   assertCanWrite(access);
 
   const deal = await pool.query(
-    `SELECT id, user_id, team_id, progress_stage, progress_history, name
+    `SELECT id, user_id, team_id, progress_stage, progress_history, name, industry
      FROM saved_deals WHERE id = $1`,
     [savedDealId]
   ).then((r) => r.rows[0]);
@@ -186,7 +191,7 @@ export async function updateDealPipelineStage(userId, savedDealId, newStage, { p
 /** Called when Admin approves a pending stage change. */
 export async function applyApprovedStageChange(adminUserId, approval, note) {
   const deal = await pool.query(
-    `SELECT id, user_id, team_id, progress_stage, progress_history, name
+    `SELECT id, user_id, team_id, progress_stage, progress_history, name, industry
      FROM saved_deals WHERE id = $1`,
     [approval.saved_deal_id]
   ).then((r) => r.rows[0]);

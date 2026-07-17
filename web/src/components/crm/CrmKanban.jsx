@@ -19,6 +19,17 @@ function KanbanCard({ deal, summary, onSelect, dragging, isSelected, onDragStart
   const cocOk = coc != null && Number.isFinite(coc);
   const stageLabel = resolveDealStage(deal);
   const pending = deal.pending_approval || deal.pendingApproval;
+  const last = deal.last_activity || deal.lastActivity;
+  const lastTouchLabel = (() => {
+    if (!last?.at) return null;
+    const d = new Date(last.at);
+    if (Number.isNaN(d.getTime())) return null;
+    const daysAgo = Math.floor((Date.now() - d.getTime()) / 86400000);
+    if (daysAgo <= 0) return 'today';
+    if (daysAgo === 1) return '1d ago';
+    return `${daysAgo}d ago`;
+  })();
+  const actorShort = last?.actorEmail ? String(last.actorEmail).split('@')[0] : null;
 
   return (
     <article
@@ -53,6 +64,15 @@ function KanbanCard({ deal, summary, onSelect, dragging, isSelected, onDragStart
         {stageLabel ? <span className="crm-kanban-card__stage">{stageLabel}</span> : null}
         {days != null ? <span>{days}d</span> : null}
       </div>
+      {lastTouchLabel ? (
+        <div
+          className="crm-kanban-card__touched"
+          title={actorShort ? `Last touched by ${actorShort}` : 'Last CRM activity'}
+        >
+          Touched {lastTouchLabel}
+          {actorShort ? ` · ${actorShort}` : ''}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -112,8 +132,12 @@ export default function CrmKanban({
   const normalizeKanbanDeal = useCallback(
     (row) => {
       const fromParent = dealsById.get(row.id);
-      if (fromParent) return fromParent;
-      return normalizeDeal(row);
+      const lastActivity = row.last_activity || row.lastActivity || null;
+      if (fromParent) {
+        return lastActivity ? { ...fromParent, last_activity: lastActivity } : fromParent;
+      }
+      const n = normalizeDeal(row);
+      return lastActivity ? { ...n, last_activity: lastActivity } : n;
     },
     [dealsById]
   );

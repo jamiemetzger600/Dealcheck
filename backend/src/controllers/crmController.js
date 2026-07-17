@@ -32,6 +32,7 @@ import {
 import { getDealAccess, assertCanRead, assertCanWrite, getMembership, VISIBLE_DEALS_SQL } from '../lib/teamAcl.js';
 import { getUnreadCounts, getUnreadMentions } from '../services/dealThreadService.js';
 import { countUnreadAlerts } from '../services/userAlertService.js';
+import { findDormantDeals, getLastActivityByDealIds } from '../services/crmPresenceService.js';
 
 const KANBAN_DEAL_FIELDS = `
   id, deal_id, name, url, progress_stage, progress_history, status,
@@ -100,10 +101,12 @@ export const getCrmKanban = async (req, res) => {
       fields: KANBAN_DEAL_FIELDS
     });
 
-    const unread = await getUnreadCounts(
-      userId,
-      result.rows.map((r) => r.id)
-    ).catch(() => ({}));
+    const dealIds = result.rows.map((r) => r.id);
+    const unread = await getUnreadCounts(userId, dealIds).catch(() => ({}));
+    const lastActivityByDeal = await getLastActivityByDealIds(dealIds).catch((err) => {
+      console.warn('[crm] getLastActivityByDealIds skipped:', err.message);
+      return {};
+    });
 
     const pendingApprovals = teamId
       ? await pool.query(
@@ -121,7 +124,8 @@ export const getCrmKanban = async (req, res) => {
       ...row,
       progress_history: normalizeProgressHistory(row.progress_history),
       unread_messages: unread[row.id] || 0,
-      pending_approval: pendingByDeal.get(row.id) || null
+      pending_approval: pendingByDeal.get(row.id) || null,
+      last_activity: lastActivityByDeal[row.id] || null
     }));
 
     const buckets = new Map(KANBAN_COLUMNS.map((col) => [col.id, []]));
@@ -228,12 +232,17 @@ export const getCrmToday = async (req, res) => {
       console.warn('[crm] countUnreadAlerts skipped:', err.message);
       return 0;
     });
+    const dormantDeals = await findDormantDeals(userId, { days: 14, limit: 15 }).catch((err) => {
+      console.warn('[crm] findDormantDeals skipped:', err.message);
+      return [];
+    });
 
     const recentActivities = await pool.query(
       `SELECT a.id, a.saved_deal_id, a.activity_type, a.body, a.occurred_at, a.metadata,
-              sd.name AS deal_name
+              sd.name AS deal_name, u.email AS actor_email
        FROM activities a
        JOIN saved_deals sd ON sd.id = a.saved_deal_id
+       JOIN users u ON u.id = a.user_id
        WHERE ${VISIBLE_DEALS_SQL}
        ORDER BY a.occurred_at DESC
        LIMIT 50`,
@@ -244,6 +253,7 @@ export const getCrmToday = async (req, res) => {
       dealCount: dealsResult.rows.length,
       deals: dealsResult.rows,
       recentActivities: recentActivities.rows,
+      dormantDeals,
       tasks: taskSummary,
       staleListings,
       ddOverdue,
@@ -257,6 +267,7 @@ export const getCrmToday = async (req, res) => {
         + ddOverdue.length
         + portalComments.length
         + approvals.rows.length
+        + dormantDeals.length
         // Prefer durable alert count for Talk pings; fall back to mention rows
         + Math.max(unreadAlertCount, unreadMentions.length)
     });
@@ -283,16 +294,27 @@ export const getDealActivities = async (req, res) => {
     );
 
     const activities = await pool.query(
-      `SELECT id, activity_type, body, metadata, occurred_at, contact_id
-       FROM activities
-       WHERE saved_deal_id = $1
-       ORDER BY occurred_at DESC`,
+      `SELECT a.id, a.activity_type, a.body, a.metadata, a.occurred_at, a.contact_id,
+              u.email AS actor_email
+       FROM activities a
+       JOIN users u ON u.id = a.user_id
+       WHERE a.saved_deal_id = $1
+       ORDER BY a.occurred_at DESC`,
       [id]
     );
 
+    const last = activities.rows[0] || null;
     res.json({
       contacts: contacts.rows,
       activities: activities.rows,
+      lastActivity: last
+        ? {
+            at: last.occurred_at,
+            type: last.activity_type,
+            actorEmail: last.actor_email,
+            body: last.body
+          }
+        : null,
       access: {
         canWrite: access.canWrite,
         canUnshare: access.canUnshare,

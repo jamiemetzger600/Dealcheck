@@ -30,6 +30,11 @@ function TaskRow({ task, onComplete, onSelectDeal }) {
   );
 }
 
+function activityPreview(activity) {
+  if (activity.body) return activity.body;
+  return activity.activity_type?.replace(/_/g, ' ') || 'Activity';
+}
+
 export default function CrmToday({ today, onSelectDeal, onRefresh }) {
   const tasks = today?.tasks || {};
   const overdue = tasks.overdue || [];
@@ -39,6 +44,8 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
   const portalComments = today?.portalComments || [];
   const pendingApprovals = today?.pendingApprovals || [];
   const unreadMentions = today?.unreadMentions || [];
+  const dormantDeals = today?.dormantDeals || [];
+  const recentActivities = today?.recentActivities || [];
 
   const handleCompleteTask = async (taskId) => {
     try {
@@ -71,7 +78,9 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
     ddOverdue.length > 0 ||
     portalComments.length > 0 ||
     pendingApprovals.length > 0 ||
-    unreadMentions.length > 0;
+    unreadMentions.length > 0 ||
+    dormantDeals.length > 0 ||
+    recentActivities.length > 0;
 
   if (!hasWork) {
     return (
@@ -253,6 +262,64 @@ export default function CrmToday({ today, onSelectDeal, onRefresh }) {
                   <strong>{s.name}</strong>
                   <span>Feed financials changed — refresh from listing</span>
                 </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {dormantDeals.length > 0 ? (
+        <section className="crm-today-section">
+          <h3 className="crm-today-section__title">
+            Quiet deals ({dormantDeals.length})
+          </h3>
+          <p className="crm-today-hint">No CRM activity in 14+ days — consider a nudge or follow-up.</p>
+          <ul className="crm-today-task-list">
+            {dormantDeals.map((d) => (
+              <li key={d.saved_deal_id} className="crm-today-task">
+                <div className="crm-today-task__body">
+                  <button
+                    type="button"
+                    className="crm-today-task__deal"
+                    onClick={() => onSelectDeal?.(d.saved_deal_id)}
+                  >
+                    {d.deal_name || 'Deal'}
+                  </button>
+                  <span className="crm-today-task__title">
+                    {d.days_idle} days idle
+                    {d.progress_stage ? ` · ${d.progress_stage}` : ''}
+                  </span>
+                  <span className="crm-today-task__due">
+                    Last touch {formatDate(d.last_activity_at)}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {recentActivities.length > 0 ? (
+        <section className="crm-today-section">
+          <h3 className="crm-today-section__title">
+            Recent activity ({Math.min(recentActivities.length, 20)})
+          </h3>
+          <ul className="crm-today-task-list">
+            {recentActivities.slice(0, 20).map((a) => (
+              <li key={a.id} className="crm-today-task">
+                <div className="crm-today-task__body">
+                  <button
+                    type="button"
+                    className="crm-today-task__deal"
+                    onClick={() => onSelectDeal?.(a.saved_deal_id)}
+                  >
+                    {a.deal_name || 'Deal'}
+                  </button>
+                  <span className="crm-today-task__title">{activityPreview(a)}</span>
+                  <span className="crm-today-task__due">
+                    {(a.actor_email || 'Someone').split('@')[0]} · {formatDate(a.occurred_at)}
+                  </span>
+                </div>
               </li>
             ))}
           </ul>

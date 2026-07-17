@@ -213,6 +213,16 @@ export default function CrmDealWorkspace({
     return getDealProgressLabel({ ...deal, progressHistory, progressStage }) || '';
   }, [progressStage, progressHistory, deal]);
 
+  const lastTouchedLabel = useMemo(() => {
+    const last = detail?.lastActivity || detail?.activities?.[0];
+    if (!last) return null;
+    const at = last.at || last.occurred_at;
+    if (!at) return null;
+    const who = (last.actorEmail || last.actor_email || '').split('@')[0];
+    const when = formatDate(at);
+    return who ? `Last touched ${when} · ${who}` : `Last touched ${when}`;
+  }, [detail]);
+
   const dealWithBroker = useMemo(() => {
     if (!deal) return deal;
     const brokerContact = detail?.contacts?.find((c) => c.role === 'broker')
@@ -231,7 +241,7 @@ export default function CrmDealWorkspace({
     {
       id: 'broker-contact',
       label: 'Broker contact',
-      icon: 'broker-progress',
+      icon: 'broker',
       render: () => {
         const name = dealWithBroker?.brokerName || dealWithBroker?.broker || '—';
         const company = dealWithBroker?.brokerCompany || dealWithBroker?.source || '—';
@@ -275,7 +285,7 @@ export default function CrmDealWorkspace({
     {
       id: 'crm-progress',
       label: 'Pipeline stage',
-      icon: 'broker-progress',
+      icon: 'pipeline',
       render: () => (
         <div className="progress-tracking">
           <div className="input-group">
@@ -313,7 +323,7 @@ export default function CrmDealWorkspace({
     {
       id: 'crm-followup',
       label: 'Follow up',
-      icon: 'notes',
+      icon: 'followup',
       render: () => (
         <QuickFollowUp
           dealId={dealId}
@@ -328,7 +338,7 @@ export default function CrmDealWorkspace({
     {
       id: 'crm-dd',
       label: 'Due Diligence',
-      icon: 'broker-progress',
+      icon: 'checklist',
       render: () => (
         <DdChecklist dealId={dealId} onRefresh={onRefresh} canWrite={writeEnabled} />
       )
@@ -336,7 +346,7 @@ export default function CrmDealWorkspace({
     {
       id: 'crm-talk',
       label: 'Talk',
-      icon: 'notes',
+      icon: 'talk',
       render: () => (
         <DealThread
           dealId={dealId}
@@ -351,7 +361,7 @@ export default function CrmDealWorkspace({
     {
       id: 'crm-timeline',
       label: 'Notes & history',
-      icon: 'notes',
+      icon: 'timeline',
       render: () => (
         <div className="crm-timeline-inline">
           <div className="crm-note-form">
@@ -455,6 +465,11 @@ export default function CrmDealWorkspace({
 
   return (
     <div className="crm-deal-panel">
+      {lastTouchedLabel ? (
+        <p className="crm-workspace-last-touch" title="Most recent CRM activity on this deal">
+          {lastTouchedLabel}
+        </p>
+      ) : null}
       <DealDetailsPanel
         isOpen
         deal={dealWithBroker || deal}

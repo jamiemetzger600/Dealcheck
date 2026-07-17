@@ -4,9 +4,10 @@ import pool from '../db/pool.js';
 import { BUSINESS_ACQUISITION_DD_TEMPLATE } from '../data/ddBusinessTemplate.js';
 import {
   listWave2TemplateDefs,
+  DD_SYSTEM_INDUSTRY_KEYS,
   WAVE2_INDUSTRY_KEYS
 } from '../data/ddIndustryTemplates.js';
-import { matchIndustryKey, INDUSTRY_LABELS } from '../lib/industryMatcher.js';
+import { matchIndustryKey, isFranchiseTagged, INDUSTRY_LABELS } from '../lib/industryMatcher.js';
 import { sendEmail } from './emailService.js';
 import {
   getDealAccess,
@@ -179,9 +180,15 @@ export async function listSystemDdTemplates() {
        WHEN 'healthcare' THEN 2
        WHEN 'saas' THEN 3
        WHEN 'services' THEN 4
-       ELSE 9
+       WHEN 'environmental' THEN 5
+       WHEN 'retail' THEN 6
+       WHEN 'manufacturing' THEN 7
+       WHEN 'construction' THEN 8
+       WHEN 'auto' THEN 9
+       WHEN 'franchise' THEN 10
+       ELSE 99
      END`,
-    [WAVE2_INDUSTRY_KEYS]
+    [DD_SYSTEM_INDUSTRY_KEYS]
   );
   return result.rows.map((row) => ({
     id: row.id,
@@ -207,9 +214,9 @@ export async function getDdTemplateSuggestionForDeal(userId, savedDealId) {
   }
 
   const industry = deal.rows[0].industry || '';
-  let industryKey = matchIndustryKey(industry);
-  if (!WAVE2_INDUSTRY_KEYS.includes(industryKey)) {
-    console.log('[dd] industry matched but no Wave 2 pack — using generic', {
+  let industryKey = isFranchiseTagged(industry) ? 'franchise' : matchIndustryKey(industry);
+  if (!DD_SYSTEM_INDUSTRY_KEYS.includes(industryKey)) {
+    console.log('[dd] industry matched but no system pack — using generic', {
       dealId: savedDealId,
       industry,
       industryKey

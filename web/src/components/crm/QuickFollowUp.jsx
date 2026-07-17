@@ -2,20 +2,32 @@ import { useEffect, useMemo, useState } from 'react';
 import { crmAPI } from '../../utils/api';
 
 const PRESETS = [
-  { id: 'tomorrow', label: 'Tomorrow' },
-  { id: '3days', label: '3 days' },
-  { id: '1week', label: '1 week' }
+  { id: 'tomorrow', label: 'Tomorrow', days: 1 },
+  { id: '3days', label: '3 days', days: 3 },
+  { id: '1week', label: '1 week', days: 7 }
 ];
 
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
+function toLocalDatetimeValue(date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
 function defaultCustomDatetime() {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   d.setSeconds(0, 0);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return toLocalDatetimeValue(d);
+}
+
+/** Local datetime-local value for a preset (9:00 AM that day). */
+function presetToLocalDatetime(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(9, 0, 0, 0);
+  return toLocalDatetimeValue(d);
 }
 
 function toIsoDatetime(localValue) {
@@ -57,6 +69,8 @@ export default function QuickFollowUp({
   const [showCustom, setShowCustom] = useState(false);
   const [customTitle, setCustomTitle] = useState('');
   const [customDueAt, setCustomDueAt] = useState(defaultCustomDatetime);
+  const [activePreset, setActivePreset] = useState(null);
+  const [statusMsg, setStatusMsg] = useState('');
   const [notifySelf, setNotifySelf] = useState(true);
   const [selectedContactIds, setSelectedContactIds] = useState(() => new Set());
   const [selectedMemberIds, setSelectedMemberIds] = useState(() => new Set());
@@ -137,13 +151,41 @@ export default function QuickFollowUp({
     return recipients;
   };
 
-  const handlePreset = async (preset) => {
-    if (!dealId || saving) return;
+  const applyPresetToForm = (preset) => {
+    setCustomDueAt(presetToLocalDatetime(preset.days));
+    setActivePreset(preset.id);
+    setStatusMsg(`Date set to ${preset.label.toLowerCase()} — adjust alerts below, then Set reminder.`);
+    console.log('[QuickFollowUp] preset applied to custom form', { preset: preset.id, dealId });
+  };
+
+  const handlePreset = async (presetId) => {
+    if (!dealId || saving || disabled) {
+      console.warn('[QuickFollowUp] preset ignored', { dealId, saving, disabled, presetId });
+      return;
+    }
+
+    const preset = PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+
+    // Custom form open → fill date instead of silent create (looked broken)
+    if (showCustom) {
+      applyPresetToForm(preset);
+      return;
+    }
+
     setSaving(true);
+    setStatusMsg('');
+    setActivePreset(presetId);
     try {
-      await crmAPI.quickFollowUp(dealId, { preset, notifyRecipients: [{ type: 'self' }] });
-      onCreated?.();
+      console.log('[QuickFollowUp] creating preset follow-up', { dealId, preset: presetId });
+      await crmAPI.quickFollowUp(dealId, { preset: presetId, notifyRecipients: [{ type: 'self' }] });
+      setStatusMsg(`Reminder set for ${preset.label.toLowerCase()}.`);
+      console.log('[QuickFollowUp] preset follow-up created', { dealId, preset: presetId });
+      await onCreated?.();
     } catch (err) {
+      console.error('[QuickFollowUp] preset failed', err);
+      setActivePreset(null);
+      setStatusMsg('');
       alert('Failed to create follow-up: ' + err.message);
     } finally {
       setSaving(false);
@@ -152,7 +194,7 @@ export default function QuickFollowUp({
 
   const handleCustomSubmit = async (e) => {
     e.preventDefault();
-    if (!dealId || saving) return;
+    if (!dealId || saving || disabled) return;
 
     const dueAt = toIsoDatetime(customDueAt);
     if (!dueAt) {
@@ -167,6 +209,7 @@ export default function QuickFollowUp({
     }
 
     setSaving(true);
+    setStatusMsg('');
     try {
       await crmAPI.quickFollowUp(dealId, {
         title: customTitle.trim() || defaultTitle,
@@ -176,13 +219,16 @@ export default function QuickFollowUp({
       setShowCustom(false);
       setCustomTitle('');
       setCustomDueAt(defaultCustomDatetime());
+      setActivePreset(null);
       setSelectedContactIds(new Set());
       setSelectedMemberIds(new Set());
       setOtherEmail('');
       setNotifyOther(false);
+      setStatusMsg('Custom reminder set.');
       console.log('[QuickFollowUp] custom reminder created', { dealId, notifyRecipients });
-      onCreated?.();
+      await onCreated?.();
     } catch (err) {
+      console.error('[QuickFollowUp] custom failed', err);
       alert('Failed to create reminder: ' + err.message);
     } finally {
       setSaving(false);
@@ -202,22 +248,35 @@ export default function QuickFollowUp({
           <button
             key={p.id}
             type="button"
-            className="crm-chip"
-            disabled={saving || disabled}
+            className={`crm-chip${activePreset === p.id ? ' crm-chip--active' : ''}`}
+            disabled={saving || disabled || !dealId}
             onClick={() => handlePreset(p.id)}
           >
-            {p.label}
+            {saving && activePreset === p.id && !showCustom ? 'Saving…' : p.label}
           </button>
         ))}
         <button
           type="button"
           className={`crm-chip${showCustom ? ' crm-chip--active' : ''}`}
-          disabled={saving}
-          onClick={() => setShowCustom((v) => !v)}
+          disabled={saving || disabled || !dealId}
+          onClick={() => {
+            setShowCustom((v) => {
+              const next = !v;
+              if (!next) {
+                setActivePreset(null);
+                setStatusMsg('');
+              }
+              return next;
+            });
+          }}
         >
           Custom…
         </button>
       </div>
+
+      {statusMsg ? (
+        <p className="crm-quick-followup__status" role="status">{statusMsg}</p>
+      ) : null}
 
       {showCustom ? (
         <form className="crm-quick-followup__custom" onSubmit={handleCustomSubmit}>
@@ -238,7 +297,10 @@ export default function QuickFollowUp({
               type="datetime-local"
               className="modal-input"
               value={customDueAt}
-              onChange={(e) => setCustomDueAt(e.target.value)}
+              onChange={(e) => {
+                setCustomDueAt(e.target.value);
+                setActivePreset(null);
+              }}
               required
             />
           </label>
@@ -320,7 +382,11 @@ export default function QuickFollowUp({
               type="button"
               className="btn-secondary"
               disabled={saving}
-              onClick={() => setShowCustom(false)}
+              onClick={() => {
+                setShowCustom(false);
+                setActivePreset(null);
+                setStatusMsg('');
+              }}
             >
               Cancel
             </button>

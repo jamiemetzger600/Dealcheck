@@ -320,7 +320,7 @@ export default function CrmDealWorkspace({
           dealName={deal?.name}
           contacts={detail?.contacts || []}
           userEmail={user?.email || ''}
-          onCreated={onRefresh}
+          onCreated={handleRefresh}
           disabled={!writeEnabled}
         />
       )
@@ -408,7 +408,7 @@ export default function CrmDealWorkspace({
     dealWithBroker,
     deal?.name,
     user?.email,
-    onRefresh
+    handleRefresh
   ]);
 
   const teamIdOnDeal = deal?.team_id || deal?.teamId || detail?.access?.teamId;

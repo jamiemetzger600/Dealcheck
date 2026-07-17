@@ -7011,8 +7011,19 @@ button.aggregator-welcome__buybox {
   font-size: 13px;
 }
 
-.crm-chip:hover {
+.crm-chip:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
+}
+
+.crm-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.crm-quick-followup__status {
+  margin: 0;
+  font-size: 13px;
+  color: #86efac;
 }
 
 .crm-stale-list {
@@ -7624,8 +7635,13 @@ button.aggregator-welcome__buybox {
   padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid var(--border, #ddd);
-  background: var(--surface, #fff);
-  color: inherit;
+  background: #fff;
+  color: #1a1a1a;
+  -webkit-text-fill-color: #1a1a1a;
+}
+.nav-team-switcher select option {
+  background: #fff;
+  color: #1a1a1a;
 }
 .nav-team-role {
   display: inline-flex;
@@ -7654,52 +7670,6 @@ button.aggregator-welcome__buybox {
   color: #c4b5fd;
   border-color: rgba(196, 181, 253, 0.45);
   background: rgba(196, 181, 253, 0.12);
-}
-.team-save-banner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  background: #eef6ff;
-  color: #1a3a5c;
-  text-align: center;
-  padding: 6px 36px 6px 12px;
-  font-size: 13px;
-  opacity: 1;
-  transition: opacity 0.3s ease;
-}
-.team-save-banner--hiding {
-  opacity: 0;
-}
-.team-save-banner__text {
-  flex: 1;
-  text-align: center;
-}
-.team-save-banner__close {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: #1a3a5c;
-  opacity: 0.65;
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  padding: 2px 6px;
-}
-.team-save-banner__close:hover {
-  opacity: 1;
-}
-.team-save-banner__link {
-  background: none;
-  border: none;
-  color: #1a5fb4;
-  cursor: pointer;
-  text-decoration: underline;
-  padding: 0;
-  font: inherit;
 }
 .deal-thread {
   display: flex;

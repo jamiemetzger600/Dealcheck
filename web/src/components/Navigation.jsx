@@ -1,77 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import pkg from '../../package.json';
 import { useTeam } from '../context/TeamContext';
-
-const TEAM_SAVE_BANNER_AUTO_HIDE_MS = 4000;
-const TEAM_SAVE_BANNER_FADE_MS = 300;
-
-function TeamSaveBanner({ activeTeam, setActiveTeamId }) {
-  const [phase, setPhase] = useState('hidden');
-  const dismissedRef = useRef(false);
-  const fadeTimerRef = useRef(null);
-
-  const hideBanner = useCallback(() => {
-    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-    setPhase('hiding');
-    fadeTimerRef.current = setTimeout(() => {
-      setPhase('hidden');
-      fadeTimerRef.current = null;
-    }, TEAM_SAVE_BANNER_FADE_MS);
-  }, []);
-
-  const dismiss = useCallback(() => {
-    dismissedRef.current = true;
-    hideBanner();
-  }, [hideBanner]);
-
-  useEffect(() => {
-    if (!activeTeam) {
-      dismissedRef.current = false;
-      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-      setPhase('hidden');
-      return undefined;
-    }
-
-    dismissedRef.current = false;
-    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-    setPhase('visible');
-
-    const autoHideTimer = setTimeout(() => {
-      if (!dismissedRef.current) hideBanner();
-    }, TEAM_SAVE_BANNER_AUTO_HIDE_MS);
-
-    return () => {
-      clearTimeout(autoHideTimer);
-      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-    };
-  }, [activeTeam?.id, hideBanner]);
-
-  if (!activeTeam || phase === 'hidden') return null;
-
-  return (
-    <div
-      className={`team-save-banner${phase === 'hiding' ? ' team-save-banner--hiding' : ''}`}
-      role="status"
-    >
-      <span className="team-save-banner__text">
-        Saving to <strong>{activeTeam.name}</strong>
-        {' · '}
-        <button type="button" className="team-save-banner__link" onClick={() => setActiveTeamId(null)}>
-          Switch to personal
-        </button>
-      </span>
-      <button
-        type="button"
-        className="team-save-banner__close"
-        aria-label="Dismiss"
-        onClick={dismiss}
-      >
-        ×
-      </button>
-    </div>
-  );
-}
 
 export default function Navigation({
   user,
@@ -128,10 +58,6 @@ export default function Navigation({
         </span>
       ) : null}
     </div>
-  ) : null;
-
-  const saveBanner = isTeamMode && activeTeam ? (
-    <TeamSaveBanner activeTeam={activeTeam} setActiveTeamId={setActiveTeamId} />
   ) : null;
 
   const actionLinks = (
@@ -201,8 +127,6 @@ export default function Navigation({
           {menuOpen ? '✕' : '☰'}
         </button>
       </nav>
-
-      {saveBanner}
 
       {menuOpen && (
         <div className="app-header-mobile-menu" role="menu">

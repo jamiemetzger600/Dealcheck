@@ -1,6 +1,6 @@
 {
   "name": "vettr-web",
-  "version": "5.0.58",
+  "version": "5.0.60",
   "description": "Vettr mobile web app (PWA)",
   "type": "module",
   "scripts": {
@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "html2canvas": "^1.4.1",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import pkg from '../../package.json';
 import { useTeam } from '../context/TeamContext';
+import { useFeedbackUi } from './feedback/FeedbackShell';
 
 export default function Navigation({
   user,
@@ -22,6 +23,7 @@ export default function Navigation({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { teams, activeTeamId, setActiveTeamId, activeTeam, isTeamMode } = useTeam();
+  const feedbackUi = useFeedbackUi();
 
   const roleLabel = (role) => {
     const r = String(role || '').toLowerCase();
@@ -60,9 +62,40 @@ export default function Navigation({
     </div>
   ) : null;
 
+  const feedbackLinks = (
+    <>
+      <button
+        type="button"
+        className="header-link feedback-nav-btn"
+        onClick={() => { feedbackUi.openWidget(); setMenuOpen(false); }}
+        title="Send feedback (Shift+F)"
+      >
+        Feedback
+        {feedbackUi.unreadCount > 0 ? (
+          <span className="feedback-nav-badge">{feedbackUi.unreadCount}</span>
+        ) : null}
+      </button>
+      {!isGuest && user ? (
+        <button
+          type="button"
+          className="header-link"
+          onClick={() => { feedbackUi.openMine(); setMenuOpen(false); }}
+        >
+          My feedback
+        </button>
+      ) : null}
+      {feedbackUi.isAdmin ? (
+        <Link to="/admin/feedback" className="header-link" onClick={() => setMenuOpen(false)}>
+          Admin inbox
+        </Link>
+      ) : null}
+    </>
+  );
+
   const actionLinks = (
     <>
       {teamSwitcher}
+      {feedbackLinks}
       {isGuest ? (
         <>
           <Link to="/login" className="header-link" onClick={() => setMenuOpen(false)}>Sign in</Link>

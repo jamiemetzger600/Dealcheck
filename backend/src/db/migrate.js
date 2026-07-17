@@ -868,6 +868,89 @@ const migrations = [
         ON user_alerts (user_id, saved_deal_id)
         WHERE read_at IS NULL;
     `
+  },
+  {
+    name: 'feedback_engine',
+    up: `
+      CREATE TABLE IF NOT EXISTS feedback_submissions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        category VARCHAR(20) NOT NULL
+          CHECK (category IN ('bug', 'feedback', 'suggestion')),
+        severity VARCHAR(20) NOT NULL DEFAULT 'normal'
+          CHECK (severity IN ('low', 'normal', 'blocking')),
+        status VARCHAR(20) NOT NULL DEFAULT 'new'
+          CHECK (status IN ('new', 'needs_info', 'in_progress', 'fixed', 'wont_fix', 'closed')),
+        title TEXT NOT NULL,
+        page_url TEXT,
+        app_version VARCHAR(32),
+        user_agent TEXT,
+        viewport JSONB NOT NULL DEFAULT '{}'::jsonb,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        me_too_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_feedback_submissions_user
+        ON feedback_submissions (user_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_feedback_submissions_admin
+        ON feedback_submissions (status, category, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_feedback_submissions_open_bugs
+        ON feedback_submissions (category, status, me_too_count DESC)
+        WHERE category = 'bug' AND status IN ('new', 'needs_info', 'in_progress');
+
+      CREATE TABLE IF NOT EXISTS feedback_messages (
+        id SERIAL PRIMARY KEY,
+        submission_id INTEGER NOT NULL REFERENCES feedback_submissions(id) ON DELETE CASCADE,
+        author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        body TEXT NOT NULL,
+        message_kind VARCHAR(20) NOT NULL DEFAULT 'user'
+          CHECK (message_kind IN ('user', 'admin', 'system')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_feedback_messages_submission
+        ON feedback_messages (submission_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS feedback_attachments (
+        id SERIAL PRIMARY KEY,
+        submission_id INTEGER NOT NULL REFERENCES feedback_submissions(id) ON DELETE CASCADE,
+        message_id INTEGER REFERENCES feedback_messages(id) ON DELETE SET NULL,
+        kind VARCHAR(20) NOT NULL
+          CHECK (kind IN ('screenshot', 'voice', 'image')),
+        mime_type VARCHAR(100) NOT NULL,
+        byte_size INTEGER NOT NULL DEFAULT 0,
+        data BYTEA NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_feedback_attachments_submission
+        ON feedback_attachments (submission_id);
+
+      CREATE TABLE IF NOT EXISTS feedback_reads (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        submission_id INTEGER NOT NULL REFERENCES feedback_submissions(id) ON DELETE CASCADE,
+        last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, submission_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS feedback_me_too (
+        submission_id INTEGER NOT NULL REFERENCES feedback_submissions(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (submission_id, user_id)
+      );
+    `
+  },
+  {
+    name: 'dd_templates_industry_key_v5_7',
+    up: `
+      ALTER TABLE dd_templates ADD COLUMN IF NOT EXISTS industry_key VARCHAR(40);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_dd_templates_system_industry
+        ON dd_templates (industry_key)
+        WHERE user_id IS NULL AND industry_key IS NOT NULL;
+    `
   }
 ];
 

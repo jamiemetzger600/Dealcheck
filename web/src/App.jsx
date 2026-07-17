@@ -8,6 +8,8 @@ import BillingPage from './pages/BillingPage';
 import SettingsPage from './pages/SettingsPage';
 import DdPortalPage from './pages/DdPortalPage';
 import TeamInviteAcceptPage from './pages/TeamInviteAcceptPage';
+import AdminFeedbackPage from './pages/AdminFeedbackPage';
+import FeedbackShell from './components/feedback/FeedbackShell';
 
 /** Full-screen splash shown while backend wakes from cold start (temporary — remove on paid plan). */
 function WakeUpSplash() {
@@ -26,10 +28,10 @@ function ProtectedRoute({ children }) {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         height: '100vh',
         fontSize: '18px',
         color: 'var(--text-secondary, #a8a8a8)'
@@ -42,36 +44,52 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />;
 }
 
+function AppRoutes() {
+  return (
+    <FeedbackShell>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/dashboard/airtable" element={<DashboardPage feedSource="airtable" />} />
+        <Route
+          path="/billing"
+          element={(
+            <ProtectedRoute>
+              <BillingPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/settings"
+          element={(
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/admin/feedback"
+          element={(
+            <ProtectedRoute>
+              <AdminFeedbackPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route path="/teams/accept" element={<TeamInviteAcceptPage />} />
+        <Route path="/dd/:token" element={<DdPortalPage />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </FeedbackShell>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <TeamProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/dashboard/airtable" element={<DashboardPage feedSource="airtable" />} />
-            <Route 
-              path="/billing" 
-              element={
-                <ProtectedRoute>
-                  <BillingPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/settings" 
-              element={
-                <ProtectedRoute>
-                  <SettingsPage />
-                </ProtectedRoute>
-              } 
-            />
-            <Route path="/teams/accept" element={<TeamInviteAcceptPage />} />
-            <Route path="/dd/:token" element={<DdPortalPage />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+          <AppRoutes />
         </TeamProvider>
       </AuthProvider>
     </BrowserRouter>

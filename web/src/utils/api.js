@@ -77,8 +77,13 @@ async function apiRequest(endpoint, options = {}) {
           );
         }
         const err = new Error(error.error || `Request failed (${response.status})`);
+        err.status = response.status;
         if (error.requiresPassword) err.requiresPassword = true;
-        if (error.code) err.inviteCode = error.code;
+        if (error.code) {
+          err.code = error.code;
+          err.inviteCode = error.code; // legacy invite field
+        }
+        if (error.existingTask) err.existingTask = error.existingTask;
         throw err;
       }
 
@@ -382,8 +387,14 @@ export const crmAPI = {
 
   getDealDd: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/dd`),
 
-  startDealDd: (savedDealId) =>
-    apiRequest(`/crm/deals/${savedDealId}/dd/start`, { method: 'POST' }),
+  getDealDdTemplates: (savedDealId) =>
+    apiRequest(`/crm/deals/${savedDealId}/dd/templates`),
+
+  startDealDd: (savedDealId, payload = {}) =>
+    apiRequest(`/crm/deals/${savedDealId}/dd/start`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
 
   patchDdItem: (savedDealId, itemId, payload) =>
     apiRequest(`/crm/deals/${savedDealId}/dd/items/${itemId}`, {
@@ -439,6 +450,59 @@ export const ddPublicAPI = {
       method: 'POST',
       body: JSON.stringify(payload)
     })
+};
+
+// Feedback engine API
+export const feedbackAPI = {
+  create: (payload) =>
+    apiRequest('/feedback', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  mine: () => apiRequest('/feedback/mine'),
+
+  unread: () => apiRequest('/feedback/unread'),
+
+  openBugs: () => apiRequest('/feedback/open-bugs'),
+
+  adminList: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.category) qs.set('category', params.category);
+    if (params.status) qs.set('status', params.status);
+    if (params.severity) qs.set('severity', params.severity);
+    if (params.q) qs.set('q', params.q);
+    const s = qs.toString();
+    return apiRequest(`/feedback/admin${s ? `?${s}` : ''}`);
+  },
+
+  get: (id) => apiRequest(`/feedback/${id}`),
+
+  reply: (id, body, attachments = []) =>
+    apiRequest(`/feedback/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body, attachments }),
+    }),
+
+  setStatus: (id, status) =>
+    apiRequest(`/feedback/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+
+  meToo: (id) =>
+    apiRequest(`/feedback/${id}/me-too`, { method: 'POST' }),
+
+  /** Fetch attachment as object URL (caller should revoke). */
+  attachmentObjectUrl: async (attachmentId) => {
+    const token = getToken();
+    const response = await fetch(`${API_URL}/feedback/attachments/${attachmentId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error('Failed to load attachment');
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  },
 };
 
 // Payments API

@@ -90,6 +90,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [crmInitialFocusSection, setCrmInitialFocusSection] = useState(
     () => sectionParam || null
   );
+  const [crmInitialViewOverride, setCrmInitialViewOverride] = useState(null);
   const [matchCount, setMatchCount] = useState(0);
   const [totalDeals, setTotalDeals] = useState(0);
   const [newTodayCount, setNewTodayCount] = useState(0);
@@ -528,7 +529,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
             onTodayLoaded={setCrmBadgeCount}
             initialDealId={crmInitialDealId}
-            initialCrmView={initialCrmView}
+            initialCrmView={crmInitialViewOverride || initialCrmView}
             initialFocusSection={crmInitialFocusSection}
           />
           </div>
@@ -544,11 +545,15 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
               .catch(() => {});
           }}
           onOpenAlert={(alert) => {
-            if (!alert?.saved_deal_id) {
-              setActiveTab('crm');
+            setActiveTab('crm');
+            if (alert?.alert_type === 'task_completed') {
+              setCrmInitialViewOverride('tasks');
+              if (alert.saved_deal_id) setCrmInitialDealId(alert.saved_deal_id);
+              setCrmInitialFocusSection(null);
               return;
             }
-            setActiveTab('crm');
+            if (!alert?.saved_deal_id) return;
+            setCrmInitialViewOverride(null);
             setCrmInitialDealId(alert.saved_deal_id);
             setCrmInitialFocusSection('crm-talk');
           }}

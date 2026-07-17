@@ -5,6 +5,14 @@ import {
   assertCanWrite,
   VISIBLE_DEALS_SQL
 } from '../lib/teamAcl.js';
+import { createUserAlert } from './userAlertService.js';
+import { sendEmail } from './emailService.js';
+
+const WEB_APP_URL = (
+  process.env.WEB_APP_URL_LOCAL ||
+  process.env.WEB_APP_URL ||
+  'http://localhost:5173'
+).replace(/\/$/, '');
 
 const FOLLOW_UP_PRESETS = {
   tomorrow: 1,
@@ -205,6 +213,7 @@ export async function createTask(
   const recipients = await resolveNotifyRecipients(userId, savedDealId, notifyRecipients);
   const taskMetadata = {
     ...metadata,
+    createdBy: metadata.createdBy || userId,
     notifyRecipients: recipients.map(({ type, email, name, contactId, userId: recipientUserId }) => ({
       type,
       email: email || null,
@@ -295,9 +304,73 @@ export async function updateTask(userId, taskId, patch) {
        VALUES ($1, $2, 'task_completed', $3, $4)`,
       [userId, task.saved_deal_id, `Completed: ${title}`, JSON.stringify({ taskId })]
     );
+    await notifyTaskAssignerOnComplete({
+      completerUserId: userId,
+      task: { ...task, title }
+    }).catch((err) => {
+      console.warn('[crmTask] assigner notify failed:', err.message);
+    });
   }
 
   return result.rows[0];
+}
+
+/** Alert the person who assigned/created the task (not the completer). */
+async function notifyTaskAssignerOnComplete({ completerUserId, task }) {
+  const meta = task.metadata && typeof task.metadata === 'object' ? task.metadata : {};
+  const assignerId = Number(meta.assignedBy || meta.createdBy || task.user_id);
+  if (!assignerId || assignerId === Number(completerUserId)) {
+    console.log('[crmTask] skip assigner alert (self-complete or no assigner)', {
+      taskId: task.id,
+      assignerId,
+      completerUserId
+    });
+    return;
+  }
+
+  const users = await pool.query(
+    `SELECT id, email FROM users WHERE id = ANY($1::int[])`,
+    [[assignerId, completerUserId]]
+  );
+  const byId = new Map(users.rows.map((u) => [Number(u.id), u]));
+  const assigner = byId.get(assignerId);
+  const completer = byId.get(Number(completerUserId));
+  if (!assigner) return;
+
+  const deal = await pool.query(`SELECT name FROM saved_deals WHERE id = $1`, [task.saved_deal_id]);
+  const dealName = deal.rows[0]?.name || 'a deal';
+  const completerLabel = completer?.email
+    ? String(completer.email).split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    : 'A teammate';
+
+  await createUserAlert({
+    userId: assignerId,
+    alertType: 'task_completed',
+    title: `${completerLabel} completed a task`,
+    body: task.title,
+    savedDealId: task.saved_deal_id,
+    metadata: {
+      taskId: task.id,
+      dealName,
+      completedBy: completerUserId,
+      openTasks: true
+    }
+  });
+
+  if (assigner.email) {
+    const link = `${WEB_APP_URL}/dashboard?tab=crm&crmSubview=tasks&crmDeal=${task.saved_deal_id}`;
+    await sendEmail({
+      to: assigner.email,
+      subject: `Task completed: ${task.title}`,
+      html: `<p><strong>${completerLabel}</strong> marked a task done on <strong>${dealName}</strong>:</p>
+             <p>${task.title}</p>
+             <p><a href="${link}">Open Tasks in Vettr</a></p>`
+    }).catch((err) => console.warn('[crmTask] completion email failed:', err.message));
+  }
+
+  console.log(
+    `[crmTask] task=${task.id} completed by=${completerUserId}; alerted assigner=${assignerId}`
+  );
 }
 
 export async function getTodayTaskSummary(userId) {

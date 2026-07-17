@@ -111,7 +111,7 @@ export default function TalkAlertBanner({
       </div>
       <div className="talk-alert-banner__actions">
         <button type="button" className="btn-primary btn-secondary--sm" onClick={openTop}>
-          Open Talk
+          {top.alert_type === 'task_completed' ? 'Open Tasks' : 'Open Talk'}
         </button>
         <button type="button" className="btn-secondary btn-secondary--sm" onClick={dismissTop}>
           Dismiss

@@ -185,7 +185,7 @@ export default function CrmDashboard({
         >
           Tasks
           {openTaskCount > 0 ? (
-            <span className="crm-subnav__badge crm-subnav__badge--muted">{openTaskCount}</span>
+            <span className="crm-subnav__badge">{openTaskCount}</span>
           ) : null}
         </button>
         <button

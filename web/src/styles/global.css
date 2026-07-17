@@ -6914,18 +6914,6 @@ button.aggregator-welcome__buybox {
   color: #4ade80;
 }
 
-.crm-subnav__badge--muted {
-  background: rgba(255, 255, 255, 0.15);
-  color: inherit;
-}
-  background: none;
-  border: none;
-  color: var(--accent, #7eb8ff);
-  cursor: pointer;
-  font-weight: 600;
-  padding: 0;
-}
-
 .crm-today-empty {
   padding: 24px;
   text-align: center;

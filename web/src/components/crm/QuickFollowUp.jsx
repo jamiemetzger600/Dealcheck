@@ -178,7 +178,32 @@ export default function QuickFollowUp({
     setActivePreset(presetId);
     try {
       console.log('[QuickFollowUp] creating preset follow-up', { dealId, preset: presetId });
-      await crmAPI.quickFollowUp(dealId, { preset: presetId, notifyRecipients: [{ type: 'self' }] });
+      const create = (force = false) =>
+        crmAPI.quickFollowUp(dealId, {
+          preset: presetId,
+          notifyRecipients: [{ type: 'self' }],
+          force
+        });
+
+      try {
+        await create(false);
+      } catch (err) {
+        if (err.code === 'duplicate_follow_up' || err.status === 409) {
+          const ok = window.confirm(
+            err.message ||
+              `An open “${preset.label}” follow-up already exists. Create another?`
+          );
+          if (!ok) {
+            setStatusMsg(`Already have an open ${preset.label.toLowerCase()} reminder.`);
+            console.log('[QuickFollowUp] duplicate follow-up declined', { dealId, preset: presetId });
+            return;
+          }
+          await create(true);
+        } else {
+          throw err;
+        }
+      }
+
       setStatusMsg(`Reminder set for ${preset.label.toLowerCase()}.`);
       console.log('[QuickFollowUp] preset follow-up created', { dealId, preset: presetId });
       await onCreated?.();

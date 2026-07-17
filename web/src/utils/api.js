@@ -81,7 +81,8 @@ async function apiRequest(endpoint, options = {}) {
         if (error.requiresPassword) err.requiresPassword = true;
         if (error.code) {
           err.code = error.code;
-          err.inviteCode = error.code; // legacy invite field
+          // Invite short codes are short alphanumeric — keep legacy field for accept flow
+          if (!String(error.code).includes('_')) err.inviteCode = error.code;
         }
         if (error.existingTask) err.existingTask = error.existingTask;
         throw err;
@@ -430,25 +431,38 @@ export const crmAPI = {
     apiRequest(`/crm/deals/${savedDealId}/dd/share-links/${linkId}`, { method: 'DELETE' })
 };
 
-export const ddPublicAPI = {
-  getPortal: (token) => apiRequest(`/dd/public/${token}`),
+function ddPortalHeaders(guest = {}) {
+  const headers = {};
+  if (guest.password) headers['X-DD-Password'] = guest.password;
+  if (guest.guestName) headers['X-DD-Guest-Name'] = guest.guestName;
+  if (guest.guestEmail) headers['X-DD-Guest-Email'] = guest.guestEmail;
+  if (guest.guestSessionId) headers['X-DD-Guest-Session'] = guest.guestSessionId;
+  return headers;
+}
 
-  patchItem: (token, itemId, payload) =>
+export const ddPublicAPI = {
+  getPortal: (token, guest = {}) =>
+    apiRequest(`/dd/public/${token}`, { headers: ddPortalHeaders(guest) }),
+
+  patchItem: (token, itemId, payload, guest = {}) =>
     apiRequest(`/dd/public/${token}/items/${itemId}`, {
       method: 'PATCH',
+      headers: ddPortalHeaders(guest),
       body: JSON.stringify(payload)
     }),
 
-  addComment: (token, itemId, payload) =>
+  addComment: (token, itemId, payload, guest = {}) =>
     apiRequest(`/dd/public/${token}/items/${itemId}/comments`, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      headers: ddPortalHeaders(guest),
+      body: JSON.stringify({ ...payload, ...guest })
     }),
 
-  addDocument: (token, itemId, payload) =>
+  addDocument: (token, itemId, payload, guest = {}) =>
     apiRequest(`/dd/public/${token}/items/${itemId}/documents`, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      headers: ddPortalHeaders(guest),
+      body: JSON.stringify({ ...payload, ...guest })
     })
 };
 

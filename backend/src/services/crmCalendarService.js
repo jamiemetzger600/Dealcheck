@@ -172,7 +172,7 @@ async function pushOpenTasksToGoogle(userId, startIso, endIso) {
          starts_at, ends_at, all_day, google_updated_at
        )
        VALUES ($1, $2, 'vettr', $3, $4, $5, $6, $7, $8, false, NOW())
-       ON CONFLICT (user_id, google_event_id) DO UPDATE SET
+       ON CONFLICT (user_id, google_event_id) WHERE google_event_id IS NOT NULL DO UPDATE SET
          title = EXCLUDED.title,
          description = EXCLUDED.description,
          starts_at = EXCLUDED.starts_at,

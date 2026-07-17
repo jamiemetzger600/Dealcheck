@@ -19,6 +19,16 @@ function displayNameFromEmail(email) {
     .trim() || 'Member';
 }
 
+function defaultShareExpiryDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 14);
+  return d.toISOString().slice(0, 10);
+}
+
+function modeLabel(mode) {
+  return mode === 'collaborative' ? 'Collaborate' : 'View only';
+}
+
 export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
   const [checklist, setChecklist] = useState(null);
   const [members, setMembers] = useState([]);
@@ -26,13 +36,24 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
   const [starting, setStarting] = useState(false);
   const [shareUrl, setShareUrl] = useState(null);
   const [error, setError] = useState(null);
+  const [templateOptions, setTemplateOptions] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [suggestedLabel, setSuggestedLabel] = useState('');
+  const [dealIndustry, setDealIndustry] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
   const [showAddGroup, setShowAddGroup] = useState(false);
   const [addingGroup, setAddingGroup] = useState(false);
   const [addingItemGroupId, setAddingItemGroupId] = useState(null);
   const [newItemTitle, setNewItemTitle] = useState('');
   const [addingItem, setAddingItem] = useState(false);
-  const [shareForm, setShareForm] = useState({ open: false, mode: 'view_only', label: '', password: '', expiresAt: '' });
+  const [shareForm, setShareForm] = useState({
+    open: false,
+    mode: 'view_only',
+    label: '',
+    password: '',
+    expiresAt: defaultShareExpiryDate(),
+    selectedGroupIds: []
+  });
 
   const load = useCallback(async () => {
     if (!dealId) return;
@@ -45,6 +66,28 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
       ]);
       setChecklist(data.checklist);
       setMembers(mem.members || []);
+
+      if (!data.checklist) {
+        try {
+          const suggestion = await crmAPI.getDealDdTemplates(dealId);
+          setTemplateOptions(suggestion.templates || []);
+          setSuggestedLabel(suggestion.suggestedLabel || '');
+          setDealIndustry(suggestion.dealIndustry || '');
+          const sid = suggestion.suggestedTemplateId
+            ? String(suggestion.suggestedTemplateId)
+            : '';
+          setSelectedTemplateId(sid);
+          console.log('[DdChecklist] template suggestion', {
+            dealId,
+            industry: suggestion.dealIndustry,
+            key: suggestion.suggestedIndustryKey,
+            templateId: sid
+          });
+        } catch (tplErr) {
+          console.warn('[DdChecklist] templates load failed', tplErr.message);
+          setTemplateOptions([]);
+        }
+      }
     } catch (err) {
       setError(err.message);
       setChecklist(null);
@@ -61,7 +104,9 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
     if (!dealId || starting) return;
     setStarting(true);
     try {
-      const data = await crmAPI.startDealDd(dealId);
+      const payload = selectedTemplateId ? { templateId: Number(selectedTemplateId) } : {};
+      console.log('[DdChecklist] starting DD', { dealId, ...payload });
+      const data = await crmAPI.startDealDd(dealId, payload);
       setChecklist(data.checklist);
       onRefresh?.();
     } catch (err) {
@@ -204,13 +249,41 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
     }
   };
 
+  const openShareForm = (mode = 'view_only') => {
+    const allIds = (checklist?.groups || []).map((g) => g.id);
+    setShareForm({
+      open: true,
+      mode,
+      label: '',
+      password: '',
+      expiresAt: defaultShareExpiryDate(),
+      selectedGroupIds: allIds
+    });
+  };
+
+  const toggleShareGroup = (groupId) => {
+    setShareForm((f) => {
+      const id = Number(groupId);
+      const has = f.selectedGroupIds.map(Number).includes(id);
+      const selectedGroupIds = has
+        ? f.selectedGroupIds.filter((g) => Number(g) !== id)
+        : [...f.selectedGroupIds, id];
+      return { ...f, selectedGroupIds };
+    });
+  };
+
   const handleShareSubmit = async () => {
+    const allIds = (checklist?.groups || []).map((g) => Number(g.id));
+    const selected = shareForm.selectedGroupIds.map(Number);
+    const scoped =
+      selected.length > 0 && selected.length < allIds.length ? selected : null;
     try {
       const data = await crmAPI.createDdShareLink(dealId, {
-        label: shareForm.label || (shareForm.mode === 'collaborative' ? 'Collaborative' : 'View only'),
+        label: shareForm.label || modeLabel(shareForm.mode),
         mode: shareForm.mode,
         password: shareForm.password || undefined,
-        expiresAt: shareForm.expiresAt || undefined
+        expiresAt: shareForm.expiresAt || undefined,
+        groupIds: scoped
       });
       const url = `${window.location.origin}/dd/${data.link.token}`;
       setShareUrl(url);
@@ -237,11 +310,56 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
   if (error) return <p className="crm-panel--error">{error}</p>;
 
   if (!checklist) {
+    const selected = templateOptions.find((t) => String(t.id) === String(selectedTemplateId));
     return (
       <div className="dd-start-prompt">
         <h3>Due Diligence</h3>
-        <p>Start from the business acquisition template (~35 checklist items across 9 groups).</p>
-        <button type="button" className="btn-primary" disabled={starting || !canWrite} onClick={handleStart}>
+        <p>
+          Start a checklist matched to this deal’s industry. You can change the template before starting.
+        </p>
+        {dealIndustry ? (
+          <p className="crm-muted dd-start-prompt__hint">
+            Deal industry: <strong>{dealIndustry}</strong>
+            {suggestedLabel ? ` · suggested ${suggestedLabel}` : ''}
+          </p>
+        ) : (
+          <p className="crm-muted dd-start-prompt__hint">
+            No industry on this deal — defaulting to Generic Business Acquisition.
+          </p>
+        )}
+        {templateOptions.length > 0 ? (
+          <label className="dd-start-prompt__template">
+            <span>Template</span>
+            <select
+              className="modal-input"
+              value={selectedTemplateId}
+              disabled={!canWrite || starting}
+              onChange={(e) => setSelectedTemplateId(e.target.value)}
+            >
+              {templateOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label || t.name}
+                  {t.itemCount != null ? ` (${t.itemCount} items)` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {selected ? (
+          <p className="crm-muted dd-start-prompt__hint">
+            Using <strong>{selected.label || selected.name}</strong>
+            {selected.groupCount != null
+              ? ` — ${selected.groupCount} groups, ${selected.itemCount} items`
+              : ''}
+            .
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={starting || !canWrite}
+          onClick={handleStart}
+        >
           {starting ? 'Starting…' : 'Start DD checklist'}
         </button>
         {!canWrite ? <p className="crm-muted">Viewer role — DD is read-only.</p> : null}
@@ -259,11 +377,12 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
           <p className="dd-checklist__progress">
             {progress.percent ?? 0}% complete
             {progress.overdueItems ? ` · ${progress.overdueItems} overdue` : ''}
+            {checklist.template_name ? ` · ${checklist.template_name}` : ''}
           </p>
         </div>
         <div className="dd-checklist__actions">
           {canWrite ? (
-            <button type="button" className="btn-secondary" onClick={() => setShareForm({ ...shareForm, open: true, mode: 'view_only' })}>
+            <button type="button" className="btn-secondary" onClick={() => openShareForm('view_only')}>
               Share link…
             </button>
           ) : (
@@ -275,27 +394,70 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
       {shareForm.open ? (
         <div className="dd-share-form">
           <label>
-            Mode
-            <select value={shareForm.mode} onChange={(e) => setShareForm({ ...shareForm, mode: e.target.value })} className="modal-input">
-              <option value="view_only">View only</option>
-              <option value="collaborative">Collaborative</option>
+            Access
+            <select
+              value={shareForm.mode}
+              onChange={(e) => setShareForm({ ...shareForm, mode: e.target.value })}
+              className="modal-input"
+            >
+              <option value="view_only">View only — browse checklist</option>
+              <option value="collaborative">Collaborate — update status, comment, upload</option>
             </select>
           </label>
           <label>
-            Label
-            <input className="modal-input" value={shareForm.label} onChange={(e) => setShareForm({ ...shareForm, label: e.target.value })} placeholder="Seller attorney" />
+            Label (who is this for?)
+            <input
+              className="modal-input"
+              value={shareForm.label}
+              onChange={(e) => setShareForm({ ...shareForm, label: e.target.value })}
+              placeholder="Seller attorney"
+            />
           </label>
           <label>
             Password (optional)
-            <input type="password" className="modal-input" value={shareForm.password} onChange={(e) => setShareForm({ ...shareForm, password: e.target.value })} />
+            <input
+              type="password"
+              className="modal-input"
+              value={shareForm.password}
+              onChange={(e) => setShareForm({ ...shareForm, password: e.target.value })}
+            />
           </label>
           <label>
-            Expires (optional)
-            <input type="date" className="modal-input" value={shareForm.expiresAt} onChange={(e) => setShareForm({ ...shareForm, expiresAt: e.target.value })} />
+            Expires
+            <input
+              type="date"
+              className="modal-input"
+              value={shareForm.expiresAt}
+              onChange={(e) => setShareForm({ ...shareForm, expiresAt: e.target.value })}
+            />
           </label>
+          <fieldset className="dd-share-form__groups">
+            <legend>Sections to include</legend>
+            <p className="crm-muted dd-share-form__hint">
+              Uncheck sections to share a scoped link. All selected = full checklist.
+            </p>
+            {(checklist.groups || []).map((g) => (
+              <label key={g.id} className="dd-share-form__check">
+                <input
+                  type="checkbox"
+                  checked={shareForm.selectedGroupIds.map(Number).includes(Number(g.id))}
+                  onChange={() => toggleShareGroup(g.id)}
+                />
+                <span>{g.name}</span>
+              </label>
+            ))}
+          </fieldset>
           <div className="dd-share-form__actions">
-            <button type="button" className="btn-primary" onClick={handleShareSubmit}>Create & copy link</button>
-            <button type="button" className="btn-secondary" onClick={() => setShareForm({ ...shareForm, open: false })}>Cancel</button>
+            <button type="button" className="btn-primary" onClick={handleShareSubmit}>
+              Create &amp; copy link
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShareForm((f) => ({ ...f, open: false }))}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       ) : null}
@@ -309,9 +471,30 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
       {(checklist.shareLinks || []).length > 0 ? (
         <ul className="dd-share-links">
           {checklist.shareLinks.map((link) => (
-            <li key={link.id}>
-              {link.label} ({link.mode})
-              <button type="button" className="btn-secondary" onClick={() => handleRevokeLink(link.id)}>Revoke</button>
+            <li key={link.id} className="dd-share-links__item">
+              <div className="dd-share-links__meta">
+                <strong>{link.label}</strong>
+                {' · '}
+                {modeLabel(link.mode)}
+                {link.hasPassword ? ' · password' : ''}
+                {link.groupIds?.length ? ` · ${link.groupIds.length} sections` : ' · all sections'}
+                {link.expiresAt ? ` · expires ${formatDate(link.expiresAt)}` : ''}
+                {link.accessCount ? ` · ${link.accessCount} opens` : ''}
+              </div>
+              {(link.recentAccess || []).length > 0 ? (
+                <ul className="dd-share-links__access">
+                  {link.recentAccess.slice(0, 4).map((a, idx) => (
+                    <li key={`${link.id}-${idx}`}>
+                      {a.action}
+                      {a.guestName ? ` · ${a.guestName}` : ''}
+                      {a.createdAt ? ` · ${formatDate(a.createdAt)}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <button type="button" className="btn-secondary btn-secondary--sm" onClick={() => handleRevokeLink(link.id)}>
+                Revoke
+              </button>
             </li>
           ))}
         </ul>

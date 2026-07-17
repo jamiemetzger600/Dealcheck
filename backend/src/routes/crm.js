@@ -42,6 +42,7 @@ import {
 import {
   getDealDd,
   startDealDd,
+  getDealDdTemplates,
   patchDealDdItem,
   postDdShareLink,
   deleteDdShareLink,
@@ -93,6 +94,7 @@ router.get('/deals/:id/documents', getDealDocuments);
 router.post('/deals/:id/documents', postDealDocument);
 
 router.get('/deals/:id/dd', getDealDd);
+router.get('/deals/:id/dd/templates', getDealDdTemplates);
 router.post('/deals/:id/dd/start', startDealDd);
 router.patch('/deals/:id/dd/items/:itemId', patchDealDdItem);
 router.post('/deals/:id/dd/groups', postDdGroup);

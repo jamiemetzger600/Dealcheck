@@ -2,6 +2,11 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import pool from '../db/pool.js';
 import { BUSINESS_ACQUISITION_DD_TEMPLATE } from '../data/ddBusinessTemplate.js';
+import {
+  listWave2TemplateDefs,
+  WAVE2_INDUSTRY_KEYS
+} from '../data/ddIndustryTemplates.js';
+import { matchIndustryKey, INDUSTRY_LABELS } from '../lib/industryMatcher.js';
 import { sendEmail } from './emailService.js';
 import {
   getDealAccess,
@@ -88,21 +93,9 @@ export async function getRecentPortalComments(userId, days = 7) {
   return result.rows;
 }
 
-export async function ensureSystemDdTemplate() {
-  const existing = await pool.query(
-    `SELECT id FROM dd_templates WHERE user_id IS NULL AND name = $1 LIMIT 1`,
-    [BUSINESS_ACQUISITION_DD_TEMPLATE.name]
-  );
-  if (existing.rows.length) return existing.rows[0].id;
-
-  const tpl = await pool.query(
-    `INSERT INTO dd_templates (user_id, name, asset_type) VALUES (NULL, $1, $2) RETURNING id`,
-    [BUSINESS_ACQUISITION_DD_TEMPLATE.name, BUSINESS_ACQUISITION_DD_TEMPLATE.assetType]
-  );
-  const templateId = tpl.rows[0].id;
-
-  for (let gi = 0; gi < BUSINESS_ACQUISITION_DD_TEMPLATE.groups.length; gi++) {
-    const group = BUSINESS_ACQUISITION_DD_TEMPLATE.groups[gi];
+async function seedTemplateTree(templateId, groups) {
+  for (let gi = 0; gi < groups.length; gi++) {
+    const group = groups[gi];
     const gRes = await pool.query(
       `INSERT INTO dd_template_groups (template_id, name, sort_order) VALUES ($1, $2, $3) RETURNING id`,
       [templateId, group.name, gi]
@@ -111,15 +104,129 @@ export async function ensureSystemDdTemplate() {
     for (let ii = 0; ii < group.items.length; ii++) {
       const item = group.items[ii];
       await pool.query(
-        `INSERT INTO dd_template_items (group_id, title, requests_document, sort_order)
-         VALUES ($1, $2, $3, $4)`,
-        [groupId, item.title, !!item.requestsDocument, ii]
+        `INSERT INTO dd_template_items (group_id, title, description, requests_document, sort_order)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [groupId, item.title, item.description || null, !!item.requestsDocument, ii]
       );
     }
   }
+}
 
-  console.log(`[dd] seeded system template id=${templateId}`);
-  return templateId;
+/** Seed Wave 2 system templates (idempotent by industry_key). Returns generic template id. */
+export async function ensureSystemDdTemplates() {
+  // Backfill legacy generic row (pre–industry_key)
+  await pool.query(
+    `UPDATE dd_templates
+     SET industry_key = 'generic'
+     WHERE user_id IS NULL
+       AND industry_key IS NULL
+       AND name = $1`,
+    [BUSINESS_ACQUISITION_DD_TEMPLATE.name]
+  );
+
+  for (const def of listWave2TemplateDefs()) {
+    const existing = await pool.query(
+      `SELECT id FROM dd_templates
+       WHERE user_id IS NULL AND industry_key = $1
+       LIMIT 1`,
+      [def.industryKey]
+    );
+    if (existing.rows.length) continue;
+
+    const tpl = await pool.query(
+      `INSERT INTO dd_templates (user_id, name, asset_type, industry_key)
+       VALUES (NULL, $1, $2, $3) RETURNING id`,
+      [def.name, def.assetType || 'business', def.industryKey]
+    );
+    await seedTemplateTree(tpl.rows[0].id, def.groups);
+    console.log(`[dd] seeded system template industry=${def.industryKey} id=${tpl.rows[0].id}`);
+  }
+
+  const generic = await pool.query(
+    `SELECT id FROM dd_templates WHERE user_id IS NULL AND industry_key = 'generic' LIMIT 1`
+  );
+  if (!generic.rows.length) {
+    // Fallback if unique index / name collision left generic unnamed
+    const byName = await pool.query(
+      `SELECT id FROM dd_templates WHERE user_id IS NULL AND name = $1 LIMIT 1`,
+      [BUSINESS_ACQUISITION_DD_TEMPLATE.name]
+    );
+    if (byName.rows.length) return byName.rows[0].id;
+    throw new Error('Failed to seed generic DD template');
+  }
+  return generic.rows[0].id;
+}
+
+/** @deprecated Prefer ensureSystemDdTemplates — kept for older call sites. */
+export async function ensureSystemDdTemplate() {
+  return ensureSystemDdTemplates();
+}
+
+export async function listSystemDdTemplates() {
+  await ensureSystemDdTemplates();
+  const result = await pool.query(
+    `SELECT t.id, t.name, t.industry_key, t.asset_type,
+            (SELECT COUNT(*)::int FROM dd_template_groups g WHERE g.template_id = t.id) AS group_count,
+            (SELECT COUNT(*)::int
+             FROM dd_template_items i
+             JOIN dd_template_groups g ON g.id = i.group_id
+             WHERE g.template_id = t.id) AS item_count
+     FROM dd_templates t
+     WHERE t.user_id IS NULL AND t.industry_key = ANY($1::text[])
+     ORDER BY CASE t.industry_key
+       WHEN 'generic' THEN 0
+       WHEN 'restaurant' THEN 1
+       WHEN 'healthcare' THEN 2
+       WHEN 'saas' THEN 3
+       WHEN 'services' THEN 4
+       ELSE 9
+     END`,
+    [WAVE2_INDUSTRY_KEYS]
+  );
+  return result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    industryKey: row.industry_key,
+    label: INDUSTRY_LABELS[row.industry_key] || row.name,
+    assetType: row.asset_type,
+    groupCount: row.group_count,
+    itemCount: row.item_count
+  }));
+}
+
+export async function getDdTemplateSuggestionForDeal(userId, savedDealId) {
+  await assertDealOwned(userId, savedDealId, { write: false });
+  const deal = await pool.query(
+    `SELECT id, name, industry FROM saved_deals WHERE id = $1`,
+    [savedDealId]
+  );
+  if (!deal.rows.length) {
+    const err = new Error('Deal not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const industry = deal.rows[0].industry || '';
+  let industryKey = matchIndustryKey(industry);
+  if (!WAVE2_INDUSTRY_KEYS.includes(industryKey)) {
+    console.log('[dd] industry matched but no Wave 2 pack — using generic', {
+      dealId: savedDealId,
+      industry,
+      industryKey
+    });
+    industryKey = 'generic';
+  }
+
+  const templates = await listSystemDdTemplates();
+  const suggested = templates.find((t) => t.industryKey === industryKey) || templates[0];
+
+  return {
+    dealIndustry: industry || null,
+    suggestedIndustryKey: industryKey,
+    suggestedLabel: INDUSTRY_LABELS[industryKey] || suggested?.label,
+    suggestedTemplateId: suggested?.id || null,
+    templates
+  };
 }
 
 async function assertDealOwned(userId, savedDealId, { write = true } = {}) {
@@ -197,11 +304,45 @@ export async function getChecklistForDeal(userId, savedDealId) {
   }
 
   const shareLinks = await pool.query(
-    `SELECT id, label, mode, expires_at, revoked_at, show_deal_name, created_at
-     FROM dd_share_links WHERE checklist_id = $1 AND revoked_at IS NULL
+    `SELECT id, label, mode, expires_at, revoked_at, show_deal_name, created_at,
+            group_ids,
+            (password_hash IS NOT NULL) AS has_password,
+            (SELECT COUNT(*)::int FROM dd_share_access_log a WHERE a.share_link_id = sl.id) AS access_count
+     FROM dd_share_links sl
+     WHERE checklist_id = $1 AND revoked_at IS NULL
      ORDER BY created_at DESC`,
     [checklistId]
   );
+
+  const linksWithAccess = [];
+  for (const link of shareLinks.rows) {
+    const access = await pool.query(
+      `SELECT action, guest_name, guest_email, created_at
+       FROM dd_share_access_log
+       WHERE share_link_id = $1
+       ORDER BY created_at DESC
+       LIMIT 8`,
+      [link.id]
+    );
+    linksWithAccess.push({
+      id: link.id,
+      label: link.label,
+      mode: link.mode,
+      expiresAt: link.expires_at,
+      revokedAt: link.revoked_at,
+      showDealName: link.show_deal_name,
+      createdAt: link.created_at,
+      groupIds: link.group_ids || [],
+      hasPassword: Boolean(link.has_password),
+      accessCount: link.access_count || 0,
+      recentAccess: access.rows.map((a) => ({
+        action: a.action,
+        guestName: a.guest_name,
+        guestEmail: a.guest_email,
+        createdAt: a.created_at
+      }))
+    });
+  }
 
   return {
     ...cl.rows[0],
@@ -212,11 +353,11 @@ export async function getChecklistForDeal(userId, savedDealId) {
       percent: totalItems ? Math.round((completeItems / totalItems) * 100) : 0,
       overdueItems
     },
-    shareLinks: shareLinks.rows
+    shareLinks: linksWithAccess
   };
 }
 
-export async function startChecklistFromTemplate(userId, savedDealId) {
+export async function startChecklistFromTemplate(userId, savedDealId, { templateId: requestedTemplateId } = {}) {
   const deal = await assertDealOwned(userId, savedDealId);
   const existing = await pool.query(
     'SELECT id FROM dd_checklists WHERE saved_deal_id = $1',
@@ -226,7 +367,36 @@ export async function startChecklistFromTemplate(userId, savedDealId) {
     return getChecklistForDeal(userId, savedDealId);
   }
 
-  const templateId = await ensureSystemDdTemplate();
+  await ensureSystemDdTemplates();
+
+  let templateId = requestedTemplateId ? Number(requestedTemplateId) : null;
+  if (templateId) {
+    const ok = await pool.query(
+      `SELECT id, name, industry_key FROM dd_templates
+       WHERE id = $1 AND user_id IS NULL`,
+      [templateId]
+    );
+    if (!ok.rows.length) {
+      const err = new Error('DD template not found');
+      err.status = 404;
+      throw err;
+    }
+  } else {
+    const suggestion = await getDdTemplateSuggestionForDeal(userId, savedDealId);
+    templateId = suggestion.suggestedTemplateId;
+  }
+
+  if (!templateId) {
+    templateId = await ensureSystemDdTemplates();
+  }
+
+  const tplMeta = await pool.query(
+    `SELECT name, industry_key FROM dd_templates WHERE id = $1`,
+    [templateId]
+  );
+  const templateName = tplMeta.rows[0]?.name || 'DD';
+  const industryKey = tplMeta.rows[0]?.industry_key || 'generic';
+
   const clRes = await pool.query(
     `INSERT INTO dd_checklists (saved_deal_id, template_id) VALUES ($1, $2) RETURNING id`,
     [savedDealId, templateId]
@@ -264,12 +434,19 @@ export async function startChecklistFromTemplate(userId, savedDealId) {
   }
 
   await pool.query(
-    `INSERT INTO activities (user_id, saved_deal_id, activity_type, body)
-     VALUES ($1, $2, 'dd_started', $3)`,
-    [userId, savedDealId, `Started due diligence checklist for ${deal.name}`]
+    `INSERT INTO activities (user_id, saved_deal_id, activity_type, body, metadata)
+     VALUES ($1, $2, 'dd_started', $3, $4)`,
+    [
+      userId,
+      savedDealId,
+      `Started due diligence (${templateName}) for ${deal.name}`,
+      JSON.stringify({ templateId, industryKey, templateName })
+    ]
   );
 
-  console.log(`[dd] checklist=${checklistId} started for deal=${savedDealId}`);
+  console.log(
+    `[dd] checklist=${checklistId} started deal=${savedDealId} template=${templateId} industry=${industryKey}`
+  );
   return getChecklistForDeal(userId, savedDealId);
 }
 
@@ -411,7 +588,12 @@ export async function addDdItemComment(userId, savedDealId, itemId, { body, auth
   return getChecklistForDeal(userId, savedDealId);
 }
 
-export async function addDdItemDocument(userId, savedDealId, itemId, { filename, mimeType, storageKey, isExternal = false }) {
+export async function addDdItemDocument(
+  userId,
+  savedDealId,
+  itemId,
+  { filename, mimeType, storageKey, isExternal = false, uploadedByEmail = null }
+) {
   await assertDealOwned(userId, savedDealId);
   const name = (filename || '').trim();
   if (!name) {
@@ -420,138 +602,48 @@ export async function addDdItemDocument(userId, savedDealId, itemId, { filename,
     throw err;
   }
   const user = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+  const uploader =
+    (uploadedByEmail && String(uploadedByEmail).trim().toLowerCase()) ||
+    user.rows[0]?.email ||
+    null;
   await pool.query(
     `INSERT INTO dd_item_documents (item_id, filename, mime_type, storage_key, uploaded_by_email, is_external)
      VALUES ($1, $2, $3, $4, $5, $6)`,
-    [itemId, name, mimeType || null, storageKey || name, user.rows[0]?.email || null, isExternal]
+    [itemId, name, mimeType || null, storageKey || name, uploader, isExternal]
   );
   return getChecklistForDeal(userId, savedDealId);
 }
 
-export async function addPublicDdComment(token, itemId, { body, authorName, authorEmail }) {
-  const link = await pool.query(
-    `SELECT sl.mode, sl.label, c.saved_deal_id, sd.user_id, sd.name AS deal_name
-     FROM dd_share_links sl
-     JOIN dd_checklists c ON c.id = sl.checklist_id
-     JOIN saved_deals sd ON sd.id = c.saved_deal_id
-     WHERE sl.token = $1 AND sl.revoked_at IS NULL AND sl.mode = 'collaborative'`,
-    [token]
-  );
-  if (!link.rows.length) {
-    const err = new Error('Collaborative access required');
-    err.status = 403;
-    throw err;
+async function logShareAccess(shareLinkId, action, guest = {}) {
+  try {
+    await pool.query(
+      `INSERT INTO dd_share_access_log (
+         share_link_id, action, guest_name, guest_email, guest_session_id, ip_hash
+       ) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        shareLinkId,
+        action,
+        guest.guestName || null,
+        guest.guestEmail || null,
+        guest.guestSessionId || null,
+        guest.ipHash || null
+      ]
+    );
+  } catch (err) {
+    console.warn('[dd] access log failed:', err.message);
   }
-  const { saved_deal_id: savedDealId, user_id: userId, deal_name: dealName, label: linkLabel } = link.rows[0];
-
-  const itemRow = await pool.query(
-    `SELECT i.id, i.title
-     FROM dd_items i
-     JOIN dd_groups g ON g.id = i.group_id
-     JOIN dd_checklists c ON c.id = g.checklist_id
-     WHERE i.id = $1 AND c.saved_deal_id = $2`,
-    [itemId, savedDealId]
-  );
-  if (!itemRow.rows.length) {
-    const err = new Error('Checklist item not found');
-    err.status = 404;
-    throw err;
-  }
-
-  const text = (body || '').trim();
-  if (!text) {
-    const err = new Error('Comment required');
-    err.status = 400;
-    throw err;
-  }
-
-  const author = (authorName || '').trim() || linkLabel || 'Portal guest';
-  const email = (authorEmail || '').trim().toLowerCase() || null;
-
-  await pool.query(
-    `INSERT INTO dd_item_comments (item_id, author_email, author_name, body, is_external)
-     VALUES ($1, $2, $3, $4, true)`,
-    [itemId, email, author, text]
-  );
-
-  const itemTitle = itemRow.rows[0].title;
-  await pool.query(
-    `INSERT INTO activities (user_id, saved_deal_id, activity_type, body, metadata)
-     VALUES ($1, $2, 'dd_portal_comment', $3, $4)`,
-    [
-      userId,
-      savedDealId,
-      `${author} commented on "${itemTitle}"`,
-      JSON.stringify({ itemId, author, body: text })
-    ]
-  );
-
-  notifyDealOwnerPortalComment(userId, savedDealId, {
-    dealName,
-    itemTitle,
-    authorName: author,
-    body: text
-  }).catch((err) => console.warn('[dd] portal comment notify failed:', err.message));
-
-  console.log(`[dd] portal comment on item=${itemId} deal=${savedDealId} by ${author}`);
-  return getChecklistForDeal(userId, savedDealId);
 }
 
-export async function addPublicDdDocument(token, itemId, { filename, mimeType, storageKey, authorEmail }) {
-  const link = await pool.query(
-    `SELECT sl.mode, c.saved_deal_id, sd.user_id
-     FROM dd_share_links sl
-     JOIN dd_checklists c ON c.id = sl.checklist_id
-     JOIN saved_deals sd ON sd.id = c.saved_deal_id
-     WHERE sl.token = $1 AND sl.revoked_at IS NULL AND sl.mode = 'collaborative'`,
-    [token]
-  );
-  if (!link.rows.length) {
-    const err = new Error('Collaborative access required');
-    err.status = 403;
-    throw err;
-  }
-  const { saved_deal_id: savedDealId, user_id: userId } = link.rows[0];
-  return addDdItemDocument(userId, savedDealId, itemId, {
-    filename,
-    mimeType,
-    storageKey,
-    isExternal: true
-  });
+function guestFromRequest(meta = {}) {
+  return {
+    guestName: (meta.guestName || '').trim() || null,
+    guestEmail: (meta.guestEmail || '').trim().toLowerCase() || null,
+    guestSessionId: (meta.guestSessionId || '').trim() || null,
+    ipHash: meta.ipHash || null
+  };
 }
 
-export async function createShareLink(userId, savedDealId, { label, mode = 'view_only', expiresAt = null, showDealName = true, password = null }) {
-  const checklist = await getChecklistForDeal(userId, savedDealId);
-  if (!checklist) {
-    const err = new Error('Start a DD checklist first');
-    err.status = 400;
-    throw err;
-  }
-
-  const token = crypto.randomBytes(32).toString('hex');
-  const passwordHash = password ? await bcrypt.hash(String(password), 10) : null;
-  const result = await pool.query(
-    `INSERT INTO dd_share_links (checklist_id, token, label, mode, expires_at, show_deal_name, password_hash)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, token, label, mode, expires_at, show_deal_name, created_at`,
-    [checklist.id, token, label || 'Share link', mode, expiresAt, showDealName, passwordHash]
-  );
-
-  return result.rows[0];
-}
-
-export async function revokeShareLink(userId, savedDealId, linkId) {
-  await assertDealOwned(userId, savedDealId);
-  await pool.query(
-    `UPDATE dd_share_links sl SET revoked_at = NOW()
-     FROM dd_checklists c
-     WHERE sl.id = $1 AND sl.checklist_id = c.id AND c.saved_deal_id = $2`,
-    [linkId, savedDealId]
-  );
-  return { revoked: true };
-}
-
-export async function getPublicChecklistByToken(token) {
+async function loadActiveShareLink(token) {
   const link = await pool.query(
     `SELECT sl.*, c.saved_deal_id, sd.name AS deal_name, sd.user_id
      FROM dd_share_links sl
@@ -571,33 +663,286 @@ export async function getPublicChecklistByToken(token) {
     err.status = 410;
     throw err;
   }
+  return row;
+}
 
-  const checklist = await getChecklistForDeal(row.user_id, row.saved_deal_id);
+async function assertSharePassword(row, password) {
+  if (!row.password_hash) return;
+  if (!password) {
+    const err = new Error('Password required');
+    err.status = 401;
+    err.requiresPassword = true;
+    throw err;
+  }
+  const ok = await bcrypt.compare(String(password), row.password_hash);
+  if (!ok) {
+    const err = new Error('Incorrect password');
+    err.status = 401;
+    err.requiresPassword = true;
+    throw err;
+  }
+}
+
+function filterChecklistByGroupIds(checklist, groupIds) {
+  if (!groupIds?.length) return checklist;
+  const allowed = new Set(groupIds.map(Number));
+  const groups = (checklist.groups || []).filter((g) => allowed.has(Number(g.id)));
+  let totalItems = 0;
+  let completeItems = 0;
+  let overdueItems = 0;
+  const now = new Date();
+  for (const g of groups) {
+    for (const i of g.items || []) {
+      totalItems += 1;
+      if (i.status === 'complete' || i.status === 'na') completeItems += 1;
+      if (i.due_at && i.status !== 'complete' && i.status !== 'na' && new Date(i.due_at) < now) {
+        overdueItems += 1;
+      }
+    }
+  }
+  return {
+    ...checklist,
+    groups,
+    progress: {
+      totalItems,
+      completeItems,
+      percent: totalItems ? Math.round((completeItems / totalItems) * 100) : 0,
+      overdueItems
+    }
+  };
+}
+
+async function assertItemInShareScope(row, itemId) {
+  const itemRow = await pool.query(
+    `SELECT i.id, i.title, g.id AS group_id
+     FROM dd_items i
+     JOIN dd_groups g ON g.id = i.group_id
+     JOIN dd_checklists c ON c.id = g.checklist_id
+     WHERE i.id = $1 AND c.saved_deal_id = $2`,
+    [itemId, row.saved_deal_id]
+  );
+  if (!itemRow.rows.length) {
+    const err = new Error('Checklist item not found');
+    err.status = 404;
+    throw err;
+  }
+  const groupIds = row.group_ids || [];
+  if (groupIds.length && !groupIds.map(Number).includes(Number(itemRow.rows[0].group_id))) {
+    const err = new Error('Item not included in this share link');
+    err.status = 403;
+    throw err;
+  }
+  return itemRow.rows[0];
+}
+
+export async function addPublicDdComment(token, itemId, { body, authorName, authorEmail }, meta = {}) {
+  const row = await loadActiveShareLink(token);
+  await assertSharePassword(row, meta.password);
+  if (row.mode !== 'collaborative') {
+    const err = new Error('Collaborative access required');
+    err.status = 403;
+    throw err;
+  }
+  const item = await assertItemInShareScope(row, itemId);
+  const guest = guestFromRequest({ ...meta, guestName: authorName || meta.guestName, guestEmail: authorEmail || meta.guestEmail });
+
+  const text = (body || '').trim();
+  if (!text) {
+    const err = new Error('Comment required');
+    err.status = 400;
+    throw err;
+  }
+  if (!guest.guestName) {
+    const err = new Error('Your name is required');
+    err.status = 400;
+    throw err;
+  }
+
+  const author = guest.guestName;
+  const email = guest.guestEmail;
+
+  await pool.query(
+    `INSERT INTO dd_item_comments (item_id, author_email, author_name, body, is_external)
+     VALUES ($1, $2, $3, $4, true)`,
+    [itemId, email, author, text]
+  );
+
+  await pool.query(
+    `INSERT INTO activities (user_id, saved_deal_id, activity_type, body, metadata)
+     VALUES ($1, $2, 'dd_portal_comment', $3, $4)`,
+    [
+      row.user_id,
+      row.saved_deal_id,
+      `${author} commented on "${item.title}"`,
+      JSON.stringify({ itemId, author, email, body: text })
+    ]
+  );
+
+  await logShareAccess(row.id, 'comment', guest);
+
+  notifyDealOwnerPortalComment(row.user_id, row.saved_deal_id, {
+    dealName: row.deal_name,
+    itemTitle: item.title,
+    authorName: author,
+    body: text
+  }).catch((err) => console.warn('[dd] portal comment notify failed:', err.message));
+
+  console.log(`[dd] portal comment on item=${itemId} deal=${row.saved_deal_id} by ${author}`);
+  const full = await getChecklistForDeal(row.user_id, row.saved_deal_id);
+  return filterChecklistByGroupIds(full, row.group_ids);
+}
+
+export async function addPublicDdDocument(
+  token,
+  itemId,
+  { filename, mimeType, storageKey, authorEmail, authorName },
+  meta = {}
+) {
+  const row = await loadActiveShareLink(token);
+  await assertSharePassword(row, meta.password);
+  if (row.mode !== 'collaborative') {
+    const err = new Error('Collaborative access required');
+    err.status = 403;
+    throw err;
+  }
+  await assertItemInShareScope(row, itemId);
+  const guest = guestFromRequest({
+    ...meta,
+    guestName: authorName || meta.guestName,
+    guestEmail: authorEmail || meta.guestEmail
+  });
+  if (!guest.guestName) {
+    const err = new Error('Your name is required');
+    err.status = 400;
+    throw err;
+  }
+
+  await logShareAccess(row.id, 'upload', guest);
+  const checklist = await addDdItemDocument(row.user_id, row.saved_deal_id, itemId, {
+    filename,
+    mimeType,
+    storageKey,
+    isExternal: true,
+    uploadedByEmail: guest.guestEmail || `${guest.guestName}@portal.guest`
+  });
+  return filterChecklistByGroupIds(checklist, row.group_ids);
+}
+
+export async function createShareLink(
+  userId,
+  savedDealId,
+  {
+    label,
+    mode = 'view_only',
+    expiresAt = null,
+    showDealName = true,
+    password = null,
+    groupIds = null
+  }
+) {
+  const checklist = await getChecklistForDeal(userId, savedDealId);
+  if (!checklist) {
+    const err = new Error('Start a DD checklist first');
+    err.status = 400;
+    throw err;
+  }
+
+  const allowedModes = new Set(['view_only', 'collaborative']);
+  const resolvedMode = allowedModes.has(mode) ? mode : 'view_only';
+
+  let resolvedGroupIds = null;
+  if (Array.isArray(groupIds) && groupIds.length) {
+    const validIds = new Set((checklist.groups || []).map((g) => Number(g.id)));
+    resolvedGroupIds = groupIds.map(Number).filter((id) => validIds.has(id));
+    if (!resolvedGroupIds.length) {
+      const err = new Error('Select at least one valid DD group to share');
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  const resolvedExpires = expiresAt ? expiresAt : null;
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const passwordHash = password ? await bcrypt.hash(String(password), 10) : null;
+  const result = await pool.query(
+    `INSERT INTO dd_share_links (
+       checklist_id, token, label, mode, expires_at, show_deal_name, password_hash, group_ids
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id, token, label, mode, expires_at, show_deal_name, group_ids, created_at`,
+    [
+      checklist.id,
+      token,
+      label || (resolvedMode === 'collaborative' ? 'Collaborate' : 'View only'),
+      resolvedMode,
+      resolvedExpires,
+      showDealName !== false,
+      passwordHash,
+      resolvedGroupIds
+    ]
+  );
+
+  const link = result.rows[0];
+  console.log('[dd] share link created', {
+    id: link.id,
+    mode: link.mode,
+    groups: resolvedGroupIds?.length || 'all',
+    hasPassword: Boolean(passwordHash),
+    expiresAt: link.expires_at
+  });
+  return {
+    ...link,
+    hasPassword: Boolean(passwordHash),
+    groupIds: link.group_ids || []
+  };
+}
+
+export async function revokeShareLink(userId, savedDealId, linkId) {
+  await assertDealOwned(userId, savedDealId);
+  await pool.query(
+    `UPDATE dd_share_links sl SET revoked_at = NOW()
+     FROM dd_checklists c
+     WHERE sl.id = $1 AND sl.checklist_id = c.id AND c.saved_deal_id = $2`,
+    [linkId, savedDealId]
+  );
+  return { revoked: true };
+}
+
+export async function getPublicChecklistByToken(token, meta = {}) {
+  const row = await loadActiveShareLink(token);
+  await assertSharePassword(row, meta.password);
+
+  const guest = guestFromRequest(meta);
+  await logShareAccess(row.id, 'view', guest);
+
+  const full = await getChecklistForDeal(row.user_id, row.saved_deal_id);
+  const checklist = filterChecklistByGroupIds(full, row.group_ids);
+
   return {
     mode: row.mode,
     label: row.label,
     showDealName: row.show_deal_name,
     dealName: row.show_deal_name ? row.deal_name : 'Due Diligence',
+    requiresGuestIdentity: row.mode === 'collaborative',
+    scopedGroupCount: row.group_ids?.length || 0,
     checklist
   };
 }
 
-export async function patchPublicDdItem(token, itemId, patch) {
-  const link = await pool.query(
-    `SELECT sl.mode, c.saved_deal_id, sd.user_id
-     FROM dd_share_links sl
-     JOIN dd_checklists c ON c.id = sl.checklist_id
-     JOIN saved_deals sd ON sd.id = c.saved_deal_id
-     WHERE sl.token = $1 AND sl.revoked_at IS NULL AND sl.mode = 'collaborative'`,
-    [token]
-  );
-  if (!link.rows.length) {
+export async function patchPublicDdItem(token, itemId, patch, meta = {}) {
+  const row = await loadActiveShareLink(token);
+  await assertSharePassword(row, meta.password);
+  if (row.mode !== 'collaborative') {
     const err = new Error('Collaborative access required');
     err.status = 403;
     throw err;
   }
-  const { saved_deal_id: savedDealId, user_id: userId } = link.rows[0];
-  return patchDdItem(userId, savedDealId, itemId, patch);
+  await assertItemInShareScope(row, itemId);
+  const guest = guestFromRequest(meta);
+  await logShareAccess(row.id, 'status_change', guest);
+  const checklist = await patchDdItem(row.user_id, row.saved_deal_id, itemId, patch);
+  return filterChecklistByGroupIds(checklist, row.group_ids);
 }
 
 export async function getDdOverdueForToday(userId) {

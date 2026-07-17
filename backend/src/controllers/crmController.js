@@ -412,16 +412,24 @@ export const postDealTask = async (req, res) => {
 
 export const postQuickFollowUp = async (req, res) => {
   try {
-    const { preset, dueAt, title, notifyRecipients } = req.body;
+    const { preset, dueAt, title, notifyRecipients, force } = req.body;
     const task = await createQuickFollowUp(req.user.userId, req.params.id, {
       preset,
       dueAt,
       title,
-      notifyRecipients
+      notifyRecipients,
+      force: Boolean(force)
     });
     res.status(201).json({ task });
   } catch (error) {
     if (error.status === 404) return res.status(404).json({ error: error.message });
+    if (error.status === 409) {
+      return res.status(409).json({
+        error: error.message,
+        code: error.code || 'conflict',
+        existingTask: error.existingTask || null
+      });
+    }
     console.error('[crm] postQuickFollowUp error:', error);
     res.status(500).json({ error: 'Server error' });
   }

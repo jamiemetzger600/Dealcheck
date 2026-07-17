@@ -29,10 +29,15 @@ if (process.env.SMTP_HOST) {
  * @param {string} options.subject - Email subject
  * @param {string} options.html - HTML body
  */
+/**
+ * Send email. When SMTP is unset, returns { sent: false } without throwing
+ * so in-app alerts still work (Talk banner / user_alerts). Callers that need
+ * delivery certainty should check the return value.
+ */
 export async function sendEmail({ to, subject, html }) {
   if (!transporter) {
-    console.warn('Email not sent - transporter not configured');
-    return;
+    console.warn('[email] skipped (SMTP not configured)', { to, subject });
+    return { sent: false, reason: 'not_configured' };
   }
 
   try {
@@ -43,11 +48,11 @@ export async function sendEmail({ to, subject, html }) {
       html
     });
 
-    console.log('📧 Email sent:', info.messageId);
-    return info;
+    console.log('[email] sent', { to, subject, messageId: info.messageId });
+    return { sent: true, messageId: info.messageId, info };
 
   } catch (error) {
-    console.error('Email send error:', error);
+    console.error('[email] send failed', { to, subject, error: error.message });
     throw error;
   }
 }

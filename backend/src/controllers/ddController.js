@@ -1,6 +1,8 @@
+import { createHash } from 'crypto';
 import {
   getChecklistForDeal,
   startChecklistFromTemplate,
+  getDdTemplateSuggestionForDeal,
   patchDdItem,
   createShareLink,
   revokeShareLink,
@@ -13,6 +15,32 @@ import {
   addPublicDdDocument
 } from '../services/ddChecklistService.js';
 
+function publicGuestMeta(req) {
+  const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() || req.ip || '';
+  const ipHash = ip ? createHash('sha256').update(ip).digest('hex').slice(0, 32) : null;
+  return {
+    password: req.headers['x-dd-password'] || req.body?.password || null,
+    guestName: req.headers['x-dd-guest-name'] || req.body?.authorName || req.body?.guestName || null,
+    guestEmail: req.headers['x-dd-guest-email'] || req.body?.authorEmail || req.body?.guestEmail || null,
+    guestSessionId: req.headers['x-dd-guest-session'] || req.body?.guestSessionId || null,
+    ipHash
+  };
+}
+
+function sendPublicError(res, error) {
+  if (error.status === 404) return res.status(404).json({ error: error.message || 'Not found' });
+  if (error.status === 410) return res.status(410).json({ error: error.message || 'Link expired' });
+  if (error.status === 401) {
+    return res.status(401).json({
+      error: error.message || 'Unauthorized',
+      requiresPassword: Boolean(error.requiresPassword)
+    });
+  }
+  if (error.status === 403) return res.status(403).json({ error: error.message });
+  if (error.status === 400) return res.status(400).json({ error: error.message });
+  return null;
+}
+
 export const getDealDd = async (req, res) => {
   try {
     const checklist = await getChecklistForDeal(req.user.userId, req.params.id);
@@ -24,9 +52,23 @@ export const getDealDd = async (req, res) => {
   }
 };
 
+export const getDealDdTemplates = async (req, res) => {
+  try {
+    const suggestion = await getDdTemplateSuggestionForDeal(req.user.userId, req.params.id);
+    res.json(suggestion);
+  } catch (error) {
+    if (error.status === 404) return res.status(404).json({ error: error.message });
+    console.error('[dd] getDealDdTemplates error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 export const startDealDd = async (req, res) => {
   try {
-    const checklist = await startChecklistFromTemplate(req.user.userId, req.params.id);
+    const { templateId } = req.body || {};
+    const checklist = await startChecklistFromTemplate(req.user.userId, req.params.id, {
+      templateId
+    });
     res.status(201).json({ checklist });
   } catch (error) {
     if (error.status === 404) return res.status(404).json({ error: error.message });
@@ -76,11 +118,10 @@ export const deleteDdShareLink = async (req, res) => {
 
 export const getPublicDd = async (req, res) => {
   try {
-    const data = await getPublicChecklistByToken(req.params.token);
+    const data = await getPublicChecklistByToken(req.params.token, publicGuestMeta(req));
     res.json(data);
   } catch (error) {
-    if (error.status === 404) return res.status(404).json({ error: 'Link not found' });
-    if (error.status === 410) return res.status(410).json({ error: 'Link expired' });
+    if (sendPublicError(res, error)) return;
     console.error('[dd] getPublicDd error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -88,11 +129,15 @@ export const getPublicDd = async (req, res) => {
 
 export const patchPublicDdItemHandler = async (req, res) => {
   try {
-    const checklist = await patchPublicDdItemService(req.params.token, req.params.itemId, req.body);
+    const checklist = await patchPublicDdItemService(
+      req.params.token,
+      req.params.itemId,
+      req.body,
+      publicGuestMeta(req)
+    );
     res.json({ checklist });
   } catch (error) {
-    if (error.status === 403) return res.status(403).json({ error: error.message });
-    if (error.status === 404) return res.status(404).json({ error: error.message });
+    if (sendPublicError(res, error)) return;
     console.error('[dd] patchPublicDdItem error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -141,11 +186,15 @@ export const postDdItemDocument = async (req, res) => {
 
 export const postPublicDdComment = async (req, res) => {
   try {
-    const checklist = await addPublicDdComment(req.params.token, req.params.itemId, req.body);
+    const checklist = await addPublicDdComment(
+      req.params.token,
+      req.params.itemId,
+      req.body,
+      publicGuestMeta(req)
+    );
     res.json({ checklist });
   } catch (error) {
-    if (error.status === 403) return res.status(403).json({ error: error.message });
-    if (error.status === 400) return res.status(400).json({ error: error.message });
+    if (sendPublicError(res, error)) return;
     console.error('[dd] postPublicDdComment error:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -153,11 +202,15 @@ export const postPublicDdComment = async (req, res) => {
 
 export const postPublicDdDocument = async (req, res) => {
   try {
-    const checklist = await addPublicDdDocument(req.params.token, req.params.itemId, req.body);
+    const checklist = await addPublicDdDocument(
+      req.params.token,
+      req.params.itemId,
+      req.body,
+      publicGuestMeta(req)
+    );
     res.json({ checklist });
   } catch (error) {
-    if (error.status === 403) return res.status(403).json({ error: error.message });
-    if (error.status === 400) return res.status(400).json({ error: error.message });
+    if (sendPublicError(res, error)) return;
     console.error('[dd] postPublicDdDocument error:', error);
     res.status(500).json({ error: 'Server error' });
   }

@@ -256,12 +256,42 @@ export async function createTask(
 export async function createQuickFollowUp(
   userId,
   savedDealId,
-  { preset, dueAt, title, notifyRecipients }
+  { preset, dueAt, title, notifyRecipients, force = false }
 ) {
   const days = FOLLOW_UP_PRESETS[preset];
   const resolvedDue = dueAt || (days != null ? addDays(days) : addDays(3));
   const deal = await assertDealOwned(userId, savedDealId, { write: true });
   const taskTitle = (title || '').trim() || `Follow up: ${deal.name}`;
+
+  // Chip presets: avoid silent duplicate Tomorrow/3-day/1-week tasks unless forced
+  if (preset && FOLLOW_UP_PRESETS[preset] != null && !force) {
+    const dup = await pool.query(
+      `SELECT id, title, due_at, status, source, metadata, created_at
+       FROM tasks
+       WHERE saved_deal_id = $1
+         AND status = 'open'
+         AND source = 'follow_up_chip'
+         AND metadata->>'preset' = $2
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [savedDealId, preset]
+    );
+    if (dup.rows[0]) {
+      console.log('[crmTask] duplicate follow-up chip blocked', {
+        dealId: savedDealId,
+        preset,
+        existingTaskId: dup.rows[0].id
+      });
+      const err = new Error(
+        `An open “${preset}” follow-up already exists for this deal. Create another?`
+      );
+      err.status = 409;
+      err.code = 'duplicate_follow_up';
+      err.existingTask = dup.rows[0];
+      throw err;
+    }
+  }
+
   return createTask(userId, savedDealId, {
     title: taskTitle,
     dueAt: resolvedDue,

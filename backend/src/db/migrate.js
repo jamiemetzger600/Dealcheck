@@ -951,6 +951,19 @@ const migrations = [
         ON dd_templates (industry_key)
         WHERE user_id IS NULL AND industry_key IS NOT NULL;
     `
+  },
+  {
+    name: 'dd_share_wave3_v5_8',
+    up: `
+      ALTER TABLE dd_share_links ADD COLUMN IF NOT EXISTS group_ids INTEGER[];
+
+      ALTER TABLE dd_share_access_log ADD COLUMN IF NOT EXISTS guest_name VARCHAR(255);
+      ALTER TABLE dd_share_access_log ADD COLUMN IF NOT EXISTS guest_email VARCHAR(255);
+      ALTER TABLE dd_share_access_log ADD COLUMN IF NOT EXISTS guest_session_id VARCHAR(64);
+
+      CREATE INDEX IF NOT EXISTS idx_dd_share_access_link_created
+        ON dd_share_access_log (share_link_id, created_at DESC);
+    `
   }
 ];
 

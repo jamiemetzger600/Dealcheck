@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { crmAPI } from '../../utils/api';
 
 const PRESETS = [
@@ -25,9 +25,23 @@ function toIsoDatetime(localValue) {
   return parsed.toISOString();
 }
 
+function displayNameFromEmail(email) {
+  const local = String(email || '').split('@')[0] || 'Member';
+  return local
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim() || 'Member';
+}
+
 function contactLabel(contact) {
-  const name = contact.name || contact.email;
+  const name = contact.name || displayNameFromEmail(contact.email);
   const role = contact.role ? ` (${contact.role})` : '';
+  return `${name}${role}`;
+}
+
+function memberLabel(member) {
+  const name = member.displayName || displayNameFromEmail(member.email);
+  const role = member.role ? ` · ${String(member.role)}` : '';
   return `${name}${role}`;
 }
 
@@ -45,12 +59,47 @@ export default function QuickFollowUp({
   const [customDueAt, setCustomDueAt] = useState(defaultCustomDatetime);
   const [notifySelf, setNotifySelf] = useState(true);
   const [selectedContactIds, setSelectedContactIds] = useState(() => new Set());
+  const [selectedMemberIds, setSelectedMemberIds] = useState(() => new Set());
+  const [members, setMembers] = useState([]);
   const [otherEmail, setOtherEmail] = useState('');
   const [notifyOther, setNotifyOther] = useState(false);
 
+  useEffect(() => {
+    if (!dealId || !showCustom) return undefined;
+    let cancelled = false;
+    crmAPI.getThreadMembers(dealId)
+      .then((data) => {
+        if (!cancelled) setMembers(data.members || []);
+      })
+      .catch((err) => {
+        console.warn('[QuickFollowUp] members load failed', err.message);
+        if (!cancelled) setMembers([]);
+      });
+    return () => { cancelled = true; };
+  }, [dealId, showCustom]);
+
+  const selfEmail = String(userEmail || '').trim().toLowerCase();
+
+  const teamMembers = useMemo(
+    () => members.filter((m) => String(m.email || '').toLowerCase() !== selfEmail),
+    [members, selfEmail]
+  );
+
+  const teamEmails = useMemo(
+    () => new Set(members.map((m) => String(m.email || '').toLowerCase()).filter(Boolean)),
+    [members]
+  );
+
+  // Broker/contacts — hide those already listed as team members
   const contactsWithEmail = useMemo(
-    () => contacts.filter((c) => c.email && String(c.email).trim()),
-    [contacts]
+    () => contacts.filter((c) => {
+      const email = String(c.email || '').trim().toLowerCase();
+      if (!email) return false;
+      if (email === selfEmail) return false;
+      if (teamEmails.has(email)) return false;
+      return true;
+    }),
+    [contacts, selfEmail, teamEmails]
   );
 
   const defaultTitle = dealName ? `Follow up: ${dealName}` : 'Follow up';
@@ -64,9 +113,21 @@ export default function QuickFollowUp({
     });
   };
 
+  const toggleMember = (memberId) => {
+    setSelectedMemberIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(memberId)) next.delete(memberId);
+      else next.add(memberId);
+      return next;
+    });
+  };
+
   const buildNotifyRecipients = () => {
     const recipients = [];
     if (notifySelf) recipients.push({ type: 'self' });
+    for (const userId of selectedMemberIds) {
+      recipients.push({ type: 'team_member', userId: Number(userId) });
+    }
     for (const contactId of selectedContactIds) {
       recipients.push({ type: 'contact', contactId });
     }
@@ -116,8 +177,10 @@ export default function QuickFollowUp({
       setCustomTitle('');
       setCustomDueAt(defaultCustomDatetime());
       setSelectedContactIds(new Set());
+      setSelectedMemberIds(new Set());
       setOtherEmail('');
       setNotifyOther(false);
+      console.log('[QuickFollowUp] custom reminder created', { dealId, notifyRecipients });
       onCreated?.();
     } catch (err) {
       alert('Failed to create reminder: ' + err.message);
@@ -188,26 +251,44 @@ export default function QuickFollowUp({
                 checked={notifySelf}
                 onChange={(e) => setNotifySelf(e.target.checked)}
               />
-              <span>Me{userEmail ? ` (${userEmail})` : ''}</span>
+              <span>Me</span>
             </label>
 
-            {contactsWithEmail.map((contact) => (
-              <label key={contact.id} className="crm-quick-followup__check">
-                <input
-                  type="checkbox"
-                  checked={selectedContactIds.has(contact.id)}
-                  onChange={() => toggleContact(contact.id)}
-                />
-                <span>
-                  {contactLabel(contact)}
-                  <span className="crm-muted"> — {contact.email}</span>
-                </span>
-              </label>
-            ))}
+            {teamMembers.length > 0 ? (
+              <>
+                <p className="crm-quick-followup__group-label">Team</p>
+                {teamMembers.map((m) => (
+                  <label key={m.id} className="crm-quick-followup__check">
+                    <input
+                      type="checkbox"
+                      checked={selectedMemberIds.has(m.id)}
+                      onChange={() => toggleMember(m.id)}
+                    />
+                    <span>{memberLabel(m)}</span>
+                  </label>
+                ))}
+              </>
+            ) : null}
 
-            {contactsWithEmail.length === 0 ? (
+            {contactsWithEmail.length > 0 ? (
+              <>
+                <p className="crm-quick-followup__group-label">Deal contacts</p>
+                {contactsWithEmail.map((contact) => (
+                  <label key={contact.id} className="crm-quick-followup__check">
+                    <input
+                      type="checkbox"
+                      checked={selectedContactIds.has(contact.id)}
+                      onChange={() => toggleContact(contact.id)}
+                    />
+                    <span>{contactLabel(contact)}</span>
+                  </label>
+                ))}
+              </>
+            ) : null}
+
+            {teamMembers.length === 0 && contactsWithEmail.length === 0 ? (
               <p className="crm-muted crm-quick-followup__hint">
-                No broker contacts with email on this deal yet.
+                No team members or deal contacts yet. Use “Someone else” or switch this deal to a team workspace.
               </p>
             ) : null}
 

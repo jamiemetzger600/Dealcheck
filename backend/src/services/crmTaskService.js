@@ -32,15 +32,57 @@ export async function assertDealOwned(userId, savedDealId, { write = true } = {}
   };
 }
 
+function displayNameFromEmail(email) {
+  const local = String(email || '').split('@')[0] || 'Member';
+  return local
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim() || 'Member';
+}
+
 async function resolveNotifyRecipients(userId, savedDealId, rawRecipients) {
   if (!Array.isArray(rawRecipients) || rawRecipients.length === 0) {
     return [{ type: 'self', channels: ['in_app', 'email'] }];
   }
 
   const resolved = [];
+  const seenEmails = new Set();
+
+  const pushUnique = (entry) => {
+    const key = (entry.email || (entry.type === 'self' ? `self:${userId}` : '')).toLowerCase();
+    if (key && seenEmails.has(key)) return;
+    if (key) seenEmails.add(key);
+    resolved.push(entry);
+  };
+
   for (const r of rawRecipients) {
     if (r.type === 'self') {
-      resolved.push({ type: 'self', channels: ['in_app', 'email'] });
+      pushUnique({ type: 'self', channels: ['in_app', 'email'] });
+      continue;
+    }
+    if (r.type === 'team_member' && r.userId) {
+      const memberId = Number(r.userId);
+      if (!memberId || memberId === Number(userId)) continue;
+      const row = await pool.query(
+        `SELECT u.id, u.email, tm.role
+         FROM saved_deals sd
+         JOIN team_members tm
+           ON tm.team_id = sd.team_id AND tm.status = 'active' AND tm.user_id = $2
+         JOIN users u ON u.id = tm.user_id
+         WHERE sd.id = $1 AND sd.team_id IS NOT NULL`,
+        [savedDealId, memberId]
+      );
+      const member = row.rows[0];
+      if (member?.email) {
+        pushUnique({
+          type: 'team_member',
+          userId: member.id,
+          email: member.email.trim().toLowerCase(),
+          name: displayNameFromEmail(member.email),
+          role: member.role || null,
+          channels: ['email']
+        });
+      }
       continue;
     }
     if (r.type === 'contact' && r.contactId) {
@@ -53,7 +95,7 @@ async function resolveNotifyRecipients(userId, savedDealId, rawRecipients) {
       );
       const contact = row.rows[0];
       if (contact?.email) {
-        resolved.push({
+        pushUnique({
           type: 'contact',
           contactId: contact.id,
           email: contact.email.trim().toLowerCase(),
@@ -66,7 +108,7 @@ async function resolveNotifyRecipients(userId, savedDealId, rawRecipients) {
     if (r.type === 'email' && r.email) {
       const email = String(r.email).trim().toLowerCase();
       if (email) {
-        resolved.push({
+        pushUnique({
           type: 'email',
           email,
           name: r.name ? String(r.name).trim() : null,
@@ -163,11 +205,12 @@ export async function createTask(
   const recipients = await resolveNotifyRecipients(userId, savedDealId, notifyRecipients);
   const taskMetadata = {
     ...metadata,
-    notifyRecipients: recipients.map(({ type, email, name, contactId }) => ({
+    notifyRecipients: recipients.map(({ type, email, name, contactId, userId: recipientUserId }) => ({
       type,
       email: email || null,
       name: name || null,
-      contactId: contactId || null
+      contactId: contactId || null,
+      userId: recipientUserId || null
     }))
   };
 

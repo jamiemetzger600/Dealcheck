@@ -6830,8 +6830,73 @@ button.aggregator-welcome__buybox {
   gap: 8px;
 }
 
+.crm-task-list__toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .crm-task-list__items {
   margin-top: 0;
+}
+
+.crm-task-create {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-secondary, transparent);
+}
+
+.crm-task-create__row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.crm-task-create__row--split {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .crm-task-create__row--split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.crm-task-create__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.crm-task-create__field span {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.crm-task-create__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.crm-task-create__error {
+  margin: 0;
+  color: #f87171;
+  font-size: 13px;
+}
+
+.crm-task-create__hint {
+  margin: 0;
+  font-size: 12px;
 }
 
 .crm-task-status {
@@ -6931,6 +6996,15 @@ button.aggregator-welcome__buybox {
 .crm-quick-followup__hint {
   margin: 0;
   font-size: 12px;
+}
+
+.crm-quick-followup__group-label {
+  margin: 8px 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 .crm-quick-followup__actions {

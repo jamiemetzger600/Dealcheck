@@ -263,7 +263,11 @@ export default function CrmDashboard({
 
       {crmView === 'tasks' && (
         <>
-          <CrmTaskList onSelectDeal={handleSelectDeal} onRefresh={handleRefresh} />
+          <CrmTaskList
+            deals={dealList}
+            onSelectDeal={handleSelectDeal}
+            onRefresh={handleRefresh}
+          />
           {workspace}
         </>
       )}

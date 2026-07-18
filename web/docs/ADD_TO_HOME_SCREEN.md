@@ -1,29 +1,27 @@
-# Add to Home Screen Instructions
+# Add to Home Screen (PWA)
+
+Vettr installs from the website — no App Store. In the product, open **Get the app** (header menu or Settings → Get the app) for platform-specific steps.
 
 ## iOS (Safari)
 
-1. Open Vettr in Safari
-2. Tap the **Share** button (box with arrow pointing up)
-3. Scroll down and tap **"Add to Home Screen"**
-4. Edit the name if desired
-5. Tap **"Add"**
-6. The Vettr icon will appear on your home screen
+1. Open Vettr in **Safari** (required)
+2. Tap the **Share** button (box with arrow)
+3. Tap **Add to Home Screen**
+4. Tap **Add**
 
 ## Android (Chrome)
 
 1. Open Vettr in Chrome
-2. Tap the **menu** (three dots) in the top-right corner
-3. Tap **"Add to Home screen"** or **"Install app"**
-4. Confirm by tapping **"Add"** or **"Install"**
-5. The Vettr icon will appear on your home screen
+2. Tap **Install Vettr** in Settings if shown, or menu (⋮) → **Install app** / **Add to Home screen**
+3. Confirm
 
-## Features When Installed
+## After install
 
-- Opens in full-screen mode (no browser bars)
-- Faster loading with offline caching
-- App-like experience
-- Quick access from home screen
+- Opens full-screen (standalone)
+- App shell assets are cached by the service worker for faster loads
+- API calls stay network-first (you need connectivity for deals and DD)
+- Updates arrive with normal Cloudflare deploys
 
 ## Note
 
-You must be using HTTPS (secure connection) for the "Add to Home Screen" feature to work.
+HTTPS is required for install prompts and service workers.

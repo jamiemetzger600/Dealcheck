@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import pkg from '../../package.json';
 import { useTeam } from '../context/TeamContext';
 import { useFeedbackUi } from './feedback/FeedbackShell';
+import { isStandaloneDisplay } from '../utils/pwaInstall';
 
 export default function Navigation({
   user,
@@ -24,6 +25,7 @@ export default function Navigation({
   const [menuOpen, setMenuOpen] = useState(false);
   const { teams, activeTeamId, setActiveTeamId, activeTeam, isTeamMode } = useTeam();
   const feedbackUi = useFeedbackUi();
+  const showGetTheApp = !isStandaloneDisplay();
 
   const roleLabel = (role) => {
     const r = String(role || '').toLowerCase();
@@ -112,6 +114,9 @@ export default function Navigation({
       ) : (
         <>
           <span className="nav-user-pill">{user?.email}</span>
+          {showGetTheApp ? (
+            <Link to="/settings#get-the-app" className="header-link" onClick={() => setMenuOpen(false)}>Get the app</Link>
+          ) : null}
           <Link to="/settings" className="header-link" onClick={() => setMenuOpen(false)}>Settings</Link>
           <Link to="/billing" className="header-link" onClick={() => setMenuOpen(false)}>Billing</Link>
           <button type="button" onClick={() => { logout(); setMenuOpen(false); }} className="header-link">Logout</button>

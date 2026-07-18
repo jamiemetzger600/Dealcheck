@@ -402,6 +402,17 @@ a {
 /* App Shell */
 .app-page-shell {
   min-height: calc(100vh - 40px);
+  min-height: calc(100dvh - 40px);
+  padding-left: var(--safe-area-left);
+  padding-right: var(--safe-area-right);
+}
+
+@media (display-mode: standalone) {
+  .app-page-shell {
+    padding-top: var(--safe-area-top);
+    padding-bottom: var(--safe-area-bottom);
+    min-height: 100dvh;
+  }
 }
 
 .app-header {
@@ -8511,5 +8522,187 @@ button.aggregator-welcome__buybox {
 @media (max-width: 900px) {
   .feedback-admin__layout {
     grid-template-columns: 1fr;
+  }
+}
+
+/* —— Get the app (PWA install) —— */
+.get-the-app {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.get-the-app__intro {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.get-the-app__prompt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.get-the-app__hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.get-the-app__steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.get-the-app__steps li {
+  padding-left: 4px;
+}
+
+.get-the-app__warn {
+  color: #f59e0b;
+  font-weight: 500;
+}
+
+.get-the-app__status {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.get-the-app__status--ok {
+  color: #86efac;
+}
+
+/* —— Mobile: DD + CRM workspace touch polish —— */
+@media (max-width: 767px) {
+  .crm-workspace {
+    padding: 12px;
+    min-height: 0;
+    border-radius: 10px;
+  }
+
+  .crm-workspace__header h2 {
+    font-size: 18px;
+  }
+
+  .crm-kanban-board {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    padding-bottom: 8px;
+  }
+
+  .crm-kanban-column {
+    min-width: min(280px, 85vw);
+    scroll-snap-align: start;
+  }
+
+  .crm-deal-panel {
+    overflow-x: hidden;
+  }
+
+  .dd-checklist__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dd-checklist__actions {
+    width: 100%;
+  }
+
+  .dd-checklist__actions .btn-secondary,
+  .dd-checklist__actions .btn-primary {
+    flex: 1;
+    min-height: var(--touch-target-min);
+  }
+
+  .dd-item,
+  .dd-item--stacked,
+  .dd-item--portal {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .dd-item__row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .dd-item__main {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .dd-item select,
+  .dd-item__status,
+  .dd-item__due-input,
+  .dd-item__assignee,
+  .dd-item .modal-input {
+    min-height: var(--touch-target-min);
+    font-size: 16px; /* avoids iOS zoom on focus */
+    width: 100%;
+  }
+
+  .dd-item__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dd-item__row select,
+  .dd-item__row .dd-item__due-input,
+  .dd-item__row .dd-item__assignee,
+  .dd-item__row .dd-item__status {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .dd-add-item-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dd-add-item-form .modal-input {
+    min-width: 0;
+    width: 100%;
+    min-height: var(--touch-target-min);
+    font-size: 16px;
+  }
+
+  .dd-add-item-form .btn-primary,
+  .dd-add-item-form .btn-secondary {
+    min-height: var(--touch-target-min);
+    width: 100%;
+  }
+
+  .dd-share-form {
+    gap: 10px;
+  }
+
+  .dd-share-form .modal-input {
+    min-height: var(--touch-target-min);
+    font-size: 16px;
+  }
+
+  .settings-page .settings-section {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
+  .get-the-app__prompt-row .btn-primary {
+    min-height: var(--touch-target-min);
+    width: 100%;
   }
 }

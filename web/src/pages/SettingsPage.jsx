@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { userAPI } from '../utils/api';
 import Navigation from '../components/Navigation';
 import TeamsSettingsPanel from '../components/TeamsSettingsPanel';
+import GetTheAppPanel from '../components/GetTheAppPanel';
 import { useAuth } from '../context/AuthContext';
 
 const SETTINGS_EXPORT_VERSION = 1;
@@ -49,6 +50,7 @@ function parseImportPayload(json) {
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const [settings, setSettings] = useState(null);
   const [notificationFrequency, setNotificationFrequency] = useState('daily');
   const [hideSavedDealsInFeed, setHideSavedDealsInFeed] = useState(false);
@@ -67,6 +69,16 @@ export default function SettingsPage() {
   useEffect(() => {
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    if (location.hash === '#get-the-app') {
+      const el = document.getElementById('get-the-app');
+      if (el) {
+        requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
+    }
+  }, [loading, location.hash]);
 
   const loadSettings = async () => {
     try {
@@ -236,6 +248,11 @@ export default function SettingsPage() {
         <h1>Settings</h1>
         <div className="settings-page-actions">
           <Link to="/" className="btn-secondary">Back to Dashboard</Link>
+        </div>
+
+        <div className="settings-section" id="get-the-app">
+          <h2>Get the app</h2>
+          <GetTheAppPanel />
         </div>
 
         <div className="settings-section">

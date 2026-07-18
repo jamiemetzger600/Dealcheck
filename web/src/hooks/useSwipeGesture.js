@@ -6,8 +6,11 @@ export const MAX_DRAG = 320;
 export const PASS_SWIPE_THRESHOLD = 70;
 
 /**
- * Tinder-style swipe gesture: left=hide, right=save, up=pass.
- * Returns drag state and pointer handlers.
+ * Tinder-style swipe gesture: left=hide, right=save, up=pass (pointer/mouse).
+ *
+ * On touch, vertical pans are left to the browser so the page (and card
+ * body) can scroll. Only a horizontal-dominant gesture locks into swipe
+ * and calls preventDefault.
  */
 export function useSwipeGesture({ onHide, onSave, onPass, onTap, enabled = true }) {
   const [dragX, setDragX] = useState(0);
@@ -16,6 +19,8 @@ export function useSwipeGesture({ onHide, onSave, onPass, onTap, enabled = true 
   const startXRef = useRef(0);
   const startYRef = useRef(0);
   const isDragRef = useRef(false);
+  /** @type {React.MutableRefObject<null | 'h' | 'v'>} */
+  const axisRef = useRef(null);
   const dragXRef = useRef(0);
   const dragYRef = useRef(0);
 
@@ -25,6 +30,7 @@ export function useSwipeGesture({ onHide, onSave, onPass, onTap, enabled = true 
     dragXRef.current = 0;
     dragYRef.current = 0;
     isDragRef.current = false;
+    axisRef.current = null;
   }, []);
 
   const commitAction = useCallback((action) => {
@@ -52,36 +58,62 @@ export function useSwipeGesture({ onHide, onSave, onPass, onTap, enabled = true 
     startXRef.current = clientX;
     startYRef.current = clientY;
     isDragRef.current = false;
+    axisRef.current = null;
   }, [enabled, flyOff]);
 
-  const handleMove = useCallback((clientX, clientY) => {
+  const handleMove = useCallback((clientX, clientY, { allowVerticalPass = false } = {}) => {
     if (!enabled || flyOff) return;
     const dx = clientX - startXRef.current;
     const dy = clientY - startYRef.current;
-    if (!isDragRef.current && (Math.abs(dx) > DRAG_CLICK_THRESHOLD || Math.abs(dy) > DRAG_CLICK_THRESHOLD)) {
-      isDragRef.current = true;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+
+    if (!axisRef.current && (absX > DRAG_CLICK_THRESHOLD || absY > DRAG_CLICK_THRESHOLD)) {
+      // Horizontal-first → swipe. Vertical-first → native scroll (touch) / pass (mouse).
+      axisRef.current = absX >= absY ? 'h' : 'v';
     }
+
+    if (axisRef.current === 'v' && !allowVerticalPass) {
+      // Let the browser scroll the page / card body.
+      return;
+    }
+
+    if (axisRef.current === 'v' && allowVerticalPass) {
+      // Mouse / pointer: keep upward pass gesture.
+      isDragRef.current = true;
+      const clampedY = Math.max(-MAX_DRAG, Math.min(0, dy));
+      dragXRef.current = 0;
+      dragYRef.current = clampedY;
+      setDragX(0);
+      setDragY(clampedY);
+      return;
+    }
+
+    if (axisRef.current !== 'h') return;
+
+    isDragRef.current = true;
     const clampedX = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, dx));
-    const clampedY = Math.max(-MAX_DRAG, Math.min(0, dy));
+    // Once locked horizontal, ignore vertical so page scroll isn't fought.
     dragXRef.current = clampedX;
-    dragYRef.current = clampedY;
+    dragYRef.current = 0;
     setDragX(clampedX);
-    setDragY(clampedY);
+    setDragY(0);
   }, [enabled, flyOff]);
 
-  const handleEnd = useCallback(() => {
+  const handleEnd = useCallback(({ allowVerticalPass = false } = {}) => {
     if (!enabled || flyOff) return;
     const x = dragXRef.current;
     const y = dragYRef.current;
-    if (y < -PASS_SWIPE_THRESHOLD && Math.abs(y) > Math.abs(x)) {
+
+    if (allowVerticalPass && axisRef.current === 'v' && y < -PASS_SWIPE_THRESHOLD && Math.abs(y) > Math.abs(x)) {
       commitAction('pass');
       return;
     }
-    if (x < -SWIPE_THRESHOLD) {
+    if (axisRef.current === 'h' && x < -SWIPE_THRESHOLD) {
       commitAction('hide');
       return;
     }
-    if (x > SWIPE_THRESHOLD) {
+    if (axisRef.current === 'h' && x > SWIPE_THRESHOLD) {
       commitAction('save');
       return;
     }
@@ -93,20 +125,21 @@ export function useSwipeGesture({ onHide, onSave, onPass, onTap, enabled = true 
   }, [handleStart]);
 
   const onTouchMove = useCallback((e) => {
-    handleMove(e.touches[0].clientX, e.touches[0].clientY);
-    if (isDragRef.current) e.preventDefault();
+    handleMove(e.touches[0].clientX, e.touches[0].clientY, { allowVerticalPass: false });
+    // Only block native scrolling once we've locked into a horizontal swipe.
+    if (axisRef.current === 'h' && isDragRef.current) e.preventDefault();
   }, [handleMove]);
 
-  const onTouchEnd = useCallback(() => handleEnd(), [handleEnd]);
+  const onTouchEnd = useCallback(() => handleEnd({ allowVerticalPass: false }), [handleEnd]);
 
   const onMouseDown = useCallback((e) => {
     if (e.button !== 0) return;
     handleStart(e.clientX, e.clientY);
-    const onMouseMove = (ev) => handleMove(ev.clientX, ev.clientY);
+    const onMouseMove = (ev) => handleMove(ev.clientX, ev.clientY, { allowVerticalPass: true });
     const onMouseUp = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
-      handleEnd();
+      handleEnd({ allowVerticalPass: true });
     };
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);

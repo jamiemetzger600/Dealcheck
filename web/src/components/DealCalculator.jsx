@@ -85,10 +85,10 @@ export default function DealCalculator({
       setScenarios(merged);
       setActiveScenario(Math.min(Number(stored.activeScenario) || 0, merged.length - 1));
       setTargetCOC(
-        stored.targetCOC != null && stored.targetCOC !== ''
-          ? String(stored.targetCOC)
-          : calculatorDefaults.targetCOC != null && calculatorDefaults.targetCOC !== ''
-            ? String(calculatorDefaults.targetCOC)
+        calculatorDefaults.targetCOC != null && calculatorDefaults.targetCOC !== ''
+          ? String(calculatorDefaults.targetCOC)
+          : stored.targetCOC != null && stored.targetCOC !== ''
+            ? String(stored.targetCOC)
             : '25'
       );
       setUiOpen({ ...DEFAULT_UI, ...(stored.ui && typeof stored.ui === 'object' ? stored.ui : {}) });
@@ -105,25 +105,13 @@ export default function DealCalculator({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset calculator state when switching deals; not when financing defaults sync from server
   }, [deal?.id]);
 
-  // No per-deal saved state: keep CoC target in sync when Buy Box / settings change (e.g. modal save while panel open).
+  // The active Buy Box is the source of truth for Target CoC when configured.
+  // Keep the calculator in sync even if this deal has older persisted calculator state.
   useEffect(() => {
     if (!deal?.id) return;
-    const defaults = createDefaultScenarios(deal, calculatorDefaults);
-    const n = defaults.length;
-    const fromApi = deal.calculatorState;
-    const fromLs = loadCalculatorState(deal.id);
-    const fromListingKey =
-      deal.dealId != null && deal.dealId !== deal.id ? loadCalculatorState(deal.dealId) : null;
-    const hasStored =
-      isValidCalculatorPayload(fromApi, n) ||
-      isValidCalculatorPayload(fromLs, n) ||
-      isValidCalculatorPayload(fromListingKey, n);
-    if (hasStored) return;
-    const cocDefault =
-      calculatorDefaults.targetCOC != null && calculatorDefaults.targetCOC !== ''
-        ? String(calculatorDefaults.targetCOC)
-        : '25';
-    setTargetCOC(cocDefault);
+    if (calculatorDefaults.targetCOC != null && calculatorDefaults.targetCOC !== '') {
+      setTargetCOC(String(calculatorDefaults.targetCOC));
+    }
   }, [deal?.id, calculatorDefaults.targetCOC]);
 
   // No per-deal saved state: keep target salary in sync when Buy Box / settings change.

@@ -1,4 +1,4 @@
-/** Sticky mobile toolbar: Swipe / Card / Table + daily scope toggle. */
+/** Sticky mobile toolbar: Focus / Cards / Table + daily scope toggle. */
 export default function MobileFeedToolbar({
   feedMode,
   onFeedModeChange,
@@ -23,7 +23,7 @@ export default function MobileFeedToolbar({
           className={`mobile-view-toggle__btn${feedMode === 'deck' ? ' active' : ''}`}
           onClick={() => onFeedModeChange('deck')}
         >
-          Swipe
+          Focus
         </button>
         <button
           type="button"

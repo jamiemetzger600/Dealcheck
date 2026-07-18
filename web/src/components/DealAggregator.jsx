@@ -197,7 +197,7 @@ function isDealInSavedList(deal, savedIdSet) {
   return marketDealMatchKeys(deal).some((key) => savedIdSet.has(key));
 }
 
-/** Card in list view. When enableSwipe (mobile only): swipe left = hide, swipe right = heart/save. Desktop: plain click. */
+/** Card in list view. Swipe gestures paused — enableSwipe kept for a future redesign. */
 function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, enableSwipe, children }) {
   const [dragX, setDragX] = useState(0);
   const startXRef = useRef(0);
@@ -2072,7 +2072,7 @@ export default function DealAggregator({
                       onHide={handleToggleHidden}
                       onLike={handleSaveDeal}
                       onTap={setSelectedDeal}
-                      enableSwipe={isMobileViewport}
+                      enableSwipe={false}
                     >
                       <div className="deal-card__header">
                         <h3 className="deal-card__name">{deal.name || 'Unnamed Business'}</h3>

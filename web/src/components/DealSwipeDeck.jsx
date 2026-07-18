@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GatedPreviewText from './GatedPreviewText';
-import { useSwipeGesture } from '../hooks/useSwipeGesture';
 import {
   cardMetricLocation,
   cardViewDescriptionPreview,
@@ -13,27 +12,19 @@ import {
 
 const PREFETCH_THRESHOLD = 5;
 
+// Tinder-style drag gestures are paused — use Hide / Pass / Save buttons instead.
+// Re-enable via useSwipeGesture when we ship a better implementation.
+
 function DealSwipeCard({
   deal,
   isPortrait,
   isGuest,
   entitlements,
   requireSignup,
-  onHide,
-  onSave,
-  onPass,
   onOpenDetails,
   isTop,
   stackIndex,
 }) {
-  const swipe = useSwipeGesture({
-    enabled: isTop,
-    onHide: () => onHide(deal),
-    onSave: () => onSave(deal),
-    onPass: () => onPass(deal),
-    onTap: () => onOpenDetails(deal),
-  });
-
   const descCard = cardViewDescriptionPreview(deal.description, isPortrait ? 4 : 3);
   const cardLoc = cardMetricLocation(deal);
   const scale = isTop ? 1 : 1 - stackIndex * 0.04;
@@ -42,50 +33,33 @@ function DealSwipeCard({
   const opacity = isTop ? 1 : 0.85 - stackIndex * 0.15;
 
   const transform = isTop
-    ? `translate(${swipe.dragX}px, ${swipe.dragY}px) rotate(${swipe.rotate}deg)`
+    ? 'none'
     : `scale(${scale}) translateY(${translateY}px)`;
-
-  const transition = swipe.flyOff || (swipe.dragX === 0 && swipe.dragY === 0)
-    ? 'transform 0.28s ease-out'
-    : 'none';
 
   return (
     <div
       className={`deal-swipe-card-outer${isTop ? ' deal-swipe-card-outer--active' : ''}${!isPortrait ? ' deal-swipe-card-outer--landscape' : ''}`}
       style={{
         transform,
-        transition,
+        transition: 'transform 0.28s ease-out',
         zIndex,
         opacity: isTop ? 1 : opacity,
         pointerEvents: isTop ? 'auto' : 'none',
       }}
-      {...(isTop ? swipe.handlers : {})}
     >
       <div
         className={`deal-swipe-card${!isPortrait ? ' deal-swipe-card--landscape' : ''}`}
         role={isTop ? 'button' : undefined}
         tabIndex={isTop ? 0 : -1}
+        onClick={isTop ? () => onOpenDetails(deal) : undefined}
         onKeyDown={isTop ? (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             onOpenDetails(deal);
           }
         } : undefined}
-        style={{ touchAction: isTop ? 'none' : 'auto' }}
+        style={{ touchAction: 'pan-y' }}
       >
-        {isTop && (
-          <>
-            <div className="deal-swipe-card-overlay deal-swipe-card-overlay--nope" style={{ opacity: swipe.nopeOpacity }} aria-hidden="true">
-              Nope
-            </div>
-            <div className="deal-swipe-card-overlay deal-swipe-card-overlay--like" style={{ opacity: swipe.likeOpacity }} aria-hidden="true">
-              Save
-            </div>
-            <div className="deal-swipe-card-overlay deal-swipe-card-overlay--pass" style={{ opacity: swipe.passOpacity }} aria-hidden="true">
-              Pass
-            </div>
-          </>
-        )}
         <div className="deal-swipe-card__body">
           <div className="deal-swipe-card__main">
             <h3 className="deal-swipe-card__name">{deal.name || 'Unnamed Business'}</h3>
@@ -234,7 +208,7 @@ export default function DealSwipeDeck({
             {deckScope === 'daily' && typeof onShowAllMatches === 'function' ? (
               <>
                 <p className="deal-swipe-deck__empty-hint">
-                  Swipe, Cards, and Table all use the same filter. Switch to All Matches to browse your full buy box.
+                  Focus, Cards, and Table all use the same filter. Switch to All Matches to browse your full buy box.
                 </p>
                 <button
                   type="button"
@@ -259,9 +233,6 @@ export default function DealSwipeDeck({
               isGuest={isGuest}
               entitlements={entitlements}
               requireSignup={requireSignup}
-              onHide={handleHide}
-              onSave={handleSave}
-              onPass={handlePass}
               onOpenDetails={onOpenDetails}
               isTop={i === 0}
               stackIndex={i}

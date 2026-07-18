@@ -432,7 +432,9 @@ export default function DealAggregator({
   const { isPortrait } = useOrientation();
   /** Mobile feed layout: swipe deck, card grid, or table. */
   const [mobileFeedMode, setMobileFeedMode] = useState('deck');
-  const [deckScope, setDeckScope] = useState('daily');
+  // Default to all buy-box matches so the feed is not empty on load when nothing
+  // was updated today. Users can still switch to "Today's New" in the toolbar.
+  const [deckScope, setDeckScope] = useState('all');
   const prefetchRequestedRef = useRef(false);
   const orientationKey = isPortrait ? 'portrait' : 'landscape';
 
@@ -778,6 +780,13 @@ export default function DealAggregator({
     if (settings) fetchServerDeals();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when inputs to fetchServerDeals change; avoid tying to unstable parent callbacks
   }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint, deckScope, mobileDailyFilter]);
+
+  // Manual refresh for the installed PWA (no browser reload / pull-to-refresh in
+  // standalone mode). Clear the ETag cache so we always request a fresh 200.
+  const handleManualRefresh = useCallback(() => {
+    listEtagCacheRef.current = { key: '', etag: '' };
+    fetchServerDeals();
+  }, [fetchServerDeals]);
 
   const updateUserFilterSettings = async (nextValues) => {
     try {
@@ -1412,6 +1421,8 @@ export default function DealAggregator({
           deckScope={deckScope}
           onScopeChange={handleDeckScopeChange}
           onConfigureBuyBox={onConfigureBuyBox}
+          onRefresh={handleManualRefresh}
+          isRefreshing={isFetching}
           isPortrait={isPortrait}
         />
       )}
@@ -1432,6 +1443,7 @@ export default function DealAggregator({
           onPass={handleDeckPass}
           onOpenDetails={setSelectedDeal}
           onNeedMore={handleDeckNeedMore}
+          onShowAllMatches={() => handleDeckScopeChange('all')}
         />
       ) : (
       <>

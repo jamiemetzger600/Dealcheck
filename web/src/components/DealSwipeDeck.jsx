@@ -149,7 +149,7 @@ function DealSwipeCard({
 
 export default function DealSwipeDeck({
   deals,
-  deckScope = 'daily',
+  deckScope = 'all',
   isPortrait = true,
   orientationKey = 'portrait',
   totalFromAPI = 0,
@@ -162,6 +162,7 @@ export default function DealSwipeDeck({
   onPass,
   onOpenDetails,
   onNeedMore,
+  onShowAllMatches,
 }) {
   const [queue, setQueue] = useState(deals);
   const dealsKeyRef = useRef('');
@@ -225,8 +226,29 @@ export default function DealSwipeDeck({
       <div className="deal-swipe-deck__stack" aria-live="polite">
         {remaining === 0 ? (
           <div className="deal-swipe-deck__empty">
-            <p>{deckScope === 'daily' ? "You've reviewed today's new deals." : 'No more deals in this view.'}</p>
-            <p className="deal-swipe-deck__empty-hint">Switch to Cards or Table above to browse the full list.</p>
+            <p>
+              {deckScope === 'daily'
+                ? "No new deals matched your buy box today."
+                : 'No more deals in this view.'}
+            </p>
+            {deckScope === 'daily' && typeof onShowAllMatches === 'function' ? (
+              <>
+                <p className="deal-swipe-deck__empty-hint">
+                  Swipe, Cards, and Table all use the same filter. Switch to All Matches to browse your full buy box.
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary deal-swipe-deck__empty-cta"
+                  onClick={onShowAllMatches}
+                >
+                  Show All Matches
+                </button>
+              </>
+            ) : (
+              <p className="deal-swipe-deck__empty-hint">
+                Try Cards or Table above, or adjust your buy box filters.
+              </p>
+            )}
           </div>
         ) : (
           visibleStack.map((deal, i) => (

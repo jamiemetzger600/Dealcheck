@@ -47,19 +47,12 @@ export default defineConfig(({ mode }) => {
         includeAssets: ['vettr-logo.png', 'icons/icon-192.png', 'icons/icon-512.png'],
         workbox: {
           navigateFallback: '/index.html',
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2,json}'],
-          runtimeCaching: [
-            {
-              urlPattern: ({ url }) => url.pathname.startsWith('/api'),
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'vettr-api',
-                networkTimeoutSeconds: 8,
-                expiration: { maxEntries: 64, maxAgeSeconds: 60 * 5 },
-                cacheableResponse: { statuses: [0, 200] }
-              }
-            }
-          ]
+          // Never let the service worker touch API traffic. The market feed uses
+          // conditional (ETag / If-None-Match) requests; if the SW serves a cached
+          // or 304 response the app treats it as "not modified" and the deal list
+          // stays empty in the installed PWA. API GETs must always hit the network.
+          navigateFallbackDenylist: [/^\/api/],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}']
         }
       })
     ],

@@ -187,7 +187,7 @@ export default function Navigation({
             className={`tab-btn ${activeTab === 'aggregator' ? 'active' : ''}`}
             onClick={() => setActiveTab('aggregator')}
           >
-            <span>{compact ? 'Discover' : 'Deal Aggregator'}</span>
+            <span>Deal Aggregator</span>
             <span className="tab-badge">{aggregatorCount}</span>
           </button>
           <button

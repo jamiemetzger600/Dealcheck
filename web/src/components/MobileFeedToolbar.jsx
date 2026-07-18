@@ -5,6 +5,8 @@ export default function MobileFeedToolbar({
   deckScope,
   onScopeChange,
   onConfigureBuyBox,
+  onRefresh,
+  isRefreshing = false,
   isPortrait,
 }) {
   return (
@@ -43,6 +45,19 @@ export default function MobileFeedToolbar({
         </button>
       </div>
       <div className="mobile-feed-toolbar__actions">
+        {typeof onRefresh === 'function' && (
+          <button
+            type="button"
+            className="mobile-feed-toolbar__scope-btn mobile-feed-toolbar__refresh-btn"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            aria-label="Refresh deals"
+            title="Refresh deals"
+          >
+            <span className={`mobile-feed-toolbar__refresh-icon${isRefreshing ? ' is-spinning' : ''}`} aria-hidden="true">↻</span>
+            <span>{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
+          </button>
+        )}
         <button
           type="button"
           className="mobile-feed-toolbar__scope-btn"

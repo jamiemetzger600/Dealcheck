@@ -2784,6 +2784,11 @@ button.aggregator-welcome__buybox {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Slots keep natural height and the slots column scrolls; otherwise the
+     flex container shrinks each slot to fit and clips content (e.g. the
+     Description section was cut off mid-sentence on phones). The only-child
+     rule below re-enables internal scrolling for single sections. */
+  flex-shrink: 0;
 }
 
 /* Single visible section (e.g. calculator): scroll inside the slot body */
@@ -3088,6 +3093,7 @@ button.aggregator-welcome__buybox {
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   padding: 12px;
+  min-width: 0;
 }
 
 .deal-overview-card.wide,
@@ -3114,6 +3120,8 @@ button.aggregator-welcome__buybox {
 .calc-result-value {
   font-size: 15px;
   font-weight: 700;
+  /* Long values ($2,208,104, emails, URLs) wrap instead of spilling out of the card */
+  overflow-wrap: anywhere;
 }
 
 /* Condensed overview and broker to save space */
@@ -5596,13 +5604,32 @@ button.aggregator-welcome__buybox {
 
   .tab-navigation--compact {
     flex-direction: row;
-    padding: 8px 12px;
-    gap: 8px;
+    padding: 6px 8px;
+    gap: 6px;
   }
 
+  /* Compact tabs must fit three buttons on a phone: allow shrinking
+     (min-width: 0 overrides flex's min-width: auto), stack label over
+     badge, and drop the desktop padding so CRM never overflows the bar. */
   .tab-navigation--compact .tab-btn {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
     min-height: var(--touch-target-min);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 4px;
+    font-size: 12px;
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .tab-navigation--compact .tab-badge {
+    font-size: 10px;
+    padding: 1px 7px;
   }
 
   .app-page-shell--mobile-deck {
@@ -5636,6 +5663,16 @@ button.aggregator-welcome__buybox {
     border-radius: 0;
     border-left: none;
     border-right: none;
+  }
+
+  /* 4 metric columns don't fit a phone: two per row, and wide cards span both */
+  .deal-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .deal-overview-value,
+  .deal-broker-value {
+    font-size: 14px;
   }
 
   .panel-position-toggle {
@@ -6054,6 +6091,33 @@ button.aggregator-welcome__buybox {
   cursor: pointer;
 }
 
+.mobile-feed-toolbar__refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-feed-toolbar__refresh-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.mobile-feed-toolbar__refresh-icon {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.mobile-feed-toolbar__refresh-icon.is-spinning {
+  animation: mobile-feed-refresh-spin 0.8s linear infinite;
+}
+
+@keyframes mobile-feed-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .view-style-toggle--desktop-only {
   display: none;
 }
@@ -6062,6 +6126,13 @@ button.aggregator-welcome__buybox {
   font-size: 13px;
   margin-top: 8px;
   color: var(--text-secondary);
+}
+
+.deal-swipe-deck__empty-cta {
+  margin-top: 16px;
+  min-height: var(--touch-target-min);
+  width: 100%;
+  max-width: 280px;
 }
 
 /* Mobile browse: hide heavy welcome chrome */

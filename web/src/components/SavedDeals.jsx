@@ -80,7 +80,16 @@ function cocReturnTier(coc) {
   return 'bad';
 }
 
-export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCalculatorDefaults = null, onAddDeal = null, onOpenInCrm = null }) {
+export default function SavedDeals({
+  deals,
+  settings = null,
+  onUpdate,
+  onSaveCalculatorDefaults = null,
+  onAddDeal = null,
+  onOpenInCrm = null,
+  /** When true (Vettr CRM List), open deal in CRM workspace instead of the legacy modal. */
+  workspaceMode = false
+}) {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('savedAt');
@@ -193,8 +202,13 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
     setSelectedIds(newSelected);
   };
 
-  // Handle view deal
+  // Handle view deal — in Vettr CRM List, open the shared workspace drawer
   const handleViewDeal = (deal) => {
+    if (workspaceMode && typeof onOpenInCrm === 'function') {
+      console.log('[SavedDeals] workspaceMode open deal', deal.id);
+      onOpenInCrm(deal.id);
+      return;
+    }
     setSelectedDeal(deal);
     setShowModal(true);
   };
@@ -515,21 +529,23 @@ export default function SavedDeals({ deals, settings = null, onUpdate, onSaveCal
                   </td>
                   <td onClick={(e) => e.stopPropagation()}>
                     <div className="actions">
+                      {!workspaceMode && typeof onOpenInCrm === 'function' ? (
+                        <button
+                          type="button"
+                          className="action-btn"
+                          title="Open in Vettr CRM"
+                          onClick={() => onOpenInCrm(deal.id)}
+                        >
+                          CRM
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="action-btn"
-                        title="Open in CRM"
-                        onClick={() => onOpenInCrm?.(deal.id)}
-                      >
-                        CRM
-                      </button>
-                      <button
-                        type="button"
-                        className="action-btn"
-                        title="View details"
+                        title={workspaceMode ? 'Open workspace' : 'View details'}
                         onClick={() => handleViewDeal(deal)}
                       >
-                        View
+                        {workspaceMode ? 'Open' : 'View'}
                       </button>
                       <button
                         type="button"

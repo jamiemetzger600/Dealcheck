@@ -15,7 +15,6 @@ export default function Navigation({
   pageSubtitle,
   showTabs = true,
   aggregatorCount = 0,
-  myDealsCount = 0,
   crmCount = 0,
   crmBadgeCount = 0,
   onOpenQuickCalculator = null,
@@ -118,6 +117,7 @@ export default function Navigation({
             <Link to="/settings#get-the-app" className="header-link" onClick={() => setMenuOpen(false)}>Get the app</Link>
           ) : null}
           <Link to="/settings" className="header-link" onClick={() => setMenuOpen(false)}>Settings</Link>
+          <Link to="/app/underwriting" className="header-link" onClick={() => setMenuOpen(false)}>Underwriting</Link>
           <Link to="/billing" className="header-link" onClick={() => setMenuOpen(false)}>Billing</Link>
           <button type="button" onClick={() => { logout(); setMenuOpen(false); }} className="header-link">Logout</button>
         </>
@@ -192,26 +192,19 @@ export default function Navigation({
           </button>
           <button
             type="button"
-            className={`tab-btn ${activeTab === 'saved-deals' ? 'active' : ''}`}
-            data-tour="my-deals-tab"
-            onClick={() => setActiveTab('saved-deals')}
-            title={isTeamMode && activeTeam ? `Saved deals for ${activeTeam.name}` : 'Your saved deals'}
-          >
-            <span>{isTeamMode && activeTeam ? `${activeTeam.name} Deals` : 'My Deals'}</span>
-            <span className="tab-badge">{myDealsCount}</span>
-          </button>
-          <button
-            type="button"
             className={`tab-btn ${activeTab === 'crm' ? 'active' : ''}`}
             data-tour="crm-tab"
             onClick={() => setActiveTab('crm')}
+            title={isTeamMode && activeTeam ? `${activeTeam.name} CRM` : 'Vettr CRM'}
           >
-            <span>CRM</span>
+            <span>{isTeamMode && activeTeam ? `${activeTeam.name} CRM` : 'Vettr CRM'}</span>
             {!isGuest ? (
               <span className={`tab-badge${crmBadgeCount > 0 ? ' tab-badge--alert' : ''}`}>
                 {crmBadgeCount > 0 ? crmBadgeCount : crmCount}
               </span>
-            ) : null}
+            ) : (
+              <span className="tab-badge">{crmCount}</span>
+            )}
           </button>
           {!compact && (
             <span className="app-header-version tab-navigation-version" title="App version">v{pkg.version}</span>

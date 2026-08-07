@@ -33,9 +33,9 @@ export const TOUR_STEPS = [
     placement: 'top',
   },
   {
-    target: 'my-deals-tab',
+    target: 'crm-tab',
     title: 'Save when you are ready',
-    body: 'Use **My Deals** to track saved listings after you create a free account. Broker contact unlocks with signup.',
+    body: 'Use **Vettr CRM** to track saved listings and your pipeline after you create a free account. Broker contact unlocks with signup.',
     placement: 'bottom',
   },
   {

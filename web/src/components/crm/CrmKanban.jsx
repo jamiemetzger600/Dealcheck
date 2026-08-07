@@ -13,7 +13,19 @@ import {
 } from '../../utils/pipelineStages';
 import { useTeam } from '../../context/TeamContext';
 
-function KanbanCard({ deal, summary, onSelect, dragging, isSelected, onDragStart, onDragEnd, draggable = true }) {
+function KanbanCard({
+  deal,
+  summary,
+  onSelect,
+  dragging,
+  isSelected,
+  onDragStart,
+  onDragEnd,
+  draggable = true,
+  dimmed = false,
+  highlighted = false,
+  nextAction = null
+}) {
   const days = daysInCurrentStage(deal);
   const coc = summary?.cocReturn;
   const cocOk = coc != null && Number.isFinite(coc);
@@ -33,7 +45,15 @@ function KanbanCard({ deal, summary, onSelect, dragging, isSelected, onDragStart
 
   return (
     <article
-      className={`crm-kanban-card${dragging ? ' crm-kanban-card--dragging' : ''}${isSelected ? ' crm-kanban-card--selected' : ''}${pending ? ' crm-kanban-card--pending' : ''}`}
+      className={[
+        'crm-kanban-card',
+        dragging ? 'crm-kanban-card--dragging' : '',
+        isSelected ? 'crm-kanban-card--selected' : '',
+        pending ? 'crm-kanban-card--pending' : '',
+        dimmed ? 'crm-kanban-card--dimmed' : '',
+        highlighted ? 'crm-kanban-card--highlighted' : '',
+        nextAction?.urgent ? 'crm-kanban-card--has-urgent' : ''
+      ].filter(Boolean).join(' ')}
       draggable={draggable}
       onDragStart={draggable ? onDragStart : undefined}
       onDragEnd={draggable ? onDragEnd : undefined}
@@ -51,6 +71,15 @@ function KanbanCard({ deal, summary, onSelect, dragging, isSelected, onDragStart
       {pending ? <span className="crm-kanban-card__pending">Pending approval</span> : null}
       {deal.unread_messages > 0 ? (
         <span className="crm-kanban-card__unread">{deal.unread_messages} new</span>
+      ) : null}
+      {nextAction ? (
+        <div
+          className={`crm-kanban-card__next${nextAction.urgent ? ' crm-kanban-card__next--urgent' : ''}`}
+          title={nextAction.title}
+        >
+          {nextAction.urgent ? 'Overdue: ' : 'Next: '}
+          {nextAction.title}
+        </div>
       ) : null}
       <div className="crm-kanban-card__meta">
         {deal.askingPrice != null ? <span>{formatMoney(deal.askingPrice)}</span> : null}
@@ -83,7 +112,11 @@ export default function CrmKanban({
   selectedDealId = null,
   onSelectDeal,
   onRefresh,
-  onStageChanged = null
+  onStageChanged = null,
+  onBlankUnderwriting = null,
+  highlightDealIds = null,
+  nextActionByDealId = null,
+  onAddDeal = null
 }) {
   const { activeTeamId, activeTeam, isTeamMode } = useTeam();
   const canWriteBoard = !isTeamMode || activeTeam?.role !== 'viewer';
@@ -202,6 +235,17 @@ export default function CrmKanban({
     }
   };
 
+  const filtering = highlightDealIds instanceof Set && highlightDealIds.size > 0;
+
+  // Must run before any early return (Rules of Hooks).
+  useEffect(() => {
+    if (!filtering) return;
+    const el = document.querySelector('.crm-kanban-card--highlighted');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [filtering, highlightDealIds]);
+
   if (loading && !kanban) {
     return <div className="crm-panel">Loading pipeline…</div>;
   }
@@ -222,10 +266,22 @@ export default function CrmKanban({
       <div className="crm-kanban-toolbar">
         <p className="crm-kanban-toolbar__hint">
           {canWriteBoard
-            ? 'Drag deals between columns to update pipeline stage. Changes are logged to the deal timeline.'
+            ? 'Drag deals between columns to update pipeline stage. Click a card to open the workspace.'
             : 'Viewer role — pipeline is read-only. Open a deal to use Talk.'}
         </p>
-        <span className="crm-kanban-count">{totalDeals} deals</span>
+        <div className="crm-kanban-toolbar__actions">
+          {typeof onAddDeal === 'function' ? (
+            <button type="button" className="btn-primary" onClick={onAddDeal}>
+              Add deal
+            </button>
+          ) : null}
+          {canWriteBoard && onBlankUnderwriting ? (
+            <button type="button" className="btn-secondary" onClick={onBlankUnderwriting}>
+              New blank underwriting
+            </button>
+          ) : null}
+          <span className="crm-kanban-count">{totalDeals} deals</span>
+        </div>
       </div>
 
       {totalDeals === 0 ? (
@@ -250,19 +306,33 @@ export default function CrmKanban({
                   <span className="crm-kanban-column__count">{col.deals.length}</span>
                 </header>
                 <div className="crm-kanban-column__body">
-                  {col.deals.map((deal) => (
-                    <KanbanCard
-                      key={deal.id}
-                      deal={deal}
-                      summary={summaryFor(deal)}
-                      dragging={dragDealId === deal.id}
-                      isSelected={selectedDealId === deal.id}
-                      onSelect={onSelectDeal}
-                      draggable={canWriteBoard}
-                      onDragStart={(e) => handleDragStart(e, deal.id)}
-                      onDragEnd={handleDragEnd}
-                    />
-                  ))}
+                  {col.deals.map((deal) => {
+                    const dealId = Number(deal.id);
+                    const highlighted = filtering && highlightDealIds.has(dealId);
+                    const dimmed = filtering && !highlighted;
+                    const nextAction =
+                      nextActionByDealId instanceof Map
+                        ? nextActionByDealId.get(dealId) || null
+                        : null;
+                    return (
+                      <KanbanCard
+                        key={deal.id}
+                        deal={deal}
+                        summary={summaryFor(deal)}
+                        dragging={dragDealId === deal.id}
+                        isSelected={
+                          selectedDealId != null && String(selectedDealId) === String(deal.id)
+                        }
+                        onSelect={onSelectDeal}
+                        draggable={canWriteBoard}
+                        onDragStart={(e) => handleDragStart(e, deal.id)}
+                        onDragEnd={handleDragEnd}
+                        dimmed={dimmed}
+                        highlighted={highlighted}
+                        nextAction={nextAction}
+                      />
+                    );
+                  })}
                 </div>
               </section>
             );

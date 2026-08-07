@@ -342,6 +342,7 @@ export default function DealAggregator({
   onMatchCountUpdate,
   onDealsStatsUpdate,
   onSaveDeal,
+  onOpenVettrCrm = null,
   onSettingsUpdate,
   onConfigureBuyBox,
   feedSource = 'airtable',
@@ -361,7 +362,7 @@ export default function DealAggregator({
 }) {
   const navigate = useNavigate();
   const { saveTeamId, activeTeam } = useTeam();
-  const saveTargetLabel = saveTeamId && activeTeam?.name ? activeTeam.name : 'My Deals';
+  const saveTargetLabel = saveTeamId && activeTeam?.name ? `${activeTeam.name} CRM` : 'Vettr CRM';
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const saveSettings = useCallback(
@@ -397,6 +398,7 @@ export default function DealAggregator({
   const [showExcludeSection, setShowExcludeSection] = useState(false);
   const [dealViewStyle, setDealViewStyle] = useState(settings?.dealViewStyle || 'table');
   const [customFlexibilityInput, setCustomFlexibilityInput] = useState('');
+  /** @type {[{ message: string, showCrmCta?: boolean } | null, Function]} */
   const [saveToast, setSaveToast] = useState(null);
   const [savingDealId, setSavingDealId] = useState(null);
   const [buyBoxSwitching, setBuyBoxSwitching] = useState(false);
@@ -844,13 +846,15 @@ export default function DealAggregator({
     const rowId = getSavedRowIdForMarketDeal(deal);
     if (rowId == null) {
       console.warn('[DealAggregator] No saved row id for market deal', deal?.id);
-      alert('Could not remove this listing from My Deals. Try refreshing the page.');
+      alert('Could not remove this listing from Vettr CRM. Try refreshing the page.');
       return;
     }
     setSavingDealId(deal.id);
     try {
       await dealsAPI.deleteDeal(rowId);
-      setSaveToast(saveTeamId ? `Removed from ${saveTargetLabel}` : 'Removed from My Deals');
+      setSaveToast({
+        message: saveTeamId ? `Removed from ${saveTargetLabel}` : 'Removed from Vettr CRM'
+      });
       onSaveDeal();
     } catch (error) {
       alert('Failed to remove deal: ' + error.message);
@@ -877,14 +881,14 @@ export default function DealAggregator({
     if (isDealInSavedList(deal, saveScopeDealIdSet)) {
       const alreadyMsg = saveTeamId
         ? `Already saved to ${saveTargetLabel}`
-        : 'Already saved to My Deals';
+        : 'Already saved to Vettr CRM';
       console.log('[DealAggregator] save skipped — already in workspace', {
         dealId: deal?.id,
         dbId: deal?.dbId,
         saveTeamId,
         toast: alreadyMsg
       });
-      setSaveToast(alreadyMsg);
+      setSaveToast({ message: alreadyMsg, showCrmCta: true });
       return;
     }
     const teamIdForSave = saveTeamId != null ? Number(saveTeamId) : null;
@@ -933,13 +937,13 @@ export default function DealAggregator({
       }
       const toastMsg = payloadTeamId
         ? `Saved to ${saveTargetLabel}`
-        : 'Deal saved to My Deals';
+        : 'Saved to Vettr CRM';
       console.log('[DealAggregator] save succeeded — setting toast', {
         toast: toastMsg,
         vettrId: data?.vettrId ?? data?.dealId,
         responseTeamId: data?.teamId ?? null
       });
-      setSaveToast(toastMsg);
+      setSaveToast({ message: toastMsg, showCrmCta: true });
       if (typeof onSaveDeal === 'function') {
         await onSaveDeal();
       }
@@ -957,7 +961,8 @@ export default function DealAggregator({
 
   useEffect(() => {
     if (!saveToast) return;
-    const t = setTimeout(() => setSaveToast(null), 3000);
+    const ms = saveToast.showCrmCta ? 6000 : 3000;
+    const t = setTimeout(() => setSaveToast(null), ms);
     return () => clearTimeout(t);
   }, [saveToast]);
 
@@ -1005,7 +1010,7 @@ export default function DealAggregator({
       visibleNotHidden.length > 0 &&
       visibleNotHidden.every((d) => isDealInSavedList(d, savedDealIdSet))
     ) {
-      return 'Every listing on this page is saved and hidden from the feed. Open My Deals, or turn off “Hide saved deals” in Settings.';
+      return 'Every listing on this page is saved and hidden from the feed. Open Vettr CRM, or turn off “Hide saved deals” in Settings.';
     }
     return 'All listings on this page are hidden. Open Hidden or use Show hidden to review them.';
   }, [deals, hiddenDealIds, showHiddenDeals, hideSavedDealsInFeed, savedDealIdSet]);
@@ -1999,7 +2004,7 @@ export default function DealAggregator({
                               : 'btn-save'
                           }
                           disabled={savingDealId === deal.id}
-                          title={dealSaved ? 'Click to remove from My Deals' : 'Save to My Deals'}
+                          title={dealSaved ? `Click to remove from ${saveTargetLabel}` : `Save to ${saveTargetLabel}`}
                         >
                           {dealSaved
                             ? savingDealId === deal.id
@@ -2082,8 +2087,8 @@ export default function DealAggregator({
                             className={`deal-card__btn deal-card__btn-save${dealSaved ? (showSavedHighlightInFeed ? ' deal-card__btn-save--saved' : ' deal-card__btn-save--saved-muted') : ''}`}
                             onClick={(e) => { e.stopPropagation(); handleToggleSaveDeal(deal); }}
                             disabled={savingDealId === deal.id}
-                            title={dealSaved ? 'Click to remove from My Deals' : 'Save to My Deals'}
-                            aria-label={dealSaved ? 'Saved — click to remove from My Deals' : 'Save to My Deals'}
+                            title={dealSaved ? `Click to remove from ${saveTargetLabel}` : `Save to ${saveTargetLabel}`}
+                            aria-label={dealSaved ? `Saved — click to remove from ${saveTargetLabel}` : `Save to ${saveTargetLabel}`}
                           >
                             {dealSaved ? 'Saved' : 'Save'}
                           </button>
@@ -2186,8 +2191,8 @@ export default function DealAggregator({
         onUnsaveDeal={handleUnsaveDeal}
         isSavingDeal={savingDealId != null && selectedDeal?.id === savingDealId}
         dealSavedInMyDeals={selectedDeal ? isDealInSavedList(selectedDeal, saveScopeDealIdSet) : false}
-        saveButtonLabel={saveTeamId ? `Save to ${saveTargetLabel}` : 'Save to My Deals'}
-        unsaveButtonTitle={saveTeamId ? `Remove from ${saveTargetLabel}` : 'Click to remove from My Deals'}
+        saveButtonLabel={`Save to ${saveTargetLabel}`}
+        unsaveButtonTitle={`Click to remove from ${saveTargetLabel}`}
         savedHighlightStyle={showSavedHighlightInFeed}
         onPositionChange={handleDealPanelPositionChange}
         settings={settings}
@@ -2198,8 +2203,20 @@ export default function DealAggregator({
         requireSignup={requireSignup}
       />
       {saveToast && createPortal(
-        <div className="save-toast" role="status" aria-live="polite">
-          {saveToast}
+        <div className="save-toast save-toast--with-action" role="status" aria-live="polite">
+          <span>{saveToast.message}</span>
+          {saveToast.showCrmCta && typeof onOpenVettrCrm === 'function' ? (
+            <button
+              type="button"
+              className="save-toast__cta"
+              onClick={() => {
+                setSaveToast(null);
+                onOpenVettrCrm();
+              }}
+            >
+              Open Vettr CRM
+            </button>
+          ) : null}
         </div>,
         document.body
       )}

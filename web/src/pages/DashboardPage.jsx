@@ -5,7 +5,6 @@ import { useTeam } from '../context/TeamContext';
 import { userAPI, dealsAPI, paymentsAPI, crmAPI } from '../utils/api';
 import { normalizeDeal } from '../utils/normalizeDeal';
 import DealAggregator from '../components/DealAggregator';
-import SavedDeals from '../components/SavedDeals';
 import CrmDashboard from '../components/crm/CrmDashboard';
 import TalkAlertBanner from '../components/crm/TalkAlertBanner';
 import Navigation from '../components/Navigation';
@@ -68,7 +67,10 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window === 'undefined') return 'aggregator';
     const params = new URLSearchParams(window.location.search);
-    return params.get('tab') === 'crm' || params.get('crmDeal') ? 'crm' : 'aggregator';
+    const tab = params.get('tab');
+    // Legacy My Deals tab → Vettr CRM
+    if (tab === 'saved-deals' || tab === 'crm' || params.get('crmDeal')) return 'crm';
+    return 'aggregator';
   });
   const [guestTourBlocking, setGuestTourBlocking] = useState(() => {
     if (!isGuest) return false;
@@ -90,7 +92,12 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const [crmInitialFocusSection, setCrmInitialFocusSection] = useState(
     () => sectionParam || null
   );
-  const [crmInitialViewOverride, setCrmInitialViewOverride] = useState(null);
+  const [crmInitialViewOverride, setCrmInitialViewOverride] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'saved-deals') return 'list';
+    return null;
+  });
   const [matchCount, setMatchCount] = useState(0);
   const [totalDeals, setTotalDeals] = useState(0);
   const [newTodayCount, setNewTodayCount] = useState(0);
@@ -216,15 +223,21 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     };
   }, [authLoading, isGuest]);
 
-  /** Deep link: /dashboard?tab=crm&crmDeal=123&section=crm-talk */
+  /** Deep link: /dashboard?tab=crm&crmDeal=123&section=crm-talk (also legacy tab=saved-deals) */
   useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'saved-deals') {
+      console.log('[Dashboard] redirecting legacy My Deals tab → Vettr CRM list');
+      setActiveTab('crm');
+      setCrmInitialViewOverride((prev) => prev || 'list');
+    }
     const n = Number(crmDealParam);
     if (!Number.isFinite(n) || n <= 0) return;
     setActiveTab('crm');
     setCrmInitialDealId(n);
     setCrmInitialFocusSection(sectionParam || 'crm-talk');
     console.log('[Dashboard] deep link CRM deal', n, 'section', sectionParam);
-  }, [crmDealParam, sectionParam]);
+  }, [crmDealParam, sectionParam, searchParams]);
 
   /** Team workspace change: refresh My Deals / CRM list silently; market feed stays mounted. */
   useEffect(() => {
@@ -393,11 +406,25 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   }, [settings?.activeBuyBoxIndex, settings?.preferences?.activeBuyBoxIndex]);
 
   const handleTabChange = (tab) => {
-    if (isGuest && tab === 'saved-deals') {
+    if (tab === 'saved-deals') {
+      console.log('[Dashboard] saved-deals tab remapped to Vettr CRM');
+      if (isGuest) logGuestEvent('guest_my_deals_tab');
+      setActiveTab('crm');
+      setCrmInitialViewOverride('list');
+      return;
+    }
+    if (isGuest && tab === 'crm') {
       logGuestEvent('guest_my_deals_tab');
     }
     setActiveTab(tab);
   };
+
+  const openVettrCrm = useCallback((opts = {}) => {
+    setActiveTab('crm');
+    if (opts.view) setCrmInitialViewOverride(opts.view);
+    if (opts.dealId != null) setCrmInitialDealId(opts.dealId);
+    if (opts.focusSection) setCrmInitialFocusSection(opts.focusSection);
+  }, []);
 
   if (loading || authLoading) {
     return (
@@ -439,7 +466,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         activeTab={activeTab}
         setActiveTab={handleTabChange}
         aggregatorCount={totalDeals}
-        myDealsCount={savedDeals.length}
         crmCount={savedDeals.length}
         crmBadgeCount={crmBadgeCount}
         compact={mobileDeckActive && isMobile && activeTab === 'aggregator'}
@@ -464,6 +490,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onMatchCountUpdate={handleMatchCountUpdate}
             onDealsStatsUpdate={handleDealsStatsUpdate}
             onSaveDeal={loadUserData}
+            onOpenVettrCrm={() => openVettrCrm({ view: 'home' })}
             onSettingsUpdate={loadUserData}
             onConfigureBuyBox={() => {
               setBuyBoxModalMode('edit');
@@ -486,31 +513,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
           </div>
         )}
 
-        {activeTab === 'saved-deals' && isGuest && (
-          <div className="dashboard-tab-pane dashboard-tab-pane--active">
-          <GuestMyDealsEmpty
-            onRequireSignup={requireSignup}
-            onBackToAggregator={() => setActiveTab('aggregator')}
-          />
-          </div>
-        )}
-
-        {activeTab === 'saved-deals' && !isGuest && (
-          <div className="dashboard-tab-pane dashboard-tab-pane--active">
-          <SavedDeals
-            deals={savedDeals}
-            settings={settings}
-            onUpdate={loadUserData}
-            onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
-            onAddDeal={() => setShowManualDealModal(true)}
-            onOpenInCrm={(dealId) => {
-              setCrmInitialDealId(dealId);
-              setActiveTab('crm');
-            }}
-          />
-          </div>
-        )}
-
         {activeTab === 'crm' && isGuest && (
           <div className="dashboard-tab-pane dashboard-tab-pane--active">
           <GuestMyDealsEmpty
@@ -528,6 +530,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onRefresh={loadUserData}
             onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
             onTodayLoaded={setCrmBadgeCount}
+            onAddDeal={() => setShowManualDealModal(true)}
             initialDealId={crmInitialDealId}
             initialCrmView={crmInitialViewOverride || initialCrmView}
             initialFocusSection={crmInitialFocusSection}
@@ -590,7 +593,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onClose={() => setShowManualDealModal(false)}
             onSaved={async () => {
               await loadUserData();
-              setActiveTab('saved-deals');
+              openVettrCrm({ view: 'list' });
             }}
           />
           <QuickDealCalculatorModal
@@ -600,7 +603,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
             onDealSaved={async () => {
               await loadUserData();
-              setActiveTab('saved-deals');
+              openVettrCrm({ view: 'list' });
             }}
           />
         </>

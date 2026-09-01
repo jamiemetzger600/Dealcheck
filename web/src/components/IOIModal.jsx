@@ -2,6 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { crmAPI, userAPI } from '../utils/api';
 import { generateIOIText, generateIOISubject, getBrokerEmailFromDeal } from '../utils/ioiGenerator';
+import { loadIoiDraft, saveIoiDraft } from '../utils/ioiDraftStorage';
+
+const DEFAULT_TIMELINE = '30-45 days from accepted offer';
+
+function initialSelected(scenarios, activeScenario, draft) {
+  const fromDraft = Array.isArray(draft?.selectedIndices)
+    ? draft.selectedIndices.filter((idx) => scenarios[idx])
+    : [];
+  if (fromDraft.length) return new Set(fromDraft);
+  const init = new Set();
+  if (scenarios[activeScenario]) init.add(activeScenario);
+  return init;
+}
 
 /** Copy plain text for paste into email; uses Clipboard API with a focused textarea fallback. */
 async function copyTextToClipboard(text) {
@@ -47,21 +60,28 @@ export default function IOIModal({
   onIOISent = null,
   onIOIPrefsSaved = null
 }) {
-  /** Saved to account: signature + buyer company only. Broker email is per listing/deal and is never stored in preferences. */
+  /** Account: signature, company, default timeline. Per listing: broker email, notes, scenarios, preview edits. */
   const prefs = settings?.preferences || {};
-  const [selected, setSelected] = useState(() => {
-    const init = new Set();
-    if (scenarios[activeScenario]) init.add(activeScenario);
-    return init;
-  });
-  const [timeline, setTimeline] = useState('30-45 days from accepted offer');
-  const [closingNotes, setClosingNotes] = useState('');
+  const dealKey = deal?.id ?? deal?.dbId ?? null;
+  const draft = useMemo(() => loadIoiDraft(dealKey), [dealKey]);
+  const [selected, setSelected] = useState(() => initialSelected(scenarios, activeScenario, draft));
+  const [timeline, setTimeline] = useState(
+    () => draft?.timeline || prefs.ioiTimeline || DEFAULT_TIMELINE
+  );
+  const [closingNotes, setClosingNotes] = useState(() => draft?.closingNotes || '');
   const [signature, setSignature] = useState(() => prefs.ioiSignature || '');
   const [companyName, setCompanyName] = useState(() => prefs.ioiCompanyName || '');
   const parsedBrokerEmail = useMemo(() => getBrokerEmailFromDeal(deal), [deal]);
-  const [brokerEmail, setBrokerEmail] = useState(() => parsedBrokerEmail);
-  const brokerEmailTouchedRef = useRef(false);
-  const [previewText, setPreviewText] = useState('');
+  const [brokerEmail, setBrokerEmail] = useState(
+    () => draft?.brokerEmail || parsedBrokerEmail || ''
+  );
+  const brokerEmailTouchedRef = useRef(Boolean(draft?.brokerEmail));
+  const [previewText, setPreviewText] = useState(() => (
+    draft?.previewEdited && draft?.previewText ? draft.previewText : ''
+  ));
+  const skipGeneratedPreviewRef = useRef(Boolean(draft?.previewEdited && draft?.previewText));
+  const previewEditedRef = useRef(Boolean(draft?.previewEdited && draft?.previewText));
+  const accountHydratedRef = useRef(Boolean(prefs.ioiSignature || prefs.ioiCompanyName || prefs.ioiTimeline));
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(false);
   const [gmailStatus, setGmailStatus] = useState(null);
@@ -82,11 +102,20 @@ export default function IOIModal({
     return () => { cancelled = true; };
   }, []);
 
-  /** Autofill when listing data arrives (e.g. full detail fetch); do not clobber manual edits. */
+  /** Autofill listing broker email unless the user (or a saved draft) already set one. */
   useEffect(() => {
     if (brokerEmailTouchedRef.current || !parsedBrokerEmail) return;
     setBrokerEmail(parsedBrokerEmail);
   }, [parsedBrokerEmail]);
+
+  useEffect(() => {
+    if (accountHydratedRef.current) return;
+    if (!prefs.ioiSignature && !prefs.ioiCompanyName && !prefs.ioiTimeline) return;
+    accountHydratedRef.current = true;
+    if (prefs.ioiSignature) setSignature((s) => s || prefs.ioiSignature);
+    if (prefs.ioiCompanyName) setCompanyName((c) => c || prefs.ioiCompanyName);
+    if (prefs.ioiTimeline && !draft?.timeline) setTimeline((t) => (t === DEFAULT_TIMELINE ? prefs.ioiTimeline : t));
+  }, [prefs.ioiSignature, prefs.ioiCompanyName, prefs.ioiTimeline, draft?.timeline]);
 
   const selectedIndices = useMemo(
     () => Array.from(selected).sort((a, b) => a - b),
@@ -102,49 +131,89 @@ export default function IOIModal({
     });
   }, []);
 
-  const latestSigCo = useRef({ signature: '', companyName: '' });
-  latestSigCo.current = { signature, companyName };
+  const latestDraftRef = useRef({});
+  latestDraftRef.current = {
+    signature,
+    companyName,
+    timeline,
+    closingNotes,
+    brokerEmail,
+    selectedIndices,
+    previewText
+  };
   const debounceSaveRef = useRef(null);
   const skipDebouncedSaveRef = useRef(true);
 
-  const saveSignatureAndCompany = useCallback(async () => {
-    const { signature: s, companyName: c } = latestSigCo.current;
+  const persistIoiInputs = useCallback(async () => {
+    const cur = latestDraftRef.current;
+    const generated = cur.selectedIndices.length
+      ? generateIOIText({
+          deal,
+          scenarios,
+          selectedIndices: cur.selectedIndices,
+          qualityPrefs,
+          timeline: cur.timeline,
+          closingNotes: cur.closingNotes,
+          signature: cur.signature,
+          companyName: cur.companyName
+        })
+      : '';
+    const previewEdited = Boolean(cur.previewText) && cur.previewText !== generated;
+    previewEditedRef.current = previewEdited;
+
+    saveIoiDraft(dealKey, {
+      brokerEmail: String(cur.brokerEmail || '').trim(),
+      closingNotes: cur.closingNotes || '',
+      timeline: cur.timeline || DEFAULT_TIMELINE,
+      selectedIndices: cur.selectedIndices,
+      previewText: cur.previewText || '',
+      previewEdited,
+      savedAt: new Date().toISOString()
+    });
+    console.log('[IOI] saved inputs', {
+      dealKey,
+      previewEdited,
+      hasBroker: Boolean(String(cur.brokerEmail || '').trim()),
+      scenarios: cur.selectedIndices.length
+    });
+
     try {
       await userAPI.updateSettings({
         preferences: {
-          ioiSignature: s.trim(),
-          ioiCompanyName: c.trim()
+          ioiSignature: String(cur.signature || '').trim(),
+          ioiCompanyName: String(cur.companyName || '').trim(),
+          ioiTimeline: String(cur.timeline || '').trim() || DEFAULT_TIMELINE
         }
       });
       onIOIPrefsSaved?.();
     } catch (e) {
-      console.error('[IOI] Failed to save signature / company preferences', e);
+      console.error('[IOI] Failed to save account IOI preferences', e);
     }
-  }, [onIOIPrefsSaved]);
+  }, [deal, dealKey, onIOIPrefsSaved, qualityPrefs, scenarios]);
 
-  const scheduleSaveSignatureAndCompany = useCallback(() => {
+  const schedulePersist = useCallback(() => {
     if (debounceSaveRef.current) clearTimeout(debounceSaveRef.current);
     debounceSaveRef.current = setTimeout(() => {
       debounceSaveRef.current = null;
-      void saveSignatureAndCompany();
+      void persistIoiInputs();
     }, 450);
-  }, [saveSignatureAndCompany]);
+  }, [persistIoiInputs]);
 
-  const saveSignatureAndCompanyNow = useCallback(async () => {
+  const persistIoiInputsNow = useCallback(async () => {
     if (debounceSaveRef.current) {
       clearTimeout(debounceSaveRef.current);
       debounceSaveRef.current = null;
     }
-    await saveSignatureAndCompany();
-  }, [saveSignatureAndCompany]);
+    await persistIoiInputs();
+  }, [persistIoiInputs]);
 
   useEffect(() => {
     if (skipDebouncedSaveRef.current) {
       skipDebouncedSaveRef.current = false;
       return;
     }
-    scheduleSaveSignatureAndCompany();
-  }, [signature, companyName, scheduleSaveSignatureAndCompany]);
+    schedulePersist();
+  }, [signature, companyName, timeline, closingNotes, brokerEmail, selectedIndices, previewText, schedulePersist]);
 
   const onIOIPrefsSavedRef = useRef(onIOIPrefsSaved);
   onIOIPrefsSavedRef.current = onIOIPrefsSaved;
@@ -155,15 +224,28 @@ export default function IOIModal({
         clearTimeout(debounceSaveRef.current);
         debounceSaveRef.current = null;
       }
-      const { signature: s, companyName: c } = latestSigCo.current;
+      const cur = latestDraftRef.current;
+      saveIoiDraft(dealKey, {
+        brokerEmail: String(cur.brokerEmail || '').trim(),
+        closingNotes: cur.closingNotes || '',
+        timeline: cur.timeline || DEFAULT_TIMELINE,
+        selectedIndices: cur.selectedIndices || [],
+        previewText: cur.previewText || '',
+        previewEdited: previewEditedRef.current,
+        savedAt: new Date().toISOString()
+      });
       void userAPI
         .updateSettings({
-          preferences: { ioiSignature: s.trim(), ioiCompanyName: c.trim() }
+          preferences: {
+            ioiSignature: String(cur.signature || '').trim(),
+            ioiCompanyName: String(cur.companyName || '').trim(),
+            ioiTimeline: String(cur.timeline || '').trim() || DEFAULT_TIMELINE
+          }
         })
         .then(() => onIOIPrefsSavedRef.current?.())
-        .catch((e) => console.error('[IOI] Failed to flush signature / company on close', e));
+        .catch((e) => console.error('[IOI] Failed to flush IOI inputs on close', e));
     };
-  }, []);
+  }, [dealKey]);
 
   const generatedText = useMemo(() => {
     if (selectedIndices.length === 0) return '';
@@ -180,6 +262,11 @@ export default function IOIModal({
   }, [deal, scenarios, selectedIndices, qualityPrefs, timeline, closingNotes, signature, companyName]);
 
   useEffect(() => {
+    if (skipGeneratedPreviewRef.current) {
+      skipGeneratedPreviewRef.current = false;
+      return;
+    }
+    previewEditedRef.current = false;
     setPreviewText(generatedText);
   }, [generatedText]);
 
@@ -234,7 +321,7 @@ export default function IOIModal({
   }, []);
 
   const handleSendEmail = async () => {
-    await saveSignatureAndCompanyNow();
+    await persistIoiInputsNow();
     const subject = generateIOISubject(deal);
     const to = brokerEmail.trim();
     openGmailCompose(to, subject, previewText);
@@ -243,7 +330,7 @@ export default function IOIModal({
   };
 
   const handleSendMailApp = useCallback(async () => {
-    await saveSignatureAndCompanyNow();
+    await persistIoiInputsNow();
     const subject = encodeURIComponent(generateIOISubject(deal));
     const body = encodeURIComponent(previewText);
     const to = brokerEmail.trim();
@@ -253,7 +340,7 @@ export default function IOIModal({
     openMailtoViaAnchor(href);
     setSent(true);
     recordIOI(previewText);
-  }, [brokerEmail, deal, openMailtoViaAnchor, previewText, recordIOI, saveSignatureAndCompanyNow]);
+  }, [brokerEmail, deal, openMailtoViaAnchor, previewText, recordIOI, persistIoiInputsNow]);
 
   const handleCopy = () => {
     const text = previewText.trim();
@@ -271,7 +358,7 @@ export default function IOIModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
       recordIOI(previewText);
-      void saveSignatureAndCompanyNow();
+      void persistIoiInputsNow();
     });
   };
 
@@ -283,7 +370,7 @@ export default function IOIModal({
     if (!canSendGmail) return;
     setGmailError(null);
     setSendingGmail(true);
-    await saveSignatureAndCompanyNow();
+    await persistIoiInputsNow();
     try {
       await crmAPI.sendGmail({
         to: brokerEmail.trim(),
@@ -341,9 +428,10 @@ export default function IOIModal({
                 brokerEmailTouchedRef.current = true;
                 setBrokerEmail(e.target.value);
               }}
+              onBlur={persistIoiInputsNow}
               placeholder="broker@example.com"
             />
-            <p className="ioi-hint">From this listing only — not saved to your account. Required to send from Gmail.</p>
+            <p className="ioi-hint">Saved for this listing. Required to send from Gmail.</p>
           </div>
 
           {/* Buyer company + signature (saved for next time) */}
@@ -355,7 +443,7 @@ export default function IOIModal({
               className="ioi-input"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              onBlur={saveSignatureAndCompanyNow}
+              onBlur={persistIoiInputsNow}
               placeholder="e.g. Acme Acquisitions LLC"
             />
             <p className="ioi-hint">Shown in the email closing. Saved to your account and reused on every IOI.</p>
@@ -370,6 +458,7 @@ export default function IOIModal({
                 className="ioi-input"
                 value={timeline}
                 onChange={(e) => setTimeline(e.target.value)}
+                onBlur={persistIoiInputsNow}
               />
             </div>
             <div className="ioi-section ioi-section-half">
@@ -380,12 +469,12 @@ export default function IOIModal({
                 className="ioi-input"
                 value={signature}
                 onChange={(e) => setSignature(e.target.value)}
-                onBlur={saveSignatureAndCompanyNow}
+                onBlur={persistIoiInputsNow}
                 placeholder="Your Name"
               />
             </div>
           </div>
-          <p className="ioi-hint ioi-hint-inline">Signature is saved to your account and reused on every IOI.</p>
+          <p className="ioi-hint ioi-hint-inline">Signature and close timeline are saved to your account and reused on every IOI.</p>
 
           <div className="ioi-section">
             <label className="ioi-section-label" htmlFor="ioi-closing">Closing Notes (optional)</label>
@@ -395,6 +484,7 @@ export default function IOIModal({
               rows={2}
               value={closingNotes}
               onChange={(e) => setClosingNotes(e.target.value)}
+              onBlur={persistIoiInputsNow}
               placeholder="Any additional notes for the broker..."
             />
           </div>
@@ -409,9 +499,12 @@ export default function IOIModal({
               className="ioi-preview"
               rows={16}
               value={previewText}
-              onChange={(e) => setPreviewText(e.target.value)}
+              onChange={(e) => {
+                previewEditedRef.current = true;
+                setPreviewText(e.target.value);
+              }}
             />
-            <p className="ioi-hint">You can edit the text above before sending.</p>
+            <p className="ioi-hint">Edits here are saved for this listing. Changing scenarios, timeline, or notes regenerates the draft.</p>
           </div>
         </div>
 

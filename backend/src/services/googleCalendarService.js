@@ -5,8 +5,10 @@ const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 const OAUTH_STATE_PURPOSE = 'google_calendar_oauth';
+export const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
+  GMAIL_SEND_SCOPE,
   'openid',
   'email'
 ].join(' ');
@@ -31,9 +33,10 @@ export function getGoogleCalendarRedirectUri() {
   return `${base}/api/crm/calendar/oauth/callback`;
 }
 
-function createOAuthState(userId) {
+function createOAuthState(userId, returnTo = 'calendar') {
+  const dest = returnTo === 'settings' ? 'settings' : 'calendar';
   return jwt.sign(
-    { userId, purpose: OAUTH_STATE_PURPOSE },
+    { userId, purpose: OAUTH_STATE_PURPOSE, returnTo: dest },
     process.env.JWT_SECRET,
     { expiresIn: '15m' }
   );
@@ -46,13 +49,16 @@ export function verifyOAuthState(state) {
     err.status = 400;
     throw err;
   }
-  return decoded.userId;
+  return {
+    userId: decoded.userId,
+    returnTo: decoded.returnTo === 'settings' ? 'settings' : 'calendar'
+  };
 }
 
-export function getGoogleCalendarAuthUrl(userId) {
+export function getGoogleCalendarAuthUrl(userId, returnTo = 'calendar') {
   if (!isGoogleCalendarOAuthConfigured()) {
     const err = new Error(
-      'Google Calendar OAuth is not configured. Set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET on the API server.'
+      'Google OAuth is not configured. Set GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET on the API server.'
     );
     err.status = 503;
     throw err;
@@ -65,7 +71,8 @@ export function getGoogleCalendarAuthUrl(userId) {
     scope: SCOPES,
     access_type: 'offline',
     prompt: 'consent',
-    state: createOAuthState(userId)
+    include_granted_scopes: 'true',
+    state: createOAuthState(userId, returnTo)
   });
 
   return `${GOOGLE_AUTH_URL}?${params.toString()}`;
@@ -79,8 +86,30 @@ async function getConnection(userId) {
   return result.rows[0] || null;
 }
 
+export async function getGoogleConnection(userId) {
+  return getConnection(userId);
+}
+
 export async function isGoogleCalendarConnected(userId) {
   return Boolean(await getConnection(userId));
+}
+
+export function connectionHasGmailSend(connection) {
+  const scopes = String(connection?.granted_scopes || '');
+  return scopes.includes('gmail.send');
+}
+
+async function fetchGoogleEmail(accessToken) {
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const data = await res.json().catch(() => ({}));
+    return data.email || null;
+  } catch (err) {
+    console.warn('[google] userinfo failed', err.message);
+    return null;
+  }
 }
 
 async function refreshAccessToken(connection) {
@@ -252,23 +281,36 @@ export async function exchangeCodeAndStoreTokens(userId, code) {
     ? new Date(Date.now() + Number(data.expires_in) * 1000).toISOString()
     : null;
 
+  const googleEmail = await fetchGoogleEmail(data.access_token);
+  const grantedScopes = data.scope || SCOPES;
+
   await pool.query(
     `INSERT INTO calendar_connections (
-       user_id, provider, access_token, refresh_token, token_expires_at, calendar_id, connected_at
+       user_id, provider, access_token, refresh_token, token_expires_at, calendar_id, connected_at,
+       google_email, granted_scopes
      )
-     VALUES ($1, 'google', $2, $3, $4, 'primary', NOW())
+     VALUES ($1, 'google', $2, $3, $4, 'primary', NOW(), $5, $6)
      ON CONFLICT (user_id) DO UPDATE SET
        provider = 'google',
        access_token = EXCLUDED.access_token,
        refresh_token = COALESCE(EXCLUDED.refresh_token, calendar_connections.refresh_token),
        token_expires_at = EXCLUDED.token_expires_at,
        calendar_id = 'primary',
-       connected_at = NOW()`,
-    [userId, data.access_token, data.refresh_token || null, tokenExpiresAt]
+       connected_at = NOW(),
+       google_email = COALESCE(EXCLUDED.google_email, calendar_connections.google_email),
+       granted_scopes = EXCLUDED.granted_scopes`,
+    [
+      userId,
+      data.access_token,
+      data.refresh_token || null,
+      tokenExpiresAt,
+      googleEmail,
+      grantedScopes
+    ]
   );
 
-  console.log(`[googleCalendar] OAuth connected user=${userId}`);
-  return { connected: true, provider: 'google' };
+  console.log(`[google] OAuth connected user=${userId} email=${googleEmail || 'unknown'} gmail=${String(grantedScopes).includes('gmail.send')}`);
+  return { connected: true, provider: 'google', googleEmail, gmail: String(grantedScopes).includes('gmail.send') };
 }
 
 export async function disconnectGoogleCalendar(userId) {

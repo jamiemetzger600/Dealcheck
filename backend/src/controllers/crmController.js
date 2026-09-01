@@ -20,8 +20,11 @@ import {
   verifyOAuthState,
   exchangeCodeAndStoreTokens,
   disconnectGoogleCalendar,
-  getGoogleCalendarRedirectUri
+  getGoogleCalendarRedirectUri,
+  connectionHasGmailSend
 } from '../services/googleCalendarService.js';
+import { sendGmailMessage } from '../services/googleGmailService.js';
+import { isSmtpConfigured } from '../services/emailService.js';
 import {
   listCalendarEvents,
   createCalendarEvent,
@@ -238,7 +241,6 @@ export const getCrmToday = async (req, res) => {
       console.warn('[crm] findDormantDeals skipped:', err.message);
       return [];
     });
-
     const recentActivities = await pool.query(
       `SELECT a.id, a.saved_deal_id, a.activity_type, a.body, a.occurred_at, a.metadata,
               sd.name AS deal_name, u.email AS actor_email
@@ -584,15 +586,21 @@ export const getCalendarOAuthConfig = async (req, res) => {
 export const getCalendarStatus = async (req, res) => {
   try {
     const row = await pool.query(
-      'SELECT provider, calendar_id, connected_at FROM calendar_connections WHERE user_id = $1',
+      `SELECT provider, calendar_id, connected_at, google_email, granted_scopes
+       FROM calendar_connections WHERE user_id = $1`,
       [req.user.userId]
     );
+    const connection = row.rows[0] || null;
     res.json({
-      connected: row.rows.length > 0,
-      provider: row.rows[0]?.provider || null,
-      connectedAt: row.rows[0]?.connected_at || null,
+      connected: Boolean(connection),
+      provider: connection?.provider || null,
+      connectedAt: connection?.connected_at || null,
+      googleEmail: connection?.google_email || null,
+      gmail: connectionHasGmailSend(connection),
+      calendar: Boolean(connection),
       oauthConfigured: isGoogleCalendarOAuthConfigured(),
-      redirectUri: isGoogleCalendarOAuthConfigured() ? getGoogleCalendarRedirectUri() : null
+      redirectUri: getGoogleCalendarRedirectUri(),
+      smtpConfigured: isSmtpConfigured()
     });
   } catch (error) {
     console.error('[crm] getCalendarStatus error:', error);
@@ -602,7 +610,8 @@ export const getCalendarStatus = async (req, res) => {
 
 export const getCalendarOAuthUrl = async (req, res) => {
   try {
-    const url = getGoogleCalendarAuthUrl(req.user.userId);
+    const returnTo = req.query.returnTo === 'settings' ? 'settings' : 'calendar';
+    const url = getGoogleCalendarAuthUrl(req.user.userId, returnTo);
     res.json({ url });
   } catch (error) {
     if (error.status === 503) return res.status(503).json({ error: error.message });
@@ -612,24 +621,44 @@ export const getCalendarOAuthUrl = async (req, res) => {
 };
 
 export const googleCalendarOAuthCallback = async (req, res) => {
-  const webBase = (process.env.WEB_APP_URL || 'http://localhost:5173')
+  const webBase = (
+    process.env.NODE_ENV !== 'production'
+      ? (process.env.WEB_APP_URL_LOCAL || 'http://localhost:5173')
+      : (process.env.WEB_APP_URL || 'http://localhost:5173')
+  )
     .split(',')[0]
     .trim()
     .replace(/\/+$/, '');
-  const redirectWith = (params) => {
+
+  const peekReturnTo = (state) => {
+    try {
+      return verifyOAuthState(String(state)).returnTo;
+    } catch {
+      return 'calendar';
+    }
+  };
+
+  const redirectWith = (params, dest = 'calendar') => {
+    if (dest === 'settings') {
+      const qs = new URLSearchParams();
+      qs.set('google', params.calendar === 'connected' ? 'connected' : 'error');
+      if (params.message) qs.set('message', params.message);
+      return res.redirect(`${webBase}/settings?${qs.toString()}`);
+    }
     const qs = new URLSearchParams(params);
-    res.redirect(`${webBase}/dashboard?${qs.toString()}`);
+    return res.redirect(`${webBase}/dashboard?${qs.toString()}`);
   };
 
   try {
     const { code, state, error: oauthError } = req.query;
+    const dest = state ? peekReturnTo(state) : 'calendar';
     if (oauthError) {
       return redirectWith({
         tab: 'crm',
         crmSubview: 'calendar',
         calendar: 'error',
         message: String(oauthError)
-      });
+      }, dest);
     }
     if (!code || !state) {
       return redirectWith({
@@ -637,20 +666,42 @@ export const googleCalendarOAuthCallback = async (req, res) => {
         crmSubview: 'calendar',
         calendar: 'error',
         message: 'Missing authorization code'
-      });
+      }, dest);
     }
 
-    const userId = verifyOAuthState(String(state));
+    const { userId } = verifyOAuthState(String(state));
     await exchangeCodeAndStoreTokens(userId, String(code));
-    return redirectWith({ tab: 'crm', crmSubview: 'calendar', calendar: 'connected' });
+    return redirectWith({ tab: 'crm', crmSubview: 'calendar', calendar: 'connected' }, dest);
   } catch (error) {
     console.error('[crm] googleCalendarOAuthCallback error:', error);
+    const dest = req.query.state ? peekReturnTo(req.query.state) : 'calendar';
     return redirectWith({
       tab: 'crm',
       crmSubview: 'calendar',
       calendar: 'error',
       message: error.message || 'OAuth failed'
+    }, dest);
+  }
+};
+
+export const postGmailSend = async (req, res) => {
+  try {
+    const { to, subject, text } = req.body || {};
+    if (!subject || !String(text || '').trim()) {
+      return res.status(400).json({ error: 'subject and text are required' });
+    }
+    const result = await sendGmailMessage(req.user.userId, {
+      to,
+      subject,
+      text
     });
+    res.json(result);
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message, code: error.code });
+    }
+    console.error('[crm] postGmailSend error:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 };
 

@@ -1,5 +1,16 @@
 # Vettr - Product Roadmap
 
+## Google Workspace integrations
+
+### Now (v5.0)
+- **Gmail send + Google Calendar** — one Connect in Settings (and CRM Calendar). Quick IOI can send from the connected Gmail account. CRM reminders/digest use Gmail when connected, otherwise SMTP.
+
+### Planned
+- **Google Sheets** — export saved deals / underwriting models to a Sheet; optional two-way sync of pipeline columns.
+- **Google Docs** — generate IOI / CIM review notes as a Doc; attach Docs to a CRM deal.
+
+---
+
 ## Version 1.5.0 - Target Offer Price Calculator (Planned)
 
 ### Feature: Reverse Calculator - "What Should I Offer?"
@@ -141,6 +152,8 @@ As a buyer, I want to know what offer price I should make to achieve my target 2
 (Add new ideas here)
 
 - Target Offer Price Calculator (v1.5.0)
+- **Google Sheets** — export / sync deals and underwriting to Sheets
+- **Google Docs** — generate IOI and deal notes as Docs
 - **Vettr web — Re-enable Target Industries in Buy Box modal** (`web/src/components/BuyBoxModal.jsx`): checkboxes were hidden (Apr 2026); flip `SHOW_TARGET_INDUSTRIES_IN_BUYBOX` to `true` when ready to surface industry filtering in the UI again (ensure server-side buy-box / `market_deals` industry alignment first).
 - **Remove cold-start splash screen** (temporary): Once Koyeb is on a paid (always-on) plan, remove the `/health` wake-up loop in AuthContext, the `wakingUp` state, the splash in App.jsx, and the retry-with-backoff in `apiRequest`. Files: `web/src/utils/api.js` (retry logic + `pingHealth`), `web/src/context/AuthContext.jsx` (`waitForBackend`, `wakingUp`), `web/src/App.jsx` (`WakeUpSplash`), `web/src/pages/LoginPage.jsx` + `RegisterPage.jsx` (wake guard), `web/src/styles/global.css` (`.wakeup-splash` block).
 - ???

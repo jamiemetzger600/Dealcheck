@@ -9,6 +9,7 @@ import {
   getCalendarOAuthUrl,
   googleCalendarOAuthCallback,
   deleteCalendarConnection,
+  postGmailSend,
   getCalendarEvents,
   postCalendarEvent,
   patchCalendarEvent,
@@ -128,6 +129,7 @@ router.patch('/calendar/events/:eventId', patchCalendarEvent);
 router.delete('/calendar/events/:eventId', removeCalendarEvent);
 router.get('/calendar/oauth/start', getCalendarOAuthUrl);
 router.delete('/calendar/connection', deleteCalendarConnection);
+router.post('/gmail/send', postGmailSend);
 router.patch('/deals/:id/stage', patchDealStage);
 router.get('/deals/:id/activities', getDealActivities);
 router.post('/deals/:id/activities', addDealActivity);

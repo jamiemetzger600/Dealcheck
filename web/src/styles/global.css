@@ -5731,6 +5731,41 @@ button.aggregator-welcome__buybox {
   line-height: 1.45;
 }
 
+.settings-google-list {
+  margin: 12px 0 16px;
+  padding-left: 18px;
+  color: var(--text-secondary);
+}
+
+.settings-google-list li {
+  margin: 6px 0;
+}
+
+.settings-google-redirect {
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.settings-google-redirect code,
+.settings-google p code {
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.settings-google-status {
+  color: var(--text-secondary);
+}
+
+.ioi-gmail-connect {
+  width: 100%;
+  margin: 0 0 4px;
+}
+
+.ioi-gmail-connect a {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
 .settings-message {
   margin: 12px 0;
   padding: 10px 14px;

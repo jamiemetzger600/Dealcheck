@@ -34,6 +34,10 @@ if (process.env.SMTP_HOST) {
  * so in-app alerts still work (Talk banner / user_alerts). Callers that need
  * delivery certainty should check the return value.
  */
+export function isSmtpConfigured() {
+  return Boolean(process.env.SMTP_HOST?.trim());
+}
+
 export async function sendEmail({ to, subject, html }) {
   if (!transporter) {
     console.warn('[email] skipped (SMTP not configured)', { to, subject });

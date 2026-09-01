@@ -54,7 +54,7 @@ export default function CrmCalendar() {
     if (!calendarResult) return;
 
     if (calendarResult === 'connected') {
-      setFlash({ type: 'success', text: 'Google Calendar connected successfully.' });
+      setFlash({ type: 'success', text: 'Google connected. Calendar and Gmail send are ready.' });
       load();
     } else if (calendarResult === 'error') {
       setFlash({
@@ -128,7 +128,8 @@ export default function CrmCalendar() {
       ) : null}
 
       <p>
-        Connect Google Calendar to see Month, Week, and Day views with two-way sync.
+        Connect Google once for Calendar sync and sending Quick IOIs from Gmail.
+        You can also connect from Settings → Google.
         {!oauthReady
           ? ' Add GOOGLE_CALENDAR_CLIENT_ID and GOOGLE_CALENDAR_CLIENT_SECRET to the API server to enable OAuth.'
           : ''}
@@ -145,7 +146,7 @@ export default function CrmCalendar() {
         disabled={connecting || !oauthReady}
         onClick={handleConnect}
       >
-        {connecting ? 'Redirecting…' : 'Connect Google Calendar'}
+        {connecting ? 'Redirecting…' : 'Connect Google (Gmail + Calendar)'}
       </button>
     </div>
   );

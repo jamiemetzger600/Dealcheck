@@ -25,6 +25,8 @@ Single reference for all environment variables and deployment config. Copy the r
 | `SMTP_PORT` | No | `587` | |
 | `SMTP_USER` | No | — | With SMTP_HOST for sending |
 | `SMTP_PASS` | No | — | Gmail: [App Password](https://support.google.com/accounts/answer/185833) |
+| `GOOGLE_CALENDAR_CLIENT_ID` | No | — | OAuth Web client ID. Enables Connect Google (Calendar + Gmail send). Enable **Gmail API** and **Google Calendar API** on the same Cloud project. |
+| `GOOGLE_CALENDAR_CLIENT_SECRET` | No | — | OAuth client secret. Redirect URI: `{API_BASE_URL}/api/crm/calendar/oauth/callback` |
 | `AIRTABLE_SHARE_URL` | No | (hardcoded fallback) | Airtable shared view URL for scraper |
 | `AIRTABLE_SCRAPE_CRON` | No | `0 4 * * *` | Cron expression; interpreted in `AIRTABLE_SCRAPE_CRON_TZ` |
 | `AIRTABLE_SCRAPE_CRON_TZ` | No | `America/Los_Angeles` | IANA timezone for the cron schedule |

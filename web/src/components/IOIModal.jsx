@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { userAPI } from '../utils/api';
+import { Link } from 'react-router-dom';
+import { crmAPI, userAPI } from '../utils/api';
 import { generateIOIText, generateIOISubject, getBrokerEmailFromDeal } from '../utils/ioiGenerator';
 
 /** Copy plain text for paste into email; uses Clipboard API with a focused textarea fallback. */
@@ -63,6 +64,23 @@ export default function IOIModal({
   const [previewText, setPreviewText] = useState('');
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(false);
+  const [gmailStatus, setGmailStatus] = useState(null);
+  const [sendingGmail, setSendingGmail] = useState(false);
+  const [gmailError, setGmailError] = useState(null);
+  const [gmailSent, setGmailSent] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    crmAPI.getCalendarStatus()
+      .then((status) => {
+        if (!cancelled) setGmailStatus(status);
+      })
+      .catch((err) => {
+        console.warn('[IOI] Google status failed', err);
+        if (!cancelled) setGmailStatus({ connected: false, gmail: false });
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   /** Autofill when listing data arrives (e.g. full detail fetch); do not clobber manual edits. */
   useEffect(() => {
@@ -258,6 +276,29 @@ export default function IOIModal({
   };
 
   const canSend = selectedIndices.length > 0 && previewText.trim().length > 0;
+  const canSendGmail = canSend && Boolean(brokerEmail.trim());
+  const gmailReady = Boolean(gmailStatus?.gmail);
+
+  const handleSendFromGmail = async () => {
+    if (!canSendGmail) return;
+    setGmailError(null);
+    setSendingGmail(true);
+    await saveSignatureAndCompanyNow();
+    try {
+      await crmAPI.sendGmail({
+        to: brokerEmail.trim(),
+        subject: generateIOISubject(deal),
+        text: previewText
+      });
+      setGmailSent(true);
+      recordIOI(previewText);
+    } catch (err) {
+      console.error('[IOI] Gmail send failed', err);
+      setGmailError(err.message || 'Gmail send failed');
+    } finally {
+      setSendingGmail(false);
+    }
+  };
 
   return (
     <div className="modal-overlay ioi-modal-overlay" onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}>
@@ -302,7 +343,7 @@ export default function IOIModal({
               }}
               placeholder="broker@example.com"
             />
-            <p className="ioi-hint">From this listing only — not saved to your account. If empty, add the broker in Gmail or your mail app.</p>
+            <p className="ioi-hint">From this listing only — not saved to your account. Required to send from Gmail.</p>
           </div>
 
           {/* Buyer company + signature (saved for next time) */}
@@ -375,12 +416,32 @@ export default function IOIModal({
         </div>
 
         <div className="ioi-modal-footer">
+          {gmailSent && <span className="ioi-success">Sent from Gmail.</span>}
           {sent && <span className="ioi-success">Opened — check for a new tab (Gmail) or your mail app.</span>}
           {copied && <span className="ioi-success">Copied to clipboard</span>}
+          {gmailError && <span className="ioi-warn">{gmailError}</span>}
+          {!gmailReady && gmailStatus && (
+            <p className="ioi-hint ioi-gmail-connect">
+              <Link to="/settings">Connect Google in Settings</Link> to send this IOI from your Gmail without a compose tab.
+            </p>
+          )}
+          {gmailReady && !brokerEmail.trim() && canSend && (
+            <p className="ioi-warn">Add a broker email to send from Gmail.</p>
+          )}
           <button type="button" className="btn-secondary" onClick={handleCopy} disabled={!canSend}>
             Copy to Clipboard
           </button>
-          <button type="button" className="btn-primary" onClick={handleSendEmail} disabled={!canSend}>
+          {gmailReady ? (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleSendFromGmail}
+              disabled={!canSendGmail || sendingGmail}
+            >
+              {sendingGmail ? 'Sending…' : `Send from Gmail${gmailStatus?.googleEmail ? ` (${gmailStatus.googleEmail})` : ''}`}
+            </button>
+          ) : null}
+          <button type="button" className={gmailReady ? 'btn-secondary' : 'btn-primary'} onClick={handleSendEmail} disabled={!canSend}>
             Open in Gmail
           </button>
           <button type="button" className="btn-secondary ioi-mailapp-btn" onClick={() => handleSendMailApp()} disabled={!canSend}>

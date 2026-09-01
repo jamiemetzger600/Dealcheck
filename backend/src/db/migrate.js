@@ -1140,6 +1140,14 @@ const migrations = [
             OR NULLIF(BTRIM(COALESCE(state, '')), '') IS NOT NULL
           );
     `
+  },
+  {
+    name: 'google_connection_gmail_scopes_v5_82',
+    up: `
+      ALTER TABLE calendar_connections
+        ADD COLUMN IF NOT EXISTS google_email TEXT,
+        ADD COLUMN IF NOT EXISTS granted_scopes TEXT;
+    `
   }
 ];
 

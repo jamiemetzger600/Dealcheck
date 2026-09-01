@@ -1,5 +1,5 @@
 import pool from '../db/pool.js';
-import { sendEmail } from './emailService.js';
+import { deliverUserEmail } from './googleGmailService.js';
 import { getTodayTaskSummary } from './crmTaskService.js';
 import { getDdOverdueForToday, getRecentPortalComments } from './ddChecklistService.js';
 import { getUnreadMentions } from './dealThreadService.js';
@@ -35,7 +35,7 @@ export async function processDueReminders() {
     if (row.channel === 'email' && row.notify_email) {
       try {
         const greeting = row.recipient_name ? `Hi ${row.recipient_name},` : 'Hi,';
-        await sendEmail({
+        await deliverUserEmail(row.user_id, {
           to: row.notify_email,
           subject: `Vettr reminder: ${row.task_title || row.deal_name || 'Follow up'}`,
           html: `<p>${greeting}</p>
@@ -117,7 +117,7 @@ export async function sendCrmDailyDigests() {
     ];
 
     try {
-      await sendEmail({
+      await deliverUserEmail(user.id, {
         to: user.email,
         subject: `Vettr Today — ${total} item${total === 1 ? '' : 's'} need attention`,
         html: `<p>Your CRM Today summary:</p><ul>${lines.join('')}</ul>

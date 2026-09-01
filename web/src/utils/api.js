@@ -400,10 +400,17 @@ export const crmAPI = {
 
   getCalendarOAuthConfig: () => apiRequest('/crm/calendar/oauth-config'),
 
-  startCalendarOAuth: () => apiRequest('/crm/calendar/oauth/start'),
+  startCalendarOAuth: (returnTo) =>
+    apiRequest(`/crm/calendar/oauth/start${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`),
 
   disconnectCalendar: () =>
     apiRequest('/crm/calendar/connection', { method: 'DELETE' }),
+
+  sendGmail: (payload) =>
+    apiRequest('/crm/gmail/send', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
 
   getCalendarEvents: (start, end) =>
     apiRequest(`/crm/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`),

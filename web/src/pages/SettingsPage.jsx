@@ -4,6 +4,7 @@ import { userAPI } from '../utils/api';
 import Navigation from '../components/Navigation';
 import TeamsSettingsPanel from '../components/TeamsSettingsPanel';
 import GetTheAppPanel from '../components/GetTheAppPanel';
+import GoogleIntegrationsPanel from '../components/GoogleIntegrationsPanel';
 import { useAuth } from '../context/AuthContext';
 
 const SETTINGS_EXPORT_VERSION = 1;
@@ -337,8 +338,21 @@ export default function SettingsPage() {
 
         {user ? (
           <div className="settings-section">
+            <h2>Google</h2>
+            <p>
+              One connect for Gmail send (Quick IOI) and CRM Calendar. Sheets and Docs are on the roadmap.
+            </p>
+            <GoogleIntegrationsPanel />
+          </div>
+        ) : null}
+
+        {user ? (
+          <div className="settings-section">
             <h2>CRM</h2>
-            <p>Email reminders for due tasks are sent when SMTP is configured on the server.</p>
+            <p>
+              Task reminders and the daily digest send from your connected Gmail when possible.
+              Vettr-branded mail (team invites, feedback) still uses server SMTP.
+            </p>
             <label className="settings-checkbox-row">
               <input
                 type="checkbox"

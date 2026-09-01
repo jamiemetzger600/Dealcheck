@@ -43,6 +43,8 @@ import {
 const PER_PAGE = 50;
 const MAX_SEARCH_KEYWORDS = 8;
 const SHOW_SORT_TIP = false;
+/** Flip to true to show the mobile Focus swipe deck again. See docs/misc/ROADMAP.md. */
+const SHOW_MOBILE_FOCUS = false;
 const COLUMN_CONFIG = {
   name: { label: 'Name', default: true, required: true, sortable: true },
   date: { label: 'Date Added', default: true, sortable: true },
@@ -476,8 +478,8 @@ export default function DealAggregator({
   const didColumnDragRef = useRef(false);
   const isMobileViewport = useIsMobile();
   const { isPortrait } = useOrientation();
-  /** Mobile feed layout: swipe deck, card grid, or table. Guests land on table. */
-  const [mobileFeedMode, setMobileFeedMode] = useState(() => (isGuest ? 'table' : 'deck'));
+  /** Mobile feed layout: swipe deck, card grid, or table. Focus is parked (SHOW_MOBILE_FOCUS). */
+  const [mobileFeedMode, setMobileFeedMode] = useState('table');
   const [showMobileFeedFilters, setShowMobileFeedFilters] = useState(false);
   // Default to all buy-box matches so the feed is not empty on load when nothing
   // was updated today. Users can still switch to "Today's New" in the toolbar.
@@ -551,7 +553,8 @@ export default function DealAggregator({
   const hideSavedDealsInFeed = Boolean(settings?.preferences?.hideSavedDealsInFeed);
   const showSavedHighlightInFeed = settings?.preferences?.showSavedHighlightInFeed !== false;
 
-  const showMobileDeck = isMobileViewport
+  const showMobileDeck = SHOW_MOBILE_FOCUS
+    && isMobileViewport
     && !showHiddenDeals
     && viewMode === 'matches'
     && mobileFeedMode === 'deck'
@@ -573,13 +576,24 @@ export default function DealAggregator({
     }
   }, [showMobileDeck, onMobileDeckChange]);
 
+  // Do not reset mobileFeedMode when width crosses 767px — landscape phones
+  // look like "desktop" and that was sending Cards back to Focus on rotate.
   useEffect(() => {
-    if (!isMobileViewport) {
-      setMobileFeedMode(isGuest ? 'table' : 'deck');
-    }
-  }, [isMobileViewport, isGuest]);
+    console.log('[DealAggregator] viewport', { isMobileViewport, isPortrait, mobileFeedMode });
+  }, [isMobileViewport, isPortrait, mobileFeedMode]);
+
+  useEffect(() => {
+    if (SHOW_MOBILE_FOCUS || mobileFeedMode !== 'deck') return;
+    console.log('[DealAggregator] mobile Focus parked — switching to table');
+    setMobileFeedMode('table');
+    setDealViewStyle('table');
+  }, [mobileFeedMode]);
 
   const handleMobileFeedModeChange = useCallback((mode) => {
+    if (mode === 'deck' && !SHOW_MOBILE_FOCUS) {
+      console.log('[DealAggregator] ignoring Focus — parked on mobile');
+      return;
+    }
     setMobileFeedMode(mode);
     if (mode === 'card') {
       setDealViewStyle('card');
@@ -1806,6 +1820,7 @@ export default function DealAggregator({
         <MobileFeedToolbar
           feedMode={mobileFeedMode}
           onFeedModeChange={handleMobileFeedModeChange}
+          showFocus={SHOW_MOBILE_FOCUS}
           deckScope={deckScope}
           onScopeChange={handleDeckScopeChange}
           onConfigureBuyBox={onConfigureBuyBox}

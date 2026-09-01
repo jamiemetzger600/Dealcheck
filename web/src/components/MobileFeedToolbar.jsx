@@ -1,9 +1,10 @@
 import { defaultBuyBoxSlotName } from '../utils/buyBoxes';
 
-/** Sticky mobile toolbar: Focus / Cards / Table / Inbox + daily scope toggle. */
+/** Sticky mobile toolbar: Cards / Table / Inbox (+ Focus when showFocus). */
 export default function MobileFeedToolbar({
   feedMode,
   onFeedModeChange,
+  showFocus = false,
   deckScope,
   onScopeChange,
   onConfigureBuyBox,
@@ -28,15 +29,17 @@ export default function MobileFeedToolbar({
       aria-label="Mobile feed options"
     >
       <div className="mobile-view-toggle" role="tablist" aria-label="View mode">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={feedMode === 'deck'}
-          className={`mobile-view-toggle__btn${feedMode === 'deck' ? ' active' : ''}`}
-          onClick={() => onFeedModeChange('deck')}
-        >
-          Focus
-        </button>
+        {showFocus ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={feedMode === 'deck'}
+            className={`mobile-view-toggle__btn${feedMode === 'deck' ? ' active' : ''}`}
+            onClick={() => onFeedModeChange('deck')}
+          >
+            Focus
+          </button>
+        ) : null}
         <button
           type="button"
           role="tab"

@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { crmAPI } from '../../utils/api';
+import { crmAPI, teamsAPI } from '../../utils/api';
 import { formatDate } from '../../utils/normalizeDeal';
 import { useTeam } from '../../context/TeamContext';
+import { useAuth } from '../../context/AuthContext';
+import CrmQuickAdd from './CrmQuickAdd';
 
 const FILTERS = [
   { id: 'open', label: 'Open' },
   { id: 'done', label: 'Done' },
   { id: 'all', label: 'All' }
+];
+
+const SCOPE = [
+  { id: 'all', label: 'All tasks' },
+  { id: 'me', label: 'My tasks' },
+  { id: 'team', label: 'Team tasks' }
 ];
 
 function sourceLabel(source) {
@@ -15,7 +23,8 @@ function sourceLabel(source) {
     follow_up_custom: 'Custom reminder',
     manual: 'Manual',
     stage_suggestion: 'Stage suggestion',
-    talk_assign: 'Talk assign'
+    talk_assign: 'Talk assign',
+    quick_add: 'Quick add'
   };
   return labels[source] || source || '—';
 }
@@ -32,17 +41,35 @@ function defaultDueDate() {
 
 function canWriteDeal(deal, teams) {
   const teamId = deal?.team_id ?? deal?.teamId ?? null;
-  if (teamId == null || teamId === '') return true; // personal — owner
+  if (teamId == null || teamId === '') return true;
   const membership = (teams || []).find((t) => Number(t.id) === Number(teamId));
   if (!membership) return false;
   return membership.role === 'admin' || membership.role === 'member';
 }
 
-function TaskRow({ task, onComplete, onSelectDeal, showStatus }) {
+function TaskRow({
+  task,
+  onComplete,
+  onSelectDeal,
+  showStatus,
+  onExpand,
+  expanded,
+  onAddSubtask,
+  onComment,
+  members
+}) {
   const isDone = task.status === 'done';
-  const dueLabel = task.due_at
-    ? formatDate(task.due_at)
-    : 'No due date';
+  const dueLabel = task.due_at ? formatDate(task.due_at) : 'No due date';
+  const [subTitle, setSubTitle] = useState('');
+  const [comment, setComment] = useState('');
+  const [comments, setComments] = useState([]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    crmAPI.getTaskComments(task.id)
+      .then((d) => setComments(d.comments || []))
+      .catch(() => setComments([]));
+  }, [expanded, task.id]);
 
   return (
     <li className={`crm-today-task${isDone ? ' crm-today-task--done' : ''}`}>
@@ -54,10 +81,19 @@ function TaskRow({ task, onComplete, onSelectDeal, showStatus }) {
         >
           {task.deal_name || 'Deal'}
         </button>
-        <span className="crm-today-task__title">{task.title}</span>
+        <span className="crm-today-task__title">
+          {task.priority != null && Number(task.priority) <= 2 ? (
+            <span className={`crm-priority crm-priority--${task.priority}`}>P{task.priority}</span>
+          ) : null}
+          {task.title}
+        </span>
         <span className="crm-today-task__due">{dueLabel}</span>
-        {task.progress_stage ? (
-          <span className="crm-today-task__stage">{task.progress_stage}</span>
+        {task.assignee_email ? (
+          <span className="crm-muted">{String(task.assignee_email).split('@')[0]}</span>
+        ) : null}
+        {task.recurrence ? <span className="crm-tag">{task.recurrence}</span> : null}
+        {task.subtask_count > 0 ? (
+          <span className="crm-muted">{task.subtask_done_count}/{task.subtask_count} sub</span>
         ) : null}
         <span className="crm-today-task__source">{sourceLabel(task.source)}</span>
         {showStatus ? (
@@ -66,22 +102,97 @@ function TaskRow({ task, onComplete, onSelectDeal, showStatus }) {
           </span>
         ) : null}
       </div>
-      {!isDone ? (
-        <button
-          type="button"
-          className="btn-secondary btn-secondary--sm"
-          onClick={() => onComplete(task.id)}
-        >
-          Done
+      <div className="crm-task-row-actions">
+        <button type="button" className="btn-secondary btn-secondary--sm" onClick={() => onExpand(task.id)}>
+          {expanded ? 'Hide' : 'Details'}
         </button>
+        {!isDone ? (
+          <button
+            type="button"
+            className="btn-secondary btn-secondary--sm"
+            onClick={() => onComplete(task.id)}
+          >
+            Done
+          </button>
+        ) : null}
+      </div>
+      {expanded ? (
+        <div className="crm-task-expand">
+          <form
+            className="crm-task-expand__row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!subTitle.trim()) return;
+              onAddSubtask(task, subTitle.trim());
+              setSubTitle('');
+            }}
+          >
+            <input
+              className="modal-input"
+              placeholder="Add subtask…"
+              value={subTitle}
+              onChange={(e) => setSubTitle(e.target.value)}
+            />
+            <button type="submit" className="btn-secondary btn-secondary--sm">Add subtask</button>
+          </form>
+          {members?.length ? (
+            <label className="crm-task-expand__row">
+              <span className="crm-muted">Reassign</span>
+              <select
+                className="modal-input"
+                defaultValue={task.assignee_user_id || ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  crmAPI.updateTask(task.id, { assigneeUserId: v ? Number(v) : null })
+                    .catch((err) => alert(err.message));
+                }}
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.userId || m.id} value={m.userId || m.id}>
+                    {m.email || m.name || m.userId || m.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <ul className="crm-task-comments">
+            {comments.map((c) => (
+              <li key={c.id}>
+                <strong>{(c.author_email || '').split('@')[0]}</strong>: {c.body}
+              </li>
+            ))}
+          </ul>
+          <form
+            className="crm-task-expand__row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!comment.trim()) return;
+              onComment(task.id, comment.trim()).then(() => {
+                setComment('');
+                return crmAPI.getTaskComments(task.id).then((d) => setComments(d.comments || []));
+              });
+            }}
+          >
+            <input
+              className="modal-input"
+              placeholder="Comment…"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
+            <button type="submit" className="btn-secondary btn-secondary--sm">Comment</button>
+          </form>
+        </div>
       ) : null}
     </li>
   );
 }
 
 export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
-  const { teams } = useTeam();
+  const { teams, activeTeamId } = useTeam();
+  const { user } = useAuth();
   const [filter, setFilter] = useState('open');
+  const [scope, setScope] = useState('all');
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -90,12 +201,45 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
   const [title, setTitle] = useState('');
   const [dealId, setDealId] = useState('');
   const [dueDate, setDueDate] = useState(defaultDueDate);
+  const [priority, setPriority] = useState(3);
+  const [recurrence, setRecurrence] = useState('');
+  const [assigneeUserId, setAssigneeUserId] = useState('');
   const [formError, setFormError] = useState('');
+  const [expandedId, setExpandedId] = useState(null);
 
   const writableDeals = useMemo(
     () => (deals || []).filter((d) => canWriteDeal(d, teams)),
     [deals, teams]
   );
+
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  useEffect(() => {
+    if (!activeTeamId) {
+      setTeamMembers([]);
+      return;
+    }
+    teamsAPI.get(activeTeamId)
+      .then((data) => {
+        const rows = data.members || data.team?.members || [];
+        setTeamMembers(rows.map((m) => ({
+          userId: m.user_id || m.userId || m.id,
+          email: m.email
+        })));
+      })
+      .catch((err) => {
+        console.warn('[CrmTaskList] team members load failed', err.message);
+        setTeamMembers([]);
+      });
+  }, [activeTeamId]);
+
+  const members = useMemo(() => {
+    if (teamMembers.length) return teamMembers;
+    if (user?.userId || user?.id) {
+      return [{ userId: user.userId || user.id, email: user.email }];
+    }
+    return [];
+  }, [teamMembers, user]);
 
   const canCreate = writableDeals.length > 0;
 
@@ -103,7 +247,8 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await crmAPI.getTasks(filter);
+      const assignee = scope === 'all' ? null : scope;
+      const data = await crmAPI.getTasks(filter, { assignee });
       setTasks(data.tasks || []);
     } catch (err) {
       setError(err.message || 'Failed to load tasks');
@@ -111,7 +256,7 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, scope]);
 
   useEffect(() => {
     load();
@@ -137,6 +282,9 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
   const resetForm = () => {
     setTitle('');
     setDueDate(defaultDueDate());
+    setPriority(3);
+    setRecurrence('');
+    setAssigneeUserId('');
     setFormError('');
     if (writableDeals.length === 1) {
       const id = writableDeals[0].vettrId ?? writableDeals[0].id;
@@ -161,30 +309,51 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
     setCreating(true);
     setFormError('');
     try {
-      const dueAt = dueDate
-        ? new Date(`${dueDate}T12:00:00`).toISOString()
-        : null;
+      const dueAt = dueDate ? new Date(`${dueDate}T12:00:00`).toISOString() : null;
       await crmAPI.createTask(dealId, {
         title: trimmed,
         dueAt,
         source: 'manual',
+        priority: Number(priority) || 3,
+        recurrence: recurrence || null,
+        assigneeUserId: assigneeUserId ? Number(assigneeUserId) : undefined,
         notifyRecipients: [{ type: 'self' }]
       });
-      console.log('[CrmTaskList] created task on deal', dealId);
       setShowCreate(false);
       resetForm();
       await load();
       onRefresh?.();
     } catch (err) {
-      console.error('[CrmTaskList] create failed', err);
       setFormError(err.message || 'Failed to create task');
     } finally {
       setCreating(false);
     }
   };
 
+  const handleAddSubtask = async (parent, subTitle) => {
+    try {
+      await crmAPI.createTask(parent.saved_deal_id, {
+        title: subTitle,
+        parentTaskId: parent.id,
+        source: 'manual',
+        assigneeUserId: parent.assignee_user_id || undefined,
+        notifyRecipients: [{ type: 'self' }]
+      });
+      await load();
+      onRefresh?.();
+    } catch (err) {
+      alert(err.message || 'Failed to add subtask');
+    }
+  };
+
+  const handleComment = async (taskId, body) => {
+    await crmAPI.addTaskComment(taskId, body);
+  };
+
   return (
     <div className="crm-task-list">
+      <CrmQuickAdd deals={writableDeals} onCreated={() => { load(); onRefresh?.(); }} />
+
       <div className="crm-task-list__toolbar">
         <div className="crm-task-list__filters">
           {FILTERS.map((f) => (
@@ -198,12 +367,24 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
             </button>
           ))}
         </div>
+        <div className="crm-task-list__filters">
+          {SCOPE.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={`crm-chip${scope === f.id ? ' crm-chip--active' : ''}`}
+              onClick={() => setScope(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <div className="crm-task-list__toolbar-right">
           <span className="crm-muted">{tasks.length} task{tasks.length === 1 ? '' : 's'}</span>
           {canCreate ? (
             <button
               type="button"
-              className={`btn-primary btn-secondary--sm${showCreate ? ' crm-task-list__new--open' : ''}`}
+              className="btn-primary btn-secondary--sm"
               onClick={() => {
                 setShowCreate((v) => !v);
                 setFormError('');
@@ -234,33 +415,48 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
           <div className="crm-task-create__row crm-task-create__row--split">
             <label className="crm-task-create__field">
               <span>Deal</span>
-              <select
-                className="modal-input"
-                value={dealId}
-                onChange={(e) => setDealId(e.target.value)}
-                required
-                aria-label="Deal for this task"
-              >
+              <select className="modal-input" value={dealId} onChange={(e) => setDealId(e.target.value)} required>
                 <option value="">Select deal…</option>
                 {writableDeals.map((d) => {
                   const id = d.vettrId ?? d.id;
-                  return (
-                    <option key={id} value={id}>
-                      {d.name || `Deal ${id}`}
-                    </option>
-                  );
+                  return <option key={id} value={id}>{d.name || `Deal ${id}`}</option>;
                 })}
               </select>
             </label>
             <label className="crm-task-create__field">
               <span>Due date</span>
-              <input
-                type="date"
-                className="modal-input"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                aria-label="Task due date"
-              />
+              <input type="date" className="modal-input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            </label>
+          </div>
+          <div className="crm-task-create__row crm-task-create__row--split">
+            <label className="crm-task-create__field">
+              <span>Priority</span>
+              <select className="modal-input" value={priority} onChange={(e) => setPriority(e.target.value)}>
+                <option value={1}>P1 — Urgent</option>
+                <option value={2}>P2 — High</option>
+                <option value={3}>P3 — Normal</option>
+                <option value={4}>P4 — Low</option>
+              </select>
+            </label>
+            <label className="crm-task-create__field">
+              <span>Repeat</span>
+              <select className="modal-input" value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
+                <option value="">None</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </label>
+            <label className="crm-task-create__field">
+              <span>Assignee</span>
+              <select className="modal-input" value={assigneeUserId} onChange={(e) => setAssigneeUserId(e.target.value)}>
+                <option value="">Me</option>
+                {members.map((m) => (
+                  <option key={m.userId || m.id} value={m.userId || m.id}>
+                    {m.email || m.name || m.userId || m.id}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
           {formError ? <p className="crm-task-create__error">{formError}</p> : null}
@@ -268,32 +464,14 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
             <button type="submit" className="btn-primary" disabled={creating}>
               {creating ? 'Creating…' : 'Create task'}
             </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={creating}
-              onClick={() => {
-                setShowCreate(false);
-                resetForm();
-              }}
-            >
+            <button type="button" className="btn-secondary" disabled={creating} onClick={() => { setShowCreate(false); resetForm(); }}>
               Cancel
             </button>
           </div>
-          <p className="crm-muted crm-task-create__hint">
-            Members and admins can create tasks on deals they can edit. Viewers are read-only.
-          </p>
         </form>
       ) : null}
 
-      {!canCreate ? (
-        <p className="crm-muted crm-task-create__hint">
-          No writable deals here — viewers can’t create tasks, or save a deal first.
-        </p>
-      ) : null}
-
       {loading ? <div className="crm-panel">Loading tasks…</div> : null}
-
       {error ? (
         <div className="crm-panel crm-panel--error">
           <p>{error}</p>
@@ -303,15 +481,7 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
 
       {!loading && !error && tasks.length === 0 ? (
         <div className="crm-today-empty">
-          <p>
-            {filter === 'open'
-              ? canCreate
-                ? 'No open tasks — use New task above, or add a follow-up from a deal.'
-                : 'No open tasks.'
-              : filter === 'done'
-                ? 'No completed tasks yet.'
-                : 'No tasks yet.'}
-          </p>
+          <p>No tasks — use Quick add or New task.</p>
         </div>
       ) : null}
 
@@ -324,6 +494,11 @@ export default function CrmTaskList({ deals = [], onSelectDeal, onRefresh }) {
               showStatus={filter === 'all'}
               onComplete={handleComplete}
               onSelectDeal={onSelectDeal}
+              expanded={expandedId === task.id}
+              onExpand={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+              onAddSubtask={handleAddSubtask}
+              onComment={handleComment}
+              members={members}
             />
           ))}
         </ul>

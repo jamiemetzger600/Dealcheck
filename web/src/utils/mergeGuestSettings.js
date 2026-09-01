@@ -69,7 +69,10 @@ export async function mergeGuestSettingsIntoAccount() {
   if (Array.isArray(guest.hiddenDealIds) && guest.hiddenDealIds.length > 0) {
     patch.hiddenDealIds = guest.hiddenDealIds;
   }
-  if (Array.isArray(guest.visibleColumns) && guest.visibleColumns.length > 0) {
+  if (guest.visibleColumns && typeof guest.visibleColumns === 'object' && !Array.isArray(guest.visibleColumns)
+      && Object.keys(guest.visibleColumns).length > 0) {
+    patch.visibleColumns = guest.visibleColumns;
+  } else if (Array.isArray(guest.visibleColumns) && guest.visibleColumns.length > 0) {
     patch.visibleColumns = guest.visibleColumns;
   }
   if (guest.dealViewStyle && guest.dealViewStyle !== defaults.dealViewStyle) {

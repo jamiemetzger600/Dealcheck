@@ -349,9 +349,10 @@ export default function BuyBoxModal({
             ×
           </button>
         </div>
+        <div className="buybox-modal-body">
         {isOnboarding && (
           <p className="buybox-onboarding-intro">
-            <strong>Optional but recommended:</strong> set your buy box so the feed highlights deals that fit you. You can skip for now and browse all listings — change this anytime from the dashboard. Deals load in the background.
+            Set your buy box so the feed only loads deals that fit you. Skip to browse the pool — you can change this anytime from the dashboard.
           </p>
         )}
 
@@ -440,8 +441,9 @@ export default function BuyBoxModal({
             )}
           </label>
         </div>
+        </div>
 
-        <div className="modal-actions">
+        <div className="modal-actions buybox-modal-actions">
           {!isOnboarding && <button type="button" className="btn-secondary" onClick={handleReset} disabled={busy}>Reset</button>}
           {!isOnboarding && (
             <button type="button" className="btn-secondary" onClick={requestCloseEditor} disabled={busy}>

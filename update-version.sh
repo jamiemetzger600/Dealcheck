@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version Update Script for Deal Analyzer Extension
+# Version Update Script for Vettr Extension
 # Usage: ./update-version.sh <new_version>
 # Example: ./update-version.sh 2.2.1
 

@@ -236,6 +236,7 @@ function SectionSlot({
   isPinned,
   onTogglePin,
   editControl = null,
+  hidePin = false,
   children,
 }) {
   return (
@@ -248,19 +249,21 @@ function SectionSlot({
         <h3 id={`deal-section-heading-${sectionId}`} className="deal-section-slot-title">{label}</h3>
         <div className="deal-section-slot-actions">
           {editControl}
-          <button
-            type="button"
-            className={`deal-section-pin-btn ${isPinned ? 'deal-section-pin-btn--active' : ''}`}
-            onClick={onTogglePin}
-            aria-pressed={isPinned}
-            aria-label={isPinned ? `Unpin ${label}` : `Pin ${label}`}
-            title={isPinned ? 'Unpin — hide this section' : 'Pin — keep visible while browsing other sections'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M12 17v5" />
-              <path d="M9 3h6l1 7h4l-5 9v4H9v-4L5 10h4z" />
-            </svg>
-          </button>
+          {!hidePin ? (
+            <button
+              type="button"
+              className={`deal-section-pin-btn ${isPinned ? 'deal-section-pin-btn--active' : ''}`}
+              onClick={onTogglePin}
+              aria-pressed={isPinned}
+              aria-label={isPinned ? `Unpin ${label}` : `Pin ${label}`}
+              title={isPinned ? 'Unpin — hide this section' : 'Pin — keep visible while browsing other sections'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M12 17v5" />
+                <path d="M9 3h6l1 7h4l-5 9v4H9v-4L5 10h4z" />
+              </svg>
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="deal-section-slot-body">{children}</div>
@@ -300,6 +303,8 @@ export default function DealDetailsPanel({
   isGuest = false,
   requireSignup = null,
   focusSectionId = null,
+  /** When set, only these section ids appear in the rail / slots (CRM tab filtering). */
+  visibleSectionIds = null,
 }) {
   const [primarySection, setPrimarySection] = useState(DEFAULT_PRIMARY);
   const [pinnedSection, setPinnedSection] = useState(DEFAULT_PINNED);
@@ -432,7 +437,7 @@ export default function DealDetailsPanel({
     const sections = [
       { id: 'description', label: 'Description', icon: 'description' },
       { id: 'overview', label: 'Deal Overview', icon: 'overview' },
-      { id: 'calculator', label: 'Deal Analyzer Calculator', icon: 'calculator' },
+      { id: 'calculator', label: 'Calculator', icon: 'calculator' },
     ];
     if (onIOISent) {
       sections.push({ id: 'ioi', label: 'Quick IOI', icon: 'ioi' });
@@ -446,8 +451,27 @@ export default function DealDetailsPanel({
       label: s.label,
       icon: s.icon || s.id,
     }));
-    return [...coreSections, ...extras];
-  }, [coreSections, extraSections]);
+    const combined = [...coreSections, ...extras];
+    if (!Array.isArray(visibleSectionIds) || visibleSectionIds.length === 0) {
+      return combined;
+    }
+    const allow = new Set(visibleSectionIds);
+    return combined.filter((s) => allow.has(s.id));
+  }, [coreSections, extraSections, visibleSectionIds]);
+
+  useEffect(() => {
+    if (!allSections.length) return;
+    const ids = new Set(allSections.map((s) => s.id));
+    if (!ids.has(primarySection)) {
+      const next = allSections[0].id;
+      setPrimarySection(next);
+      setFocusedSection(next);
+      console.log('[DealDetailsPanel] primary reset to visible section', next);
+    }
+    if (pinnedSection && !ids.has(pinnedSection)) {
+      setPinnedSection(null);
+    }
+  }, [allSections, primarySection, pinnedSection]);
 
   const sectionMetaById = useMemo(() => {
     const map = {};
@@ -615,7 +639,7 @@ export default function DealDetailsPanel({
     ioi: onIOISent ? (
       <div className="deal-ioi-launch">
         <p className="deal-ioi-launch__lead">
-          Draft an indicative offer email from your calculator scenarios. Configure financing in the Deal Analyzer, then generate and send the IOI here.
+          Draft an indicative offer email from your calculator scenarios. Configure financing in the Calculator, then generate and send the IOI here.
         </p>
         <button
           type="button"
@@ -626,7 +650,7 @@ export default function DealDetailsPanel({
         </button>
         {!resolveIOIScenarios() ? (
           <p className="deal-ioi-launch__hint">
-            No calculator scenarios saved yet — open the Deal Analyzer section first and set up at least one scenario.
+            No calculator scenarios saved yet — open the Calculator section first and set up at least one scenario.
           </p>
         ) : null}
       </div>
@@ -650,7 +674,38 @@ export default function DealDetailsPanel({
     (id, i, arr) => id && arr.indexOf(id) === i
   );
 
-  const renderSlot = (sectionId) => {
+  const renderSaveButton = (extraClass = '') => {
+    if (!showSaveButton) return null;
+    const className = extraClass ? ` ${extraClass}` : '';
+    if (dealSavedInMyDeals) {
+      return (
+        <button
+          type="button"
+          className={`${savedHighlightStyle ? 'btn-save btn-save--saved' : 'btn-save btn-save--saved-muted'}${className}`}
+          disabled={isSavingDeal || typeof onUnsaveDeal !== 'function'}
+          title={unsaveButtonTitle}
+          onClick={() => onUnsaveDeal && onUnsaveDeal(deal)}
+        >
+          {isSavingDeal ? 'Removing…' : 'Saved'}
+        </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        className={`btn-primary${className}`}
+        disabled={isSavingDeal}
+        onClick={() => {
+          if (isGuest && typeof requireSignup === 'function') requireSignup('save', { dealDbId: deal.dbId });
+          else onSaveDeal(deal);
+        }}
+      >
+        {isSavingDeal ? 'Saving...' : saveButtonLabel}
+      </button>
+    );
+  };
+
+  const renderSlot = (sectionId, { hidePin = false } = {}) => {
     const meta = sectionMetaById[sectionId];
     if (!meta || sectionContentById[sectionId] == null) return null;
     const editControl =
@@ -665,11 +720,15 @@ export default function DealDetailsPanel({
         isPinned={pinnedIds.has(sectionId)}
         onTogglePin={() => handlePinToggle(sectionId)}
         editControl={editControl}
+        hidePin={hidePin}
       >
         {sectionContentById[sectionId]}
       </SectionSlot>
     );
   };
+
+  // CRM tab mode: stack all visible sections — no icon rail / pin dual-pane.
+  const stackMode = Array.isArray(visibleSectionIds) && visibleSectionIds.length > 0;
 
   const panelContent = (
     <div className={`deal-details-panel panel-${position}`} onClick={panelOnly ? undefined : (e) => e.stopPropagation()}>
@@ -687,8 +746,10 @@ export default function DealDetailsPanel({
           ) : (
             <h2>{deal.name || 'Deal Details'}</h2>
           )}
-          {(headerProgressControl || headerProgressLabel || deal.url) ? (
+          {(headerProgressControl || headerProgressLabel || deal.url || showSaveButton) ? (
             <div className="deal-details-header-meta-row">
+              <div className="deal-details-header-cta-row">
+              {renderSaveButton('deal-details-header-save')}
               {deal.url ? (
                 isGuest && !entitlements?.listingLinkEnabled ? (
                   <button
@@ -711,19 +772,21 @@ export default function DealDetailsPanel({
                   </a>
                 )
               ) : null}
+              </div>
               {headerProgressControl ? (
+                <>
                 <label className="deal-details-header-progress-control">
-                  <span className="deal-details-header-progress-control__label">Progress</span>
+                  <span className="deal-details-header-progress-control__label">Status</span>
                   <select
                     className="deal-details-header-progress-select"
                     value={headerProgressControl.value || ''}
                     onChange={headerProgressControl.onChange}
                     disabled={Boolean(headerProgressControl.disabled || headerProgressControl.saving)}
                     aria-busy={Boolean(headerProgressControl.saving)}
-                    aria-label="Current progress status"
-                    title="Current progress status — change anytime"
+                    aria-label="Deal status"
+                    title="Same pipeline status as Vettr CRM — change anytime"
                   >
-                    <option value="">Select progress…</option>
+                    <option value="">Select status…</option>
                     {(headerProgressControl.options || []).map((opt) => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
@@ -735,6 +798,39 @@ export default function DealDetailsPanel({
                     ) : null}
                   </select>
                 </label>
+                {headerProgressControl.value === 'Custom Status' && typeof headerProgressControl.onCustomLabelSave === 'function' ? (
+                  <div className="deal-details-header-custom-status">
+                    <input
+                      type="text"
+                      className="deal-details-header-custom-status__input"
+                      value={headerProgressControl.customLabel || ''}
+                      onChange={headerProgressControl.onCustomLabelChange}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          headerProgressControl.onCustomLabelSave();
+                        }
+                      }}
+                      placeholder="e.g. Waiting on seller P&Ls"
+                      maxLength={120}
+                      disabled={Boolean(headerProgressControl.disabled || headerProgressControl.customLabelSaving)}
+                      aria-label="Custom status message"
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary deal-details-header-custom-status__save"
+                      disabled={Boolean(
+                        headerProgressControl.disabled
+                        || headerProgressControl.customLabelSaving
+                        || !String(headerProgressControl.customLabel || '').trim()
+                      )}
+                      onClick={headerProgressControl.onCustomLabelSave}
+                    >
+                      {headerProgressControl.customLabelSaving ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                ) : null}
+                </>
               ) : headerProgressLabel ? (
                 <p className="deal-details-header-progress" title="Current progress status">
                   <strong>{headerProgressLabel}</strong>
@@ -771,17 +867,21 @@ export default function DealDetailsPanel({
         </div>
       </div>
 
-      <div className="deal-details-body deal-details-body--rail">
-        <SectionIconRail
-          sections={allSections}
-          primarySection={primarySection}
-          pinnedSection={pinnedSection}
-          pinnedIds={pinnedIds}
-          focusedSection={focusedSection}
-          onSelect={handleRailClick}
-        />
+      <div className={`deal-details-body${stackMode || allSections.length <= 1 ? ' deal-details-body--stack' : ' deal-details-body--rail'}`}>
+        {!stackMode && allSections.length > 1 ? (
+          <SectionIconRail
+            sections={allSections}
+            primarySection={primarySection}
+            pinnedSection={pinnedSection}
+            pinnedIds={pinnedIds}
+            focusedSection={focusedSection}
+            onSelect={handleRailClick}
+          />
+        ) : null}
         <div className="deal-section-slots">
-          {visibleSlots.map(renderSlot)}
+          {stackMode || allSections.length <= 1
+            ? allSections.map((s) => renderSlot(s.id, { hidePin: true }))
+            : visibleSlots.map((id) => renderSlot(id))}
         </div>
       </div>
 
@@ -806,26 +906,7 @@ export default function DealDetailsPanel({
       <div className="deal-details-footer">
         {renderFooter != null ? (typeof renderFooter === 'function' ? renderFooter() : renderFooter) : (
           <>
-            {showSaveButton && (
-              dealSavedInMyDeals ? (
-                <button
-                  type="button"
-                  className={savedHighlightStyle ? 'btn-save btn-save--saved' : 'btn-save btn-save--saved-muted'}
-                  disabled={isSavingDeal || typeof onUnsaveDeal !== 'function'}
-                  title={unsaveButtonTitle}
-                  onClick={() => onUnsaveDeal && onUnsaveDeal(deal)}
-                >
-                  {isSavingDeal ? 'Removing…' : 'Saved'}
-                </button>
-              ) : (
-                <button type="button" className="btn-primary" disabled={isSavingDeal} onClick={() => {
-                  if (isGuest && typeof requireSignup === 'function') requireSignup('save', { dealDbId: deal.dbId });
-                  else onSaveDeal(deal);
-                }}>
-                  {isSavingDeal ? 'Saving...' : saveButtonLabel}
-                </button>
-              )
-            )}
+            {renderSaveButton()}
             {deal.url ? (
               entitlements?.listingLinkEnabled ? (
                 <a href={deal.url} target="_blank" rel="noopener noreferrer" className="btn-secondary">View Original Listing</a>

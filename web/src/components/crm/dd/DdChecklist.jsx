@@ -660,6 +660,21 @@ export default function DdChecklist({ dealId, onRefresh, canWrite = true }) {
                       ))}
                     </ul>
                   ) : null}
+                  {(item.documents || []).length > 0 ? (
+                    <ul className="dd-item__comments">
+                      {item.documents.map((doc) => (
+                        <li key={doc.id} className="dd-item__comment">
+                          <span className="dd-item__comment-meta">
+                            Document · {doc.filename}
+                            {doc.isExternal ? ' · external' : ''}
+                          </span>
+                          {doc.storageKey && doc.storageKey !== doc.filename ? (
+                            <p className="dd-item__comment-body">{doc.storageKey}</p>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </li>
               ))}
             </ul>

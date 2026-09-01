@@ -40,17 +40,16 @@ export function AuthProvider({ children }) {
       await waitForBackend();
       if (cancelled) return;
 
-      const token = getToken();
-      if (token) {
-        try {
-          const data = await authAPI.getCurrentUser();
-          if (!cancelled) setUser(data.user);
-        } catch (error) {
-          console.error('Auth check failed:', error);
-          const isNetwork = error instanceof TypeError || (error.message || '').includes('Failed to fetch') || (error.message || '').includes('server is starting');
-          if (!isNetwork) {
-            authAPI.logout();
-          }
+      try {
+        const data = await authAPI.getCurrentUser();
+        if (!cancelled) setUser(data.user);
+      } catch (error) {
+        const isNetwork = error instanceof TypeError
+          || (error.message || '').includes('Failed to fetch')
+          || (error.message || '').includes('server is starting');
+        if (getToken()) {
+          console.warn('[auth] session restore failed', error?.message || error);
+          if (!isNetwork) authAPI.logout();
         }
       }
       if (!cancelled) setLoading(false);
@@ -89,7 +88,7 @@ export function AuthProvider({ children }) {
     } catch {}
     clearGuestSettings();
     clearChromeExtensionSession();
-    authAPI.logout();
+    void authAPI.logout();
     setUser(null);
   };
 

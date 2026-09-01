@@ -1,5 +1,5 @@
 /**
- * Merges user preferences with Buy Box targets so the Deal Analyzer uses one source of truth.
+ * Merges user preferences with Buy Box targets so the calculator uses one source of truth.
  * Buy Box CoC / payback / minimum buyer salary override matching keys in preferences.calculatorDefaults when set.
  */
 import { normalizeBuyBoxesState } from './buyBoxes.js';

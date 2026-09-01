@@ -1,4 +1,4 @@
-# Deal Analyzer - Product Roadmap
+# Vettr - Product Roadmap
 
 ## Version 1.5.0 - Target Offer Price Calculator (Planned)
 

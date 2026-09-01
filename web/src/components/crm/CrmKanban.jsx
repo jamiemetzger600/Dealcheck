@@ -68,6 +68,13 @@ function KanbanCard({
       }}
     >
       <h4 className="crm-kanban-card__title">{deal.name || 'Untitled deal'}</h4>
+      {Array.isArray(deal.tags) && deal.tags.length > 0 ? (
+        <div className="crm-kanban-card__tags">
+          {deal.tags.slice(0, 3).map((t) => (
+            <span key={t} className="crm-tag">{t}</span>
+          ))}
+        </div>
+      ) : null}
       {pending ? <span className="crm-kanban-card__pending">Pending approval</span> : null}
       {deal.unread_messages > 0 ? (
         <span className="crm-kanban-card__unread">{deal.unread_messages} new</span>
@@ -116,7 +123,8 @@ export default function CrmKanban({
   onBlankUnderwriting = null,
   highlightDealIds = null,
   nextActionByDealId = null,
-  onAddDeal = null
+  onAddDeal = null,
+  onImportCsv = null
 }) {
   const { activeTeamId, activeTeam, isTeamMode } = useTeam();
   const canWriteBoard = !isTeamMode || activeTeam?.role !== 'viewer';
@@ -266,13 +274,18 @@ export default function CrmKanban({
       <div className="crm-kanban-toolbar">
         <p className="crm-kanban-toolbar__hint">
           {canWriteBoard
-            ? 'Drag deals between columns to update pipeline stage. Click a card to open the workspace.'
+            ? 'Drag deals between columns to update pipeline stage. Click a card to peek — Open for the full record.'
             : 'Viewer role — pipeline is read-only. Open a deal to use Talk.'}
         </p>
         <div className="crm-kanban-toolbar__actions">
           {typeof onAddDeal === 'function' ? (
             <button type="button" className="btn-primary" onClick={onAddDeal}>
               Add deal
+            </button>
+          ) : null}
+          {typeof onImportCsv === 'function' ? (
+            <button type="button" className="btn-secondary" onClick={onImportCsv}>
+              Import CSV
             </button>
           ) : null}
           {canWriteBoard && onBlankUnderwriting ? (

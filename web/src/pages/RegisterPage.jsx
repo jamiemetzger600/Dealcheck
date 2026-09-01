@@ -65,7 +65,7 @@ export default function RegisterPage() {
       <div className="auth-container">
         <div className="auth-header">
           <h1>Vettr</h1>
-          <p>Business Acquisition Deal Analyzer</p>
+          <p>Find it. Vett it. Save it.</p>
         </div>
         <form className="auth-form" onSubmit={handleSubmit}>
           <h2>{signupCopy.title}</h2>

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import pool from '../db/pool.js';
 import { optionalAuth } from '../middleware/auth.js';
 import { sanitizeMarketDealRow } from '../lib/guestEntitlements.js';
+import { listingDedupeKeySql } from '../lib/listingFingerprint.js';
 
 const router = express.Router();
 
@@ -141,11 +142,26 @@ router.get('/', optionalAuth, async (req, res) => {
       params.push(restrictIds);
     }
 
-    // Text search (trigram ILIKE on name + description)
+    // Text search: comma or & separates AND terms (each must match name, location, or industry).
     if (search && search.trim()) {
-      const terms = search.trim().split(/\s*&\s*/).filter(Boolean);
+      const terms = search
+        .trim()
+        .split(/\s*[,&]\s*/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+        .slice(0, 8);
+      console.log('[market-deals] search terms', { count: terms.length, terms });
       for (const term of terms) {
-        conditions.push(`(name ILIKE $${idx} OR description ILIKE $${idx})`);
+        conditions.push(`(
+          name ILIKE $${idx}
+          OR description ILIKE $${idx}
+          OR COALESCE(city, '') ILIKE $${idx}
+          OR COALESCE(state, '') ILIKE $${idx}
+          OR COALESCE(county, '') ILIKE $${idx}
+          OR COALESCE(country, '') ILIKE $${idx}
+          OR COALESCE(array_to_string(industries, ' '), '') ILIKE $${idx}
+          OR COALESCE(remote_relocatable, '') ILIKE $${idx}
+        )`);
         params.push(`%${term}%`);
         idx++;
       }
@@ -239,11 +255,15 @@ router.get('/', optionalAuth, async (req, res) => {
       params.push(remote === 'yes' ? '%Yes%' : '%No%');
     }
 
-    // Exclude hidden deal IDs
+    // Exclude hidden deal IDs (and any syndicated copies with the same fingerprint)
     if (exclude_ids) {
       const ids = exclude_ids.split(',').map(Number).filter(n => !Number.isNaN(n) && n > 0);
       if (ids.length > 0) {
-        conditions.push(`id != ALL($${idx++})`);
+        conditions.push(`${listingDedupeKeySql()} NOT IN (
+          SELECT ${listingDedupeKeySql('h')}
+          FROM market_deals h
+          WHERE h.id = ANY($${idx++})
+        )`);
         params.push(ids);
       }
     }
@@ -310,6 +330,8 @@ router.get('/', optionalAuth, async (req, res) => {
     }
 
     const where = `WHERE ${conditions.join(' AND ')}`;
+    const dedupeKeySql = listingDedupeKeySql();
+    const preferBizBuySellSql = `CASE WHEN listing_url ILIKE '%bizbuysell.com%' THEN 0 ELSE 1 END`;
 
     const specSql = buildOrderByFromSortSpec(sort_spec);
     const orderBySql =
@@ -320,7 +342,7 @@ router.get('/', optionalAuth, async (req, res) => {
     const offset = (safePage - 1) * safePerPage;
 
     const aggResult = await pool.query(
-      `SELECT COUNT(*)::int AS total,
+      `SELECT COUNT(DISTINCT ${dedupeKeySql})::int AS total,
               MAX(GREATEST(source_added_at, source_updated_at)) AS max_activity
        FROM market_deals ${where}`,
       params
@@ -339,7 +361,11 @@ router.get('/', optionalAuth, async (req, res) => {
     const offsetIdx = params.length + 2;
     const pageParams = [...params, safePerPage, offset];
     const result = await pool.query(
-      `SELECT ${MARKET_DEALS_LIST_SELECT} FROM market_deals ${where}
+      `SELECT ${MARKET_DEALS_LIST_SELECT} FROM (
+         SELECT DISTINCT ON (${dedupeKeySql}) ${MARKET_DEALS_LIST_SELECT}
+         FROM market_deals ${where}
+         ORDER BY ${dedupeKeySql}, ${preferBizBuySellSql}, source_added_at DESC NULLS LAST, id DESC
+       ) collapsed
        ORDER BY ${orderBySql}
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       pageParams
@@ -387,17 +413,18 @@ router.get('/sources', async (_req, res) => {
 // GET /api/market-deals/stats — quick summary for dashboard header
 router.get('/stats', async (_req, res) => {
   try {
+    const dedupeKeySql = listingDedupeKeySql();
     const result = await pool.query(`
       SELECT
-        COUNT(*) AS total_deals,
-        COUNT(*) FILTER (WHERE source_added_at > NOW() - INTERVAL '24 hours') AS new_today,
+        COUNT(DISTINCT ${dedupeKeySql}) AS total_deals,
+        COUNT(DISTINCT ${dedupeKeySql}) FILTER (WHERE source_added_at > NOW() - INTERVAL '24 hours') AS new_today,
         MAX(GREATEST(source_added_at, source_updated_at)) AS newest_deal_at
       FROM market_deals
       WHERE is_active = true
     `);
 
     const bySource = await pool.query(`
-      SELECT source, COUNT(*) AS count
+      SELECT source, COUNT(DISTINCT ${dedupeKeySql}) AS count
       FROM market_deals
       WHERE is_active = true
       GROUP BY source

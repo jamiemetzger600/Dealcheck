@@ -7,6 +7,7 @@ import userRoutes from './routes/user.js';
 import dealsRoutes from './routes/deals.js';
 import crmRoutes from './routes/crm.js';
 import ddPublicRoutes from './routes/ddPublic.js';
+import underwritingPublicRoutes from './routes/underwritingPublic.js';
 import paymentsRoutes from './routes/payments.js';
 import airtableDealsRoutes from './routes/airtableDeals.js';
 import marketDealsRoutes from './routes/marketDeals.js';
@@ -14,6 +15,7 @@ import teamsRoutes from './routes/teams.js';
 import feedbackRoutes from './routes/feedback.js';
 import './services/notificationScheduler.js'; // Start notification jobs
 import './services/airtableScraper.js';
+import { parseCookieHeader } from './lib/authCookies.js';
 import { validateConfig } from './config.js';
 import pool from './db/pool.js';
 import { runMigrations } from './db/migrate.js';
@@ -51,6 +53,11 @@ app.use(cors({
   credentials: true
 }));
 
+app.use((req, _res, next) => {
+  req.cookies = parseCookieHeader(req.headers.cookie);
+  next();
+});
+
 // Body parsing (except for Stripe webhooks)
 app.use((req, res, next) => {
   if (req.originalUrl === '/api/payments/webhook') {
@@ -63,7 +70,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', version: '5.0.68' });
+  res.json({ status: 'ok', version: '5.0.79' });
 });
 
 // Routes
@@ -74,6 +81,7 @@ app.use('/api/crm', crmRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/dd/public', ddPublicRoutes);
+app.use('/api/underwriting/public', underwritingPublicRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/airtable-deals', airtableDealsRoutes);
 app.use('/api/market-deals', marketDealsRoutes);

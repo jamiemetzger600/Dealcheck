@@ -972,6 +972,174 @@ const migrations = [
       ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS actual_result TEXT;
       ALTER TABLE feedback_submissions ADD COLUMN IF NOT EXISTS repro_steps TEXT;
     `
+  },
+  {
+    name: 'underwriting_workbook_v5_10',
+    up: `
+      CREATE TABLE IF NOT EXISTS underwriting_models (
+        id SERIAL PRIMARY KEY,
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE,
+        buyer_type VARCHAR(40) DEFAULT 'owner_operator',
+        ui_mode VARCHAR(20) DEFAULT 'guided',
+        settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+        shared_inputs JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (saved_deal_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS underwriting_structure_paths (
+        id SERIAL PRIMARY KEY,
+        model_id INTEGER NOT NULL REFERENCES underwriting_models(id) ON DELETE CASCADE,
+        name VARCHAR(120) NOT NULL,
+        is_baseline BOOLEAN NOT NULL DEFAULT FALSE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        path_inputs JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_uw_paths_model ON underwriting_structure_paths(model_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_uw_paths_one_baseline
+        ON underwriting_structure_paths (model_id)
+        WHERE is_baseline = TRUE;
+
+      CREATE TABLE IF NOT EXISTS underwriting_revisions (
+        id SERIAL PRIMARY KEY,
+        model_id INTEGER NOT NULL REFERENCES underwriting_models(id) ON DELETE CASCADE,
+        label VARCHAR(255),
+        change_summary TEXT,
+        snapshot JSONB NOT NULL,
+        outputs JSONB,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_uw_revisions_model ON underwriting_revisions(model_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS underwriting_custom_sheets (
+        id SERIAL PRIMARY KEY,
+        model_id INTEGER NOT NULL REFERENCES underwriting_models(id) ON DELETE CASCADE,
+        name VARCHAR(120) NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        rows JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_uw_custom_sheets_model ON underwriting_custom_sheets(model_id);
+
+      CREATE TABLE IF NOT EXISTS underwriting_evidence_links (
+        id SERIAL PRIMARY KEY,
+        model_id INTEGER NOT NULL REFERENCES underwriting_models(id) ON DELETE CASCADE,
+        input_path VARCHAR(255) NOT NULL,
+        dd_item_id INTEGER REFERENCES dd_items(id) ON DELETE SET NULL,
+        deal_document_id INTEGER REFERENCES deal_documents(id) ON DELETE SET NULL,
+        status VARCHAR(40) NOT NULL DEFAULT 'requested',
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_uw_evidence_model ON underwriting_evidence_links(model_id);
+
+      CREATE TABLE IF NOT EXISTS underwriting_share_links (
+        id SERIAL PRIMARY KEY,
+        model_id INTEGER NOT NULL REFERENCES underwriting_models(id) ON DELETE CASCADE,
+        token VARCHAR(64) NOT NULL UNIQUE,
+        label VARCHAR(255),
+        password_hash VARCHAR(255),
+        expires_at TIMESTAMPTZ,
+        revoked_at TIMESTAMPTZ,
+        pinned_revision_id INTEGER REFERENCES underwriting_revisions(id) ON DELETE SET NULL,
+        preferred_path_id INTEGER REFERENCES underwriting_structure_paths(id) ON DELETE SET NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_uw_share_model ON underwriting_share_links(model_id);
+    `
+  },
+  {
+    name: 'crm_organize_v5_3',
+    up: `
+      -- Phase 1–3: external deals, contacts CRUD, task collab, tags/views/notes
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS close_target_date DATE;
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS referral_source TEXT;
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS external_source_type VARCHAR(40);
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
+      ALTER TABLE saved_deals ADD COLUMN IF NOT EXISTS custom_stage_label TEXT;
+
+      CREATE INDEX IF NOT EXISTS idx_saved_deals_owner ON saved_deals(owner_user_id) WHERE owner_user_id IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_saved_deals_tags ON saved_deals USING GIN (tags);
+
+      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS title TEXT;
+      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
+      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL;
+      ALTER TABLE contacts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+      CREATE INDEX IF NOT EXISTS idx_contacts_tags ON contacts USING GIN (tags);
+
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS notes TEXT;
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignee_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS parent_task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority SMALLINT DEFAULT 3;
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence VARCHAR(40);
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+      CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_user_id, status, due_at);
+      CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id) WHERE parent_task_id IS NOT NULL;
+
+      CREATE TABLE IF NOT EXISTS task_comments (
+        id SERIAL PRIMARY KEY,
+        task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id, created_at DESC);
+
+      ALTER TABLE activities ADD COLUMN IF NOT EXISTS pinned BOOLEAN DEFAULT FALSE;
+      ALTER TABLE activities ADD COLUMN IF NOT EXISTS title TEXT;
+
+      CREATE TABLE IF NOT EXISTS crm_saved_views (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        view_type VARCHAR(30) NOT NULL DEFAULT 'deals',
+        filters JSONB NOT NULL DEFAULT '{}'::jsonb,
+        is_shared BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_crm_saved_views_user ON crm_saved_views(user_id);
+      CREATE INDEX IF NOT EXISTS idx_crm_saved_views_team ON crm_saved_views(team_id) WHERE team_id IS NOT NULL;
+
+      -- Backfill owner to deal creator where missing
+      UPDATE saved_deals SET owner_user_id = user_id WHERE owner_user_id IS NULL;
+    `
+  },
+  {
+    name: 'market_deals_listing_fingerprint_index',
+    up: `
+      CREATE INDEX IF NOT EXISTS idx_market_deals_listing_fingerprint
+        ON market_deals (
+          (ROUND(asking_price)::bigint),
+          (ROUND(annual_profit)::bigint),
+          (ROUND(annual_revenue)::bigint),
+          lower(BTRIM(COALESCE(city, ''))),
+          lower(BTRIM(COALESCE(state, '')))
+        )
+        WHERE is_active
+          AND asking_price > 0
+          AND annual_profit > 0
+          AND annual_revenue > 0
+          AND (
+            NULLIF(BTRIM(COALESCE(city, '')), '') IS NOT NULL
+            OR NULLIF(BTRIM(COALESCE(state, '')), '') IS NOT NULL
+          );
+    `
   }
 ];
 

@@ -14,7 +14,7 @@ Version 3.0.2 focuses exclusively on **Google Sheets data** and keeps the **6000
 
 ### 1. Reload the Extension
 - Go to `chrome://extensions`
-- Find "Max Price Deal Analyzer"
+- Find "Vettr"
 - Click the **Reload** button
 
 ### 2. Open the Dashboard

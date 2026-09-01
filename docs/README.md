@@ -1,4 +1,4 @@
-# Deal Analyzer Documentation
+# Vettr Documentation
 
 Documentation is organized into the following folders:
 

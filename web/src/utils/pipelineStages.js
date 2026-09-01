@@ -89,6 +89,10 @@ export function defaultStageForKanbanColumn(columnId) {
 
 export function resolveDealStage(deal) {
   const stage = (deal?.progressStage || deal?.progress_stage || '').trim();
+  if (stage === 'Custom Status') {
+    const label = (deal?.customStageLabel || deal?.custom_stage_label || '').trim();
+    if (label) return label;
+  }
   return stage;
 }
 

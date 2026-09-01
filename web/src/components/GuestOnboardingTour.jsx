@@ -23,7 +23,7 @@ export const TOUR_STEPS = [
   {
     target: 'search-bar',
     title: 'Search the pool',
-    body: 'Use the **search bar** to narrow listings by name, location, or industry. Combine terms with **&** (e.g. Relocatable & HVAC).',
+    body: 'Use the **search bar** to narrow listings by name, location, or industry. Combine terms with **commas** (e.g. Relocatable, HVAC).',
     placement: 'bottom',
   },
   {

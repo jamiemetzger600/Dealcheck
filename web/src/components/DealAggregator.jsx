@@ -20,6 +20,8 @@ import {
   patchActiveBuyBoxFlexibility
 } from '../utils/buyBoxes';
 import DealDetailsPanel from './DealDetailsPanel';
+import DealInboxView from './DealInboxView';
+import { useCrmStageControl } from '../hooks/useCrmStageControl';
 import DealSwipeDeck from './DealSwipeDeck';
 import MobileFeedToolbar from './MobileFeedToolbar';
 import GatedPreviewText from './GatedPreviewText';
@@ -53,10 +55,10 @@ const COLUMN_CONFIG = {
   price: { label: 'Asking Price', default: true, sortable: true },
   profitMultiple: { label: 'Profit Multiple', default: false, sortable: true },
   revenueMultiple: { label: 'Revenue Multiple', default: false, sortable: true },
-  remote: { label: 'Remote/Relocatable/Absentee-Run', default: false, sortable: true },
+  remote: { label: 'Remote/Relocatable/Absentee-Run', headerLabel: 'REMOTE', default: false, sortable: true },
   franchise: { label: 'Franchise', default: false, sortable: true },
   fiveYearsInBusiness: { label: '5+ Years In Business', default: false, sortable: true },
-  broker: { label: 'Broker Name', default: false, sortable: true },
+  broker: { label: 'Broker Name', headerLabel: 'BROKER', default: false, sortable: true },
   brokerCompany: { label: 'Broker Company', default: false, sortable: true },
   brokerPhone: { label: 'Broker Contact', default: false, sortable: true },
   brokerEmail: { label: 'Broker Email', default: false, sortable: true },
@@ -67,6 +69,8 @@ const COLUMN_CONFIG = {
 const DEFAULT_VISIBLE_COLUMNS = Object.fromEntries(
   Object.entries(COLUMN_CONFIG).map(([key, config]) => [key, config.default !== false])
 );
+const DEFAULT_COLUMN_ORDER = Object.keys(COLUMN_CONFIG);
+const COLUMN_ORDER_STORAGE_KEY = 'vettr_column_order';
 const DEFAULT_SORT = [{ field: 'date', direction: 'desc' }];
 
 /** First direction when adding a column via Shift+click (numeric/date: high/newest first). */
@@ -195,6 +199,15 @@ function marketDealMatchKeys(deal) {
 function isDealInSavedList(deal, savedIdSet) {
   if (!savedIdSet?.size || !deal) return false;
   return marketDealMatchKeys(deal).some((key) => savedIdSet.has(key));
+}
+
+function crmMetaForDeal(deal, map) {
+  if (!deal || !map) return null;
+  for (const key of marketDealMatchKeys(deal)) {
+    const row = map[key];
+    if (row) return row;
+  }
+  return null;
 }
 
 /** Card in list view. Swipe gestures paused — enableSwipe kept for a future redesign. */
@@ -343,6 +356,8 @@ export default function DealAggregator({
   onDealsStatsUpdate,
   onSaveDeal,
   onOpenVettrCrm = null,
+  preferredViewStyle = null,
+  onPreferredViewStyleConsumed = null,
   onSettingsUpdate,
   onConfigureBuyBox,
   feedSource = 'airtable',
@@ -350,6 +365,7 @@ export default function DealAggregator({
   savedRowIdByMarketDealId = {},
   saveScopeSavedDealIds = null,
   saveScopeRowIdByMarketDealId = null,
+  saveScopeCrmByMarketDealId = {},
   poolNewDealsFilter = null,
   onClearPoolNewDealsFilter,
   isGuest = false,
@@ -394,6 +410,8 @@ export default function DealAggregator({
   const [excludeListSaving, setExcludeListSaving] = useState(false);
   const [sortConfig, setSortConfig] = useState(() => loadSavedSortConfig());
   const [visibleColumns, setVisibleColumns] = useState(() => loadVisibleColumns());
+  const [columnOrder, setColumnOrder] = useState(() => loadColumnOrder());
+  const [dropTargetCol, setDropTargetCol] = useState(null);
   const [showColumnsPanel, setShowColumnsPanel] = useState(false);
   const [showExcludeSection, setShowExcludeSection] = useState(false);
   const [dealViewStyle, setDealViewStyle] = useState(settings?.dealViewStyle || 'table');
@@ -430,6 +448,10 @@ export default function DealAggregator({
   }, [tourPrepareStepId]);
   /** After account/local column prefs are applied, allow debounced API writes. */
   const columnsPrefsReadyRef = useRef(false);
+  const columnOrderReadyRef = useRef(false);
+  const columnLayoutDirtyRef = useRef(false);
+  const dragColRef = useRef(null);
+  const didColumnDragRef = useRef(false);
   const isMobileViewport = useIsMobile();
   const { isPortrait } = useOrientation();
   /** Mobile feed layout: swipe deck, card grid, or table. */
@@ -538,6 +560,8 @@ export default function DealAggregator({
       setCardColumnsPerRow(1);
     } else if (mode === 'table') {
       setDealViewStyle('table');
+    } else if (mode === 'inbox') {
+      setDealViewStyle('inbox');
     }
     setCurrentPage(1);
   }, []);
@@ -573,22 +597,38 @@ export default function DealAggregator({
     setCardColumnsPerRow(CARD_COLUMNS_OPTIONS.includes(cols) ? cols : DEFAULT_CARD_COLUMNS);
 
     const accountCols = parseVisibleColumnsFromAccount(settings.visibleColumns);
-    if (accountCols) {
-      setVisibleColumns(accountCols);
-      columnsPrefsReadyRef.current = true;
-    } else if (isEmptyVisibleColumnsOnAccount(settings.visibleColumns)) {
-      const localCols = loadVisibleColumns();
-      setVisibleColumns(localCols);
-      columnsPrefsReadyRef.current = true;
-      if (!visibleColumnsEqual(localCols, DEFAULT_VISIBLE_COLUMNS)) {
-        saveSettings({ visibleColumns: localCols }).catch((err) => {
-          console.error('[DealAggregator] migrate visibleColumns to account failed:', err);
-        });
+    if (!columnLayoutDirtyRef.current) {
+      if (accountCols) {
+        setVisibleColumns((prev) => (visibleColumnsEqual(prev, accountCols) ? prev : accountCols));
+        columnsPrefsReadyRef.current = true;
+      } else if (isEmptyVisibleColumnsOnAccount(settings.visibleColumns)) {
+        const localCols = loadVisibleColumns();
+        setVisibleColumns((prev) => (visibleColumnsEqual(prev, localCols) ? prev : localCols));
+        columnsPrefsReadyRef.current = true;
+        if (!visibleColumnsEqual(localCols, DEFAULT_VISIBLE_COLUMNS)) {
+          columnLayoutDirtyRef.current = true;
+        }
+      } else {
+        columnsPrefsReadyRef.current = true;
+      }
+
+      const rawOrder = settings?.preferences?.columnOrder;
+      if (Array.isArray(rawOrder) && rawOrder.length > 0) {
+        const nextOrder = normalizeColumnOrder(rawOrder);
+        setColumnOrder((prev) => (columnOrderEqual(prev, nextOrder) ? prev : nextOrder));
+        columnOrderReadyRef.current = true;
+      } else if (!columnOrderReadyRef.current) {
+        columnOrderReadyRef.current = true;
+        const localOrder = loadColumnOrder();
+        if (!columnOrderEqual(localOrder, DEFAULT_COLUMN_ORDER)) {
+          columnLayoutDirtyRef.current = true;
+        }
       }
     } else {
       columnsPrefsReadyRef.current = true;
+      columnOrderReadyRef.current = true;
     }
-  }, [settings]);
+  }, [settings, saveSettings]);
 
   // Debounce search input
   useEffect(() => {
@@ -629,29 +669,49 @@ export default function DealAggregator({
     listEtagCacheRef.current = { key: '', etag: '' };
   }, [debouncedSearch, excludeKeywordsFingerprint]);
 
-  // Persist column visibility locally and to user account
+  // Persist column visibility + order locally and to the user account (one write)
   useEffect(() => {
-    localStorage.setItem('vettr_visible_columns', JSON.stringify(visibleColumns));
-  }, [visibleColumns]);
+    try {
+      localStorage.setItem('vettr_visible_columns', JSON.stringify(visibleColumns));
+      localStorage.setItem(COLUMN_ORDER_STORAGE_KEY, JSON.stringify(columnOrder));
+    } catch (err) {
+      console.warn('[DealAggregator] local column layout save failed', err);
+    }
+  }, [visibleColumns, columnOrder]);
   useEffect(() => {
-    if (!settings || !columnsPrefsReadyRef.current) return;
+    if (!settings || !columnsPrefsReadyRef.current || !columnOrderReadyRef.current) return;
     const accountCols = parseVisibleColumnsFromAccount(settings.visibleColumns);
-    if (accountCols && visibleColumnsEqual(visibleColumns, accountCols)) return;
+    const savedOrder = settings?.preferences?.columnOrder;
+    const normalizedSaved = Array.isArray(savedOrder) && savedOrder.length > 0
+      ? normalizeColumnOrder(savedOrder)
+      : null;
+    const visMatches = accountCols && visibleColumnsEqual(visibleColumns, accountCols);
+    const orderMatches = normalizedSaved && columnOrderEqual(columnOrder, normalizedSaved);
+    if (!columnLayoutDirtyRef.current && visMatches && orderMatches) return;
 
     const t = setTimeout(() => {
-      saveSettings({ visibleColumns })
+      const visibleOn = Object.keys(COLUMN_CONFIG).filter((id) => visibleColumns[id] !== false);
+      console.log('[DealAggregator] persist column layout to account', {
+        visible: visibleOn.join(','),
+        order: columnOrder.join(','),
+      });
+      saveSettings({
+        visibleColumns,
+        preferences: { columnOrder },
+      })
         .then(() => {
+          columnLayoutDirtyRef.current = false;
           if (typeof onSettingsUpdate === 'function') {
             return onSettingsUpdate();
           }
           return undefined;
         })
         .catch((err) => {
-          console.error('[DealAggregator] persist visibleColumns failed:', err);
+          console.error('[DealAggregator] persist column layout failed:', err);
         });
-    }, 600);
+    }, 400);
     return () => clearTimeout(t);
-  }, [visibleColumns, settings, onSettingsUpdate, saveSettings]);
+  }, [visibleColumns, columnOrder, settings, onSettingsUpdate, saveSettings]);
   useEffect(() => {
     localStorage.setItem('vettr_aggregator_sort', JSON.stringify(sortConfig));
   }, [sortConfig]);
@@ -801,6 +861,24 @@ export default function DealAggregator({
     }
   };
 
+  /** Parent hint (e.g. CRM → Inbox) applies once then clears. */
+  useEffect(() => {
+    if (!preferredViewStyle) return;
+    if (preferredViewStyle !== 'table' && preferredViewStyle !== 'card' && preferredViewStyle !== 'inbox') {
+      onPreferredViewStyleConsumed?.();
+      return;
+    }
+    console.log('[DealAggregator] applying preferredViewStyle', preferredViewStyle);
+    setDealViewStyle(preferredViewStyle);
+    if (isMobileViewport) {
+      setMobileFeedMode(preferredViewStyle === 'inbox' ? 'inbox' : preferredViewStyle);
+    }
+    updateUserFilterSettings({ dealViewStyle: preferredViewStyle }).catch((err) => {
+      console.warn('[DealAggregator] preferredViewStyle persist failed', err?.message || err);
+    });
+    onPreferredViewStyleConsumed?.();
+  }, [preferredViewStyle]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const persistActiveSlotFeed = async (patch) => {
     const currentSettings = settingsRef.current;
     if (!currentSettings) {
@@ -871,12 +949,61 @@ export default function DealAggregator({
     }
   };
 
+  const persistNewSavedDeal = useCallback(async (deal) => {
+    const teamIdForSave = saveTeamId != null ? Number(saveTeamId) : null;
+    const payloadTeamId = Number.isFinite(teamIdForSave) && teamIdForSave > 0 ? teamIdForSave : null;
+    console.log('[DealAggregator] saving deal', {
+      dealId: deal?.id,
+      dbId: deal?.dbId,
+      teamId: payloadTeamId,
+      saveTargetLabel
+    });
+    const calculatorState = loadCalculatorState(deal.id);
+    const data = await dealsAPI.saveDeal({
+      dealId: deal.id,
+      name: deal.name,
+      url: deal.url,
+      description: deal.description,
+      askingPrice: deal.askingPrice,
+      ebitda: deal.ebitda,
+      revenue: deal.revenue,
+      location: deal.location,
+      city: deal.city,
+      state: deal.state,
+      county: deal.county,
+      country: deal.country,
+      industry: deal.industry,
+      yearsEstablished: deal.yearsEstablished,
+      franchise: deal.franchise,
+      remote: deal.remote,
+      listingId: deal.listingId,
+      source: deal.source,
+      sourceType: deal.sourceType,
+      discoveredAt: deal.discoveredAt,
+      broker: deal.broker,
+      brokerName: deal.brokerName,
+      brokerCompany: deal.brokerCompany,
+      brokerEmail: deal.brokerEmail,
+      brokerPhone: deal.brokerPhone,
+      marketDealId: deal.dbId,
+      ...(calculatorState ? { calculatorState } : {}),
+      ...(payloadTeamId ? { teamId: payloadTeamId } : {})
+    });
+    if (calculatorState && data?.dealId != null) {
+      saveCalculatorState(data.dealId, calculatorState);
+    }
+    if (typeof onSaveDeal === 'function') {
+      await onSaveDeal();
+    }
+    return data?.dealId ?? data?.vettrId ?? null;
+  }, [onSaveDeal, saveTargetLabel, saveTeamId]);
+
   const handleSaveDeal = async (deal) => {
     if (isGuest) {
       if (typeof requireSignup === 'function') {
         requireSignup('save', { dealDbId: deal?.dbId });
       }
-      return;
+      return null;
     }
     if (isDealInSavedList(deal, saveScopeDealIdSet)) {
       const alreadyMsg = saveTeamId
@@ -889,64 +1016,23 @@ export default function DealAggregator({
         toast: alreadyMsg
       });
       setSaveToast({ message: alreadyMsg, showCrmCta: true });
-      return;
+      return getSavedRowIdForMarketDeal(deal);
     }
     const teamIdForSave = saveTeamId != null ? Number(saveTeamId) : null;
     const payloadTeamId = Number.isFinite(teamIdForSave) && teamIdForSave > 0 ? teamIdForSave : null;
-    console.log('[DealAggregator] saving deal', {
-      dealId: deal?.id,
-      dbId: deal?.dbId,
-      teamId: payloadTeamId,
-      saveTargetLabel
-    });
     setSavingDealId(deal.id);
     try {
-      const calculatorState = loadCalculatorState(deal.id);
-      const data = await dealsAPI.saveDeal({
-        dealId: deal.id,
-        name: deal.name,
-        url: deal.url,
-        description: deal.description,
-        askingPrice: deal.askingPrice,
-        ebitda: deal.ebitda,
-        revenue: deal.revenue,
-        location: deal.location,
-        city: deal.city,
-        state: deal.state,
-        county: deal.county,
-        country: deal.country,
-        industry: deal.industry,
-        yearsEstablished: deal.yearsEstablished,
-        franchise: deal.franchise,
-        remote: deal.remote,
-        listingId: deal.listingId,
-        source: deal.source,
-        sourceType: deal.sourceType,
-        discoveredAt: deal.discoveredAt,
-        broker: deal.broker,
-        brokerName: deal.brokerName,
-        brokerCompany: deal.brokerCompany,
-        brokerEmail: deal.brokerEmail,
-        brokerPhone: deal.brokerPhone,
-        marketDealId: deal.dbId,
-        ...(calculatorState ? { calculatorState } : {}),
-        ...(payloadTeamId ? { teamId: payloadTeamId } : {})
-      });
-      if (calculatorState && data?.dealId != null) {
-        saveCalculatorState(data.dealId, calculatorState);
-      }
+      const savedId = await persistNewSavedDeal(deal);
       const toastMsg = payloadTeamId
         ? `Saved to ${saveTargetLabel}`
         : 'Saved to Vettr CRM';
       console.log('[DealAggregator] save succeeded — setting toast', {
         toast: toastMsg,
-        vettrId: data?.vettrId ?? data?.dealId,
-        responseTeamId: data?.teamId ?? null
+        vettrId: savedId,
+        responseTeamId: payloadTeamId
       });
       setSaveToast({ message: toastMsg, showCrmCta: true });
-      if (typeof onSaveDeal === 'function') {
-        await onSaveDeal();
-      }
+      return savedId;
     } catch (error) {
       console.error('[DealAggregator] save failed', {
         dealId: deal?.id,
@@ -954,10 +1040,48 @@ export default function DealAggregator({
         error: error?.message
       });
       alert('Failed to save deal: ' + error.message);
+      return null;
     } finally {
       setSavingDealId(null);
     }
   };
+
+  const ensureDealSavedForCrm = useCallback(async (deal) => {
+    if (!deal) return null;
+    const existing = getSavedRowIdForMarketDeal(deal);
+    if (existing != null) return existing;
+    setSavingDealId(deal.id);
+    try {
+      const savedId = await persistNewSavedDeal(deal);
+      console.log('[DealAggregator] auto-saved for status', { dealId: deal.id, savedDealId: savedId });
+      return savedId;
+    } catch (error) {
+      console.error('[DealAggregator] auto-save for status failed', error?.message);
+      throw error;
+    } finally {
+      setSavingDealId(null);
+    }
+  }, [getSavedRowIdForMarketDeal, persistNewSavedDeal]);
+
+  const selectedCrmMeta = useMemo(
+    () => crmMetaForDeal(selectedDeal, saveScopeCrmByMarketDealId),
+    [selectedDeal, saveScopeCrmByMarketDealId]
+  );
+  const lookupCrmMeta = useCallback(
+    (deal) => crmMetaForDeal(deal, saveScopeCrmByMarketDealId),
+    [saveScopeCrmByMarketDealId]
+  );
+  const handleCrmStageSynced = useCallback(async () => {
+    if (typeof onSaveDeal === 'function') await onSaveDeal();
+  }, [onSaveDeal]);
+  const headerProgressControl = useCrmStageControl({
+    deal: selectedDeal,
+    crmMeta: selectedCrmMeta,
+    ensureSaved: ensureDealSavedForCrm,
+    isGuest,
+    requireSignup,
+    onSynced: handleCrmStageSynced
+  });
 
   useEffect(() => {
     if (!saveToast) return;
@@ -990,12 +1114,26 @@ export default function DealAggregator({
       list = deals.filter((d) => isDealHidden(d, hiddenDealIds));
     } else {
       list = deals.filter((d) => !isDealHidden(d, hiddenDealIds));
+      const leaked = deals.filter((d) => isDealHidden(d, hiddenDealIds));
+      if (leaked.length > 0) {
+        console.warn('[DealAggregator] Matches filter dropped hidden deals', leaked.length);
+      }
     }
     if (hideSavedDealsInFeed && !showHiddenDeals) {
       list = list.filter((d) => !isDealInSavedList(d, savedDealIdSet));
     }
     return list;
   }, [deals, hiddenDealIds, showHiddenDeals, hideSavedDealsInFeed, savedDealIdSet]);
+
+  /** Inbox triage: if this Matches page is empty after dismisses, advance. */
+  useEffect(() => {
+    if (dealViewStyle !== 'inbox' || showHiddenDeals) return;
+    if (dealsToShow.length > 0 || isFetching) return;
+    if (currentPage < totalPages) {
+      console.log('[DealAggregator] Inbox page empty — advancing to', currentPage + 1);
+      setCurrentPage((p) => p + 1);
+    }
+  }, [dealViewStyle, showHiddenDeals, dealsToShow.length, isFetching, currentPage, totalPages]);
 
   const emptyFeedMessage = useMemo(() => {
     if (showHiddenDeals) {
@@ -1016,6 +1154,10 @@ export default function DealAggregator({
   }, [deals, hiddenDealIds, showHiddenDeals, hideSavedDealsInFeed, savedDealIdSet]);
 
   const buyBoxesUiState = useMemo(() => normalizeBuyBoxesState(settings), [settings]);
+  const visibleOrderedColumns = useMemo(
+    () => columnOrder.filter((id) => visibleColumns[id] !== false && COLUMN_CONFIG[id]),
+    [columnOrder, visibleColumns]
+  );
 
   const handleDeckNeedMore = useCallback(() => {
     if (prefetchRequestedRef.current || currentPage >= totalPages || isFetching) return;
@@ -1298,15 +1440,21 @@ export default function DealAggregator({
   };
 
   const handleViewStyleChange = async (style) => {
+    if (style !== 'table' && style !== 'card' && style !== 'inbox') return;
     if (style === dealViewStyle) return;
+    const previous = dealViewStyle;
     setDealViewStyle(style);
+    if (isMobileViewport) {
+      setMobileFeedMode(style === 'inbox' ? 'inbox' : style);
+    }
     if (style === 'card') {
       setSortConfig([{ field: 'date', direction: 'desc' }]);
     }
     try {
       await updateUserFilterSettings({ dealViewStyle: style });
+      console.log('[DealAggregator] dealViewStyle →', style);
     } catch (error) {
-      setDealViewStyle(dealViewStyle);
+      setDealViewStyle(previous);
       alert('Failed to save view preference: ' + error.message);
     }
   };
@@ -1344,8 +1492,75 @@ export default function DealAggregator({
     });
   };
 
+  const handleColumnDragStart = (event, columnId) => {
+    if (columnId === 'name') {
+      event.preventDefault();
+      return;
+    }
+    didColumnDragRef.current = false;
+    dragColRef.current = columnId;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', columnId);
+    event.currentTarget.classList.add('col-dragging');
+    console.log('[DealAggregator] column drag start', columnId);
+  };
+
+  const handleColumnDrag = () => {
+    if (dragColRef.current) didColumnDragRef.current = true;
+  };
+
+  const handleColumnDragOver = (event, columnId) => {
+    if (!dragColRef.current || dragColRef.current === columnId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const rect = event.currentTarget.getBoundingClientRect();
+    const placeAfter = columnId === 'name' ? true : event.clientX > rect.left + rect.width / 2;
+    setDropTargetCol((prev) => (
+      prev && prev.id === columnId && prev.placeAfter === placeAfter
+        ? prev
+        : { id: columnId, placeAfter }
+    ));
+  };
+
+  const handleColumnDrop = (event, columnId) => {
+    event.preventDefault();
+    const fromId = dragColRef.current || event.dataTransfer.getData('text/plain');
+    const rect = event.currentTarget.getBoundingClientRect();
+    const placeAfter = columnId === 'name' ? true : event.clientX > rect.left + rect.width / 2;
+    setDropTargetCol(null);
+    dragColRef.current = null;
+    if (!fromId || fromId === 'name') return;
+    setColumnOrder((prev) => {
+      const next = moveColumn(prev, fromId, columnId, placeAfter);
+      if (!columnOrderEqual(prev, next)) {
+        columnLayoutDirtyRef.current = true;
+        console.log('[DealAggregator] column order', fromId, '→', columnId, placeAfter ? 'after' : 'before', next.join(','));
+      }
+      return next;
+    });
+  };
+
+  const handleColumnDragEnd = (event) => {
+    event.currentTarget.classList.remove('col-dragging');
+    setDropTargetCol(null);
+    dragColRef.current = null;
+    window.setTimeout(() => {
+      didColumnDragRef.current = false;
+    }, 0);
+  };
+
+  const handleHeaderClick = (columnId, sortable, event) => {
+    if (didColumnDragRef.current) {
+      event.preventDefault();
+      didColumnDragRef.current = false;
+      return;
+    }
+    if (sortable) handleSort(columnId, event.shiftKey);
+  };
+
   const toggleColumn = (columnId) => {
     if (COLUMN_CONFIG[columnId]?.required) return;
+    columnLayoutDirtyRef.current = true;
     setVisibleColumns((current) => ({
       ...current,
       [columnId]: !current[columnId]
@@ -1602,17 +1817,18 @@ export default function DealAggregator({
             <div className="aggregator-search" data-tour="search-bar">
               <input
                 type="text"
-                placeholder="Search: name, location, industry… Use & for AND (e.g. Relocatable & Fedex & HVAC)"
+                placeholder="Search: name, location, industry… Use commas for AND (e.g. Relocatable, HVAC)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input"
-                aria-label="Search deals; use & to require multiple keywords"
+                aria-label="Search deals; use commas to require multiple keywords"
               />
             </div>
 
             <div className={`view-style-toggle${showMobileToolbar ? ' view-style-toggle--desktop-only' : ''}`} role="group" aria-label="View style">
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'table' ? 'active' : ''}`} onClick={() => handleViewStyleChange('table')}>Table</button>
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'card' ? 'active' : ''}`} onClick={() => handleViewStyleChange('card')}>Card</button>
+              <button type="button" className={`toolbar-btn ${dealViewStyle === 'inbox' ? 'active' : ''}`} onClick={() => handleViewStyleChange('inbox')}>Inbox</button>
               {dealViewStyle === 'card' && (
                 <div className="card-cols-wrapper" ref={cardColsPopupRef}>
                   <button
@@ -1722,18 +1938,25 @@ export default function DealAggregator({
                   ×
                 </button>
               </div>
+              <p className="column-layout-hint">
+                Layout saves to your account. Drag table headers to reorder. Name stays first.
+              </p>
               <div className="column-checkboxes">
-                {Object.entries(COLUMN_CONFIG).map(([columnId, config]) => (
-                  <label key={columnId}>
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns[columnId] !== false}
-                      disabled={config.required}
-                      onChange={() => toggleColumn(columnId)}
-                    />
-                    {config.label}
-                  </label>
-                ))}
+                {columnOrder.map((columnId) => {
+                  const config = COLUMN_CONFIG[columnId];
+                  if (!config) return null;
+                  return (
+                    <label key={columnId}>
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns[columnId] !== false}
+                        disabled={config.required}
+                        onChange={() => toggleColumn(columnId)}
+                      />
+                      {config.label}
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1876,30 +2099,23 @@ export default function DealAggregator({
           <table className="aggregator-table">
             <thead>
               <tr>
-                {renderHeaderCell('name', 'NAME', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('date', 'DATE ADDED', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('industry', 'INDUSTRY', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('description', 'DESCRIPTION', visibleColumns, sortConfig, handleSort, false)}
-                {renderHeaderCell('city', 'CITY', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('county', 'COUNTY', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('state', 'STATE', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('country', 'COUNTRY', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('yearsEstablished', 'YEARS ESTABLISHED', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('ebitda', 'ANNUAL PROFIT', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('revenue', 'ANNUAL REVENUE', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('price', 'ASKING PRICE', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('profitMultiple', 'PROFIT MULTIPLE', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('revenueMultiple', 'REVENUE MULTIPLE', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('remote', 'REMOTE', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('franchise', 'FRANCHISE', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('fiveYearsInBusiness', '5+ YEARS IN BUSINESS', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('broker', 'BROKER', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('brokerCompany', 'BROKER COMPANY', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('brokerPhone', 'BROKER CONTACT', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('brokerEmail', 'BROKER EMAIL', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('location', 'LOCATION', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('source', 'SOURCE', visibleColumns, sortConfig, handleSort)}
-                {renderHeaderCell('url', 'LISTING URL', visibleColumns, sortConfig, handleSort)}
+                {visibleOrderedColumns.map((columnId) => {
+                  const config = COLUMN_CONFIG[columnId];
+                  return renderHeaderCell({
+                    columnId,
+                    label: config.headerLabel || config.label.toUpperCase(),
+                    sortConfig,
+                    sortable: config.sortable !== false,
+                    pinned: columnId === 'name',
+                    dropTarget: dropTargetCol,
+                    onHeaderClick: handleHeaderClick,
+                    onDragStart: handleColumnDragStart,
+                    onDrag: handleColumnDrag,
+                    onDragOver: handleColumnDragOver,
+                    onDrop: handleColumnDrop,
+                    onDragEnd: handleColumnDragEnd,
+                  });
+                })}
                 <th>ACTIONS</th>
               </tr>
             </thead>
@@ -1920,79 +2136,11 @@ export default function DealAggregator({
                   const dealSaved = isDealInSavedList(deal, savedDealIdSet);
                   return (
                   <tr key={deal.id} className={isHidden ? 'deal-row-hidden' : ''} onClick={() => setSelectedDeal(deal)}>
-                    {visibleColumns.name !== false && (
-                      <td className="deal-name-cell" data-col="name">
-                        <div className="deal-name-primary">{deal.name || 'Unnamed Business'}</div>
-                      </td>
-                    )}
-                    {visibleColumns.date !== false && (
-                      <td data-col="date">
-                        <span className={`deal-date-age ${getListingAgeClass(deal.discoveredAt)}`} title={listingAgeTitle(deal.discoveredAt)}>
-                          {formatDealDate(deal.discoveredAt)}
-                        </span>
-                      </td>
-                    )}
-                    {visibleColumns.industry !== false && <td data-col="industry">{deal.industry || '—'}</td>}
-                    {visibleColumns.description !== false && (
-                      <td data-col="description" className="description-col">
-                        {isGuest ? (
-                          <GatedPreviewText
-                            text={deal.description}
-                            limit={entitlements?.previewCharLimit ?? 120}
-                            entitlements={entitlements}
-                            serverTruncated={deal.descriptionTruncated}
-                            reason="description_click"
-                            onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
-                          />
-                        ) : (
-                          deal.description ? `${deal.description.substring(0, 120)}${deal.description.length > 120 ? '...' : ''}` : '—'
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.city !== false && <td data-col="city">{deal.city || '—'}</td>}
-                    {visibleColumns.county !== false && <td data-col="county">{deal.county || '—'}</td>}
-                    {visibleColumns.state !== false && <td data-col="state">{deal.state || '—'}</td>}
-                    {visibleColumns.country !== false && <td data-col="country">{deal.country || '—'}</td>}
-                    {visibleColumns.yearsEstablished !== false && <td data-col="yearsEstablished">{deal.yearsEstablished || '—'}</td>}
-                    {visibleColumns.ebitda !== false && <td className="money-cell" data-col="ebitda">{formatMoney(deal.ebitda)}</td>}
-                    {visibleColumns.revenue !== false && <td data-col="revenue">{formatMoney(deal.revenue)}</td>}
-                    {visibleColumns.price !== false && <td data-col="price">{formatMoney(deal.askingPrice)}</td>}
-                    {visibleColumns.profitMultiple !== false && <td data-col="profitMultiple">{formatRatio(deal.profitMultiple)}</td>}
-                    {visibleColumns.revenueMultiple !== false && <td data-col="revenueMultiple">{formatRatio(deal.revenueMultiple)}</td>}
-                    {visibleColumns.remote !== false && <td data-col="remote">{deal.remote || '—'}</td>}
-                    {visibleColumns.franchise !== false && <td data-col="franchise">{deal.franchise || '—'}</td>}
-                    {visibleColumns.fiveYearsInBusiness !== false && <td data-col="fiveYearsInBusiness">{deal.fiveYearsInBusiness || '—'}</td>}
-                    {visibleColumns.broker !== false && (
-                      <td data-col="broker">
-                        {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.broker || '—')}
-                      </td>
-                    )}
-                    {visibleColumns.brokerCompany !== false && (
-                      <td data-col="brokerCompany">
-                        {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.brokerCompany || '—')}
-                      </td>
-                    )}
-                    {visibleColumns.brokerPhone !== false && (
-                      <td data-col="brokerPhone">
-                        {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.brokerPhone || '—')}
-                      </td>
-                    )}
-                    {visibleColumns.brokerEmail !== false && (
-                      <td data-col="brokerEmail">
-                        {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.brokerEmail || '—')}
-                      </td>
-                    )}
-                    {visibleColumns.location !== false && <td data-col="location">{deal.location || '—'}</td>}
-                    {visibleColumns.source !== false && <td data-col="source">{deal.source || '—'}</td>}
-                    {visibleColumns.url !== false && (
-                      <td data-col="url" className="url-col">
-                        {deal.url ? (
-                          <a href={deal.url} target="_blank" rel="noopener noreferrer" className="table-link">
-                            Open
-                          </a>
-                        ) : '—'}
-                      </td>
-                    )}
+                    {visibleOrderedColumns.map((columnId) => renderDealCell(columnId, deal, {
+                      isGuest,
+                      entitlements,
+                      requireSignup,
+                    }))}
                     <td>
                       <div className="table-actions">
                         <button
@@ -2052,6 +2200,75 @@ export default function DealAggregator({
             </div>
           )}
         </div>
+        )}
+
+        {dealViewStyle === 'inbox' && (
+          <div className="aggregator-inbox-scroll">
+            {deals.length === 0 ? (
+              <div className="aggregator-cards-empty">No deals found. Try adjusting your filters or search.</div>
+            ) : (
+              <DealInboxView
+                deals={dealsToShow}
+                emptyMessage={emptyFeedMessage}
+                isDealSaved={(d) => isDealInSavedList(d, savedDealIdSet)}
+                isDealHidden={(d) => isDealHidden(d, hiddenDealIds)}
+                savingDealId={savingDealId}
+                onHide={handleToggleHidden}
+                onToggleSave={handleToggleSaveDeal}
+                saveTargetLabel={saveTargetLabel}
+                showHiddenMode={showHiddenDeals}
+                isGuest={isGuest}
+                entitlements={entitlements}
+                requireSignup={requireSignup}
+                settings={settings}
+                onSaveCalculatorDefaults={handleSaveCalculatorDefaults}
+                onIOIPrefsSaved={onSettingsUpdate}
+                dealPanelPosition={dealPanelPosition}
+                onDealPanelPositionChange={handleDealPanelPositionChange}
+                onSaveDeal={handleSaveDeal}
+                onUnsaveDeal={handleUnsaveDeal}
+                isMobile={isMobileViewport}
+                onConfigureBuyBox={onConfigureBuyBox}
+                onOpenCrm={typeof onOpenVettrCrm === 'function' ? onOpenVettrCrm : null}
+                lookupCrmMeta={lookupCrmMeta}
+                ensureDealSaved={ensureDealSavedForCrm}
+                onCrmStageSynced={handleCrmStageSynced}
+                buyBoxes={buyBoxesUiState.buyBoxes}
+                activeBuyBoxIndex={buyBoxesUiState.activeBuyBoxIndex}
+                onSelectBuyBox={handleBuyBoxSlotClick}
+                buyBoxSwitching={buyBoxSwitching}
+              />
+            )}
+            {hasMultiplePages && (
+              <div className="aggregator-pagination">
+                <button type="button" className="aggregator-pagination-btn" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => p - 1)} aria-label="Previous page">
+                  Previous
+                </button>
+                <div className="aggregator-pagination-pages" role="navigation" aria-label="Page navigation">
+                  {getPaginationPages(currentPage, totalPages).map((page, i) =>
+                    page === '…' ? (
+                      <span key={`ellipsis-${i}`} className="aggregator-pagination-ellipsis">…</span>
+                    ) : (
+                      <button
+                        key={page}
+                        type="button"
+                        className={`aggregator-pagination-num ${currentPage === page ? 'active' : ''}`}
+                        onClick={() => setCurrentPage(page)}
+                        aria-label={`Page ${page}`}
+                        aria-current={currentPage === page ? 'page' : undefined}
+                      >
+                        {page}
+                      </button>
+                    )
+                  )}
+                </div>
+                <button type="button" className="aggregator-pagination-btn" disabled={currentPage >= totalPages} onClick={() => setCurrentPage((p) => p + 1)} aria-label="Next page">
+                  Next
+                </button>
+                <span className="aggregator-pagination-label">Page {currentPage.toLocaleString()} of {totalPages.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
         )}
 
         {dealViewStyle === 'card' && (
@@ -2201,6 +2418,7 @@ export default function DealAggregator({
         isGuest={isGuest}
         entitlements={entitlements}
         requireSignup={requireSignup}
+        headerProgressControl={headerProgressControl}
       />
       {saveToast && createPortal(
         <div className="save-toast save-toast--with-action" role="status" aria-live="polite">
@@ -2272,15 +2490,199 @@ function loadSavedSortConfig() {
   }
 }
 
-function renderHeaderCell(columnId, label, visibleColumns, sortConfig, handleSort, sortable = true) {
-  if (visibleColumns[columnId] === false) return null;
+function pinNameFirst(order) {
+  return ['name', ...order.filter((id) => id !== 'name')];
+}
 
+function normalizeColumnOrder(raw) {
+  const known = new Set(Object.keys(COLUMN_CONFIG));
+  const seen = new Set();
+  const next = [];
+  if (Array.isArray(raw)) {
+    for (const id of raw) {
+      if (!known.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      next.push(id);
+    }
+  }
+  for (const id of DEFAULT_COLUMN_ORDER) {
+    if (!seen.has(id)) next.push(id);
+  }
+  return pinNameFirst(next);
+}
+
+function columnOrderEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((id, i) => id === b[i]);
+}
+
+function loadColumnOrder() {
+  try {
+    const saved = localStorage.getItem(COLUMN_ORDER_STORAGE_KEY);
+    const parsed = saved ? JSON.parse(saved) : null;
+    return normalizeColumnOrder(parsed);
+  } catch {
+    return [...DEFAULT_COLUMN_ORDER];
+  }
+}
+
+/** Move a column before/after `toId`. Name always stays index 0. */
+function moveColumn(order, fromId, toId, placeAfter) {
+  if (!fromId || fromId === 'name') return order;
+  const from = order.indexOf(fromId);
+  if (from < 0) return order;
+
+  let insertAt;
+  if (toId === 'name') {
+    insertAt = 1;
+  } else {
+    const to = order.indexOf(toId);
+    if (to < 0) return order;
+    insertAt = placeAfter ? to + 1 : to;
+  }
+
+  const next = [...order];
+  next.splice(from, 1);
+  if (from < insertAt) insertAt -= 1;
+  insertAt = Math.max(insertAt, 1);
+  next.splice(insertAt, 0, fromId);
+  return pinNameFirst(next);
+}
+
+function renderDealCell(columnId, deal, ctx) {
+  const { isGuest, entitlements, requireSignup } = ctx;
+  switch (columnId) {
+    case 'name':
+      return (
+        <td key={columnId} className="deal-name-cell" data-col="name">
+          <div className="deal-name-primary">{deal.name || 'Unnamed Business'}</div>
+        </td>
+      );
+    case 'date':
+      return (
+        <td key={columnId} data-col="date">
+          <span className={`deal-date-age ${getListingAgeClass(deal.discoveredAt)}`} title={listingAgeTitle(deal.discoveredAt)}>
+            {formatDealDate(deal.discoveredAt)}
+          </span>
+        </td>
+      );
+    case 'industry':
+      return <td key={columnId} data-col="industry">{deal.industry || '—'}</td>;
+    case 'description':
+      return (
+        <td key={columnId} data-col="description" className="description-col">
+          {isGuest ? (
+            <GatedPreviewText
+              text={deal.description}
+              limit={entitlements?.previewCharLimit ?? 120}
+              entitlements={entitlements}
+              serverTruncated={deal.descriptionTruncated}
+              reason="description_click"
+              onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
+            />
+          ) : (
+            deal.description ? `${deal.description.substring(0, 120)}${deal.description.length > 120 ? '...' : ''}` : '—'
+          )}
+        </td>
+      );
+    case 'city':
+      return <td key={columnId} data-col="city">{deal.city || '—'}</td>;
+    case 'county':
+      return <td key={columnId} data-col="county">{deal.county || '—'}</td>;
+    case 'state':
+      return <td key={columnId} data-col="state">{deal.state || '—'}</td>;
+    case 'country':
+      return <td key={columnId} data-col="country">{deal.country || '—'}</td>;
+    case 'yearsEstablished':
+      return <td key={columnId} data-col="yearsEstablished">{deal.yearsEstablished || '—'}</td>;
+    case 'ebitda':
+      return <td key={columnId} className="money-cell" data-col="ebitda">{formatMoney(deal.ebitda)}</td>;
+    case 'revenue':
+      return <td key={columnId} data-col="revenue">{formatMoney(deal.revenue)}</td>;
+    case 'price':
+      return <td key={columnId} data-col="price">{formatMoney(deal.askingPrice)}</td>;
+    case 'profitMultiple':
+      return <td key={columnId} data-col="profitMultiple">{formatRatio(deal.profitMultiple)}</td>;
+    case 'revenueMultiple':
+      return <td key={columnId} data-col="revenueMultiple">{formatRatio(deal.revenueMultiple)}</td>;
+    case 'remote':
+      return <td key={columnId} data-col="remote">{deal.remote || '—'}</td>;
+    case 'franchise':
+      return <td key={columnId} data-col="franchise">{deal.franchise || '—'}</td>;
+    case 'fiveYearsInBusiness':
+      return <td key={columnId} data-col="fiveYearsInBusiness">{deal.fiveYearsInBusiness || '—'}</td>;
+    case 'broker':
+      return (
+        <td key={columnId} data-col="broker">
+          {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.broker || '—')}
+        </td>
+      );
+    case 'brokerCompany':
+      return (
+        <td key={columnId} data-col="brokerCompany">
+          {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.brokerCompany || '—')}
+        </td>
+      );
+    case 'brokerPhone':
+      return (
+        <td key={columnId} data-col="brokerPhone">
+          {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.brokerPhone || '—')}
+        </td>
+      );
+    case 'brokerEmail':
+      return (
+        <td key={columnId} data-col="brokerEmail">
+          {isGuest ? guestBrokerCell('Sign up to view', requireSignup) : (deal.brokerEmail || '—')}
+        </td>
+      );
+    case 'location':
+      return <td key={columnId} data-col="location">{deal.location || '—'}</td>;
+    case 'source':
+      return <td key={columnId} data-col="source">{deal.source || '—'}</td>;
+    case 'url':
+      return (
+        <td key={columnId} data-col="url" className="url-col">
+          {deal.url ? (
+            <a href={deal.url} target="_blank" rel="noopener noreferrer" className="table-link">
+              Open
+            </a>
+          ) : '—'}
+        </td>
+      );
+    default:
+      return null;
+  }
+}
+
+function renderHeaderCell({
+  columnId,
+  label,
+  sortConfig,
+  sortable = true,
+  pinned = false,
+  dropTarget = null,
+  onHeaderClick,
+  onDragStart,
+  onDrag,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}) {
   const sortIndex = sortConfig.findIndex((sort) => sort.field === columnId);
   const sortMeta = sortIndex >= 0 ? sortConfig[sortIndex] : null;
+  const isDropTarget = dropTarget?.id === columnId;
   const classes = [
     sortable ? 'sortable' : '',
-    sortMeta ? `sorted-${sortMeta.direction}` : ''
+    sortMeta ? `sorted-${sortMeta.direction}` : '',
+    pinned ? 'col-pinned' : 'col-reorder',
+    isDropTarget && dropTarget.placeAfter ? 'col-drop-after' : '',
+    isDropTarget && !dropTarget.placeAfter ? 'col-drop-before' : '',
   ].filter(Boolean).join(' ');
+
+  const sortTitle = sortable ? 'Click to sort. Shift+Click for multi-sort (e.g. profit, then date).' : '';
+  const dragTitle = pinned
+    ? 'Name stays on the left.'
+    : 'Drag left or right to reorder.';
 
   return (
     <th
@@ -2288,13 +2690,21 @@ function renderHeaderCell(columnId, label, visibleColumns, sortConfig, handleSor
       data-col={columnId}
       data-sort={columnId}
       className={classes}
-      onClick={sortable ? (event) => handleSort(columnId, event.shiftKey) : undefined}
-      title={sortable ? 'Click to sort. Shift+Click for multi-sort (e.g. profit, then date).' : undefined}
+      draggable={!pinned}
+      onClick={(event) => onHeaderClick(columnId, sortable, event)}
+      onDragStart={(event) => onDragStart(event, columnId)}
+      onDrag={onDrag}
+      onDragEnter={(event) => event.preventDefault()}
+      onDragOver={(event) => onDragOver(event, columnId)}
+      onDrop={(event) => onDrop(event, columnId)}
+      onDragEnd={onDragEnd}
+      title={[sortTitle, dragTitle].filter(Boolean).join(' ')}
     >
       <span>{label}</span>
       {sortMeta ? <span className="sort-priority"> {sortIndex + 1}</span> : null}
     </th>
   );
 }
+
 
 

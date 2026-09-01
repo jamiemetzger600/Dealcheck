@@ -22,6 +22,8 @@ import {
 } from '../utils/dealCalculatorStorage';
 
 const PER_DEAL_PERSIST_DEBOUNCE_MS = 400;
+/** Hidden for now — auto-suggest was not useful. Flip to true to restore the banner. */
+const SHOW_SCENARIO3_SUGGESTION = false;
 
 const DEFAULT_UI = {
   financingOpen: true,
@@ -162,12 +164,14 @@ export default function DealCalculator({
   }, [compareAnalyses]);
 
   const scenario3Suggestion = useMemo(() => {
-    if (!deal || scenarios.length < 3) return null;
+    if (!SHOW_SCENARIO3_SUGGESTION || !deal || scenarios.length < 3) return null;
     return suggestScenario3Alternative(scenarios, qualityPrefs, calculatorDefaults, deal);
   }, [deal, scenarios, qualityPrefs, calculatorDefaults]);
 
   const showScenario3SuggestionBanner =
-    scenario3Suggestion && isScenario3Pristine(scenarios, calculatorDefaults, deal);
+    SHOW_SCENARIO3_SUGGESTION &&
+    scenario3Suggestion &&
+    isScenario3Pristine(scenarios, calculatorDefaults, deal);
 
   const applyScenario3Suggestion = () => {
     if (!scenario3Suggestion) return;

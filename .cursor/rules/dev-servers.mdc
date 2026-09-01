@@ -16,11 +16,25 @@ When work requires a running API, web UI, or verification after changes, **the a
 
 Use **`npm run dev`** for the backend during development (nodemon). Use **`npm start`** only if mimicking production or the user asks.
 
-## Before starting
+## Always-on LaunchAgents (preferred)
 
-1. Check the **terminals** folder metadata (or `lsof -i :3001` / `lsof -i :5173`) to see if the port is already in use or a dev server is already running.
+On this machine, keep both servers up via LaunchAgents (login + KeepAlive):
+
+| Service | Label | Entrypoint |
+|---------|-------|------------|
+| API | `com.vettr.api` | `scripts/start-vettr-api.sh` → port `3001` |
+| Web | `com.vettr.web` | `scripts/start-vettr-web.sh` → port `5173` |
+
+Before starting ad-hoc `npm run dev`:
+
+1. Check `lsof -i :3001` / `lsof -i :5173` (or `curl` health / root).
 2. Do **not** start a duplicate listener on the same port.
-3. Run long-lived servers in the **background** (`block_until_ms: 0` or equivalent) from the correct **`backend`** / **`web`** working directory.
+3. If a LaunchAgent owns the port, **do not** `kill` it for routine restarts — use:
+   - `launchctl kickstart -k gui/$(id -u)/com.vettr.api`
+   - `launchctl kickstart -k gui/$(id -u)/com.vettr.web`
+4. Only fall back to background `npm run dev` when LaunchAgents are unloaded / unavailable.
+
+Logs: `~/Library/Logs/vettr/api.log`, `web.log` (and `.err`).
 
 ## After starting
 
@@ -28,8 +42,9 @@ Use **`npm run dev`** for the backend during development (nodemon). Use **`npm s
 
 ## Stopping
 
-- When a session of testing is done, or the user asks to stop servers, stop processes the agent started (terminate the background shell / process for that server).
-- If the server was started outside this session, prefer telling the user which terminal to stop rather than killing unknown PIDs.
+- Do **not** stop LaunchAgent-managed servers unless the user asks.
+- If the agent started an ad-hoc background server, stop that process when testing is done.
+- If a server was started outside this session (and not via LaunchAgent), prefer telling the user which terminal to stop rather than killing unknown PIDs.
 
 ## Scope
 

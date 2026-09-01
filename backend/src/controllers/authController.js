@@ -1,8 +1,10 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../db/pool.js';
+import { setAuthCookie, clearAuthCookie } from '../lib/authCookies.js';
 
 const SALT_ROUNDS = 10;
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
 
 const DB_ACTIVE_TIME_QUOTA =
   "Database is temporarily unavailable: the database plan's active-time limit was reached. Upgrade the database or wait for the limit to reset.";
@@ -62,8 +64,9 @@ export const register = async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: JWT_EXPIRES_IN }
     );
+    setAuthCookie(res, token, req);
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -115,8 +118,9 @@ export const login = async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: JWT_EXPIRES_IN }
     );
+    setAuthCookie(res, token, req);
 
     res.json({
       message: 'Login successful',
@@ -156,9 +160,7 @@ export const getCurrentUser = async (req, res) => {
   }
 };
 
-// Logout (client-side token removal, but we can blacklist if needed)
 export const logout = async (req, res) => {
-  // For JWT, logout is primarily client-side (remove token)
-  // If using sessions or want to blacklist tokens, implement here
+  clearAuthCookie(res);
   res.json({ message: 'Logout successful' });
 };

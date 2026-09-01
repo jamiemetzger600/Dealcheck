@@ -284,6 +284,14 @@ export async function getChecklistForDeal(userId, savedDealId) {
        INNER JOIN dd_items i ON i.id = a.item_id AND i.group_id = $1`,
       [g.id]
     );
+    const docsRes = await pool.query(
+      `SELECT d.item_id, d.id, d.filename, d.mime_type, d.storage_key, d.uploaded_by_email,
+              d.is_external, d.uploaded_at
+       FROM dd_item_documents d
+       INNER JOIN dd_items i ON i.id = d.item_id AND i.group_id = $1
+       ORDER BY d.uploaded_at DESC`,
+      [g.id]
+    );
     const assigneesByItem = new Map();
     for (const a of assigneesRes.rows) {
       if (!assigneesByItem.has(a.item_id)) assigneesByItem.set(a.item_id, []);
@@ -291,6 +299,19 @@ export async function getChecklistForDeal(userId, savedDealId) {
         email: a.email,
         name: a.name,
         roleLabel: a.role_label
+      });
+    }
+    const docsByItem = new Map();
+    for (const d of docsRes.rows) {
+      if (!docsByItem.has(d.item_id)) docsByItem.set(d.item_id, []);
+      docsByItem.get(d.item_id).push({
+        id: d.id,
+        filename: d.filename,
+        mimeType: d.mime_type,
+        storageKey: d.storage_key,
+        uploadedByEmail: d.uploaded_by_email,
+        isExternal: d.is_external,
+        uploadedAt: d.uploaded_at
       });
     }
 
@@ -303,7 +324,8 @@ export async function getChecklistForDeal(userId, savedDealId) {
       return {
         ...i,
         assignees: assigneesByItem.get(i.id) || [],
-        comments: commentsByItem.get(i.id) || []
+        comments: commentsByItem.get(i.id) || [],
+        documents: docsByItem.get(i.id) || []
       };
     });
 

@@ -9,15 +9,28 @@ const RETRY_DELAYS = [2000, 4000];
 const MAX_ATTEMPTS = 1 + RETRY_DELAYS.length;
 
 function getToken() {
-  return localStorage.getItem('token');
+  try {
+    return localStorage.getItem('token');
+  } catch (err) {
+    console.warn('[api] localStorage read failed', err);
+    return null;
+  }
 }
 
 function setToken(token) {
-  localStorage.setItem('token', token);
+  try {
+    localStorage.setItem('token', token);
+  } catch (err) {
+    console.warn('[api] localStorage write failed', err);
+  }
 }
 
 function removeToken() {
-  localStorage.removeItem('token');
+  try {
+    localStorage.removeItem('token');
+  } catch (err) {
+    console.warn('[api] localStorage remove failed', err);
+  }
 }
 
 function isNetworkError(err) {
@@ -32,7 +45,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  */
 export async function pingHealth() {
   try {
-    await fetch(`${API_URL.replace(/\/api\/?$/, '')}/health`, { method: 'GET' });
+    await fetch(`${API_URL.replace(/\/api\/?$/, '')}/health`, { method: 'GET', credentials: 'include' });
     return true;
   } catch {
     return false;
@@ -53,17 +66,34 @@ async function apiRequest(endpoint, options = {}) {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
+        credentials: 'include',
         ...options,
         headers
       });
 
       if (response.status === 401 && !isAuthAttempt) {
-        removeToken();
-        const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
-        if (!path.startsWith('/dashboard')) {
-          window.location.href = '/login';
+        const error = await response.json().catch(() => ({}));
+        const isPublicUnauth = String(endpoint).startsWith('/dd/public')
+          || String(endpoint).startsWith('/underwriting/public');
+        const sessionDead = !isPublicUnauth && !error.requiresPassword && (
+          error.error === 'Token expired'
+          || error.error === 'Invalid token'
+          || (error.error === 'Authentication required' && Boolean(token))
+        );
+        if (sessionDead) {
+          console.warn('[api] session ended', endpoint, error.error);
+          removeToken();
+          const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+          if (!path.startsWith('/dashboard') && !path.startsWith('/dd/') && !path.startsWith('/underwriting/')) {
+            window.location.href = '/login';
+          }
+        } else if (token) {
+          console.warn('[api] 401 kept session', endpoint, error.error || response.status);
         }
-        throw new Error('Unauthorized');
+        const err = new Error(error.error || 'Unauthorized');
+        err.status = 401;
+        if (error.requiresPassword) err.requiresPassword = true;
+        throw err;
       }
 
       if (!response.ok) {
@@ -153,7 +183,15 @@ export const authAPI = {
     return data;
   },
 
-  logout: () => {
+  logout: async () => {
+    try {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (err) {
+      console.warn('[auth] logout request failed', err);
+    }
     removeToken();
   },
 
@@ -284,6 +322,9 @@ export const teamsAPI = {
 export const crmAPI = {
   getToday: () => apiRequest('/crm/today'),
 
+  search: (q) =>
+    apiRequest(`/crm/search?q=${encodeURIComponent(String(q || '').trim())}`),
+
   getAlerts: () => apiRequest('/crm/alerts'),
 
   markAlertRead: (alertId) =>
@@ -292,9 +333,66 @@ export const crmAPI = {
   markAllAlertsRead: () =>
     apiRequest('/crm/alerts/read-all', { method: 'POST' }),
 
-  getTasks: (status = 'open') => apiRequest(`/crm/tasks?status=${encodeURIComponent(status)}`),
+  getTasks: (status = 'open', opts = {}) => {
+    const params = new URLSearchParams();
+    params.set('status', status);
+    if (opts.assignee) params.set('assignee', opts.assignee);
+    return apiRequest(`/crm/tasks?${params.toString()}`);
+  },
+
+  quickAddTask: (payload) =>
+    apiRequest('/crm/tasks/quick-add', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
 
   getContacts: () => apiRequest('/crm/contacts'),
+
+  createContact: (payload) =>
+    apiRequest('/crm/contacts', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateContact: (contactId, payload) =>
+    apiRequest(`/crm/contacts/${contactId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  deleteContact: (contactId) =>
+    apiRequest(`/crm/contacts/${contactId}`, { method: 'DELETE' }),
+
+  getCompanies: () => apiRequest('/crm/companies'),
+
+  createCompany: (payload) =>
+    apiRequest('/crm/companies', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateCompany: (companyId, payload) =>
+    apiRequest(`/crm/companies/${companyId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  importCsv: (csv, teamId = null) =>
+    apiRequest('/crm/import/csv', {
+      method: 'POST',
+      body: JSON.stringify({ csv, teamId })
+    }),
+
+  getViews: (teamId = null) => {
+    const qs = teamId ? `?teamId=${teamId}` : '';
+    return apiRequest(`/crm/views${qs}`);
+  },
+
+  createView: (payload) =>
+    apiRequest('/crm/views', { method: 'POST', body: JSON.stringify(payload) }),
+
+  updateView: (viewId, payload) =>
+    apiRequest(`/crm/views/${viewId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  deleteView: (viewId) =>
+    apiRequest(`/crm/views/${viewId}`, { method: 'DELETE' }),
 
   getAnalytics: () => apiRequest('/crm/analytics'),
 
@@ -381,11 +479,36 @@ export const crmAPI = {
 
   getDealActivities: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/activities`),
 
-  addActivity: (savedDealId, { body, activityType = 'note' }) =>
+  addActivity: (savedDealId, payload) =>
     apiRequest(`/crm/deals/${savedDealId}/activities`, {
       method: 'POST',
-      body: JSON.stringify({ body, activityType })
+      body: JSON.stringify(
+        typeof payload === 'string'
+          ? { body: payload, activityType: 'note' }
+          : { activityType: 'note', ...payload }
+      )
     }),
+
+  updateNote: (activityId, payload) =>
+    apiRequest(`/crm/notes/${activityId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  getDealContacts: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/contacts`),
+
+  linkDealContact: (savedDealId, payload) =>
+    apiRequest(`/crm/deals/${savedDealId}/contacts`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  unlinkDealContact: (savedDealId, contactId, role) => {
+    const qs = role ? `?role=${encodeURIComponent(role)}` : '';
+    return apiRequest(`/crm/deals/${savedDealId}/contacts/${contactId}${qs}`, {
+      method: 'DELETE'
+    });
+  },
 
   refreshFromListing: (savedDealId) =>
     apiRequest(`/crm/deals/${savedDealId}/refresh-from-listing`, { method: 'POST' }),
@@ -408,6 +531,14 @@ export const crmAPI = {
     apiRequest(`/crm/tasks/${taskId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload)
+    }),
+
+  getTaskComments: (taskId) => apiRequest(`/crm/tasks/${taskId}/comments`),
+
+  addTaskComment: (taskId, body) =>
+    apiRequest(`/crm/tasks/${taskId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body })
     }),
 
   getDealDd: (savedDealId) => apiRequest(`/crm/deals/${savedDealId}/dd`),
@@ -452,7 +583,104 @@ export const crmAPI = {
     }),
 
   revokeDdShareLink: (savedDealId, linkId) =>
-    apiRequest(`/crm/deals/${savedDealId}/dd/share-links/${linkId}`, { method: 'DELETE' })
+    apiRequest(`/crm/deals/${savedDealId}/dd/share-links/${linkId}`, { method: 'DELETE' }),
+
+  listUnderwriting: (limit = 100) =>
+    apiRequest(`/crm/underwriting?limit=${limit}`),
+
+  getUnderwriting: (savedDealId, prefill = true) =>
+    apiRequest(`/crm/deals/${savedDealId}/underwriting?prefill=${prefill ? '1' : '0'}`),
+
+  createBlankUnderwriting: (payload = {}) =>
+    apiRequest('/crm/underwriting/blank', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  patchUnderwriting: (modelId, payload) =>
+    apiRequest(`/crm/underwriting/models/${modelId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  createUwPath: (modelId, payload) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/paths`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  patchUwPath: (modelId, pathId, payload) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/paths/${pathId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload)
+    }),
+
+  deleteUwPath: (modelId, pathId) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/paths/${pathId}`, { method: 'DELETE' }),
+
+  saveUwRevision: (modelId, payload = {}) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/revisions`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  upsertUwCustomSheet: (modelId, payload) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/custom-sheets`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }),
+
+  deleteUwCustomSheet: (modelId, sheetId) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/custom-sheets/${sheetId}`, {
+      method: 'DELETE'
+    }),
+
+  postUwEvidence: (modelId, payload) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/evidence`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  requestUwEvidenceDd: (modelId, payload) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/evidence/request-dd`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  createUwShareLink: (modelId, payload = {}) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/share-links`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
+  revokeUwShareLink: (modelId, linkId) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/share-links/${linkId}`, {
+      method: 'DELETE'
+    }),
+
+  previewUwImport: (modelId, sheets, extra = {}) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/import/preview`, {
+      method: 'POST',
+      body: JSON.stringify({ sheets, ...extra })
+    }),
+
+  applyUwImport: (modelId, payload) =>
+    apiRequest(`/crm/underwriting/models/${modelId}/import/apply`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+};
+
+export const underwritingPublicAPI = {
+  get: (token, password) => {
+    const q = password ? `?password=${encodeURIComponent(password)}` : '';
+    return apiRequest(`/underwriting/public/${token}${q}`);
+  },
+  unlock: (token, password) =>
+    apiRequest(`/underwriting/public/${token}/unlock`, {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    })
 };
 
 function ddPortalHeaders(guest = {}) {
@@ -535,6 +763,7 @@ export const feedbackAPI = {
   attachmentObjectUrl: async (attachmentId) => {
     const token = getToken();
     const response = await fetch(`${API_URL}/feedback/attachments/${attachmentId}`, {
+      credentials: 'include',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!response.ok) throw new Error('Failed to load attachment');

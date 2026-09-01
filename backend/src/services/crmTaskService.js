@@ -165,22 +165,55 @@ async function createRemindersForTask(userId, savedDealId, taskId, dueAt, recipi
   }
 }
 
-export async function listAllTasks(userId, { status = 'open' } = {}) {
+function clampPriority(p) {
+  const n = Number(p);
+  if (!Number.isFinite(n)) return 3;
+  return Math.min(4, Math.max(1, Math.round(n)));
+}
+
+function normalizeRecurrence(v) {
+  if (!v) return null;
+  const r = String(v).toLowerCase().trim();
+  if (['daily', 'weekly', 'monthly'].includes(r)) return r;
+  return null;
+}
+
+export async function listAllTasks(userId, { status = 'open', assignee = null, parentOnly = true } = {}) {
   let statusClause = "AND t.status = 'open'";
   if (status === 'done') statusClause = "AND t.status = 'done'";
   else if (status === 'all') statusClause = '';
 
+  let assigneeClause = '';
+  const params = [userId];
+  if (assignee === 'me') {
+    params.push(userId);
+    assigneeClause = `AND (t.assignee_user_id = $${params.length} OR (t.assignee_user_id IS NULL AND t.user_id = $${params.length}))`;
+  } else if (assignee === 'team') {
+    assigneeClause = `AND t.assignee_user_id IS NOT NULL AND t.assignee_user_id <> $1`;
+  } else if (assignee && Number(assignee)) {
+    params.push(Number(assignee));
+    assigneeClause = `AND t.assignee_user_id = $${params.length}`;
+  }
+
+  const parentClause = parentOnly ? 'AND t.parent_task_id IS NULL' : '';
+
   const result = await pool.query(
-    `SELECT t.id, t.saved_deal_id, t.title, t.status, t.due_at, t.completed_at, t.source, t.metadata, t.created_at,
-            sd.name AS deal_name, sd.progress_stage
+    `SELECT t.id, t.saved_deal_id, t.title, t.status, t.due_at, t.completed_at, t.source, t.metadata,
+            t.created_at, t.user_id, t.assignee_user_id, t.parent_task_id, t.priority, t.recurrence,
+            sd.name AS deal_name, sd.progress_stage,
+            ua.email AS assignee_email,
+            (SELECT COUNT(*)::int FROM tasks sub WHERE sub.parent_task_id = t.id) AS subtask_count,
+            (SELECT COUNT(*)::int FROM tasks sub WHERE sub.parent_task_id = t.id AND sub.status = 'done') AS subtask_done_count
      FROM tasks t
      JOIN saved_deals sd ON sd.id = t.saved_deal_id
-     WHERE ${VISIBLE_DEALS_SQL} ${statusClause}
+     LEFT JOIN users ua ON ua.id = t.assignee_user_id
+     WHERE ${VISIBLE_DEALS_SQL} ${statusClause} ${assigneeClause} ${parentClause}
      ORDER BY
        CASE WHEN t.status = 'open' THEN 0 ELSE 1 END,
+       t.priority ASC,
        t.due_at ASC NULLS LAST,
        t.created_at DESC`,
-    [userId]
+    params
   );
   return result.rows;
 }
@@ -188,10 +221,13 @@ export async function listAllTasks(userId, { status = 'open' } = {}) {
 export async function listDealTasks(userId, savedDealId) {
   await assertDealOwned(userId, savedDealId, { write: false });
   const result = await pool.query(
-    `SELECT id, saved_deal_id, title, status, due_at, completed_at, source, metadata, created_at, user_id
-     FROM tasks
-     WHERE saved_deal_id = $1
-     ORDER BY due_at ASC NULLS LAST, created_at DESC`,
+    `SELECT t.id, t.saved_deal_id, t.title, t.status, t.due_at, t.completed_at, t.source, t.metadata,
+            t.created_at, t.user_id, t.assignee_user_id, t.parent_task_id, t.priority, t.recurrence,
+            ua.email AS assignee_email
+     FROM tasks t
+     LEFT JOIN users ua ON ua.id = t.assignee_user_id
+     WHERE t.saved_deal_id = $1
+     ORDER BY t.parent_task_id NULLS FIRST, t.priority ASC, t.due_at ASC NULLS LAST, t.created_at DESC`,
     [savedDealId]
   );
   return result.rows;
@@ -200,7 +236,17 @@ export async function listDealTasks(userId, savedDealId) {
 export async function createTask(
   userId,
   savedDealId,
-  { title, dueAt, source = 'manual', metadata = {}, notifyRecipients }
+  {
+    title,
+    dueAt,
+    source = 'manual',
+    metadata = {},
+    notifyRecipients,
+    assigneeUserId = null,
+    parentTaskId = null,
+    priority = 3,
+    recurrence = null
+  }
 ) {
   const deal = await assertDealOwned(userId, savedDealId, { write: true });
   const trimmed = (title || '').trim();
@@ -210,10 +256,43 @@ export async function createTask(
     throw err;
   }
 
+  if (parentTaskId) {
+    const parent = await pool.query(
+      'SELECT id, saved_deal_id FROM tasks WHERE id = $1',
+      [parentTaskId]
+    );
+    if (!parent.rows.length || Number(parent.rows[0].saved_deal_id) !== Number(savedDealId)) {
+      const err = new Error('Parent task not found on this deal');
+      err.status = 400;
+      throw err;
+    }
+  }
+
+  let assignee = assigneeUserId != null ? Number(assigneeUserId) : null;
+  if (assignee && Number.isFinite(assignee)) {
+    // Must be self or active team member on team deals
+    if (assignee !== Number(userId) && deal.team_id) {
+      const member = await pool.query(
+        `SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2 AND status = 'active'`,
+        [deal.team_id, assignee]
+      );
+      if (!member.rows.length) {
+        const err = new Error('Assignee must be a team member');
+        err.status = 400;
+        throw err;
+      }
+    } else if (assignee !== Number(userId) && !deal.team_id) {
+      assignee = userId; // personal deals: only self
+    }
+  } else {
+    assignee = userId;
+  }
+
   const recipients = await resolveNotifyRecipients(userId, savedDealId, notifyRecipients);
   const taskMetadata = {
     ...metadata,
     createdBy: metadata.createdBy || userId,
+    assignedBy: assignee !== Number(userId) ? userId : metadata.assignedBy || userId,
     notifyRecipients: recipients.map(({ type, email, name, contactId, userId: recipientUserId }) => ({
       type,
       email: email || null,
@@ -224,16 +303,42 @@ export async function createTask(
   };
 
   const result = await pool.query(
-    `INSERT INTO tasks (user_id, saved_deal_id, title, due_at, source, metadata)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO tasks (
+       user_id, saved_deal_id, title, due_at, source, metadata,
+       assignee_user_id, parent_task_id, priority, recurrence
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
-    [userId, savedDealId, trimmed, dueAt || null, source, JSON.stringify(taskMetadata)]
+    [
+      userId,
+      savedDealId,
+      trimmed,
+      dueAt || null,
+      source,
+      JSON.stringify(taskMetadata),
+      assignee,
+      parentTaskId || null,
+      clampPriority(priority),
+      normalizeRecurrence(recurrence)
+    ]
   );
 
   const task = result.rows[0];
 
   if (dueAt) {
-    await createRemindersForTask(userId, savedDealId, task.id, dueAt, recipients);
+    const reminderUserId = assignee || userId;
+    await createRemindersForTask(reminderUserId, savedDealId, task.id, dueAt, recipients);
+  }
+
+  if (assignee && Number(assignee) !== Number(userId)) {
+    await createUserAlert({
+      userId: assignee,
+      alertType: 'task_assigned',
+      title: 'New task assigned to you',
+      body: trimmed,
+      savedDealId,
+      metadata: { taskId: task.id, assignedBy: userId, openTasks: true }
+    }).catch((err) => console.warn('[crmTask] assignee alert failed:', err.message));
   }
 
   await pool.query(
@@ -243,12 +348,17 @@ export async function createTask(
       userId,
       savedDealId,
       `Task: ${trimmed}`,
-      JSON.stringify({ taskId: task.id, dueAt: dueAt || null, notifyRecipients: taskMetadata.notifyRecipients })
+      JSON.stringify({
+        taskId: task.id,
+        dueAt: dueAt || null,
+        assigneeUserId: assignee,
+        notifyRecipients: taskMetadata.notifyRecipients
+      })
     ]
   );
 
   console.log(
-    `[crmTask] created task=${task.id} deal=${savedDealId} (${deal.name}) recipients=${recipients.length}`
+    `[crmTask] created task=${task.id} deal=${savedDealId} (${deal.name}) assignee=${assignee} recipients=${recipients.length}`
   );
   return task;
 }
@@ -301,6 +411,17 @@ export async function createQuickFollowUp(
   });
 }
 
+function nextRecurrenceDue(fromDue, recurrence) {
+  const base = fromDue ? new Date(fromDue) : new Date();
+  if (Number.isNaN(base.getTime())) return null;
+  if (recurrence === 'daily') base.setDate(base.getDate() + 1);
+  else if (recurrence === 'weekly') base.setDate(base.getDate() + 7);
+  else if (recurrence === 'monthly') base.setMonth(base.getMonth() + 1);
+  else return null;
+  base.setHours(9, 0, 0, 0);
+  return base.toISOString();
+}
+
 export async function updateTask(userId, taskId, patch) {
   const existing = await pool.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
   if (!existing.rows.length) {
@@ -315,6 +436,13 @@ export async function updateTask(userId, taskId, patch) {
   const title = patch.title != null ? String(patch.title).trim() : task.title;
   const status = patch.status != null ? patch.status : task.status;
   const dueAt = patch.dueAt !== undefined ? patch.dueAt : task.due_at;
+  const priority = patch.priority !== undefined ? clampPriority(patch.priority) : (task.priority ?? 3);
+  const recurrence =
+    patch.recurrence !== undefined ? normalizeRecurrence(patch.recurrence) : task.recurrence;
+  let assigneeUserId =
+    patch.assigneeUserId !== undefined ? patch.assigneeUserId : task.assignee_user_id;
+  if (assigneeUserId != null) assigneeUserId = Number(assigneeUserId) || null;
+
   const completedAt =
     status === 'done' && task.status !== 'done'
       ? new Date().toISOString()
@@ -323,9 +451,11 @@ export async function updateTask(userId, taskId, patch) {
         : null;
 
   const result = await pool.query(
-    `UPDATE tasks SET title = $1, status = $2, due_at = $3, completed_at = $4
-     WHERE id = $5 RETURNING *`,
-    [title, status, dueAt, completedAt, taskId]
+    `UPDATE tasks SET
+       title = $1, status = $2, due_at = $3, completed_at = $4,
+       assignee_user_id = $5, priority = $6, recurrence = $7, updated_at = NOW()
+     WHERE id = $8 RETURNING *`,
+    [title, status, dueAt, completedAt, assigneeUserId, priority, recurrence, taskId]
   );
 
   if (status === 'done' && task.status !== 'done') {
@@ -340,8 +470,69 @@ export async function updateTask(userId, taskId, patch) {
     }).catch((err) => {
       console.warn('[crmTask] assigner notify failed:', err.message);
     });
+
+    // Recurring: spawn next occurrence
+    const recur = recurrence || task.recurrence;
+    if (recur) {
+      const nextDue = nextRecurrenceDue(task.due_at || dueAt, recur);
+      if (nextDue) {
+        await createTask(userId, task.saved_deal_id, {
+          title,
+          dueAt: nextDue,
+          source: task.source || 'manual',
+          metadata: { ...(typeof task.metadata === 'object' ? task.metadata : {}), recurringFrom: taskId },
+          assigneeUserId: assigneeUserId || task.assignee_user_id || userId,
+          priority,
+          recurrence: recur,
+          notifyRecipients: [{ type: 'self' }]
+        }).catch((err) => console.warn('[crmTask] recurrence spawn failed:', err.message));
+      }
+    }
   }
 
+  return result.rows[0];
+}
+
+export async function listTaskComments(userId, taskId) {
+  const existing = await pool.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
+  if (!existing.rows.length) {
+    const err = new Error('Task not found');
+    err.status = 404;
+    throw err;
+  }
+  await assertDealOwned(userId, existing.rows[0].saved_deal_id, { write: false });
+  const result = await pool.query(
+    `SELECT tc.id, tc.task_id, tc.body, tc.created_at, tc.user_id, u.email AS author_email
+     FROM task_comments tc
+     JOIN users u ON u.id = tc.user_id
+     WHERE tc.task_id = $1
+     ORDER BY tc.created_at ASC`,
+    [taskId]
+  );
+  return result.rows;
+}
+
+export async function addTaskComment(userId, taskId, body) {
+  const existing = await pool.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
+  if (!existing.rows.length) {
+    const err = new Error('Task not found');
+    err.status = 404;
+    throw err;
+  }
+  await assertDealOwned(userId, existing.rows[0].saved_deal_id, { write: true });
+  const trimmed = String(body || '').trim();
+  if (!trimmed) {
+    const err = new Error('Comment body required');
+    err.status = 400;
+    throw err;
+  }
+  const result = await pool.query(
+    `INSERT INTO task_comments (task_id, user_id, body)
+     VALUES ($1, $2, $3)
+     RETURNING id, task_id, body, created_at, user_id`,
+    [taskId, userId, trimmed]
+  );
+  console.log('[crmTask] comment on task', taskId);
   return result.rows[0];
 }
 
@@ -412,11 +603,14 @@ export async function getTodayTaskSummary(userId) {
 
   const result = await pool.query(
     `SELECT t.id, t.user_id, t.saved_deal_id, t.title, t.status, t.due_at, t.source,
-            sd.name AS deal_name, sd.progress_stage
+            t.assignee_user_id, t.priority, t.recurrence, t.parent_task_id,
+            sd.name AS deal_name, sd.progress_stage,
+            ua.email AS assignee_email
      FROM tasks t
      JOIN saved_deals sd ON sd.id = t.saved_deal_id
-     WHERE ${VISIBLE_DEALS_SQL} AND t.status = 'open'
-     ORDER BY t.due_at ASC NULLS LAST, t.created_at DESC`,
+     LEFT JOIN users ua ON ua.id = t.assignee_user_id
+     WHERE ${VISIBLE_DEALS_SQL} AND t.status = 'open' AND t.parent_task_id IS NULL
+     ORDER BY t.priority ASC, t.due_at ASC NULLS LAST, t.created_at DESC`,
     [userId]
   );
 
@@ -426,16 +620,22 @@ export async function getTodayTaskSummary(userId) {
   const upcoming = [];
 
   for (const task of open) {
+    const assignedToMe =
+      Number(task.assignee_user_id || task.user_id) === Number(userId);
     if (!task.due_at) {
-      // Undated work assigned to me (e.g. Talk assign / mention follow-up) → Today
-      if (Number(task.user_id) === Number(userId)) dueToday.push(task);
+      // Undated work assigned to me → Today
+      if (assignedToMe) dueToday.push(task);
       else upcoming.push(task);
       continue;
     }
     const due = new Date(task.due_at);
-    if (due < startOfDay) overdue.push(task);
-    else if (due <= endOfDay) dueToday.push(task);
-    else upcoming.push(task);
+    if (due < startOfDay) {
+      if (assignedToMe) overdue.push(task);
+      else upcoming.push(task);
+    } else if (due <= endOfDay) {
+      if (assignedToMe) dueToday.push(task);
+      else upcoming.push(task);
+    } else upcoming.push(task);
   }
 
   return {

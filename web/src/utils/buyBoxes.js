@@ -1,5 +1,5 @@
 /** Client-side normalization (keep aligned with backend/src/lib/userBuyBoxes.js). */
-export const BUY_BOX_SLOT_COUNT = 3;
+export const BUY_BOX_SLOT_COUNT = 4;
 
 const SLOT_META_KEYS = new Set([
   'name',
@@ -191,7 +191,7 @@ export function normalizeBuyBoxesState(settings) {
   const legacy = settings.buyBox && typeof settings.buyBox === 'object' ? settings.buyBox : {};
   const prefs = settings.preferences || {};
   let buyBoxes = settings.buyBoxes;
-  if (!Array.isArray(buyBoxes) || buyBoxes.length !== BUY_BOX_SLOT_COUNT) {
+  if (!Array.isArray(buyBoxes) || buyBoxes.length === 0) {
     buyBoxes = prefs.buyBoxes;
   }
   const activeBuyBoxIndex = Math.min(
@@ -199,7 +199,7 @@ export function normalizeBuyBoxesState(settings) {
     Math.max(0, Number(settings.activeBuyBoxIndex ?? prefs.activeBuyBoxIndex) || 0)
   );
 
-  if (!Array.isArray(buyBoxes) || buyBoxes.length !== BUY_BOX_SLOT_COUNT) {
+  if (!Array.isArray(buyBoxes) || buyBoxes.length === 0) {
     buyBoxes = [];
     for (let i = 0; i < BUY_BOX_SLOT_COUNT; i++) {
       const criteria = i === 0 ? { ...emptyBuyBoxCriteria(), ...legacy } : emptyBuyBoxCriteria();
@@ -207,7 +207,7 @@ export function normalizeBuyBoxesState(settings) {
       buyBoxes.push({ name: defaultBuyBoxSlotName(i), ...criteria, ...feed });
     }
   } else {
-    buyBoxes = buyBoxes.map((slot, i) => {
+    buyBoxes = buyBoxes.slice(0, BUY_BOX_SLOT_COUNT).map((slot, i) => {
       const s = slot && typeof slot === 'object' ? slot : {};
       const storedFeed = {
         feedSearch: s.feedSearch,
@@ -224,6 +224,14 @@ export function normalizeBuyBoxesState(settings) {
         ...feed
       };
     });
+    while (buyBoxes.length < BUY_BOX_SLOT_COUNT) {
+      const i = buyBoxes.length;
+      buyBoxes.push({
+        name: defaultBuyBoxSlotName(i),
+        ...emptyBuyBoxCriteria(),
+        ...mergeSlotFeed(i, {}, {})
+      });
+    }
   }
 
   const activeSlot = buyBoxes[activeBuyBoxIndex] || buyBoxes[0];

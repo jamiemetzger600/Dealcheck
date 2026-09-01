@@ -7,6 +7,9 @@ import DashboardPage from './pages/DashboardPage';
 import BillingPage from './pages/BillingPage';
 import SettingsPage from './pages/SettingsPage';
 import DdPortalPage from './pages/DdPortalPage';
+import UnderwritingPortalPage from './pages/UnderwritingPortalPage';
+import UnderwritingHubPage from './pages/underwriting/UnderwritingHubPage';
+import UnderwritingAppPage from './pages/underwriting/UnderwritingAppPage';
 import TeamInviteAcceptPage from './pages/TeamInviteAcceptPage';
 import AdminFeedbackPage from './pages/AdminFeedbackPage';
 import FeedbackShell from './components/feedback/FeedbackShell';
@@ -78,6 +81,23 @@ function AppRoutes() {
         />
         <Route path="/teams/accept" element={<TeamInviteAcceptPage />} />
         <Route path="/dd/:token" element={<DdPortalPage />} />
+        <Route path="/underwriting/:token" element={<UnderwritingPortalPage />} />
+        <Route
+          path="/app/underwriting"
+          element={(
+            <ProtectedRoute>
+              <UnderwritingHubPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/app/underwriting/:dealId"
+          element={(
+            <ProtectedRoute>
+              <UnderwritingAppPage />
+            </ProtectedRoute>
+          )}
+        />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </FeedbackShell>

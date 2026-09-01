@@ -3,7 +3,7 @@
 set -euo pipefail
 export PATH="/opt/homebrew/opt/postgresql@15/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 export NODE_ENV="${NODE_ENV:-development}"
-ROOT="/Users/jamie/Dealcheck-main/backend"
+ROOT="$(cd "$(dirname "$0")/../backend" && pwd)"
 cd "$ROOT"
 
 # Avoid port conflict with a leftover process

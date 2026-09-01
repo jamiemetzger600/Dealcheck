@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Build Deal Analyzer extension package with version in filename
+# Build Vettr extension package with version in filename
 # Usage: ./build-package.sh
-# Output: Deal-Analyzer-v2.2.22.zip (version from version.js)
+# Output: Vettr-Extension-v2.2.22.zip (version from version.js)
 
 set -e
 
@@ -13,10 +13,10 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-OUTPUT_NAME="Deal-Analyzer-v${VERSION}.zip"
+OUTPUT_NAME="Vettr-Extension-v${VERSION}.zip"
 BUILD_DIR="build-temp"
 
-echo "📦 Building Deal Analyzer v${VERSION}..."
+echo "📦 Building Vettr v${VERSION}..."
 echo "   Output: ${OUTPUT_NAME}"
 echo ""
 

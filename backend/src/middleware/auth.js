@@ -1,20 +1,17 @@
 import jwt from 'jsonwebtoken';
+import { readAuthToken } from '../lib/authCookies.js';
 
 export const authMiddleware = (req, res, next) => {
   try {
-    // Get token from Authorization header or cookie
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') 
-      ? authHeader.substring(7) 
-      : req.cookies?.token;
+    const { token, source } = readAuthToken(req);
 
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded; // Contains { userId, email }
+    req.authSource = source;
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -26,18 +23,15 @@ export const authMiddleware = (req, res, next) => {
 
 export const optionalAuth = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') 
-      ? authHeader.substring(7) 
-      : req.cookies?.token;
+    const { token, source } = readAuthToken(req);
 
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = decoded;
+      req.authSource = source;
     }
     next();
   } catch (error) {
-    // Continue without auth
     next();
   }
 };

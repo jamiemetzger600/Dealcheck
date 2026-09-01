@@ -1,0 +1,489 @@
+/* Standalone underwriting app shell (M2a) */
+
+.uw-app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary, #0f1115);
+  color: var(--text-primary, #e4e4e4);
+}
+
+.uw-app__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border, #3d3d3d);
+  background: rgba(0, 0, 0, 0.25);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.uw-app__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.uw-app__logo {
+  height: 28px;
+  width: auto;
+}
+
+.uw-app__title-block {
+  min-width: 0;
+}
+
+.uw-app__eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.uw-app__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(52vw, 480px);
+}
+
+.uw-app__meta {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.uw-app__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.uw-app__body {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.uw-app__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--border, #3d3d3d);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.uw-app__nav-btn {
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.uw-app__nav-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.uw-app__nav-btn--active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border, #3d3d3d);
+  font-weight: 600;
+}
+
+.uw-app__nav-note {
+  margin: 12px 8px 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.uw-app__main {
+  padding: 16px 18px 28px;
+  overflow: auto;
+  min-width: 0;
+}
+
+.uw-app__kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.uw-app__kpi {
+  border: 1px solid var(--border, #3d3d3d);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.uw-app__kpi-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.uw-app__kpi-value {
+  margin-top: 4px;
+  font-size: 1.05rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.uw-app__kpi--ok .uw-app__kpi-value {
+  color: #7dcea0;
+}
+
+.uw-app__kpi--warn .uw-app__kpi-value {
+  color: #f0b27a;
+}
+
+/* Hub */
+.uw-hub {
+  min-height: 100vh;
+  padding: 18px 20px 40px;
+  background: var(--bg-primary, #0f1115);
+  color: var(--text-primary, #e4e4e4);
+}
+
+.uw-hub__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 18px;
+}
+
+.uw-hub__header h1 {
+  margin: 4px 0 0;
+  font-size: 1.6rem;
+}
+
+.uw-hub__table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border, #3d3d3d);
+  border-radius: 12px;
+}
+
+.uw-hub__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.uw-hub__table th,
+.uw-hub__table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border, #3d3d3d);
+  white-space: nowrap;
+}
+
+.uw-hub__table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #8a8a8a);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.uw-hub__table tr:last-child td {
+  border-bottom: none;
+}
+
+.uw-hub__table tbody tr {
+  cursor: pointer;
+}
+
+.uw-hub__table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.uw-hub__empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.uw-hub__row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* CRM launch strip */
+.uw-launch {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 8px;
+}
+
+.uw-launch__card {
+  border: 1px solid var(--border, #3d3d3d);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.uw-launch__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.uw-launch__sub {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.uw-launch__kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.uw-launch__kpi strong {
+  display: block;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.uw-launch__kpi span {
+  font-size: 0.75rem;
+  color: var(--text-muted, #8a8a8a);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.uw-launch__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+@media (max-width: 860px) {
+  .uw-app__body {
+    grid-template-columns: 1fr;
+  }
+
+  .uw-app__nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--border, #3d3d3d);
+  }
+
+  .uw-app__title {
+    max-width: 70vw;
+  }
+}
+
+/* Quick Underwrite + section modules */
+.uw-qu,
+.uw-hist,
+.uw-paths,
+.uw-debt,
+.uw-returns,
+.uw-outputs,
+.uw-import {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.uw-qu__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.uw-qu__toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.uw-qu__calc {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border, #3d3d3d);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.uw-qu__calc--ok {
+  border-color: rgba(125, 206, 160, 0.45);
+}
+
+.uw-qu__calc--warn {
+  border-color: rgba(240, 178, 122, 0.45);
+}
+
+.uw-qu__cols {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 1100px) {
+  .uw-qu__cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.uw-qu__card {
+  border: 1px solid var(--border, #3d3d3d);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.uw-qu__card h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+}
+
+.uw-qu__uses {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+.uw-qu__uses div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.uw-table--dense th,
+.uw-table--dense td {
+  font-size: 0.75rem;
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+
+.uw-ev-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.68rem;
+  font-style: normal;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  text-transform: lowercase;
+}
+
+.uw-ev-badge--verified,
+.uw-ev-badge--received {
+  color: #7dcea0;
+}
+
+.uw-ev-badge--requested,
+.uw-ev-badge--linked {
+  color: #f0b27a;
+}
+
+.uw-pass {
+  color: #7dcea0;
+}
+
+.uw-fail {
+  color: #e74c3c;
+}
+
+.uw-hist__ev {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.uw-paths__charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 1100px) {
+  .uw-paths__charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+.uw-dscr-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.uw-dscr-series {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 8px;
+  align-items: end;
+}
+
+.uw-dscr-label {
+  font-size: 0.8rem;
+  color: var(--text-muted, #8a8a8a);
+}
+
+.uw-dscr-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 64px;
+}
+
+.uw-dscr-bar {
+  flex: 1;
+  min-width: 6px;
+  background: rgba(240, 178, 122, 0.7);
+  border-radius: 2px 2px 0 0;
+}
+
+.uw-dscr-bar--ok {
+  background: rgba(125, 206, 160, 0.75);
+}
+
+.uw-row--warn td {
+  background: rgba(240, 178, 122, 0.08);
+}
+
+.uw-check {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px !important;
+  font-size: 0.85rem;
+  color: inherit;
+}

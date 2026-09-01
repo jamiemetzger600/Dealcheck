@@ -1,8 +1,8 @@
-# Max Price Deal Analyzer v3.1.0 - Beta Release
+# Vettr v3.1.0 - Beta Release
 
 ## 🎉 Welcome Beta Tester!
 
-Thank you for testing Max Price Deal Analyzer v3.1.0! This release includes a game-changing improvement: **Instant Access to Real Business Listings** - no setup required!
+Thank you for testing Vettr v3.1.0! This release includes a game-changing improvement: **Instant Access to Real Business Listings** - no setup required!
 
 ---
 
@@ -20,7 +20,7 @@ Thank you for testing Max Price Deal Analyzer v3.1.0! This release includes a ga
 
 ### **Step 3: Pin the Extension**
 1. Click the puzzle piece icon in Chrome toolbar
-2. Find "Max Price Deal Analyzer"
+2. Find "Vettr"
 3. Click the pin icon to keep it visible
 
 ---

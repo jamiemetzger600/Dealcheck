@@ -55,7 +55,7 @@ export default function LoginPage() {
       <div className="auth-container">
         <div className="auth-header">
           <h1>Vettr</h1>
-          <p>Business Acquisition Deal Analyzer</p>
+          <p>Find it. Vett it. Save it.</p>
         </div>
         {fromExtension && (
           <p className="auth-banner">Signed in. You can close this tab and return to the Chrome extension.</p>

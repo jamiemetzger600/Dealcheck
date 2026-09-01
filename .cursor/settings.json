@@ -1,0 +1,19 @@
+{
+  "plugins": {
+    "stripe": {
+      "enabled": true
+    },
+    "claude-plugins-official/playwright": {
+      "enabled": true
+    },
+    "firecrawl": {
+      "enabled": true
+    },
+    "claude-plugins-official/claude-code-setup": {
+      "enabled": true
+    },
+    "thedotmack/claude-mem": {
+      "enabled": true
+    }
+  }
+}

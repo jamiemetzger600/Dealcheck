@@ -15,7 +15,8 @@ import SourceManagerModal from '../components/SourceManagerModal';
 import ManualDealModal from '../components/ManualDealModal';
 import QuickDealCalculatorModal from '../components/QuickDealCalculatorModal';
 import ScrapeActivityToast from '../components/ScrapeActivityToast';
-import GuestOnboardingTour, { GUEST_TOUR_DISMISS_KEY } from '../components/GuestOnboardingTour';
+import GuestOnboardingTour from '../components/GuestOnboardingTour';
+import GuestFirstVisitSheet from '../components/GuestFirstVisitSheet';
 import GuestMyDealsEmpty from '../components/GuestMyDealsEmpty';
 import { loadGuestSettings, persistGuestSettings } from '../utils/guestSettings';
 import { useGuestAccess } from '../hooks/useGuestAccess';
@@ -72,14 +73,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     if (tab === 'saved-deals' || tab === 'crm' || params.get('crmDeal')) return 'crm';
     return 'aggregator';
   });
-  const [guestTourBlocking, setGuestTourBlocking] = useState(() => {
-    if (!isGuest) return false;
-    try {
-      return localStorage.getItem(GUEST_TOUR_DISMISS_KEY) !== '1';
-    } catch {
-      return false;
-    }
-  });
+  const [guestTourBlocking, setGuestTourBlocking] = useState(false);
+  const [firstVisitClosed, setFirstVisitClosed] = useState(false);
   const [settings, setSettings] = useState(null);
   const [savedDeals, setSavedDeals] = useState([]);
   /** All personal + team saves — used for aggregator “already saved” markers only. */
@@ -98,6 +93,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     if (params.get('tab') === 'saved-deals') return 'list';
     return null;
   });
+  /** One-shot Aggregator layout hint (e.g. return from CRM → Inbox on mobile). */
+  const [aggregatorViewHint, setAggregatorViewHint] = useState(null);
   const [matchCount, setMatchCount] = useState(0);
   const [totalDeals, setTotalDeals] = useState(0);
   const [newTodayCount, setNewTodayCount] = useState(0);
@@ -300,20 +297,12 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   }, [logout]);
 
   useEffect(() => {
-    if (authLoading || !isGuest || guestTourBlocking || suppressGuestOnboarding || !settings) return;
+    if (authLoading || !isGuest || suppressGuestOnboarding) return;
     if (shouldSkipGuestOnboardingAfterLogout()) {
       clearSkipGuestOnboardingAfterLogout();
       setSuppressGuestOnboarding(true);
-      return;
     }
-    if (
-      isBuyBoxEmpty(settings.buyBox) &&
-      !settings.preferences?.buyBoxOnboardingDismissed
-    ) {
-      setBuyBoxModalMode('onboarding');
-      setShowBuyBoxModal(true);
-    }
-  }, [authLoading, isGuest, guestTourBlocking, suppressGuestOnboarding, settings]);
+  }, [authLoading, isGuest, suppressGuestOnboarding]);
 
   // Auth can resolve after a guest-path render; never keep onboarding open for logged-in users.
   useEffect(() => {
@@ -327,6 +316,34 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     setGuestTourBlocking(false);
     setTourPrepareStepId(null);
   }, []);
+
+  const handleFirstVisitBrowse = useCallback(async () => {
+    setFirstVisitClosed(true);
+    logGuestEvent('guest_first_visit_browse');
+    console.log('[Dashboard] first-visit browse');
+    try {
+      await persistSettings({ preferences: { buyBoxOnboardingDismissed: true } });
+    } catch (error) {
+      console.error('[Dashboard] first-visit dismiss failed:', error);
+    }
+  }, [persistSettings]);
+
+  const handleFirstVisitSetBuyBox = useCallback(() => {
+    logGuestEvent('guest_first_visit_set');
+    console.log('[Dashboard] first-visit set buy box');
+    setBuyBoxModalMode('onboarding');
+    setShowBuyBoxModal(true);
+  }, []);
+
+  const showFirstVisitSheet =
+    isGuest &&
+    !authLoading &&
+    !suppressGuestOnboarding &&
+    Boolean(settings) &&
+    isBuyBoxEmpty(settings.buyBox) &&
+    !settings.preferences?.buyBoxOnboardingDismissed &&
+    !showBuyBoxModal &&
+    !firstVisitClosed;
 
   const handleStartTour = useCallback(() => {
     setActiveTab('aggregator');
@@ -398,6 +415,23 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     return map;
   }, [savedDeals]);
 
+  const saveScopeCrmByMarketDealId = useMemo(() => {
+    const map = {};
+    const put = (key, d) => {
+      if (key == null || key === '') return;
+      map[String(key)] = {
+        rowId: d.id,
+        progressStage: d.progressStage || '',
+        customStageLabel: d.customStageLabel || ''
+      };
+    };
+    for (const d of savedDeals) {
+      put(d.dealId, d);
+      put(d.marketDealId, d);
+    }
+    return map;
+  }, [savedDeals]);
+
   const safeBuyBoxEditingSlotIndex = useMemo(() => {
     const raw = settings?.activeBuyBoxIndex ?? settings?.preferences?.activeBuyBoxIndex ?? 0;
     const n = Number(raw);
@@ -426,6 +460,12 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     if (opts.focusSection) setCrmInitialFocusSection(opts.focusSection);
   }, []);
 
+  const backToInbox = useCallback(() => {
+    console.log('[Dashboard] back to Inbox from CRM');
+    setActiveTab('aggregator');
+    setAggregatorViewHint('inbox');
+  }, []);
+
   if (loading || authLoading) {
     return (
       <div className="loading-screen">
@@ -438,18 +478,23 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     <div className={`app-page-shell${mobileDeckActive && isMobile ? ' app-page-shell--mobile-deck' : ''}`}>
       {(isGuest || tourForceOpen) && (
         <GuestOnboardingTour
-          autoShow={isGuest && !suppressGuestOnboarding}
+          autoShow={false}
           forceOpen={tourForceOpen}
           onDismiss={handleTourDismiss}
           onEnsureAggregatorTab={() => setActiveTab('aggregator')}
           onPrepareStep={setTourPrepareStepId}
         />
       )}
+      <GuestFirstVisitSheet
+        isOpen={showFirstVisitSheet}
+        onSetBuyBox={handleFirstVisitSetBuyBox}
+        onBrowse={handleFirstVisitBrowse}
+      />
       <ScrapeActivityToast
         feedSource={feedSource}
         enabled={Boolean(user)}
         isGuest={isGuest}
-        suppressGuestHint={guestTourBlocking}
+        suppressGuestHint={guestTourBlocking || showFirstVisitSheet}
         onRequireSignup={requireSignup}
         onViewNewDeals={({ newRowDbIds, lastScrapeAt }) => {
           setPoolNewDealsFilter({
@@ -496,11 +541,14 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
               setBuyBoxModalMode('edit');
               setShowBuyBoxModal(true);
             }}
+            preferredViewStyle={aggregatorViewHint}
+            onPreferredViewStyleConsumed={() => setAggregatorViewHint(null)}
             feedSource={feedSource}
             savedDealIds={aggregatorSavedDealIds}
             savedRowIdByMarketDealId={savedRowIdByMarketDealId}
             saveScopeSavedDealIds={saveScopeSavedDealIds}
             saveScopeRowIdByMarketDealId={saveScopeRowIdByMarketDealId}
+            saveScopeCrmByMarketDealId={saveScopeCrmByMarketDealId}
             poolNewDealsFilter={poolNewDealsFilter}
             onClearPoolNewDealsFilter={() => setPoolNewDealsFilter(null)}
             isGuest={isGuest}
@@ -534,6 +582,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             initialDealId={crmInitialDealId}
             initialCrmView={crmInitialViewOverride || initialCrmView}
             initialFocusSection={crmInitialFocusSection}
+            onBackToInbox={backToInbox}
           />
           </div>
         )}

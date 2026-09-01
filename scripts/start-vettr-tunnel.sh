@@ -64,18 +64,36 @@ for i in $(seq 1 90); do
   if [[ -n "$ORIGIN" ]]; then
     break
   fi
+  # Cloudflare rate-limits quick tunnels after crash loops — back off hard
+  if grep -qE '429 Too Many Requests|error code: 1015' "$LOG" 2>/dev/null; then
+    echo "ERROR: Cloudflare quick-tunnel rate limited (429). Cooling down 5 minutes." >&2
+    tail -20 "$LOG" >&2 || true
+    kill "$(cat "$PID_FILE")" 2>/dev/null || true
+    sleep 300
+    exit 1
+  fi
+  # cloudflared exited before publishing a URL
+  if ! kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    echo "ERROR: cloudflared exited before tunnel URL appeared" >&2
+    tail -40 "$LOG" >&2 || true
+    sleep 60
+    exit 1
+  fi
   sleep 1
 done
 
 if [[ -z "$ORIGIN" ]]; then
   echo "ERROR: could not parse tunnel URL from $LOG" >&2
   tail -80 "$LOG" >&2 || true
+  sleep 60
   exit 1
 fi
 
 echo "$ORIGIN" > "$URL_FILE"
 echo "Tunnel origin: $ORIGIN"
-bash "${ROOT}/scripts/sync-pages-api-url.sh" "$ORIGIN"
+# Prefer stable Worker proxy sync; never kill the tunnel if Pages sync fails.
+bash "${ROOT}/scripts/sync-tunnel-origin.sh" "$ORIGIN" || true
+bash "${ROOT}/scripts/sync-pages-api-url.sh" "$ORIGIN" || true
 
 CF_PID=$(cat "$PID_FILE")
 while kill -0 "$CF_PID" 2>/dev/null; do

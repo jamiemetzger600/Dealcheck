@@ -3,7 +3,7 @@
 ## Cursor Cloud specific instructions
 
 ### Project Overview
-Chrome Extension (Manifest V3) — "Max Price Deal Analyzer" for business acquisition deal analysis. No build system, no package manager, no bundler. All JS/HTML/CSS is vanilla and loaded directly by Chrome.
+Chrome Extension (Manifest V3) — Vettr for business acquisition deal analysis. No build system, no package manager, no bundler. All JS/HTML/CSS is vanilla and loaded directly by Chrome.
 
 ### Development Setup
 - **No dependencies to install** — all libraries (jsPDF) are vendored.
@@ -18,7 +18,7 @@ for f in version.js i18n.js background.js content.js deals-dashboard.js utils/st
 ```
 
 ### Building
-`bash build-package.sh` — creates a versioned ZIP (`Deal-Analyzer-v<VERSION>.zip`) for distribution.
+`bash build-package.sh` — creates a versioned ZIP (`Vettr-Extension-v<VERSION>.zip`) for distribution.
 
 ### Testing
 No automated test framework. Testing is manual via Chrome:

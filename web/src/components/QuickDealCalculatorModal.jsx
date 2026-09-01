@@ -123,7 +123,7 @@ export default function QuickDealCalculatorModal({
           <div className="deal-details-header-title-block">
             <h2>Quick Deal Calculator</h2>
             <p className="quick-calculator-subtitle">
-              Run the Deal Analyzer on any opportunity — even deals that are not in Vettr yet.
+              Run a deal analysis on any opportunity — even deals that are not in Vettr yet.
             </p>
             <div className="quick-calculator-name-row">
               <div className="form-group quick-calculator-name-field">

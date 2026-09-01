@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { dealsAPI } from '../utils/api';
+import { dealsAPI, crmAPI } from '../utils/api';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
 import { getQualityPresentation } from '../utils/dealCalculatorMath';
 import { formatDate, formatMoney, getDealProgressLabel } from '../utils/normalizeDeal';
@@ -754,6 +754,10 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
   }, [deal, listingEdits, brokerInfo]);
 
   const headerProgressLabel = useMemo(() => {
+    if (progressStage === 'Custom Status') {
+      const label = (deal?.customStageLabel || '').trim();
+      return label || 'Custom Status';
+    }
     if (progressStage?.trim()) return progressStage.trim();
     return getDealProgressLabel({ ...deal, progressHistory, progressStage }) || '';
   }, [progressStage, progressHistory, deal]);
@@ -792,10 +796,9 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
     setProgressHistory(newHistory);
     setProgressSaving(true);
     try {
-      await dealsAPI.updateDeal(deal.id, {
-        progressStage: newStage,
-        progressHistory: newHistory
-      });
+      const result = await crmAPI.updateStage(deal.id, newStage);
+      if (result.progressHistory) setProgressHistory(result.progressHistory);
+      console.log('[SavedDeals] pipeline stage synced', { dealId: deal.id, stage: newStage });
       onUpdate();
     } catch (error) {
       setProgressStage(previousStage);

@@ -1,5 +1,5 @@
 /**
- * Browser persistence for Deal Analyzer calculator (localStorage).
+ * Browser persistence for the deal calculator (localStorage).
  * Saved deals also sync this payload to the API (saved_deals.calculator_state).
  */
 

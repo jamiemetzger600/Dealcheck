@@ -3,7 +3,7 @@
 // Update this file and run update-version.sh to propagate changes
 
 (function() {
-    const VERSION = '5.0.27';
+    const VERSION = '5.0.28';
     
     // Export for different module systems
     if (typeof module !== 'undefined' && module.exports) {
@@ -16,5 +16,5 @@
     }
     
     // Log version on load for debugging
-    console.log(`📦 Deal Analyzer Version: ${VERSION}`);
+    console.log(`📦 Vettr Version: ${VERSION}`);
 })();

@@ -1,5 +1,5 @@
-/** Multi-slot buy boxes live in `user_settings.preferences.buyBoxes` (3 slots). */
-export const BUY_BOX_SLOT_COUNT = 3;
+/** Multi-slot buy boxes live in `user_settings.preferences.buyBoxes` (4 slots). */
+export const BUY_BOX_SLOT_COUNT = 4;
 
 /** Not part of buy_box JSON column or deal-matching criteria */
 const SLOT_META_KEYS = new Set([
@@ -143,7 +143,7 @@ export function normalizeUserBuyBoxes(buy_box, preferences, legacyFeed = {}) {
     Math.max(0, Number(prefs.activeBuyBoxIndex) || 0)
   );
 
-  if (!Array.isArray(buyBoxes) || buyBoxes.length !== BUY_BOX_SLOT_COUNT) {
+  if (!Array.isArray(buyBoxes) || buyBoxes.length === 0) {
     buyBoxes = [];
     for (let i = 0; i < BUY_BOX_SLOT_COUNT; i++) {
       const criteria = i === 0 ? { ...emptyBuyBoxCriteria(), ...legacy } : emptyBuyBoxCriteria();
@@ -155,7 +155,7 @@ export function normalizeUserBuyBoxes(buy_box, preferences, legacyFeed = {}) {
       });
     }
   } else {
-    buyBoxes = buyBoxes.map((slot, i) => {
+    buyBoxes = buyBoxes.slice(0, BUY_BOX_SLOT_COUNT).map((slot, i) => {
       const s = slot && typeof slot === 'object' ? slot : {};
       const storedFeed = {
         feedSearch: s.feedSearch,
@@ -172,6 +172,14 @@ export function normalizeUserBuyBoxes(buy_box, preferences, legacyFeed = {}) {
         ...feed
       };
     });
+    while (buyBoxes.length < BUY_BOX_SLOT_COUNT) {
+      const i = buyBoxes.length;
+      buyBoxes.push({
+        name: defaultBuyBoxSlotName(i),
+        ...emptyBuyBoxCriteria(),
+        ...emptySlotFeed()
+      });
+    }
   }
 
   const activeSlot = buyBoxes[activeBuyBoxIndex] || buyBoxes[0];
@@ -201,7 +209,11 @@ export function activeSlotExcludeColumns(buyBoxes, activeBuyBoxIndex) {
 export function ensureBuyBoxesInMergedPreferences(prefsToWrite, row) {
   const merged = prefsToWrite && typeof prefsToWrite === 'object' ? { ...prefsToWrite } : {};
   if (Array.isArray(merged.buyBoxes) && merged.buyBoxes.length === BUY_BOX_SLOT_COUNT) return merged;
-  const normalized = normalizeUserBuyBoxes(row.buy_box, row.preferences || {}, {
+  const prefsSource =
+    Array.isArray(merged.buyBoxes) && merged.buyBoxes.length > 0
+      ? merged
+      : row.preferences || {};
+  const normalized = normalizeUserBuyBoxes(row.buy_box, prefsSource, {
     excludeKeywords: row.exclude_keywords,
     excludeLists: row.exclude_lists,
     currentExcludeList: row.current_exclude_list

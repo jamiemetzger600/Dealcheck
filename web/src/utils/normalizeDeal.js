@@ -76,6 +76,13 @@ export function normalizeDeal(deal) {
     progressHistory: parseProgressHistory(deal.progress_history || deal.progressHistory),
 
     calculatorState: parseCalculatorState(deal.calculator_state ?? deal.calculatorState),
+
+    ownerUserId: deal.owner_user_id ?? deal.ownerUserId ?? null,
+    closeTargetDate: deal.close_target_date || deal.closeTargetDate || null,
+    referralSource: deal.referral_source || deal.referralSource || null,
+    externalSourceType: deal.external_source_type || deal.externalSourceType || null,
+    tags: Array.isArray(deal.tags) ? deal.tags : (deal.tags ? [].concat(deal.tags) : []),
+    customStageLabel: deal.custom_stage_label || deal.customStageLabel || null,
     
     // Computed fields (if available)
     qualityScore: deal.quality_score || deal.qualityScore,
@@ -166,12 +173,20 @@ export function getStatusLabel(status) {
 /** Pipeline label for My Deals: latest progress history entry, else saved `progressStage`. */
 export function getDealProgressLabel(deal) {
   if (!deal) return '';
+  let stage = '';
   const h = deal.progressHistory;
   if (Array.isArray(h) && h.length > 0) {
     const last = h[h.length - 1];
-    if (last?.stage != null && String(last.stage).trim()) return String(last.stage).trim();
+    if (last?.stage != null && String(last.stage).trim()) stage = String(last.stage).trim();
   }
-  const p = deal.progressStage;
-  if (p != null && String(p).trim()) return String(p).trim();
-  return '';
+  if (!stage) {
+    const p = deal.progressStage;
+    if (p != null && String(p).trim()) stage = String(p).trim();
+  }
+  if (!stage) return '';
+  if (stage === 'Custom Status') {
+    const label = (deal.customStageLabel || deal.custom_stage_label || '').trim();
+    if (label) return label;
+  }
+  return stage;
 }

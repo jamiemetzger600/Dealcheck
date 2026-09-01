@@ -1,9 +1,13 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { crmAPI } from '../../utils/api';
 import { normalizeDeal } from '../../utils/normalizeDeal';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 import CrmKanban from './CrmKanban';
 import CrmDealWorkspace from './CrmDealWorkspace';
+import CrmDealPeek from './CrmDealPeek';
+import CrmObjectNav from './CrmObjectNav';
+import CrmCommandMenu from './CrmCommandMenu';
 import CrmTaskList from './CrmTaskList';
 import CrmContactList from './CrmContactList';
 import CrmAnalytics from './CrmAnalytics';
@@ -13,7 +17,11 @@ import CrmActionStrip, {
   buildNextActionByDealId,
   getActionFilterDealIds
 } from './CrmActionStrip';
+import CrmViewBar, { filterDealsByView } from './CrmViewBar';
+import CrmQuickAdd from './CrmQuickAdd';
+import CrmCsvImportModal from './CrmCsvImportModal';
 import SavedDeals from '../SavedDeals';
+import { useAuth } from '../../context/AuthContext';
 
 const VALID_VIEWS = new Set(['home', 'list', 'tasks', 'contacts', 'calendar', 'analytics']);
 
@@ -22,6 +30,14 @@ function normalizeCrmView(view) {
   if (view === 'today' || view === 'pipeline') return 'home';
   if (VALID_VIEWS.has(view)) return view;
   return 'home';
+}
+
+function isEditableTarget(el) {
+  if (!el || typeof el !== 'object') return false;
+  const tag = el.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  if (el.isContentEditable) return true;
+  return false;
 }
 
 export default function CrmDashboard({
@@ -33,16 +49,26 @@ export default function CrmDashboard({
   onAddDeal = null,
   initialDealId = null,
   initialCrmView = null,
-  initialFocusSection = null
+  initialFocusSection = null,
+  onBackToInbox = null
 }) {
+  const isMobile = useIsMobile();
+  const { user } = useAuth();
   const [crmView, setCrmView] = useState(() => normalizeCrmView(initialCrmView));
   const [today, setToday] = useState(null);
-  const [selectedDealId, setSelectedDealId] = useState(initialDealId);
-  const [workspaceFocusSection, setWorkspaceFocusSection] = useState(initialFocusSection);
+  const [peekDealId, setPeekDealId] = useState(null);
+  const [recordDealId, setRecordDealId] = useState(null);
+  const [workspaceFocusSection, setWorkspaceFocusSection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stagePrompt, setStagePrompt] = useState(null);
   const [actionFilter, setActionFilter] = useState(null);
+  const [activeView, setActiveView] = useState(null);
+  const [tagFilter, setTagFilter] = useState('');
+  const [showCsvImport, setShowCsvImport] = useState(false);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [highlightContactId, setHighlightContactId] = useState(null);
+  const deepLinkHandled = useRef(false);
 
   const loadToday = useCallback(async () => {
     setLoading(true);
@@ -68,26 +94,46 @@ export default function CrmDashboard({
     }
   }, [initialCrmView]);
 
+  // Deep link: section → full record; deal-only → peek
   useEffect(() => {
-    if (initialDealId) {
-      setSelectedDealId(initialDealId);
-      console.log('[CrmDashboard] open deal from deep link / parent', initialDealId);
+    if (!initialDealId) return;
+    if (deepLinkHandled.current && String(initialDealId) === String(recordDealId || peekDealId)) {
+      return;
     }
-  }, [initialDealId]);
+    deepLinkHandled.current = true;
+    if (initialFocusSection) {
+      console.log('[CrmDashboard] deep link → record', initialDealId, initialFocusSection);
+      setRecordDealId(initialDealId);
+      setWorkspaceFocusSection(initialFocusSection);
+      setPeekDealId(null);
+    } else {
+      console.log('[CrmDashboard] deep link → peek', initialDealId);
+      setPeekDealId(initialDealId);
+      setRecordDealId(null);
+      setWorkspaceFocusSection(null);
+    }
+  }, [initialDealId, initialFocusSection]);
 
   useEffect(() => {
-    if (initialFocusSection) {
+    if (initialFocusSection && recordDealId) {
       setWorkspaceFocusSection(initialFocusSection);
     }
-  }, [initialFocusSection, initialDealId]);
+  }, [initialFocusSection, recordDealId]);
 
-  const selectedDeal = useMemo(() => {
-    const id = selectedDealId == null ? '' : String(selectedDealId);
-    const raw = deals.find(
-      (d) => String(d.vettrId ?? '') === id || String(d.id ?? '') === id
+  const dealList = Array.isArray(deals) ? deals : [];
+
+  const findDeal = useCallback((id) => {
+    if (id == null) return null;
+    const sid = String(id);
+    const raw = dealList.find(
+      (d) => String(d.vettrId ?? '') === sid || String(d.id ?? '') === sid
     );
     return raw ? normalizeDeal(raw) : null;
-  }, [deals, selectedDealId]);
+  }, [dealList]);
+
+  const peekDeal = useMemo(() => findDeal(peekDealId), [findDeal, peekDealId]);
+  const recordDeal = useMemo(() => findDeal(recordDealId), [findDeal, recordDealId]);
+  const selectedDealId = recordDealId || peekDealId;
 
   const nextActionByDealId = useMemo(() => buildNextActionByDealId(today), [today]);
 
@@ -96,29 +142,99 @@ export default function CrmDashboard({
     [today, actionFilter]
   );
 
-  const handleSelectDeal = (id, opts = {}) => {
-    setSelectedDealId(id);
-    setWorkspaceFocusSection(opts.focusSection || null);
-  };
+  const taskSummary = today?.tasks || {};
+  const openTaskCount = taskSummary.openCount ?? 0;
 
-  const handleCloseWorkspace = () => {
-    setSelectedDealId(null);
+  const filteredDeals = useMemo(() => {
+    let list = filterDealsByView(dealList, activeView, user?.userId || user?.id);
+    if (tagFilter) {
+      list = list.filter((d) => {
+        const tags = d.tags || [];
+        return tags.some((t) => String(t).toLowerCase() === tagFilter);
+      });
+    }
+    return list;
+  }, [dealList, activeView, tagFilter, user]);
+
+  const filteredDealIds = useMemo(
+    () => filteredDeals.map((d) => d.vettrId ?? d.id).filter((id) => id != null),
+    [filteredDeals]
+  );
+
+  const openPeek = useCallback((id) => {
+    console.log('[CrmDashboard] peek', id);
+    setPeekDealId(id);
+    setRecordDealId(null);
     setWorkspaceFocusSection(null);
-  };
+  }, []);
 
+  const openRecord = useCallback((id, opts = {}) => {
+    console.log('[CrmDashboard] open record', id, opts.focusSection || null);
+    setRecordDealId(id);
+    setPeekDealId(null);
+    setWorkspaceFocusSection(opts.focusSection || null);
+  }, []);
+
+  const handleSelectDeal = useCallback((id, opts = {}) => {
+    if (opts.focusSection) {
+      openRecord(id, opts);
+    } else {
+      openPeek(id);
+    }
+  }, [openPeek, openRecord]);
+
+  const handleClosePeek = useCallback(() => {
+    setPeekDealId(null);
+  }, []);
+
+  const handleCloseRecord = useCallback(() => {
+    setRecordDealId(null);
+    setWorkspaceFocusSection(null);
+  }, []);
+
+  // Escape: record first, then peek. Body scroll lock only for full record.
   useEffect(() => {
-    if (!selectedDealId) return undefined;
+    if (!recordDealId && !peekDealId) return undefined;
     const onKey = (e) => {
-      if (e.key === 'Escape') handleCloseWorkspace();
+      if (e.key !== 'Escape') return;
+      if (cmdkOpen) return;
+      if (recordDealId) {
+        handleCloseRecord();
+      } else if (peekDealId) {
+        handleClosePeek();
+      }
     };
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
+    let prevOverflow;
+    if (recordDealId) {
+      prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+    }
     return () => {
-      document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKey);
+      if (recordDealId && prevOverflow !== undefined) {
+        document.body.style.overflow = prevOverflow;
+      }
     };
-  }, [selectedDealId]);
+  }, [recordDealId, peekDealId, cmdkOpen, handleCloseRecord, handleClosePeek]);
+
+  // Cmd+K and / for search when CRM is mounted
+  useEffect(() => {
+    const onKey = (e) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && String(e.key).toLowerCase() === 'k') {
+        e.preventDefault();
+        setCmdkOpen(true);
+        return;
+      }
+      if (e.key === '/' && !meta && !e.altKey && !isEditableTarget(e.target)) {
+        e.preventDefault();
+        setCmdkOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleRefresh = async () => {
     await loadToday();
@@ -131,7 +247,7 @@ export default function CrmDashboard({
     if (result.suggestedTask || stage === 'Starting Due Diligence') {
       setStagePrompt({
         dealId: result.savedDealId,
-        dealName: dealName || selectedDeal?.name,
+        dealName: dealName || recordDeal?.name || peekDeal?.name,
         stage,
         suggestedTask: result.suggestedTask
       });
@@ -157,7 +273,7 @@ export default function CrmDashboard({
     try {
       await crmAPI.startDealDd(stagePrompt.dealId);
       setStagePrompt(null);
-      setSelectedDealId(stagePrompt.dealId);
+      openRecord(stagePrompt.dealId, { focusSection: 'crm-dd' });
       await handleRefresh();
     } catch (err) {
       alert('Failed to start DD: ' + err.message);
@@ -182,6 +298,26 @@ export default function CrmDashboard({
         }
       : null;
 
+  const handleCmdkAction = (item) => {
+    if (item.action === 'addDeal' && typeof onAddDeal === 'function') {
+      onAddDeal();
+    } else if (item.action === 'importCsv') {
+      setShowCsvImport(true);
+    } else if (item.action === 'view' && item.view) {
+      setCrmView(item.view);
+    }
+  };
+
+  const handleCmdkContact = (contact) => {
+    setCrmView('contacts');
+    setHighlightContactId(contact?.id || null);
+    const firstDeal = contact?.first_deal_id
+      || (Array.isArray(contact?.linked_deals) && contact.linked_deals[0]?.id);
+    if (firstDeal) {
+      openPeek(firstDeal);
+    }
+  };
+
   if (loading && !today) {
     return <div className="crm-panel crm-panel--loading">Loading Vettr CRM…</div>;
   }
@@ -195,30 +331,33 @@ export default function CrmDashboard({
     );
   }
 
-  const dealList = deals.length > 0 ? deals : [];
-  const taskSummary = today?.tasks || {};
-  const openTaskCount = taskSummary.openCount ?? 0;
-
-  const workspaceDrawer =
-    selectedDeal && typeof document !== 'undefined'
+  const recordDrawer =
+    recordDeal && typeof document !== 'undefined'
       ? createPortal(
           <div className="crm-drawer-root" role="presentation">
             <button
               type="button"
               className="crm-drawer-backdrop"
               aria-label="Close deal workspace"
-              onClick={handleCloseWorkspace}
+              onClick={handleCloseRecord}
             />
-            <aside className="crm-drawer" role="dialog" aria-modal="true" aria-label="Deal workspace">
+            <aside
+              className="crm-drawer crm-drawer--record"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Deal workspace"
+            >
               <CrmDealWorkspace
-                deal={selectedDeal}
-                dealId={selectedDealId}
+                deal={recordDeal}
+                dealId={recordDealId}
                 settings={settings}
                 onRefresh={handleRefresh}
                 onSaveCalculatorDefaults={onSaveCalculatorDefaults}
-                onClose={handleCloseWorkspace}
-                onStageChanged={(result) => handleStageChanged(result, selectedDeal.name)}
+                onClose={handleCloseRecord}
+                onStageChanged={(result) => handleStageChanged(result, recordDeal.name)}
                 focusSectionId={workspaceFocusSection}
+                dealIds={filteredDealIds}
+                onNavigateDeal={(id) => openRecord(id)}
               />
             </aside>
           </div>,
@@ -226,66 +365,45 @@ export default function CrmDashboard({
         )
       : null;
 
-  const subnav = (
-    <nav className="crm-subnav" aria-label="Vettr CRM views">
-      <button
-        type="button"
-        className={`crm-subnav__btn${crmView === 'home' ? ' crm-subnav__btn--active' : ''}`}
-        onClick={() => setCrmView('home')}
-      >
-        Home
-        {(today?.badgeCount ?? 0) > 0 ? (
-          <span className="crm-subnav__badge">{today.badgeCount}</span>
-        ) : null}
-      </button>
-      <button
-        type="button"
-        className={`crm-subnav__btn${crmView === 'list' ? ' crm-subnav__btn--active' : ''}`}
-        onClick={() => setCrmView('list')}
-      >
-        List
-        {dealList.length > 0 ? (
-          <span className="crm-subnav__badge">{dealList.length}</span>
-        ) : null}
-      </button>
-      <button
-        type="button"
-        className={`crm-subnav__btn${crmView === 'tasks' ? ' crm-subnav__btn--active' : ''}`}
-        onClick={() => setCrmView('tasks')}
-      >
-        Tasks
-        {openTaskCount > 0 ? (
-          <span className="crm-subnav__badge">{openTaskCount}</span>
-        ) : null}
-      </button>
-      <button
-        type="button"
-        className={`crm-subnav__btn${crmView === 'contacts' ? ' crm-subnav__btn--active' : ''}`}
-        onClick={() => setCrmView('contacts')}
-      >
-        Contacts
-      </button>
-      <button
-        type="button"
-        className={`crm-subnav__btn${crmView === 'calendar' ? ' crm-subnav__btn--active' : ''}`}
-        onClick={() => setCrmView('calendar')}
-      >
-        Calendar
-      </button>
-      <button
-        type="button"
-        className={`crm-subnav__btn${crmView === 'analytics' ? ' crm-subnav__btn--active' : ''}`}
-        onClick={() => setCrmView('analytics')}
-      >
-        Analytics
-      </button>
-    </nav>
-  );
+  const navBadges = {
+    badge: today?.badgeCount ?? 0,
+    deals: dealList.length,
+    tasks: openTaskCount
+  };
 
-  return (
-    <div className="crm-dashboard">
-      {subnav}
+  const peekNextAction =
+    nextActionByDealId instanceof Map && peekDealId != null
+      ? nextActionByDealId.get(Number(peekDealId)) || null
+      : null;
 
+  const peekPanel =
+    peekDeal && !recordDeal && typeof document !== 'undefined'
+      ? createPortal(
+          <div className="crm-peek-overlay" role="presentation">
+            <button
+              type="button"
+              className="crm-peek-overlay__backdrop"
+              aria-label="Close deal peek"
+              onClick={handleClosePeek}
+            />
+            <aside className="crm-peek-overlay__panel" role="dialog" aria-modal="true" aria-label="Deal peek">
+              <CrmDealPeek
+                deal={peekDeal}
+                dealId={peekDealId}
+                nextAction={peekNextAction}
+                onOpen={(id) => openRecord(id)}
+                onClose={handleClosePeek}
+                onStageChanged={handleStageChanged}
+                onRefresh={handleRefresh}
+              />
+            </aside>
+          </div>,
+          document.body
+        )
+      : null;
+
+  const mainContent = (
+    <>
       {stagePrompt ? (
         <SuggestedTaskPrompt
           dealName={stagePrompt.dealName}
@@ -299,6 +417,17 @@ export default function CrmDashboard({
 
       {crmView === 'home' && (
         <>
+          <CrmQuickAdd
+            deals={dealList}
+            onCreated={() => handleRefresh()}
+          />
+          <CrmViewBar
+            deals={dealList}
+            activeViewId={activeView?.id}
+            onViewChange={setActiveView}
+            tagFilter={tagFilter}
+            onTagFilterChange={setTagFilter}
+          />
           <CrmActionStrip
             today={today}
             activeFilter={actionFilter}
@@ -307,19 +436,22 @@ export default function CrmDashboard({
             onRefresh={handleRefresh}
           />
 
-          {dealList.length === 0 ? (
+          {filteredDeals.length === 0 ? (
             <div className="crm-empty">
               <h2>No deals in Vettr CRM yet</h2>
-              <p>Save a deal from the Aggregator — it shows up on this board with broker and financials filled in.</p>
+              <p>Save from Aggregator, add manually, or import a CSV of off-market deals.</p>
               {typeof onAddDeal === 'function' ? (
                 <button type="button" className="btn-primary" onClick={onAddDeal}>
                   Add deal manually
                 </button>
               ) : null}
+              <button type="button" className="btn-secondary" onClick={() => setShowCsvImport(true)}>
+                Import CSV
+              </button>
             </div>
           ) : (
             <CrmKanban
-              deals={deals}
+              deals={filteredDeals}
               settings={settings}
               selectedDealId={selectedDealId}
               onSelectDeal={handleSelectDeal}
@@ -329,6 +461,7 @@ export default function CrmDashboard({
               highlightDealIds={highlightDealIds}
               nextActionByDealId={nextActionByDealId}
               onAddDeal={onAddDeal}
+              onImportCsv={() => setShowCsvImport(true)}
             />
           )}
         </>
@@ -336,7 +469,7 @@ export default function CrmDashboard({
 
       {crmView === 'list' && (
         <SavedDeals
-          deals={deals}
+          deals={filteredDeals}
           settings={settings}
           onUpdate={onRefresh}
           onSaveCalculatorDefaults={onSaveCalculatorDefaults}
@@ -355,14 +488,85 @@ export default function CrmDashboard({
       )}
 
       {crmView === 'contacts' && (
-        <CrmContactList deals={dealList} onSelectDeal={handleSelectDeal} />
+        <CrmContactList
+          deals={dealList}
+          onSelectDeal={handleSelectDeal}
+          highlightContactId={highlightContactId}
+        />
       )}
 
       {crmView === 'calendar' && <CrmCalendar />}
 
       {crmView === 'analytics' && <CrmAnalytics />}
+    </>
+  );
 
-      {workspaceDrawer}
+  return (
+    <div className="crm-dashboard">
+      {isMobile && typeof onBackToInbox === 'function' ? (
+        <div className="crm-mobile-return">
+          <button
+            type="button"
+            className="crm-mobile-return__btn"
+            onClick={() => {
+              console.log('[CrmDashboard] ← Inbox');
+              onBackToInbox();
+            }}
+          >
+            ← Inbox
+          </button>
+          <span className="crm-mobile-return__label">Vettr CRM</span>
+        </div>
+      ) : null}
+
+      {isMobile ? (
+        <>
+          <CrmObjectNav
+            crmView={crmView}
+            onViewChange={setCrmView}
+            badges={navBadges}
+            isMobile
+            onSearchFocus={() => setCmdkOpen(true)}
+          />
+          {mainContent}
+        </>
+      ) : (
+        <div className="crm-layout crm-layout--shell">
+          <CrmObjectNav
+            crmView={crmView}
+            onViewChange={(view) => {
+              setCrmView(view);
+              setPeekDealId(null);
+            }}
+            badges={navBadges}
+            onSearchFocus={() => setCmdkOpen(true)}
+            isMobile={false}
+          />
+          <div className="crm-layout__main">
+            {mainContent}
+          </div>
+        </div>
+      )}
+
+      {recordDrawer}
+      {peekPanel}
+
+      <CrmCommandMenu
+        isOpen={cmdkOpen}
+        onClose={() => setCmdkOpen(false)}
+        onSelectDeal={(id) => openPeek(id)}
+        onSelectContact={handleCmdkContact}
+        onAction={handleCmdkAction}
+      />
+
+      <CrmCsvImportModal
+        isOpen={showCsvImport}
+        onClose={() => setShowCsvImport(false)}
+        onImported={() => {
+          handleRefresh();
+          setShowCsvImport(false);
+        }}
+      />
     </div>
   );
 }

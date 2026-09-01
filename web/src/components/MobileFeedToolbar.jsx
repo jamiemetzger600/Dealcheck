@@ -1,4 +1,4 @@
-/** Sticky mobile toolbar: Focus / Cards / Table + daily scope toggle. */
+/** Sticky mobile toolbar: Focus / Cards / Table / Inbox + daily scope toggle. */
 export default function MobileFeedToolbar({
   feedMode,
   onFeedModeChange,
@@ -42,6 +42,15 @@ export default function MobileFeedToolbar({
           onClick={() => onFeedModeChange('table')}
         >
           Table
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={feedMode === 'inbox'}
+          className={`mobile-view-toggle__btn${feedMode === 'inbox' ? ' active' : ''}`}
+          onClick={() => onFeedModeChange('inbox')}
+        >
+          Inbox
         </button>
       </div>
       <div className="mobile-feed-toolbar__actions">

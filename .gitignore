@@ -84,3 +84,8 @@ Desktop.ini
 
 # Cloudflare Workers local state
 workers/**/.wrangler/
+
+# Local-only clones and tool dumps
+twenty-main/
+.claude/
+.playwright-mcp/

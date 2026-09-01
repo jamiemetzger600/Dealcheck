@@ -24,6 +24,8 @@ const DEAL_SELECT_FIELDS = `
   notes, status, progress_stage, progress_history,
   calculator_state, market_deal_id, listing_snapshot_at,
   team_id, shared_by_user_id, user_id,
+  owner_user_id, close_target_date, referral_source, external_source_type,
+  tags, custom_stage_label,
   saved_at, updated_at
 `;
 
@@ -97,7 +99,13 @@ export const saveDeal = async (req, res) => {
     industry, yearsEstablished, franchise, remote, listingId,
     notes, status, progressStage,
     calculatorState, marketDealId,
-    teamId: teamIdRaw
+    teamId: teamIdRaw,
+    ownerUserId,
+    closeTargetDate,
+    referralSource,
+    externalSourceType,
+    tags,
+    customStageLabel
   } = req.body;
 
   if (!dealId || !name) {
@@ -193,6 +201,16 @@ export const saveDeal = async (req, res) => {
       ? marketDealIdNum
       : null;
 
+    const ownerId = ownerUserId != null && Number(ownerUserId)
+      ? Number(ownerUserId)
+      : req.user.userId;
+    const tagList = Array.isArray(tags)
+      ? [...new Set(tags.map((t) => String(t || '').trim().toLowerCase()).filter(Boolean))].slice(0, 20)
+      : [];
+    const extType = externalSourceType
+      ? String(externalSourceType).trim().toLowerCase().replace(/\s+/g, '_')
+      : (sourceType === 'manual' ? 'manual' : null);
+
     const result = await pool.query(
       `INSERT INTO saved_deals (
         user_id, deal_id, name, url, description, broker, broker_name, broker_company,
@@ -200,8 +218,13 @@ export const saveDeal = async (req, res) => {
         asking_price, ebitda, revenue, location, city, state, county, country,
         industry, years_established, franchise, remote, listing_id,
         notes, status, progress_stage, calculator_state,
-        team_id, shared_by_user_id, market_deal_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
+        team_id, shared_by_user_id, market_deal_id,
+        owner_user_id, close_target_date, referral_source, external_source_type,
+        tags, custom_stage_label
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33,
+        $34, $35, $36, $37, $38, $39
+      )
       RETURNING id, saved_at, team_id`,
       [
         req.user.userId, dealId, name, url, description, broker, brokerName, brokerCompany,
@@ -212,7 +235,13 @@ export const saveDeal = async (req, res) => {
         calculatorState !== undefined ? calculatorState : null,
         teamId,
         teamId ? req.user.userId : null,
-        marketDealIdParam
+        marketDealIdParam,
+        ownerId,
+        closeTargetDate || null,
+        referralSource?.trim?.() || referralSource || null,
+        extType,
+        tagList,
+        customStageLabel?.trim?.() || customStageLabel || null
       ]
     );
 
@@ -286,7 +315,9 @@ export const updateSavedDeal = async (req, res) => {
     location, city, state, county, country,
     industry, yearsEstablished, franchise, remote,
     source, sourceType, discoveredAt, listingId,
-    broker
+    broker,
+    ownerUserId, closeTargetDate, referralSource, externalSourceType,
+    tags, customStageLabel
   } = req.body;
 
   try {
@@ -412,6 +443,33 @@ export const updateSavedDeal = async (req, res) => {
     if (broker !== undefined) {
       updateFields.push(`broker = $${paramIndex++}`);
       values.push(broker);
+    }
+    if (ownerUserId !== undefined) {
+      updateFields.push(`owner_user_id = $${paramIndex++}`);
+      values.push(ownerUserId ? Number(ownerUserId) : null);
+    }
+    if (closeTargetDate !== undefined) {
+      updateFields.push(`close_target_date = $${paramIndex++}`);
+      values.push(closeTargetDate || null);
+    }
+    if (referralSource !== undefined) {
+      updateFields.push(`referral_source = $${paramIndex++}`);
+      values.push(referralSource || null);
+    }
+    if (externalSourceType !== undefined) {
+      updateFields.push(`external_source_type = $${paramIndex++}`);
+      values.push(externalSourceType || null);
+    }
+    if (tags !== undefined) {
+      const tagList = Array.isArray(tags)
+        ? [...new Set(tags.map((t) => String(t || '').trim().toLowerCase()).filter(Boolean))].slice(0, 20)
+        : [];
+      updateFields.push(`tags = $${paramIndex++}`);
+      values.push(tagList);
+    }
+    if (customStageLabel !== undefined) {
+      updateFields.push(`custom_stage_label = $${paramIndex++}`);
+      values.push(customStageLabel || null);
     }
 
     if (updateFields.length === 0) {

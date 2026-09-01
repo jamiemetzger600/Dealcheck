@@ -34,11 +34,13 @@ import { getUnreadCounts, getUnreadMentions } from '../services/dealThreadServic
 import { countUnreadAlerts } from '../services/userAlertService.js';
 import { findDormantDeals, getLastActivityByDealIds } from '../services/crmPresenceService.js';
 
-const KANBAN_DEAL_FIELDS = `
+  const KANBAN_DEAL_FIELDS = `
   id, deal_id, name, url, progress_stage, progress_history, status,
   asking_price, ebitda, revenue, city, state, industry, source,
   market_deal_id, calculator_state, saved_at, updated_at,
-  team_id, shared_by_user_id, user_id
+  team_id, shared_by_user_id, user_id,
+  owner_user_id, close_target_date, referral_source, external_source_type,
+  tags, custom_stage_label
 `;
 
 function normalizeProgressHistory(raw) {
@@ -285,7 +287,12 @@ export const getDealActivities = async (req, res) => {
     assertCanRead(access);
 
     const contacts = await pool.query(
-      `SELECT c.id, c.name, c.email, c.phone, dc.role, co.name AS company_name
+      `SELECT c.id, c.name, c.email, c.phone, dc.role, co.name AS company_name,
+              (
+                SELECT COUNT(DISTINCT dc2.saved_deal_id)::int
+                FROM deal_contacts dc2
+                WHERE dc2.contact_id = c.id
+              ) AS deal_count
        FROM deal_contacts dc
        JOIN contacts c ON c.id = dc.contact_id
        LEFT JOIN companies co ON co.id = c.company_id
@@ -294,12 +301,12 @@ export const getDealActivities = async (req, res) => {
     );
 
     const activities = await pool.query(
-      `SELECT a.id, a.activity_type, a.body, a.metadata, a.occurred_at, a.contact_id,
+      `SELECT a.id, a.activity_type, a.body, a.title, a.pinned, a.metadata, a.occurred_at, a.contact_id,
               u.email AS actor_email
        FROM activities a
        JOIN users u ON u.id = a.user_id
        WHERE a.saved_deal_id = $1
-       ORDER BY a.occurred_at DESC`,
+       ORDER BY a.pinned DESC NULLS LAST, a.occurred_at DESC`,
       [id]
     );
 
@@ -332,7 +339,7 @@ export const getDealActivities = async (req, res) => {
 
 export const addDealActivity = async (req, res) => {
   const { id } = req.params;
-  const { body, activityType = 'note' } = req.body;
+  const { body, activityType = 'note', title, pinned, checklist } = req.body;
 
   if (!body || !String(body).trim()) {
     return res.status(400).json({ error: 'Activity body required' });
@@ -343,10 +350,18 @@ export const addDealActivity = async (req, res) => {
     assertCanWrite(access);
 
     const result = await pool.query(
-      `INSERT INTO activities (user_id, saved_deal_id, activity_type, body)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, activity_type, body, occurred_at`,
-      [req.user.userId, id, activityType, String(body).trim()]
+      `INSERT INTO activities (user_id, saved_deal_id, activity_type, body, title, pinned, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+       RETURNING id, activity_type, body, title, pinned, metadata, occurred_at`,
+      [
+        req.user.userId,
+        id,
+        activityType,
+        String(body).trim(),
+        title?.trim() || null,
+        Boolean(pinned),
+        JSON.stringify(checklist ? { checklist } : {})
+      ]
     );
 
     res.status(201).json({ activity: result.rows[0] });
@@ -415,13 +430,20 @@ export const getDealTasks = async (req, res) => {
 
 export const postDealTask = async (req, res) => {
   try {
-    const { title, dueAt, source, metadata, notifyRecipients } = req.body;
+    const {
+      title, dueAt, source, metadata, notifyRecipients,
+      assigneeUserId, parentTaskId, priority, recurrence
+    } = req.body;
     const task = await createTask(req.user.userId, req.params.id, {
       title,
       dueAt,
       source,
       metadata,
-      notifyRecipients
+      notifyRecipients,
+      assigneeUserId,
+      parentTaskId,
+      priority,
+      recurrence
     });
     res.status(201).json({ task });
   } catch (error) {
@@ -703,6 +725,112 @@ export const postCalendarSync = async (req, res) => {
   } catch (error) {
     if (error.status === 400) return res.status(400).json({ error: error.message });
     console.error('[crm] postCalendarSync error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+/**
+ * Lightweight CRM search across saved deals, contacts, and tasks (user-visible only).
+ * Does not scan market_deals.
+ */
+export const getCrmSearch = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const q = String(req.query.q || '').trim();
+    if (q.length < 1) {
+      return res.json({ deals: [], contacts: [], tasks: [] });
+    }
+    if (q.length > 120) {
+      return res.status(400).json({ error: 'Query too long' });
+    }
+
+    const pattern = `%${q.replace(/[%_\\]/g, '\\$&')}%`;
+    const limit = 10;
+
+    const [dealsResult, contactsResult, tasksResult] = await Promise.all([
+      pool.query(
+        `SELECT sd.id, sd.name, sd.progress_stage, sd.city, sd.state, sd.asking_price, sd.ebitda
+         FROM saved_deals sd
+         WHERE ${VISIBLE_DEALS_SQL}
+           AND (
+             sd.name ILIKE $2 ESCAPE '\\'
+             OR COALESCE(sd.broker_name, '') ILIKE $2 ESCAPE '\\'
+             OR COALESCE(sd.broker_company, '') ILIKE $2 ESCAPE '\\'
+             OR COALESCE(sd.industry, '') ILIKE $2 ESCAPE '\\'
+             OR COALESCE(sd.city, '') ILIKE $2 ESCAPE '\\'
+             OR COALESCE(sd.state, '') ILIKE $2 ESCAPE '\\'
+           )
+         ORDER BY sd.updated_at DESC NULLS LAST
+         LIMIT $3`,
+        [userId, pattern, limit]
+      ),
+      pool.query(
+        `SELECT c.id, c.name, c.email, c.phone, co.name AS company_name,
+                COALESCE(linked.deal_count, 0)::int AS deal_count,
+                linked.first_deal_id
+         FROM contacts c
+         LEFT JOIN companies co ON co.id = c.company_id
+         LEFT JOIN LATERAL (
+           SELECT COUNT(DISTINCT sd.id)::int AS deal_count,
+                  MIN(sd.id) AS first_deal_id
+           FROM deal_contacts dc
+           JOIN saved_deals sd ON sd.id = dc.saved_deal_id
+           WHERE dc.contact_id = c.id
+             AND ${VISIBLE_DEALS_SQL}
+         ) linked ON true
+         WHERE (
+           c.user_id = $1
+           OR EXISTS (
+             SELECT 1 FROM deal_contacts dc2
+             JOIN saved_deals sd2 ON sd2.id = dc2.saved_deal_id
+             WHERE dc2.contact_id = c.id
+               AND (
+                 (sd2.user_id = $1 AND sd2.team_id IS NULL)
+                 OR (
+                   sd2.team_id IS NOT NULL AND EXISTS (
+                     SELECT 1 FROM team_members tm
+                     WHERE tm.team_id = sd2.team_id AND tm.user_id = $1 AND tm.status = 'active'
+                   )
+                 )
+               )
+           )
+         )
+           AND (
+             COALESCE(c.name, '') ILIKE $2 ESCAPE '\\'
+             OR COALESCE(c.email, '') ILIKE $2 ESCAPE '\\'
+             OR COALESCE(co.name, '') ILIKE $2 ESCAPE '\\'
+           )
+         ORDER BY c.name NULLS LAST
+         LIMIT $3`,
+        [userId, pattern, limit]
+      ),
+      pool.query(
+        `SELECT t.id, t.title, t.status, t.due_at, t.saved_deal_id, sd.name AS deal_name
+         FROM tasks t
+         JOIN saved_deals sd ON sd.id = t.saved_deal_id
+         WHERE ${VISIBLE_DEALS_SQL}
+           AND t.status = 'open'
+           AND t.title ILIKE $2 ESCAPE '\\'
+         ORDER BY t.due_at NULLS LAST, t.created_at DESC
+         LIMIT $3`,
+        [userId, pattern, limit]
+      )
+    ]);
+
+    console.log('[crm] search', {
+      q: q.slice(0, 40),
+      deals: dealsResult.rows.length,
+      contacts: contactsResult.rows.length,
+      tasks: tasksResult.rows.length
+    });
+
+    res.json({
+      deals: dealsResult.rows,
+      contacts: contactsResult.rows,
+      tasks: tasksResult.rows
+    });
+  } catch (error) {
+    console.error('[crm] getCrmSearch error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };

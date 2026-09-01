@@ -1,32 +1,13 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 const appVersion = pkg.version || '0.0.0';
-
-function versionPlugin() {
-  let buildOutDir = 'dist';
-  return {
-    name: 'version-json',
-    apply: 'build',
-    configResolved(config) {
-      buildOutDir = join(config.root, config.build.outDir);
-    },
-    writeBundle(outputOptions) {
-      const outDir = outputOptions.dir || buildOutDir;
-      writeFileSync(
-        join(outDir, 'version.json'),
-        JSON.stringify({ version: appVersion }) + '\n',
-        'utf8'
-      );
-    }
-  };
-}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '');
@@ -38,7 +19,6 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
-      versionPlugin(),
       VitePWA({
         registerType: 'autoUpdate',
         injectRegister: 'auto',
@@ -51,8 +31,9 @@ export default defineConfig(({ mode }) => {
           // conditional (ETag / If-None-Match) requests; if the SW serves a cached
           // or 304 response the app treats it as "not modified" and the deal list
           // stays empty in the installed PWA. API GETs must always hit the network.
-          navigateFallbackDenylist: [/^\/api/],
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}']
+          navigateFallbackDenylist: [/^\/api/, /\/version\.json$/],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
+          globIgnores: ['**/version.json']
         }
       })
     ],

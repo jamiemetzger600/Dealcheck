@@ -1,36 +1,20 @@
 /**
- * PWA update check: when the deployed version differs from the running build,
- * reload so the user gets the latest (e.g. after adding to home screen on Safari).
- * Runs on load and when the app becomes visible again (return to tab/PWA).
+ * Prompt the service worker to fetch a new release.
+ * Do not location.reload() here: a SW can keep serving an old JS bundle while
+ * /version.json is already the new version, which caused an infinite refresh loop.
  */
 
-const VERSION_URL = '/version.json';
-const STORAGE_KEY = 'vettr_app_version';
-
-function getCurrentVersion() {
-  return typeof import.meta.env !== 'undefined' && import.meta.env.VITE_APP_VERSION
-    ? String(import.meta.env.VITE_APP_VERSION).trim()
-    : null;
-}
-
 export function checkForUpdate() {
-  const current = getCurrentVersion();
-  if (!current) return;
-
-  const url = `${VERSION_URL}?t=${Date.now()}`;
-  fetch(url, { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : null))
-    .then((data) => {
-      const deployed = data && typeof data.version === 'string' ? data.version.trim() : null;
-      if (!deployed) return;
-      if (deployed !== current) {
-        try {
-          localStorage.setItem(STORAGE_KEY, deployed);
-        } catch (_) {}
-        window.location.reload();
-      }
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.getRegistration()
+    .then((reg) => {
+      if (!reg) return;
+      console.log('[updateCheck] checking for new service worker');
+      return reg.update();
     })
-    .catch(() => {});
+    .catch((err) => {
+      console.warn('[updateCheck] SW update failed', err);
+    });
 }
 
 export function initUpdateCheck() {

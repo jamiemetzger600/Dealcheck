@@ -1308,6 +1308,15 @@ button.aggregator-welcome__buybox {
   width: 100%;
 }
 
+.search-keywords-section {
+  margin-top: 4px;
+}
+
+.exclude-header-preview {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .exclude-keywords-section--collapsed .exclude-header {
   margin-bottom: 0;
 }

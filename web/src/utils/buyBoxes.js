@@ -6,7 +6,8 @@ const SLOT_META_KEYS = new Set([
   'feedSearch',
   'excludeKeywords',
   'excludeLists',
-  'currentExcludeList'
+  'currentExcludeList',
+  'currentSearchList'
 ]);
 
 export function defaultBuyBoxSlotName(index) {
@@ -22,6 +23,51 @@ export function cloneExcludeListsMap(lists) {
     out[String(name)] = keywords.map((k) => String(k));
   }
   return out;
+}
+
+/** Comma/& AND terms from the stored feedSearch string. API caps at 8. */
+export function parseSearchKeywords(feedSearch) {
+  if (typeof feedSearch !== 'string' || !feedSearch.trim()) return [];
+  return Array.from(
+    new Set(
+      feedSearch
+        .split(/\s*[,&]\s*/)
+        .map((t) => t.trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 8);
+}
+
+export function joinSearchKeywords(keywords) {
+  if (!Array.isArray(keywords)) return '';
+  return keywords.map((k) => String(k).trim()).filter(Boolean).slice(0, 8).join(', ');
+}
+
+/**
+ * Named search-keyword presets shared across all buy box slots.
+ */
+export function getSearchListLibrary(settings) {
+  const prefs = settings?.preferences || {};
+  if (
+    prefs.searchListLibrary &&
+    typeof prefs.searchListLibrary === 'object' &&
+    !Array.isArray(prefs.searchListLibrary)
+  ) {
+    return cloneExcludeListsMap(prefs.searchListLibrary);
+  }
+
+  const merged = {};
+  const { buyBoxes } = normalizeBuyBoxesState(settings);
+  for (const slot of buyBoxes) {
+    if (slot?.searchLists && typeof slot.searchLists === 'object' && !Array.isArray(slot.searchLists)) {
+      for (const [name, keywords] of Object.entries(slot.searchLists)) {
+        if (!merged[name] && Array.isArray(keywords)) {
+          merged[name] = keywords.map((k) => String(k));
+        }
+      }
+    }
+  }
+  return merged;
 }
 
 /**
@@ -67,7 +113,8 @@ export function snapshotSlotFeed(slot) {
       s.excludeLists && typeof s.excludeLists === 'object' && !Array.isArray(s.excludeLists)
         ? { ...s.excludeLists }
         : {},
-    currentExcludeList: s.currentExcludeList != null ? String(s.currentExcludeList) : ''
+    currentExcludeList: s.currentExcludeList != null ? String(s.currentExcludeList) : '',
+    currentSearchList: s.currentSearchList != null ? String(s.currentSearchList) : ''
   };
 }
 
@@ -164,8 +211,9 @@ function mergeSlotFeed(i, stored, legacyFeed) {
       : i === 0
         ? lc
         : '';
+  const currentSearchList = typeof stored.currentSearchList === 'string' ? stored.currentSearchList : '';
 
-  return { feedSearch, excludeKeywords, excludeLists, currentExcludeList };
+  return { feedSearch, excludeKeywords, excludeLists, currentExcludeList, currentSearchList };
 }
 
 /**
@@ -213,9 +261,10 @@ export function normalizeBuyBoxesState(settings) {
         feedSearch: s.feedSearch,
         excludeKeywords: s.excludeKeywords,
         excludeLists: s.excludeLists,
-        currentExcludeList: s.currentExcludeList
+        currentExcludeList: s.currentExcludeList,
+        currentSearchList: s.currentSearchList
       };
-      const { name, feedSearch, excludeKeywords, excludeLists, currentExcludeList, ...rest } = s;
+      const { name, feedSearch, excludeKeywords, excludeLists, currentExcludeList, currentSearchList, ...rest } = s;
       const criteria = { ...emptyBuyBoxCriteria(), ...rest };
       const feed = mergeSlotFeed(i, storedFeed, legacyFeed);
       return {
@@ -266,14 +315,22 @@ export function mergeActiveSlotFeedPatch(settings, patch = {}) {
   if (patch.feedSearch !== undefined) nextSlot.feedSearch = patch.feedSearch ?? '';
   if (patch.excludeKeywords !== undefined) nextSlot.excludeKeywords = patch.excludeKeywords;
   if (patch.currentExcludeList !== undefined) nextSlot.currentExcludeList = patch.currentExcludeList ?? '';
+  if (patch.currentSearchList !== undefined) nextSlot.currentSearchList = patch.currentSearchList ?? '';
   const nextBoxes = buyBoxes.map((b, i) => (i === idx ? nextSlot : b));
   const library =
     patch.excludeLists !== undefined
       ? cloneExcludeListsMap(patch.excludeLists)
       : getExcludeListLibrary(settings);
+  const searchLibrary =
+    patch.searchLists !== undefined
+      ? cloneExcludeListsMap(patch.searchLists)
+      : getSearchListLibrary(settings);
   const preferences = { buyBoxes: nextBoxes, activeBuyBoxIndex: idx };
   if (patch.excludeLists !== undefined) {
     preferences.excludeListLibrary = library;
+  }
+  if (patch.searchLists !== undefined) {
+    preferences.searchListLibrary = searchLibrary;
   }
   return {
     preferences,

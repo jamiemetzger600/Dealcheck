@@ -7,7 +7,8 @@ const SLOT_META_KEYS = new Set([
   'feedSearch',
   'excludeKeywords',
   'excludeLists',
-  'currentExcludeList'
+  'currentExcludeList',
+  'currentSearchList'
 ]);
 
 export function defaultBuyBoxSlotName(index) {
@@ -85,7 +86,8 @@ export function emptySlotFeed() {
     feedSearch: '',
     excludeKeywords: [],
     excludeLists: {},
-    currentExcludeList: ''
+    currentExcludeList: '',
+    currentSearchList: ''
   };
 }
 
@@ -126,7 +128,9 @@ function mergeSlotFeed(i, stored, legacyFeed) {
         ? lc
         : '';
 
-  return { feedSearch, excludeKeywords, excludeLists, currentExcludeList };
+  const currentSearchList = typeof stored.currentSearchList === 'string' ? stored.currentSearchList : '';
+
+  return { feedSearch, excludeKeywords, excludeLists, currentExcludeList, currentSearchList };
 }
 
 /**
@@ -161,9 +165,10 @@ export function normalizeUserBuyBoxes(buy_box, preferences, legacyFeed = {}) {
         feedSearch: s.feedSearch,
         excludeKeywords: s.excludeKeywords,
         excludeLists: s.excludeLists,
-        currentExcludeList: s.currentExcludeList
+        currentExcludeList: s.currentExcludeList,
+        currentSearchList: s.currentSearchList
       };
-      const { name, feedSearch, excludeKeywords, excludeLists, currentExcludeList, ...rest } = s;
+      const { name, feedSearch, excludeKeywords, excludeLists, currentExcludeList, currentSearchList, ...rest } = s;
       const criteria = { ...emptyBuyBoxCriteria(), ...rest };
       const feed = mergeSlotFeed(i, storedFeed, legacyFeed);
       return {

@@ -15,8 +15,11 @@ import {
   criteriaFromSlot,
   defaultBuyBoxSlotName,
   getExcludeListLibrary,
+  getSearchListLibrary,
+  joinSearchKeywords,
   mergeActiveSlotFeedPatch,
   normalizeBuyBoxesState,
+  parseSearchKeywords,
   patchActiveBuyBoxFlexibility
 } from '../utils/buyBoxes';
 import DealDetailsPanel from './DealDetailsPanel';
@@ -38,8 +41,8 @@ import {
 } from '../utils/dealCardDisplay';
 
 const PER_PAGE = 50;
+const MAX_SEARCH_KEYWORDS = 8;
 const SHOW_SORT_TIP = false;
-const SEARCH_DEBOUNCE_MS = 300;
 const COLUMN_CONFIG = {
   name: { label: 'Name', default: true, required: true, sortable: true },
   date: { label: 'Date Added', default: true, sortable: true },
@@ -393,8 +396,15 @@ export default function DealAggregator({
   const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchKeywords, setSearchKeywords] = useState([]);
+  const [savedSearchLists, setSavedSearchLists] = useState(() =>
+    settings ? getSearchListLibrary(settings) : {}
+  );
+  const [currentSelectedSearchList, setCurrentSelectedSearchList] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchListNameInput, setSearchListNameInput] = useState('');
+  const [searchListSaving, setSearchListSaving] = useState(false);
+  const [showSearchSection, setShowSearchSection] = useState(true);
   const [excludeKeywords, setExcludeKeywords] = useState(settings?.excludeKeywords || []);
   const [savedExcludeLists, setSavedExcludeLists] = useState(() =>
     settings ? getExcludeListLibrary(settings) : {}
@@ -442,6 +452,16 @@ export default function DealAggregator({
     setShowExcludeSection(true);
     const raf = requestAnimationFrame(() => {
       const el = document.querySelector('[data-tour="exclude-keywords"]');
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [tourPrepareStepId]);
+
+  useEffect(() => {
+    if (tourPrepareStepId !== 'search-bar') return;
+    setShowSearchSection(true);
+    const raf = requestAnimationFrame(() => {
+      const el = document.querySelector('[data-tour="search-bar"]');
       el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
     return () => cancelAnimationFrame(raf);
@@ -574,6 +594,7 @@ export default function DealAggregator({
   useEffect(() => {
     if (!settings) return;
     setSavedExcludeLists(getExcludeListLibrary(settings));
+    setSavedSearchLists(getSearchListLibrary(settings));
     const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(settings);
     const slot = buyBoxes[activeBuyBoxIndex] || {};
     const slotKey = `${activeBuyBoxIndex}`;
@@ -586,9 +607,11 @@ export default function DealAggregator({
       const activeListName = slot.currentExcludeList != null ? String(slot.currentExcludeList) : '';
       setCurrentSelectedList(activeListName);
       setExcludeListNameInput(activeListName);
-      const q = typeof slot.feedSearch === 'string' ? slot.feedSearch : '';
-      setSearchQuery(q);
-      setDebouncedSearch(q);
+      const nextSearch = parseSearchKeywords(slot.feedSearch);
+      setSearchKeywords(nextSearch);
+      const activeSearchList = slot.currentSearchList != null ? String(slot.currentSearchList) : '';
+      setCurrentSelectedSearchList(activeSearchList);
+      setSearchListNameInput(activeSearchList);
     }
     setHiddenDealIds(settings?.hiddenDealIds || []);
     setDealPanelPosition(settings?.preferences?.dealPanelPosition || 'center');
@@ -630,44 +653,26 @@ export default function DealAggregator({
     }
   }, [settings, saveSettings]);
 
-  // Debounce search input
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  // Persist search text per active buy box (no full settings refresh — avoids input flicker)
-  useEffect(() => {
-    if (!settingsRef.current) return;
-    const t = setTimeout(() => {
-      const currentSettings = settingsRef.current;
-      if (!currentSettings) return;
-      const { buyBoxes, activeBuyBoxIndex } = normalizeBuyBoxesState(currentSettings);
-      const slot = buyBoxes[activeBuyBoxIndex];
-      const server = typeof slot?.feedSearch === 'string' ? slot.feedSearch : '';
-      if (server === debouncedSearch) return;
-      const payload = mergeActiveSlotFeedPatch(currentSettings, { feedSearch: debouncedSearch });
-      saveSettings(payload).catch((err) => {
-        console.error('[DealAggregator] persist feedSearch failed:', err);
-      });
-    }, 900);
-    return () => clearTimeout(t);
-  }, [debouncedSearch, saveSettings]);
+  const feedSearchString = useMemo(() => joinSearchKeywords(searchKeywords), [searchKeywords]);
+  const searchKeywordsFingerprint = useMemo(
+    () => `${settings?.activeBuyBoxIndex ?? settings?.preferences?.activeBuyBoxIndex ?? 0}:${feedSearchString}`,
+    [settings?.activeBuyBoxIndex, settings?.preferences?.activeBuyBoxIndex, feedSearchString]
+  );
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger, deckScope, mobileDailyFilter]);
+  }, [searchKeywordsFingerprint, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger, deckScope, mobileDailyFilter]);
 
   // Reset prefetch flag when filters change
   useEffect(() => {
     prefetchRequestedRef.current = false;
-  }, [debouncedSearch, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger, deckScope, currentPage]);
+  }, [searchKeywordsFingerprint, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger, deckScope, currentPage]);
 
   // New search/exclude params must not reuse a prior list ETag
   useEffect(() => {
     listEtagCacheRef.current = { key: '', etag: '' };
-  }, [debouncedSearch, excludeKeywordsFingerprint]);
+  }, [searchKeywordsFingerprint, excludeKeywordsFingerprint]);
 
   // Persist column visibility + order locally and to the user account (one write)
   useEffect(() => {
@@ -759,7 +764,7 @@ export default function DealAggregator({
     const params = buildMarketDealsParams({
       page: pageOverride ?? currentPage,
       perPage: PER_PAGE,
-      search: debouncedSearch,
+      search: feedSearchString,
       buyBox: poolNewMode ? null : (showHiddenDeals ? null : buyBox),
       flexibilityPct: flexPct,
       sortSpec,
@@ -835,13 +840,13 @@ export default function DealAggregator({
         setIsFetching(false);
       }
     }
-  }, [settings, debouncedSearch, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords, mobileDailyFilter, deckScope]);
+  }, [settings, feedSearchString, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords, mobileDailyFilter, deckScope]);
 
   // Fetch on mount, filter/sort/page/search/hidden-ids change, and manual refresh
   useEffect(() => {
     if (settings) fetchServerDeals();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when inputs to fetchServerDeals change; avoid tying to unstable parent callbacks
-  }, [debouncedSearch, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint, deckScope, mobileDailyFilter]);
+  }, [feedSearchString, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint, deckScope, mobileDailyFilter]);
 
   // Manual refresh for the installed PWA (no browser reload / pull-to-refresh in
   // standalone mode). Clear the ETag cache so we always request a fresh 200.
@@ -1188,6 +1193,161 @@ export default function DealAggregator({
     await persistActiveSlotFeed({ excludeKeywords: nextKeywords });
   };
 
+  const persistSearchKeywords = async (nextKeywords, extra = {}) => {
+    const sliced = nextKeywords.slice(0, MAX_SEARCH_KEYWORDS);
+    setSearchKeywords(sliced);
+    console.log('[DealAggregator] persist search keywords', { count: sliced.length, extra });
+    await persistActiveSlotFeed({
+      feedSearch: joinSearchKeywords(sliced),
+      ...extra
+    });
+  };
+
+  const handleAddSearchKeyword = async () => {
+    const pending = searchInput
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (pending.length === 0) return;
+    const nextKeywords = Array.from(new Set([...searchKeywords, ...pending]));
+    if (nextKeywords.length === searchKeywords.length) {
+      setSearchInput('');
+      return;
+    }
+    if (nextKeywords.length > MAX_SEARCH_KEYWORDS) {
+      alert(`Search allows up to ${MAX_SEARCH_KEYWORDS} keywords (AND). Remove one to add another.`);
+      return;
+    }
+    setSearchInput('');
+    await persistSearchKeywords(nextKeywords);
+  };
+
+  const handleRemoveSearchKeyword = async (keyword) => {
+    const nextKeywords = searchKeywords.filter((item) => item !== keyword);
+    await persistSearchKeywords(nextKeywords);
+  };
+
+  const handleClearSearchKeywords = async () => {
+    setCurrentSelectedSearchList('');
+    setSearchListNameInput('');
+    await persistSearchKeywords([], { currentSearchList: '' });
+  };
+
+  const resolveSearchKeywordsForSave = () => {
+    const pending = searchInput
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    return Array.from(new Set([...searchKeywords, ...pending])).slice(0, MAX_SEARCH_KEYWORDS);
+  };
+
+  const handleSaveSearchList = async () => {
+    if (searchListSaving) return;
+    const keywords = resolveSearchKeywordsForSave();
+    if (keywords.length === 0) {
+      alert('Add at least one keyword before saving (type below and click Add, or press Enter).');
+      return;
+    }
+    const trimmed = searchListNameInput.trim();
+    if (!trimmed) {
+      alert('Enter a list name in the field next to the dropdown.');
+      return;
+    }
+    setSearchListSaving(true);
+    try {
+      const nextLists = { ...savedSearchLists, [trimmed]: keywords };
+      setSearchKeywords(keywords);
+      setSearchInput('');
+      setSavedSearchLists(nextLists);
+      setCurrentSelectedSearchList(trimmed);
+      setSearchListNameInput(trimmed);
+      const ok = await persistActiveSlotFeed({
+        feedSearch: joinSearchKeywords(keywords),
+        searchLists: nextLists,
+        currentSearchList: trimmed
+      });
+      if (ok) {
+        console.log('[DealAggregator] Saved search list', { name: trimmed, count: keywords.length });
+      }
+    } finally {
+      setSearchListSaving(false);
+    }
+  };
+
+  const handleDeleteSearchList = async () => {
+    if (!currentSelectedSearchList) {
+      alert('Select a list to delete');
+      return;
+    }
+    if (!window.confirm(`Delete search list "${currentSelectedSearchList}"?`)) return;
+    const nextLists = { ...savedSearchLists };
+    delete nextLists[currentSelectedSearchList];
+    setSavedSearchLists(nextLists);
+    setCurrentSelectedSearchList('');
+    setSearchListNameInput('');
+    await persistActiveSlotFeed({ searchLists: nextLists, currentSearchList: '' });
+  };
+
+  const handleUpdateSearchList = async () => {
+    if (!currentSelectedSearchList) {
+      alert('Select a list to update first');
+      return;
+    }
+    const nextLists = { ...savedSearchLists, [currentSelectedSearchList]: [...searchKeywords] };
+    setSavedSearchLists(nextLists);
+    await persistActiveSlotFeed({
+      feedSearch: joinSearchKeywords(searchKeywords),
+      searchLists: nextLists,
+      currentSearchList: currentSelectedSearchList
+    });
+  };
+
+  const handleRenameSearchList = async () => {
+    if (searchListSaving) return;
+    if (!currentSelectedSearchList) {
+      alert('Select a list to rename');
+      return;
+    }
+    const trimmed = searchListNameInput.trim();
+    if (!trimmed) {
+      alert('Enter a new name in the List name field.');
+      return;
+    }
+    if (trimmed === currentSelectedSearchList) {
+      alert('Change the list name before renaming.');
+      return;
+    }
+    if (savedSearchLists[trimmed]) {
+      alert(`A list named "${trimmed}" already exists. Choose a different name.`);
+      return;
+    }
+    setSearchListSaving(true);
+    try {
+      const nextLists = { ...savedSearchLists };
+      nextLists[trimmed] = nextLists[currentSelectedSearchList];
+      delete nextLists[currentSelectedSearchList];
+      setSavedSearchLists(nextLists);
+      setCurrentSelectedSearchList(trimmed);
+      const ok = await persistActiveSlotFeed({ searchLists: nextLists, currentSearchList: trimmed });
+      if (ok) {
+        console.log('[DealAggregator] Renamed search list', { from: currentSelectedSearchList, to: trimmed });
+      }
+    } finally {
+      setSearchListSaving(false);
+    }
+  };
+
+  const handleLoadSearchList = async (listName) => {
+    const nextKeywords = (savedSearchLists[listName] || []).slice(0, MAX_SEARCH_KEYWORDS);
+    setCurrentSelectedSearchList(listName);
+    setSearchListNameInput(listName);
+    setSearchKeywords(nextKeywords);
+    await persistActiveSlotFeed({
+      feedSearch: joinSearchKeywords(nextKeywords),
+      currentSearchList: listName
+    });
+  };
+
   const flexibilityPercent = Math.min(100, Math.max(0, Number(settings?.buyBox?.includeNearMatchesPercent) || 0));
   const flexibilityIsPreset = FLEXIBILITY_PRESETS.includes(flexibilityPercent);
   const flexibilitySelectValue = flexibilityIsPreset ? flexibilityPercent : 'custom';
@@ -1202,9 +1362,10 @@ export default function DealAggregator({
         if (i !== activeBuyBoxIndex) return b;
         return {
           ...b,
-          feedSearch: searchQuery,
+          feedSearch: joinSearchKeywords(searchKeywords),
           excludeKeywords: [...excludeKeywords],
-          currentExcludeList: currentSelectedList || ''
+          currentExcludeList: currentSelectedList || '',
+          currentSearchList: currentSelectedSearchList || ''
         };
       });
       const newIdx = index;
@@ -1214,7 +1375,7 @@ export default function DealAggregator({
       console.log('[DealAggregator] switch buy box', {
         from: activeBuyBoxIndex,
         to: newIdx,
-        savedFeedSearch: searchQuery,
+        savedFeedSearch: joinSearchKeywords(searchKeywords),
         savedExcludeCount: excludeKeywords.length,
         sharedExcludeLists: Object.keys(library).length
       });
@@ -1814,17 +1975,6 @@ export default function DealAggregator({
       <div className="aggregator-table-container active" data-tour="deal-feed">
         <div className="aggregator-controls">
           <div className="controls-row">
-            <div className="aggregator-search" data-tour="search-bar">
-              <input
-                type="text"
-                placeholder="Search: name, location, industry… Use commas for AND (e.g. Relocatable, HVAC)"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input"
-                aria-label="Search deals; use commas to require multiple keywords"
-              />
-            </div>
-
             <div className={`view-style-toggle${showMobileToolbar ? ' view-style-toggle--desktop-only' : ''}`} role="group" aria-label="View style">
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'table' ? 'active' : ''}`} onClick={() => handleViewStyleChange('table')}>Table</button>
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'card' ? 'active' : ''}`} onClick={() => handleViewStyleChange('card')}>Card</button>
@@ -1960,6 +2110,134 @@ export default function DealAggregator({
               </div>
             </div>
           )}
+
+          <div
+            className={`exclude-keywords-section search-keywords-section${!showSearchSection ? ' exclude-keywords-section--collapsed' : ''}`}
+            data-tour="search-bar"
+          >
+            <div className="exclude-header">
+              <button
+                type="button"
+                className="exclude-label exclude-label-toggle"
+                onClick={() => setShowSearchSection((v) => !v)}
+                aria-expanded={showSearchSection}
+              >
+                {showSearchSection ? '▼' : '▶'} Search Keywords
+                {searchKeywords.length > 0 && (
+                  <span className="exclude-header-preview">
+                    {': '}
+                    {searchKeywords.slice(0, 3).join(', ')}
+                    {searchKeywords.length > 3 ? '…' : ''}
+                    {` (${searchKeywords.length})`}
+                  </span>
+                )}
+              </button>
+            </div>
+            {showSearchSection && (
+            <>
+            <div className="exclude-list-controls">
+              <select
+                value={currentSelectedSearchList}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!value) {
+                    setCurrentSelectedSearchList('');
+                    setSearchListNameInput('');
+                    persistActiveSlotFeed({ currentSearchList: '' });
+                    return;
+                  }
+                  handleLoadSearchList(value);
+                }}
+                aria-label="Saved search lists"
+              >
+                <option value="">-- Select List --</option>
+                {Object.keys(savedSearchLists).sort().map((name) => (
+                  <option key={name} value={name}>
+                    {name} ({savedSearchLists[name].length})
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                className="exclude-list-name-input"
+                value={searchListNameInput}
+                onChange={(e) => setSearchListNameInput(e.target.value)}
+                placeholder="List name"
+                aria-label="Search list name"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveSearchList();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="exclude-btn"
+                onClick={handleSaveSearchList}
+                disabled={searchListSaving}
+              >
+                {searchListSaving ? 'Saving…' : 'Save List'}
+              </button>
+              <button
+                type="button"
+                className="exclude-btn"
+                onClick={handleRenameSearchList}
+                disabled={!currentSelectedSearchList || searchListSaving}
+              >
+                Rename
+              </button>
+              <button type="button" className="exclude-btn" onClick={handleUpdateSearchList} disabled={!currentSelectedSearchList || searchListSaving}>
+                Update
+              </button>
+              <button type="button" className="exclude-btn" onClick={handleDeleteSearchList} disabled={!currentSelectedSearchList || searchListSaving}>
+                Delete
+              </button>
+              <button type="button" className="exclude-btn" onClick={handleClearSearchKeywords} disabled={searchListSaving}>
+                Clear All
+              </button>
+            </div>
+            <div className="exclude-content">
+              <div className="exclude-input-row">
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddSearchKeyword();
+                    }
+                  }}
+                  placeholder="Type keyword and press Enter… commas for AND"
+                  aria-label="Add search keyword"
+                />
+                <button type="button" className="exclude-add-btn" onClick={handleAddSearchKeyword}>
+                  Add
+                </button>
+              </div>
+              <div className="exclude-tags">
+                {searchKeywords.length === 0 ? (
+                  <span className="exclude-empty-text">No search keywords. Add terms to filter the pool.</span>
+                ) : (
+                  searchKeywords.map((keyword) => (
+                    <span key={keyword} className="exclude-tag">
+                      {keyword}
+                      <button
+                        type="button"
+                        className="exclude-tag-remove"
+                        onClick={() => handleRemoveSearchKeyword(keyword)}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+            </>
+            )}
+          </div>
 
           <div
             className={`exclude-keywords-section${!showExcludeSection ? ' exclude-keywords-section--collapsed' : ''}`}

@@ -454,8 +454,8 @@ export default function DealAggregator({
   const didColumnDragRef = useRef(false);
   const isMobileViewport = useIsMobile();
   const { isPortrait } = useOrientation();
-  /** Mobile feed layout: swipe deck, card grid, or table. */
-  const [mobileFeedMode, setMobileFeedMode] = useState('deck');
+  /** Mobile feed layout: swipe deck, card grid, or table. Guests land on table. */
+  const [mobileFeedMode, setMobileFeedMode] = useState(() => (isGuest ? 'table' : 'deck'));
   // Default to all buy-box matches so the feed is not empty on load when nothing
   // was updated today. Users can still switch to "Today's New" in the toolbar.
   const [deckScope, setDeckScope] = useState('all');
@@ -549,9 +549,9 @@ export default function DealAggregator({
 
   useEffect(() => {
     if (!isMobileViewport) {
-      setMobileFeedMode('deck');
+      setMobileFeedMode(isGuest ? 'table' : 'deck');
     }
-  }, [isMobileViewport]);
+  }, [isMobileViewport, isGuest]);
 
   const handleMobileFeedModeChange = useCallback((mode) => {
     setMobileFeedMode(mode);

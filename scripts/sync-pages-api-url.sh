@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# Point Cloudflare Pages VITE_API_URL at the current tunnel and redeploy production.
-# Only redeploys when the URL actually changes (minimizes churn).
+# Point Cloudflare Pages VITE_API_URL at the stable Worker proxy (never a
+# trycloudflare URL). Baking the ephemeral tunnel into the frontend causes
+# infinite "Loading deals..." whenever the tunnel hostname rotates.
+# Only redeploys when the URL actually changes.
 set -euo pipefail
 
-ORIGIN="${1:-}"
-if [[ -z "$ORIGIN" ]]; then
-  echo "Usage: $0 https://xxxx.trycloudflare.com" >&2
-  exit 1
-fi
-ORIGIN="${ORIGIN%/}"
-API_URL="${ORIGIN}/api"
+API_URL="https://vettr-api.metzgerbuildsthings.workers.dev/api"
 ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-b5fb063c1e439dd0d0ce3ffb317ec52c}"
 PROJECT="vettr"
 CONFIG="${HOME}/Library/Preferences/.wrangler/config/default.toml"

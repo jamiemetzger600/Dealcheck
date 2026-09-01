@@ -29,7 +29,7 @@ if [[ -f "$PID_FILE" && -f "$URL_FILE" ]]; then
   if [[ -n "${old_pid}" ]] && kill -0 "$old_pid" 2>/dev/null; then
     if curl -sf --max-time 10 "${old_url}/health" >/dev/null; then
       echo "Reusing healthy tunnel pid=${old_pid} ${old_url}"
-      bash "${ROOT}/scripts/sync-pages-api-url.sh" "$old_url" || true
+      bash "${ROOT}/scripts/sync-pages-api-url.sh" || true
       while kill -0 "$old_pid" 2>/dev/null; do sleep 30; done
       echo "Existing tunnel died; will restart"
     else
@@ -47,7 +47,7 @@ if ! { [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; }; then
   if [[ -n "$LIVE" ]] && [[ -f "$URL_FILE" ]] && curl -sf --max-time 10 "$(cat "$URL_FILE")/health" >/dev/null; then
     echo "$LIVE" > "$PID_FILE"
     echo "Adopted running tunnel pid=$LIVE $(cat "$URL_FILE")"
-    bash "${ROOT}/scripts/sync-pages-api-url.sh" "$(cat "$URL_FILE")" || true
+    bash "${ROOT}/scripts/sync-pages-api-url.sh" || true
     while kill -0 "$LIVE" 2>/dev/null; do sleep 30; done
     echo "Adopted tunnel died; will restart"
   fi
@@ -93,7 +93,7 @@ echo "$ORIGIN" > "$URL_FILE"
 echo "Tunnel origin: $ORIGIN"
 # Prefer stable Worker proxy sync; never kill the tunnel if Pages sync fails.
 bash "${ROOT}/scripts/sync-tunnel-origin.sh" "$ORIGIN" || true
-bash "${ROOT}/scripts/sync-pages-api-url.sh" "$ORIGIN" || true
+bash "${ROOT}/scripts/sync-pages-api-url.sh" || true
 
 CF_PID=$(cat "$PID_FILE")
 while kill -0 "$CF_PID" 2>/dev/null; do

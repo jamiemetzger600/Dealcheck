@@ -38,7 +38,6 @@ new = re.sub(
     r'TUNNEL_ORIGIN\s*=\s*"[^"]*"',
     f'TUNNEL_ORIGIN = "${ORIGIN}"',
     text,
-    count=1,
 )
 if new == text:
     # insert under [vars]

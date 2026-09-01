@@ -10,7 +10,7 @@ When the user asks to **commit**, **push**, or go **live** with committed work:
 1. **Run the git commands yourself** — do not reply with instructions for the user to run locally unless a command fails and needs their credentials or approval.
 2. **Push:** If the user asks to push (or agrees when you offer push for live testing), run `git push` immediately in the same turn. Do not stop at “your branch is ahead” without pushing.
 3. **Commit:** Follow the existing commit workflow (status, diff, log, stage, commit). Only commit when the user explicitly requests it.
-4. **After push:** If the commit touches `backend/` or `web/`, follow `.cursor/rules/deploy-after-commit.mdc` — run Koyeb redeploy and note Cloudflare auto-deploy; do not only list manual steps unless a deploy command fails.
+4. **After push:** If the commit touches `backend/` or `web/`, follow `.cursor/rules/deploy-after-commit.mdc` — Pages auto-deploys the web app; restart the local API LaunchAgent for backend/DB. **Never** run Koyeb.
 
 ## Safety (unchanged)
 

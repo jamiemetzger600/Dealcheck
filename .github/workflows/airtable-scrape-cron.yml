@@ -1,9 +1,9 @@
-# Daily Airtable ingest — triggers POST /api/airtable-deals/scrape on Koyeb.
-# Koyeb free tier may sleep; in-process node-cron is unreliable. This external cron wakes the API.
+# Daily Airtable ingest — triggers POST /api/airtable-deals/scrape on the Mac API
+# via the Worker proxy (Koyeb is retired).
 #
 # Required GitHub repo secrets:
-#   SCRAPE_TRIGGER_SECRET — same value as Koyeb env SCRAPE_TRIGGER_SECRET
-#   VETTR_API_BASE_URL    — e.g. https://database-vettr-65d5dc25.koyeb.app (no trailing slash)
+#   SCRAPE_TRIGGER_SECRET — same value as backend/.env SCRAPE_TRIGGER_SECRET
+#   VETTR_API_BASE_URL    — https://vettr-api.metzgerbuildsthings.workers.dev (no trailing slash)
 
 name: Airtable scrape cron
 

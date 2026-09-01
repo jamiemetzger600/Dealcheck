@@ -4,11 +4,14 @@ For a single list of all environment variables (backend, web, CLI), see **[CONFI
 
 ## Stack
 
-| Layer    | Service           | Cost  |
-|----------|-------------------|-------|
-| Frontend | Cloudflare Pages  | Free  |
-| Backend  | Koyeb (Node.js)   | Free  |
-| Database | Koyeb PostgreSQL  | Free  |
+| Layer | Service | Notes |
+|--------|---------|-------|
+| Frontend | Cloudflare Pages | Auto-deploy on push to `main` |
+| Public API | Worker `vettr-api` (`workers/vettr-api-proxy`) | Stable URL: `https://vettr-api.metzgerbuildsthings.workers.dev` |
+| Backend | This Mac (`com.vettr.api` → `:3001`) | Exposed by Cloudflare quick tunnel (`com.vettr.tunnel`) |
+| Database | Local PostgreSQL | `DATABASE_URL` in `backend/.env` |
+
+Koyeb is retired. Do not create Koyeb services or run the Koyeb CLI.
 
 ---
 
@@ -29,71 +32,31 @@ For a single list of all environment variables (backend, web, CLI), see **[CONFI
    - **Build command:** `npm run build`
    - **Output directory:** `dist`
 4. Environment variables (required for deals to load):
-   - `VITE_API_URL` = your Koyeb backend URL **including** `/api` (e.g. `https://your-app.koyeb.app/api`)
+   - `VITE_API_URL` = `https://vettr-api.metzgerbuildsthings.workers.dev/api` (stable Worker proxy — never a `trycloudflare.com` URL)
    - Without this, the app will show "Total: 0 Deals" because it will request `/api/airtable-deals` on the Pages host (which has no API). Set the variable in Cloudflare Pages → your project → Settings → Environment variables, then trigger a new build.
 5. Deploy — your app will be live at `https://your-project.pages.dev`
 6. **SPA routing:** With no root `404.html`, Cloudflare Pages already sends unknown paths to your React app. Do not add a `/* /index.html 200` `_redirects` rule (it triggers “infinite loop” warnings and is unnecessary).
 
 ---
 
-## Backend — Koyeb
+## Backend — this Mac + Cloudflare tunnel
 
-1. Go to [koyeb.com](https://koyeb.com) → Databases → Create → PostgreSQL (Free)
-2. Copy the `DATABASE_URL` connection string
-3. Services → Create Service → GitHub → select this repo
-4. Build settings:
-   - **Root directory:** `backend` (Koyeb may label this "Work directory")
-   - **Build command:** `npm install`
-   - **Run command:** `npm start`
-   - **Port:** `3001` — if not on the Build step, set it in a later step (Resources / Service configuration) or add env var `PORT=3001`.
-5. Environment variables (see [CONFIG.md](CONFIG.md) and `backend/.env.example`):
-   - `NODE_ENV` = `production`
-   - `DATABASE_URL` (from Koyeb PostgreSQL)
-   - `JWT_SECRET` (generate with: `openssl rand -base64 32`)
-   - `JWT_EXPIRES_IN` = `7d` (or your preferred expiry)
-   - `WEB_APP_URL` = your Cloudflare Pages URL **with no trailing slash** (e.g. `https://your-project.pages.dev`) — required for CORS to match the browser’s Origin
-   - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
-   - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (for email notifications)
-   - **Market deals feed (Airtable scraper):** Defaults are daily **`0 4 * * *`** at **`America/Los_Angeles`**. Override with `AIRTABLE_SCRAPE_CRON` / `AIRTABLE_SCRAPE_CRON_TZ` only if needed. **Remove** any legacy **`AIRTABLE_SCRAPE_CRON=*/30 * * * *`** in the dashboard (pulls the full Airtable view every 30 minutes). Set **`AIRTABLE_SCRAPE_ON_STARTUP=false`** to skip the automatic scrape 5s after each cold start.
-   - **External cron (recommended on free Koyeb):** GitHub Actions workflow [`.github/workflows/airtable-scrape-cron.yml`](.github/workflows/airtable-scrape-cron.yml) POSTs daily at **4:05 AM Pacific**. Set Koyeb env **`SCRAPE_TRIGGER_SECRET`** and GitHub secrets **`SCRAPE_TRIGGER_SECRET`** + **`VETTR_API_BASE_URL`** (e.g. `https://database-vettr-65d5dc25.koyeb.app`).
-   - **Scrape OOM:** Set **`NODE_OPTIONS=--max-old-space-size=768`** on Koyeb (or rely on `npm start` heap flag after deploy).
-   - **Stale listings:** After each **successful Airtable scrape**, listings with source activity older than **6 months** are set `is_active = false` (see `MARKET_DEALS_MAX_AGE_MONTHS`). Set `MARKET_DEALS_PRUNE_ENABLED=false` to turn off.
-6. Deploy → wait for service to go live
-7. Run migrations via Koyeb console: `npm run migrate`
-8. Verify: `GET https://your-api.koyeb.app/health` → `{ "status": "ok" }`
+The Node API is **not** hosted on Koyeb. It runs on this machine:
 
----
+1. LaunchAgent `com.vettr.api` → `scripts/start-vettr-api.sh` → `http://127.0.0.1:3001`
+2. LaunchAgent `com.vettr.tunnel` → Cloudflare quick tunnel to `:3001`
+3. Worker `workers/vettr-api-proxy` proxies public traffic; `scripts/sync-tunnel-origin.sh` updates `TUNNEL_ORIGIN` when the tunnel hostname rotates
+4. Env: `backend/.env` (see [CONFIG.md](CONFIG.md)). Database is local Postgres.
+5. After backend code changes: `launchctl kickstart -k gui/$(id -u)/com.vettr.api` — migrations run on API start
+6. Verify: `GET http://localhost:3001/health` and `GET https://vettr-api.metzgerbuildsthings.workers.dev/health`
 
-## Koyeb CLI (optional)
-
-Use the CLI to inspect services, view logs, and redeploy from the terminal.
-
-**Install (macOS):**
-```bash
-brew install koyeb/tap/koyeb
-```
-
-**Login:** Create an API token at [Koyeb → Account → API Tokens](https://app.koyeb.com/account/api), then:
-```bash
-koyeb login --token YOUR_API_TOKEN
-```
-Config is saved to `~/.koyeb.yaml`.
-
-**Useful commands:** (use `app-name/service-name`, e.g. `database/vettr`)
-- `koyeb services list` — list services
-- `koyeb services logs database/vettr` — stream logs (debug deploy errors)
-- `koyeb services redeploy database/vettr` — trigger a new build and deploy
+**Airtable scrape:** GitHub Actions [`.github/workflows/airtable-scrape-cron.yml`](.github/workflows/airtable-scrape-cron.yml) POSTs daily at 4:05 AM Pacific. GitHub secrets: `SCRAPE_TRIGGER_SECRET` (same as `backend/.env`) and `VETTR_API_BASE_URL` = `https://vettr-api.metzgerbuildsthings.workers.dev` (no trailing slash).
 
 ---
 
 ## CLI access for testing and troubleshooting
 
-To let the agent (or any script) test and troubleshoot Cloudflare and Koyeb directly from the repo:
-
-### Koyeb (already usable if you ran `koyeb login`)
-
-- Commands run with the token in `~/.koyeb.yaml`. No extra setup.
-- Example: `koyeb services list`, `koyeb services logs database/vettr`.
+To inspect Cloudflare from the repo:
 
 ### Cloudflare (Wrangler)
 
@@ -115,7 +78,7 @@ To let the agent (or any script) test and troubleshoot Cloudflare and Koyeb dire
    ```
    To set or check env vars for the frontend, use the dashboard (Workers & Pages → vettr → Settings → Environment variables) or the [Pages API](https://developers.cloudflare.com/api/operations/pages-project-list-projects).
 
-Once both are set up, the agent can run `koyeb` and `wrangler` (with `source .env.cli`) to inspect services, logs, and deployments and to troubleshoot issues like "Failed to fetch" (e.g. wrong `VITE_API_URL` or CORS).
+Once Wrangler is set up, use it (with `source .env.cli`) to inspect Pages/Workers. Do not use the Koyeb CLI.
 
 ---
 
@@ -125,14 +88,14 @@ Once both are set up, the agent can run `koyeb` and `wrangler` (with `source .en
 
 In Cloudflare Pages → Settings → Environment Variables:
 
-- Set `VITE_API_URL` to your Koyeb backend URL **with** `/api` (e.g. `https://your-api.koyeb.app/api`)
-- Trigger a new deployment (Vite bakes this into the build)
+- Set `VITE_API_URL` to `https://vettr-api.metzgerbuildsthings.workers.dev/api`
+- Trigger a new deployment only if that value changed (Vite bakes this into the build)
 
 ### Configure Stripe Webhook
 
 1. Stripe Dashboard → Webhooks → Add Endpoint
-2. URL: `https://your-api.koyeb.app/api/payments/webhook`
-3. Copy the Webhook Signing Secret → set as `STRIPE_WEBHOOK_SECRET` in Koyeb
+2. URL: `https://vettr-api.metzgerbuildsthings.workers.dev/api/payments/webhook`
+3. Copy the Webhook Signing Secret → set as `STRIPE_WEBHOOK_SECRET` in `backend/.env`
 
 ---
 

@@ -16,7 +16,7 @@
 
 3. **Production API / web** (already in extension)  
    - Web: `https://vettr.pages.dev`  
-   - API: `https://database-vettr-65d5dc25.koyeb.app/api`  
+   - API: `https://vettr-api.metzgerbuildsthings.workers.dev/api`  
    Set `VITE_EXTENSION_ID` on Cloudflare Pages after you have the **published** extension ID (or unpacked ID for dev).
 
 ## Listing copy (suggested)

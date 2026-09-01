@@ -6,7 +6,7 @@
 const isProduction = process.env.NODE_ENV === 'production';
 
 const REQUIRED_IN_PRODUCTION = [
-  { key: 'DATABASE_URL', hint: 'PostgreSQL connection string from Koyeb or local' },
+  { key: 'DATABASE_URL', hint: 'PostgreSQL connection string (local Postgres on this Mac)' },
   { key: 'JWT_SECRET', hint: 'Generate with: openssl rand -base64 32' },
   { key: 'WEB_APP_URL', hint: 'Cloudflare Pages URL (no trailing slash), for CORS' }
 ];

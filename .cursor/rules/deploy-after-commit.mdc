@@ -1,35 +1,38 @@
 ---
-description: After commits that affect backend or frontend, redeploy Koyeb and/or Cloudflare so the live site reflects changes.
+description: After commits that affect backend or frontend, ship via Cloudflare Pages plus the local API tunnel. Do not use Koyeb.
 alwaysApply: false
 ---
 
-# Redeploy After Commit (Koyeb & Cloudflare)
+# Redeploy After Commit (Cloudflare + local API)
 
-When planning or completing work that touches the **backend** or **database**, or the **web** app, ensure the right deployment step runs so the live site is updated.
+Koyeb is **retired**. Do **not** run `koyeb services redeploy` or any other Koyeb CLI.
 
-**Agent responsibility:** When the user asks to push, go live, or deploy after a commit, **run** push and redeploy commands yourself. Do not only tell the user what to run unless a command fails (e.g. missing Koyeb login).
+## Stack
 
-## Koyeb (backend + DB)
+| Layer | Where it runs | How it updates |
+|---|---|---|
+| Web | Cloudflare Pages (`vettr`) | Push to `main` auto-builds. `VITE_API_URL` is the stable Worker: `https://vettr-api.metzgerbuildsthings.workers.dev/api` |
+| API | This Mac (`com.vettr.api` → port `3001`) | Code is live once the LaunchAgent is running that tree. After backend commits, `launchctl kickstart -k gui/$(id -u)/com.vettr.api` |
+| Public API URL | Worker `workers/vettr-api-proxy` | Proxies to the current Cloudflare quick tunnel. Tunnel LaunchAgent (`com.vettr.tunnel`) syncs `TUNNEL_ORIGIN` |
+| Database | Local PostgreSQL on this Mac (`DATABASE_URL` in `backend/.env`) | Migrations run on API startup (`runMigrations`) |
 
-- **Service:** `database/vettr` (app-name/service-name).
-- **When:** Any commit that changes `backend/` or that requires DB migrations (e.g. after changing `backend/src/db/migrate.js`).
-- **Redeploy command (run from project root):**
+## Web (Cloudflare Pages)
+
+- **When:** Commit changes `web/` and is pushed to `main`.
+- **Default:** Pages auto-deploys. No extra CLI unless auto-deploy is off.
+- Do **not** bake a `trycloudflare.com` URL into Pages. Keep `VITE_API_URL` on the Worker proxy (`scripts/sync-pages-api-url.sh`).
+
+## Backend (this Mac)
+
+- **When:** Commit changes `backend/` or `backend/src/db/migrate.js`.
+- Restart the API LaunchAgent so the tunnel serves the new code:
   ```bash
-  koyeb services redeploy database/vettr
+  launchctl kickstart -k gui/$(id -u)/com.vettr.api
   ```
-- **Prereqs:** [Koyeb CLI](https://github.com/koyeb/koyeb-cli) installed and logged in (`koyeb login --token YOUR_API_TOKEN`). Config in `~/.koyeb.yaml`.
-- **After backend redeploy:** If you added a migration, run migrations on the Koyeb DB (e.g. via Koyeb shell or one-off run: `npm run migrate`).
-
-## Cloudflare Pages (web)
-
-- **When:** Any commit that changes `web/` and is pushed to the branch connected to Cloudflare (usually `main`).
-- **Default:** Cloudflare Pages is connected to the GitHub repo; pushing to `main` triggers an automatic build and deploy. No extra step if you push.
-- **If auto-deploy is off or you need a manual deploy:** Cloudflare dashboard → your Pages project → Deployments → “Retry deployment” or “Create deployment” from the branch.
+- Confirm `curl -s http://localhost:3001/health` shows the new version. The tunnel (`com.vettr.tunnel`) stays up; do not kill it for a routine API restart.
 
 ## Workflow after commit
 
-1. **Backend-only or DB change:** Commit, **push**, then run `koyeb services redeploy database/vettr` (and run migrations on Koyeb if needed).
-2. **Web-only change:** Commit and **push** to `main`; Cloudflare will deploy if connected.
-3. **Backend and web change:** Commit, **push**, run `koyeb services redeploy database/vettr`; Cloudflare will deploy from the push.
-
-When completing a commit that affects backend or DB, **run** the Koyeb redeploy command (report success or the exact error if CLI is not logged in). When the commit affects `web/`, confirm push completed and Cloudflare will build from `main`.
+1. **Web-only:** Push to `main`. Cloudflare Pages builds. Note that in the reply.
+2. **Backend / DB:** Push, then kickstart `com.vettr.api`. Do not call Koyeb.
+3. **Both:** Push, kickstart the API, and note Pages will build from `main`.

@@ -48,4 +48,4 @@ Logs: `~/Library/Logs/vettr/api.log`, `web.log` (and `.err`).
 
 ## Scope
 
-- This applies to **local** development on this machine, not Koyeb/Cloudflare production.
+- Local UI/API on this machine. Production web is Cloudflare Pages; production API is this same Mac via Cloudflare tunnel + Worker proxy (not Koyeb).

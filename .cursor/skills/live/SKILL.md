@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 Invoking this skill **is** authorization to commit and push. Run the git commands yourself — do not hand the user a checklist.
 
-Do **not** redeploy Koyeb (or run any deploy CLI) as part of this skill.
+Do **not** run Koyeb (retired). After push, follow `.cursor/rules/deploy-after-commit.mdc`: Pages auto-deploys the web app; kickstart `com.vettr.api` if `backend/` changed.
 
 ## Workflow
 
@@ -47,4 +47,4 @@ Do **not** redeploy Koyeb (or run any deploy CLI) as part of this skill.
 - Never update git config
 - Never force-push to `main`/`master` without explicit user request
 - Never commit secrets
-- Never run `koyeb` redeploy (or other deploy commands) unless the user asks separately
+- Never run `koyeb` (retired). Do not run other deploy CLIs unless the user asks separately, except the LaunchAgent kickstart in deploy-after-commit.

@@ -4,16 +4,16 @@ Single reference for all environment variables and deployment config. Copy the r
 
 ---
 
-## Backend (Node.js / Koyeb)
+## Backend (Node.js on this Mac)
 
 **Source:** [backend/.env.example](backend/.env.example)  
 **Used by:** `backend/src` (Express, DB, Stripe, email, Airtable scraper)
 
 | Variable | Required | Default / example | Notes |
 |----------|----------|-------------------|--------|
-| `NODE_ENV` | No | `development` | `production` on Koyeb |
-| `PORT` | No | `3001` | Koyeb may set automatically |
-| `DATABASE_URL` | **Yes** (prod) | `postgresql://user:pass@host:5432/vettr` | From Koyeb PostgreSQL or local |
+| `NODE_ENV` | No | `development` | LaunchAgent uses `development` |
+| `PORT` | No | `3001` | Local API; public traffic hits the Worker proxy then the tunnel |
+| `DATABASE_URL` | **Yes** (prod) | `postgresql://user:pass@host:5432/vettr` | Local PostgreSQL on this Mac |
 | `JWT_SECRET` | **Yes** | — | Generate: `openssl rand -base64 32` |
 | `JWT_EXPIRES_IN` | No | `7d` | Token expiry |
 | `WEB_APP_URL` | **Yes** (prod) | `http://localhost:5173` | Cloudflare Pages URL, no trailing slash (CORS) |
@@ -33,7 +33,7 @@ Single reference for all environment variables and deployment config. Copy the r
 | `AIRTABLE_SCRAPE_ENABLED` | No | `true` | `false` to disable scraper |
 | `AIRTABLE_SCRAPE_ON_STARTUP` | No | `true` | `false` to skip the scrape 5s after server boot (saves one full Airtable pull per cold start) |
 | `SCRAPE_TRIGGER_SECRET` | **Yes** (prod + cron) | — | Protects `POST /api/airtable-deals/scrape`. Same value in GitHub secret `SCRAPE_TRIGGER_SECRET`. Generate: `openssl rand -base64 32` |
-| `NODE_OPTIONS` | No | (via npm start) | Koyeb: `--max-old-space-size=768` if scrape OOMs on free tier |
+| `NODE_OPTIONS` | No | (via npm start) | LaunchAgent sets `--max-old-space-size=768` if scrape OOMs |
 | `MARKET_DEALS_PRUNE_ENABLED` | No | `true` | `false` to skip deactivating stale listings after each Airtable scrape |
 | `MARKET_DEALS_MAX_AGE_MONTHS` | No | `6` | Listings with no newer activity than this are set `is_active = false` |
 
@@ -46,7 +46,7 @@ Single reference for all environment variables and deployment config. Copy the r
 
 | Variable | Required | Default / example | Notes |
 |----------|----------|-------------------|--------|
-| `VITE_API_URL` | **Yes** (prod) | — | Backend URL **including** `/api` (e.g. `https://your-app.koyeb.app/api`). Omit in dev to use Vite proxy. |
+| `VITE_API_URL` | **Yes** (prod) | — | Stable Worker **including** `/api`: `https://vettr-api.metzgerbuildsthings.workers.dev/api`. Omit in dev to use Vite proxy. Never bake a `trycloudflare.com` URL into Pages. |
 | `VITE_EXTENSION_ID` | **Yes** (prod, web→ext link) | — | Chrome extension ID so logged-in web users auto-link the extension. See [docs/CHROME_WEB_STORE.md](docs/CHROME_WEB_STORE.md). |
 
 ---
@@ -61,15 +61,15 @@ Single reference for all environment variables and deployment config. Copy the r
 | `CLOUDFLARE_ACCOUNT_ID` | Yes (Wrangler) | Dashboard → right sidebar |
 | `CLOUDFLARE_API_TOKEN` | Yes (Wrangler) | My Profile → API Tokens → “Edit Cloudflare Workers” |
 
-Load before Wrangler: `source .env.cli` then `wrangler pages ...`. Koyeb CLI uses `~/.koyeb.yaml` (from `koyeb login`).
+Load before Wrangler: `source .env.cli` then `wrangler pages ...`.
 
 ---
 
 ## Deployment
 
-- **Backend:** Koyeb — set env in Service → Variables. See [DEPLOY.md](DEPLOY.md).
-- **Frontend:** Cloudflare Pages — Settings → Environment variables; set `VITE_API_URL` and redeploy.
-- **Database:** Koyeb PostgreSQL; use its `DATABASE_URL` in the backend service.
+- **Backend:** this Mac (`com.vettr.api` on port `3001`), exposed via Cloudflare tunnel + Worker proxy. Env lives in `backend/.env`. See [DEPLOY.md](DEPLOY.md).
+- **Frontend:** Cloudflare Pages — Settings → Environment variables; `VITE_API_URL` must be the Worker `/api` URL. Push to `main` auto-deploys.
+- **Database:** local PostgreSQL; `DATABASE_URL` in `backend/.env`. Migrations run when the API starts.
 
 ---
 

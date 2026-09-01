@@ -123,6 +123,11 @@ export default function BuyBoxModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- omit `settings`: parent refresh must not re-hydrate while open (was clearing unsaved-edits guard).
   }, [isOpen, editingSlotIndex, isOnboarding]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    console.log('[BuyBoxModal] open', { isOnboarding, isGuest });
+  }, [isOpen, isOnboarding, isGuest]);
+
   const dismissOnboarding = useCallback(async () => {
     if (onboardingDismissLock.current || saving) return;
     onboardingDismissLock.current = true;

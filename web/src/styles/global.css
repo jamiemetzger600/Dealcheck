@@ -2834,7 +2834,7 @@ button.aggregator-welcome__buybox {
 }
 
 .buybox-onboarding-intro {
-  margin: -8px 0 16px;
+  margin: 0 0 16px;
   font-size: 14px;
   color: var(--text-secondary);
 }
@@ -2844,9 +2844,19 @@ button.aggregator-welcome__buybox {
   justify-content: center;
 }
 
+.buybox-modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
 .buybox-modal-header {
   align-items: flex-start;
   gap: 12px;
+  flex-shrink: 0;
+  margin-bottom: 12px;
 }
 
 .buybox-modal-header .column-close-btn {
@@ -2881,6 +2891,20 @@ button.aggregator-welcome__buybox {
   margin: 0;
 }
 
+.buybox-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.buybox-modal-actions {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
 .buybox-modal-name-field {
   display: flex;
   flex-direction: column;
@@ -2912,6 +2936,88 @@ button.aggregator-welcome__buybox {
 
 .buybox-modal-name-field__input:disabled {
   opacity: 0.7;
+}
+
+.guest-first-visit-overlay {
+  align-items: flex-end;
+  padding: 12px;
+  padding-bottom: max(12px, var(--safe-area-bottom));
+}
+
+.guest-first-visit {
+  width: min(440px, 100%);
+  max-height: min(70dvh, 100%);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 16px 18px;
+  border-radius: 16px 16px 12px 12px;
+}
+
+.guest-first-visit__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.guest-first-visit__header h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.guest-first-visit__header .column-close-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -8px -8px 0 0;
+  font-size: 32px;
+  font-weight: 300;
+  line-height: 1;
+  border-radius: 8px;
+}
+
+.guest-first-visit__header .column-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.guest-first-visit__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.guest-first-visit__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.guest-first-visit__actions .btn-secondary,
+.guest-first-visit__actions .btn-primary {
+  min-height: var(--touch-target-min);
+}
+
+@media (min-width: 721px) {
+  .guest-first-visit-overlay {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .guest-first-visit {
+    border-radius: 14px;
+  }
 }
 
 /* Full-width row: CoC, payback, salary — equal columns inside Buy Box modal */
@@ -6400,6 +6506,12 @@ button.aggregator-welcome__buybox {
     align-items: stretch;
   }
 
+  .guest-first-visit-overlay {
+    padding: 12px;
+    padding-bottom: max(12px, var(--safe-area-bottom));
+    align-items: flex-end;
+  }
+
   .modal-card,
   .buybox-modal,
   .ioi-modal,
@@ -6408,6 +6520,24 @@ button.aggregator-welcome__buybox {
     max-width: 100%;
     max-height: 100dvh;
     border-radius: 0;
+    margin: 0;
+  }
+
+  .buybox-modal {
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: max(16px, var(--safe-area-top));
+    padding-bottom: max(16px, var(--safe-area-bottom));
+  }
+
+  .guest-first-visit {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: min(70dvh, calc(100dvh - 24px - var(--safe-area-bottom)));
+    border-radius: 16px 16px 12px 12px;
     margin: 0;
   }
 

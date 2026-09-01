@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GatedPreviewText from './GatedPreviewText';
+import { useSwipeGesture, FLY_MS, SNAP_MS } from '../hooks/useSwipeGesture';
 import {
   cardMetricLocation,
   cardViewDescriptionPreview,
@@ -12,9 +13,6 @@ import {
 
 const PREFETCH_THRESHOLD = 5;
 
-// Tinder-style drag gestures are paused — use Hide / Pass / Save buttons instead.
-// Re-enable via useSwipeGesture when we ship a better implementation.
-
 function DealSwipeCard({
   deal,
   isPortrait,
@@ -24,24 +22,32 @@ function DealSwipeCard({
   onOpenDetails,
   isTop,
   stackIndex,
+  swipe = null,
 }) {
   const descCard = cardViewDescriptionPreview(deal.description, isPortrait ? 4 : 3);
   const cardLoc = cardMetricLocation(deal);
-  const scale = isTop ? 1 : 1 - stackIndex * 0.04;
-  const translateY = isTop ? 0 : stackIndex * 8;
+  const peekBoost = isTop ? 0 : (swipe?.dragProgress || 0) * 0.04;
+  const scale = isTop ? 1 : 1 - stackIndex * 0.04 + peekBoost;
+  const translateY = isTop ? 0 : stackIndex * 8 - (swipe?.dragProgress || 0) * 4;
   const zIndex = 10 - stackIndex;
   const opacity = isTop ? 1 : 0.85 - stackIndex * 0.15;
 
-  const transform = isTop
-    ? 'none'
-    : `scale(${scale}) translateY(${translateY}px)`;
+  const stackTransform = `scale(${scale}) translateY(${translateY}px)`;
+  const dragTransform = isTop && swipe
+    ? `translate(${swipe.dragX}px, ${swipe.dragY}px) rotate(${swipe.rotate}deg)`
+    : stackTransform;
+
+  const transition = isTop && swipe
+    ? (swipe.animating ? `transform ${swipe.flyOff ? FLY_MS : SNAP_MS}ms ease-out` : 'none')
+    : 'transform 0.28s ease-out';
 
   return (
     <div
+      ref={isTop ? swipe?.cardRef : undefined}
       className={`deal-swipe-card-outer${isTop ? ' deal-swipe-card-outer--active' : ''}${!isPortrait ? ' deal-swipe-card-outer--landscape' : ''}`}
       style={{
-        transform,
-        transition: 'transform 0.28s ease-out',
+        transform: dragTransform,
+        transition,
         zIndex,
         opacity: isTop ? 1 : opacity,
         pointerEvents: isTop ? 'auto' : 'none',
@@ -51,15 +57,23 @@ function DealSwipeCard({
         className={`deal-swipe-card${!isPortrait ? ' deal-swipe-card--landscape' : ''}`}
         role={isTop ? 'button' : undefined}
         tabIndex={isTop ? 0 : -1}
-        onClick={isTop ? () => onOpenDetails(deal) : undefined}
         onKeyDown={isTop ? (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             onOpenDetails(deal);
           }
         } : undefined}
-        style={{ touchAction: 'pan-y' }}
       >
+        {isTop && swipe ? (
+          <>
+            <div className="deal-swipe-card-overlay deal-swipe-card-overlay--nope" style={{ opacity: swipe.nopeOpacity }} aria-hidden="true">
+              Nope
+            </div>
+            <div className="deal-swipe-card-overlay deal-swipe-card-overlay--like" style={{ opacity: swipe.likeOpacity }} aria-hidden="true">
+              Like
+            </div>
+          </>
+        ) : null}
         <div className="deal-swipe-card__body">
           <div className="deal-swipe-card__main">
             <h3 className="deal-swipe-card__name">{deal.name || 'Unnamed Business'}</h3>
@@ -140,23 +154,39 @@ export default function DealSwipeDeck({
 }) {
   const [queue, setQueue] = useState(deals);
   const dealsKeyRef = useRef('');
+  const topDealRef = useRef(null);
+  const pendingDealRef = useRef(null);
+  const actionLockRef = useRef(false);
+  const actionLockTimerRef = useRef(null);
+  const [actionLock, setActionLock] = useState(false);
 
   useEffect(() => {
     const key = deals.map((d) => d.id).join('|');
-    if (key !== dealsKeyRef.current) {
-      dealsKeyRef.current = key;
-      setQueue(deals);
-    } else if (deals.length > queue.length) {
-      const queueIds = new Set(queue.map((d) => d.id));
-      const appended = deals.filter((d) => !queueIds.has(d.id));
-      if (appended.length > 0) {
-        setQueue((prev) => [...prev, ...appended]);
+    if (key === dealsKeyRef.current) {
+      if (deals.length > queue.length) {
+        const queueIds = new Set(queue.map((d) => d.id));
+        const appended = deals.filter((d) => !queueIds.has(d.id));
+        if (appended.length > 0) {
+          setQueue((prev) => [...prev, ...appended]);
+        }
       }
+      return;
     }
+    dealsKeyRef.current = key;
+    setQueue((prev) => {
+      const incomingIds = new Set(deals.map((d) => d.id));
+      const kept = prev.filter((d) => incomingIds.has(d.id));
+      if (kept.length === 0) return deals;
+      const keptIds = new Set(kept.map((d) => d.id));
+      const appended = deals.filter((d) => !keptIds.has(d.id));
+      return appended.length > 0 ? [...kept, ...appended] : kept;
+    });
   }, [deals, queue.length]);
 
   const remaining = queue.length;
   const visibleStack = useMemo(() => queue.slice(0, 3), [queue]);
+  const topDeal = queue[0] || null;
+  topDealRef.current = topDeal;
 
   useEffect(() => {
     if (remaining > 0 && remaining <= PREFETCH_THRESHOLD && typeof onNeedMore === 'function') {
@@ -164,26 +194,94 @@ export default function DealSwipeDeck({
     }
   }, [remaining, onNeedMore]);
 
+  const lockActions = useCallback(() => {
+    if (actionLockRef.current) {
+      console.log('[DealSwipeDeck] duplicate action ignored');
+      return false;
+    }
+    actionLockRef.current = true;
+    setActionLock(true);
+    if (actionLockTimerRef.current) window.clearTimeout(actionLockTimerRef.current);
+    actionLockTimerRef.current = window.setTimeout(() => {
+      actionLockRef.current = false;
+      setActionLock(false);
+      actionLockTimerRef.current = null;
+    }, FLY_MS + 200);
+    return true;
+  }, []);
+
+  useEffect(() => () => {
+    if (actionLockTimerRef.current) window.clearTimeout(actionLockTimerRef.current);
+  }, []);
+
   const advanceQueue = useCallback(() => {
     setQueue((prev) => prev.slice(1));
   }, []);
 
-  const handleHide = useCallback(async (deal) => {
-    await onHide(deal);
+  const handleHide = useCallback((deal) => {
+    if (!actionLockRef.current) lockActions();
+    console.log('[DealSwipeDeck] hide', deal?.id || deal?.name);
+    onHide?.(deal);
     advanceQueue();
-  }, [onHide, advanceQueue]);
+  }, [onHide, advanceQueue, lockActions]);
 
-  const handleSave = useCallback(async (deal) => {
-    await onSave(deal);
+  const handleSave = useCallback((deal) => {
+    if (!actionLockRef.current) lockActions();
+    console.log('[DealSwipeDeck] save', deal?.id || deal?.name);
+    onSave?.(deal);
     advanceQueue();
-  }, [onSave, advanceQueue]);
+  }, [onSave, advanceQueue, lockActions]);
 
   const handlePass = useCallback((deal) => {
+    if (!actionLockRef.current) lockActions();
+    console.log('[DealSwipeDeck] pass', deal?.id || deal?.name);
     onPass?.(deal);
     advanceQueue();
-  }, [onPass, advanceQueue]);
+  }, [onPass, advanceQueue, lockActions]);
+
+  const resolvePendingDeal = useCallback(() => {
+    const deal = pendingDealRef.current || topDealRef.current;
+    pendingDealRef.current = null;
+    return deal;
+  }, []);
+
+  const swipe = useSwipeGesture({
+    enabled: Boolean(topDeal),
+    cardKey: topDeal?.id ?? null,
+    onHide: () => {
+      const deal = resolvePendingDeal();
+      if (deal) handleHide(deal);
+    },
+    onSave: () => {
+      const deal = resolvePendingDeal();
+      if (deal) handleSave(deal);
+    },
+    onTap: () => {
+      if (topDeal) onOpenDetails?.(topDeal);
+    }
+  });
+
+  const busy = Boolean(swipe.flyOff) || actionLock;
+
+  const onActionPointerDown = useCallback((e) => {
+    e.stopPropagation();
+  }, []);
+
+  const runButtonAction = useCallback((kind) => {
+    const deal = topDealRef.current;
+    if (!deal || !lockActions()) return;
+    pendingDealRef.current = deal;
+    console.log('[DealSwipeDeck] button', kind, deal.id || deal.name);
+    if (kind === 'pass') {
+      handlePass(deal);
+      return;
+    }
+    swipe.commitAction(kind);
+  }, [handlePass, lockActions, swipe]);
 
   const scopeLabel = deckScope === 'daily' ? "Today's New" : 'All Matches';
+  const hideHot = swipe.dragX < 0 ? 1 + swipe.dragProgress * 0.15 : 1;
+  const saveHot = swipe.dragX > 0 ? 1 + swipe.dragProgress * 0.15 : 1;
 
   return (
     <div className={`deal-swipe-deck${isPortrait ? ' deal-swipe-deck--portrait' : ' deal-swipe-deck--landscape'}`}>
@@ -236,6 +334,7 @@ export default function DealSwipeDeck({
               onOpenDetails={onOpenDetails}
               isTop={i === 0}
               stackIndex={i}
+              swipe={swipe}
             />
           ))
         )}
@@ -247,7 +346,10 @@ export default function DealSwipeDeck({
             type="button"
             className="deal-swipe-actions__btn deal-swipe-actions__btn--hide"
             aria-label="Hide deal"
-            onClick={() => handleHide(queue[0])}
+            disabled={busy}
+            style={{ transform: `scale(${hideHot})` }}
+            onPointerDown={onActionPointerDown}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); runButtonAction('hide'); }}
           >
             ✕
           </button>
@@ -255,7 +357,9 @@ export default function DealSwipeDeck({
             type="button"
             className="deal-swipe-actions__btn deal-swipe-actions__btn--pass"
             aria-label="Pass on deal"
-            onClick={() => handlePass(queue[0])}
+            disabled={busy}
+            onPointerDown={onActionPointerDown}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); runButtonAction('pass'); }}
           >
             Pass
           </button>
@@ -263,7 +367,10 @@ export default function DealSwipeDeck({
             type="button"
             className="deal-swipe-actions__btn deal-swipe-actions__btn--save"
             aria-label="Save deal"
-            onClick={() => handleSave(queue[0])}
+            disabled={busy}
+            style={{ transform: `scale(${saveHot})` }}
+            onPointerDown={onActionPointerDown}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); runButtonAction('save'); }}
           >
             ♥
           </button>

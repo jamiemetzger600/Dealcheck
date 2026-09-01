@@ -1,3 +1,5 @@
+import { defaultBuyBoxSlotName } from '../utils/buyBoxes';
+
 /** Sticky mobile toolbar: Focus / Cards / Table / Inbox + daily scope toggle. */
 export default function MobileFeedToolbar({
   feedMode,
@@ -8,7 +10,17 @@ export default function MobileFeedToolbar({
   onRefresh,
   isRefreshing = false,
   isPortrait,
+  showFiltersToggle = false,
+  filtersOpen = false,
+  onToggleFilters,
+  filterCount = 0,
+  buyBoxes = null,
+  activeBuyBoxIndex = 0,
+  onSelectBuyBox = null,
+  buyBoxSwitching = false,
 }) {
+  const slots = Array.isArray(buyBoxes) ? buyBoxes : [];
+
   return (
     <div
       className={`mobile-feed-toolbar${isPortrait ? ' mobile-feed-toolbar--portrait' : ' mobile-feed-toolbar--landscape'}`}
@@ -53,6 +65,32 @@ export default function MobileFeedToolbar({
           Inbox
         </button>
       </div>
+      {slots.length > 0 && typeof onSelectBuyBox === 'function' ? (
+        <div className="mobile-feed-toolbar__buyboxes" role="tablist" aria-label="Buy box">
+          {slots.map((slot, i) => {
+            const label = slot?.name?.trim() || defaultBuyBoxSlotName(i);
+            const isActive = i === activeBuyBoxIndex;
+            return (
+              <button
+                key={`mobile-bb-${i}`}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`mobile-feed-toolbar__buybox${isActive ? ' is-active' : ''}`}
+                disabled={buyBoxSwitching}
+                title={label}
+                onClick={() => {
+                  if (i === activeBuyBoxIndex) return;
+                  console.log('[MobileFeedToolbar] switch buy box', { from: activeBuyBoxIndex, to: i, label });
+                  onSelectBuyBox(i);
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <div className="mobile-feed-toolbar__actions">
         {typeof onRefresh === 'function' && (
           <button
@@ -75,8 +113,25 @@ export default function MobileFeedToolbar({
           {deckScope === 'daily' ? "Today's New" : 'All Matches'}
         </button>
         {typeof onConfigureBuyBox === 'function' && (
-          <button type="button" className="mobile-feed-toolbar__scope-btn" onClick={onConfigureBuyBox}>
-            Buy Box
+          <button
+            type="button"
+            className="mobile-feed-toolbar__scope-btn"
+            onClick={onConfigureBuyBox}
+            aria-label="Configure current buy box"
+          >
+            Edit box
+          </button>
+        )}
+        {showFiltersToggle && typeof onToggleFilters === 'function' && (
+          <button
+            type="button"
+            className={`mobile-feed-toolbar__scope-btn${filtersOpen ? ' is-active' : ''}${filterCount > 0 ? ' has-filters' : ''}`}
+            onClick={onToggleFilters}
+            aria-expanded={filtersOpen}
+            aria-controls="aggregator-controls"
+          >
+            {filtersOpen ? 'Hide filters' : 'Filters'}
+            {filterCount > 0 ? ` (${filterCount})` : ''}
           </button>
         )}
       </div>

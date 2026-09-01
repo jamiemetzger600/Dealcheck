@@ -449,6 +449,7 @@ export default function DealAggregator({
 
   useEffect(() => {
     if (tourPrepareStepId !== 'exclude-keywords') return;
+    setShowMobileFeedFilters(true);
     setShowExcludeSection(true);
     const raf = requestAnimationFrame(() => {
       const el = document.querySelector('[data-tour="exclude-keywords"]');
@@ -459,6 +460,7 @@ export default function DealAggregator({
 
   useEffect(() => {
     if (tourPrepareStepId !== 'search-bar') return;
+    setShowMobileFeedFilters(true);
     setShowSearchSection(true);
     const raf = requestAnimationFrame(() => {
       const el = document.querySelector('[data-tour="search-bar"]');
@@ -476,6 +478,7 @@ export default function DealAggregator({
   const { isPortrait } = useOrientation();
   /** Mobile feed layout: swipe deck, card grid, or table. Guests land on table. */
   const [mobileFeedMode, setMobileFeedMode] = useState(() => (isGuest ? 'table' : 'deck'));
+  const [showMobileFeedFilters, setShowMobileFeedFilters] = useState(false);
   // Default to all buy-box matches so the feed is not empty on load when nothing
   // was updated today. Users can still switch to "Today's New" in the toolbar.
   const [deckScope, setDeckScope] = useState('all');
@@ -558,6 +561,9 @@ export default function DealAggregator({
     && !showHiddenDeals
     && viewMode === 'matches'
     && !poolNewMode;
+
+  const hideMobileCardFilters = showMobileToolbar && mobileFeedMode === 'card' && !showMobileFeedFilters;
+  const mobileFilterCount = searchKeywords.length + excludeKeywords.length;
 
   const mobileDailyFilter = showMobileToolbar && deckScope === 'daily';
 
@@ -1382,6 +1388,7 @@ export default function DealAggregator({
       await saveSettings({
         preferences: { buyBoxes: next, activeBuyBoxIndex: newIdx },
         buyBox: crit,
+        activeBuyBoxIndex: newIdx,
         excludeKeywords: Array.isArray(activeSlot.excludeKeywords) ? activeSlot.excludeKeywords : [],
         excludeLists: library,
         currentExcludeList: activeSlot.currentExcludeList || null
@@ -1805,6 +1812,20 @@ export default function DealAggregator({
           onRefresh={handleManualRefresh}
           isRefreshing={isFetching}
           isPortrait={isPortrait}
+          showFiltersToggle={mobileFeedMode === 'card'}
+          filtersOpen={showMobileFeedFilters}
+          onToggleFilters={() => {
+            setShowMobileFeedFilters((open) => {
+              const next = !open;
+              console.log('[DealAggregator] mobile card filters', { open: next });
+              return next;
+            });
+          }}
+          filterCount={mobileFilterCount}
+          buyBoxes={buyBoxesUiState.buyBoxes}
+          activeBuyBoxIndex={buyBoxesUiState.activeBuyBoxIndex}
+          onSelectBuyBox={handleBuyBoxSlotClick}
+          buyBoxSwitching={buyBoxSwitching}
         />
       )}
 
@@ -1973,7 +1994,10 @@ export default function DealAggregator({
       </div>
 
       <div className="aggregator-table-container active" data-tour="deal-feed">
-        <div className="aggregator-controls">
+        <div
+          id="aggregator-controls"
+          className={`aggregator-controls${hideMobileCardFilters ? ' aggregator-controls--mobile-hidden' : ''}`}
+        >
           <div className="controls-row">
             <div className={`view-style-toggle${showMobileToolbar ? ' view-style-toggle--desktop-only' : ''}`} role="group" aria-label="View style">
               <button type="button" className={`toolbar-btn ${dealViewStyle === 'table' ? 'active' : ''}`} onClick={() => handleViewStyleChange('table')}>Table</button>

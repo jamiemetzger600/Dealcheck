@@ -1,28 +1,53 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-export const SWIPE_THRESHOLD = 80;
-export const DRAG_CLICK_THRESHOLD = 8;
-export const MAX_DRAG = 320;
-export const PASS_SWIPE_THRESHOLD = 70;
+export const SWIPE_THRESHOLD = 100;
+export const VELOCITY_THRESHOLD = 0.55;
+export const DRAG_CLICK_THRESHOLD = 10;
+export const SNAP_MS = 280;
+export const FLY_MS = 280;
 
 /**
- * Tinder-style swipe gesture: left=hide, right=save, up=pass (pointer/mouse).
- *
- * On touch, vertical pans are left to the browser so the page (and card
- * body) can scroll. Only a horizontal-dominant gesture locks into swipe
- * and calls preventDefault.
+ * Tinder-style left/right swipe. Native pointer listeners (not React's
+ * synthetic ones) so the card tracks the finger at 60fps and iOS doesn't
+ * steal the gesture for scroll.
  */
-export function useSwipeGesture({ onHide, onSave, onPass, onTap, enabled = true }) {
+export function useSwipeGesture({ onHide, onSave, onTap, enabled = true, cardKey = null }) {
+  const cardRef = useRef(null);
   const [dragX, setDragX] = useState(0);
   const [dragY, setDragY] = useState(0);
   const [flyOff, setFlyOff] = useState(null);
+  const [settling, setSettling] = useState(false);
+
   const startXRef = useRef(0);
   const startYRef = useRef(0);
-  const isDragRef = useRef(false);
-  /** @type {React.MutableRefObject<null | 'h' | 'v'>} */
-  const axisRef = useRef(null);
   const dragXRef = useRef(0);
   const dragYRef = useRef(0);
+  const isDragRef = useRef(false);
+  const pointerIdRef = useRef(null);
+  const lastMoveRef = useRef({ t: 0, x: 0, y: 0 });
+  const velocityRef = useRef({ vx: 0, vy: 0 });
+  const flyTimerRef = useRef(null);
+  const settleTimerRef = useRef(null);
+  const flyOffRef = useRef(null);
+  const settlingRef = useRef(false);
+  const enabledRef = useRef(enabled);
+  const callbacksRef = useRef({ onHide, onSave, onTap });
+
+  enabledRef.current = enabled;
+  flyOffRef.current = flyOff;
+  settlingRef.current = settling;
+  callbacksRef.current = { onHide, onSave, onTap };
+
+  const clearTimers = useCallback(() => {
+    if (flyTimerRef.current) {
+      window.clearTimeout(flyTimerRef.current);
+      flyTimerRef.current = null;
+    }
+    if (settleTimerRef.current) {
+      window.clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+  }, []);
 
   const resetDrag = useCallback(() => {
     setDragX(0);
@@ -30,153 +55,174 @@ export function useSwipeGesture({ onHide, onSave, onPass, onTap, enabled = true 
     dragXRef.current = 0;
     dragYRef.current = 0;
     isDragRef.current = false;
-    axisRef.current = null;
+    pointerIdRef.current = null;
+    velocityRef.current = { vx: 0, vy: 0 };
   }, []);
 
   const commitAction = useCallback((action) => {
-    const dirs = {
-      hide: { x: -window.innerWidth, y: 0 },
-      save: { x: window.innerWidth, y: 0 },
-      pass: { x: 0, y: -window.innerHeight },
-    };
-    const target = dirs[action];
-    if (!target) return;
-    setFlyOff(action);
-    setDragX(target.x);
-    setDragY(target.y);
-    window.setTimeout(() => {
-      if (action === 'hide') onHide?.();
-      else if (action === 'save') onSave?.();
-      else if (action === 'pass') onPass?.();
-      setFlyOff(null);
-      resetDrag();
-    }, 280);
-  }, [onHide, onSave, onPass, resetDrag]);
-
-  const handleStart = useCallback((clientX, clientY) => {
-    if (!enabled || flyOff) return;
-    startXRef.current = clientX;
-    startYRef.current = clientY;
-    isDragRef.current = false;
-    axisRef.current = null;
-  }, [enabled, flyOff]);
-
-  const handleMove = useCallback((clientX, clientY, { allowVerticalPass = false } = {}) => {
-    if (!enabled || flyOff) return;
-    const dx = clientX - startXRef.current;
-    const dy = clientY - startYRef.current;
-    const absX = Math.abs(dx);
-    const absY = Math.abs(dy);
-
-    if (!axisRef.current && (absX > DRAG_CLICK_THRESHOLD || absY > DRAG_CLICK_THRESHOLD)) {
-      // Horizontal-first → swipe. Vertical-first → native scroll (touch) / pass (mouse).
-      axisRef.current = absX >= absY ? 'h' : 'v';
-    }
-
-    if (axisRef.current === 'v' && !allowVerticalPass) {
-      // Let the browser scroll the page / card body.
-      return;
-    }
-
-    if (axisRef.current === 'v' && allowVerticalPass) {
-      // Mouse / pointer: keep upward pass gesture.
-      isDragRef.current = true;
-      const clampedY = Math.max(-MAX_DRAG, Math.min(0, dy));
-      dragXRef.current = 0;
-      dragYRef.current = clampedY;
-      setDragX(0);
-      setDragY(clampedY);
-      return;
-    }
-
-    if (axisRef.current !== 'h') return;
-
-    isDragRef.current = true;
-    const clampedX = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, dx));
-    // Once locked horizontal, ignore vertical so page scroll isn't fought.
-    dragXRef.current = clampedX;
-    dragYRef.current = 0;
-    setDragX(clampedX);
-    setDragY(0);
-  }, [enabled, flyOff]);
-
-  const handleEnd = useCallback(({ allowVerticalPass = false } = {}) => {
-    if (!enabled || flyOff) return;
+    if (!enabledRef.current || flyOffRef.current) return;
+    const width = typeof window !== 'undefined' ? window.innerWidth : 400;
     const x = dragXRef.current;
     const y = dragYRef.current;
+    const dir = action === 'save' ? 1 : -1;
+    const flyX = dir * (width + 80) + (x || 0) * 0.15;
+    const flyY = y + velocityRef.current.vy * 80;
+    clearTimers();
+    flyOffRef.current = action;
+    setFlyOff(action);
+    setSettling(false);
+    settlingRef.current = false;
+    dragXRef.current = flyX;
+    dragYRef.current = flyY;
+    setDragX(flyX);
+    setDragY(flyY);
+    console.log('[useSwipeGesture] fly', action, { x, vx: velocityRef.current.vx });
+    flyTimerRef.current = window.setTimeout(() => {
+      if (action === 'hide') callbacksRef.current.onHide?.();
+      else if (action === 'save') callbacksRef.current.onSave?.();
+      flyOffRef.current = null;
+      setFlyOff(null);
+      resetDrag();
+    }, FLY_MS);
+  }, [clearTimers, resetDrag]);
 
-    if (allowVerticalPass && axisRef.current === 'v' && y < -PASS_SWIPE_THRESHOLD && Math.abs(y) > Math.abs(x)) {
-      commitAction('pass');
-      return;
-    }
-    if (axisRef.current === 'h' && x < -SWIPE_THRESHOLD) {
-      commitAction('hide');
-      return;
-    }
-    if (axisRef.current === 'h' && x > SWIPE_THRESHOLD) {
-      commitAction('save');
-      return;
-    }
-    resetDrag();
-  }, [enabled, flyOff, commitAction, resetDrag]);
+  const snapBack = useCallback(() => {
+    settlingRef.current = true;
+    setSettling(true);
+    dragXRef.current = 0;
+    dragYRef.current = 0;
+    setDragX(0);
+    setDragY(0);
+    clearTimers();
+    settleTimerRef.current = window.setTimeout(() => {
+      settlingRef.current = false;
+      setSettling(false);
+      isDragRef.current = false;
+    }, SNAP_MS);
+  }, [clearTimers]);
 
-  const onTouchStart = useCallback((e) => {
-    handleStart(e.touches[0].clientX, e.touches[0].clientY);
-  }, [handleStart]);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || !enabled) return undefined;
 
-  const onTouchMove = useCallback((e) => {
-    handleMove(e.touches[0].clientX, e.touches[0].clientY, { allowVerticalPass: false });
-    // Only block native scrolling once we've locked into a horizontal swipe.
-    if (axisRef.current === 'h' && isDragRef.current) e.preventDefault();
-  }, [handleMove]);
-
-  const onTouchEnd = useCallback(() => handleEnd({ allowVerticalPass: false }), [handleEnd]);
-
-  const onMouseDown = useCallback((e) => {
-    if (e.button !== 0) return;
-    handleStart(e.clientX, e.clientY);
-    const onMouseMove = (ev) => handleMove(ev.clientX, ev.clientY, { allowVerticalPass: true });
-    const onMouseUp = () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      handleEnd({ allowVerticalPass: true });
+    const onDown = (e) => {
+      if (!enabledRef.current || flyOffRef.current || settlingRef.current) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      pointerIdRef.current = e.pointerId;
+      startXRef.current = e.clientX;
+      startYRef.current = e.clientY;
+      isDragRef.current = false;
+      lastMoveRef.current = { t: e.timeStamp || Date.now(), x: e.clientX, y: e.clientY };
+      velocityRef.current = { vx: 0, vy: 0 };
     };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  }, [handleStart, handleMove, handleEnd]);
 
-  const onClick = useCallback((e) => {
-    if (isDragRef.current) {
+    const onMove = (e) => {
+      if (!enabledRef.current || flyOffRef.current || pointerIdRef.current == null) return;
+      if (pointerIdRef.current !== e.pointerId) return;
+      const dx = e.clientX - startXRef.current;
+      const dy = e.clientY - startYRef.current;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      const now = e.timeStamp || Date.now();
+      const last = lastMoveRef.current;
+      const dt = Math.max(1, now - last.t);
+      velocityRef.current = {
+        vx: (e.clientX - last.x) / dt,
+        vy: (e.clientY - last.y) / dt
+      };
+      lastMoveRef.current = { t: now, x: e.clientX, y: e.clientY };
+
+      if (!isDragRef.current && (absX > DRAG_CLICK_THRESHOLD || absY > DRAG_CLICK_THRESHOLD)) {
+        if (absX >= absY) {
+          isDragRef.current = true;
+        } else {
+          return;
+        }
+      }
+      if (!isDragRef.current) return;
       e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-    onTap?.();
-  }, [onTap]);
+      dragXRef.current = dx;
+      dragYRef.current = dy;
+      setDragX(dx);
+      setDragY(dy);
+    };
 
-  const rotate = (dragX / MAX_DRAG) * 12;
-  const nopeOpacity = dragX < 0 ? Math.min(1, Math.abs(dragX) / SWIPE_THRESHOLD) * 0.9 : 0;
-  const likeOpacity = dragX > 0 ? Math.min(1, dragX / SWIPE_THRESHOLD) * 0.9 : 0;
-  const passOpacity = dragY < 0 ? Math.min(1, Math.abs(dragY) / PASS_SWIPE_THRESHOLD) * 0.9 : 0;
+    const onUp = (e) => {
+      if (!enabledRef.current || flyOffRef.current) return;
+      if (pointerIdRef.current != null && e.pointerId !== pointerIdRef.current) return;
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      pointerIdRef.current = null;
+
+      if (!isDragRef.current) {
+        callbacksRef.current.onTap?.();
+        return;
+      }
+
+      const x = dragXRef.current;
+      const { vx } = velocityRef.current;
+      const flickedLeft = vx < -VELOCITY_THRESHOLD && x < -24;
+      const flickedRight = vx > VELOCITY_THRESHOLD && x > 24;
+      if (x < -SWIPE_THRESHOLD || flickedLeft) {
+        commitAction('hide');
+        return;
+      }
+      if (x > SWIPE_THRESHOLD || flickedRight) {
+        commitAction('save');
+        return;
+      }
+      snapBack();
+    };
+
+    const onCancel = (e) => {
+      if (pointerIdRef.current != null && e.pointerId !== pointerIdRef.current) return;
+      pointerIdRef.current = null;
+      if (flyOffRef.current) return;
+      if (isDragRef.current) snapBack();
+      else resetDrag();
+    };
+
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove, { passive: false });
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onCancel);
+    return () => {
+      el.removeEventListener('pointerdown', onDown);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onCancel);
+    };
+  }, [commitAction, snapBack, resetDrag, cardKey, enabled]);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
+
+  const rotate = Math.max(-22, Math.min(22, (dragX / 260) * 18));
+  const nopeOpacity = dragX < 0 ? Math.min(1, Math.abs(dragX) / SWIPE_THRESHOLD) : 0;
+  const likeOpacity = dragX > 0 ? Math.min(1, dragX / SWIPE_THRESHOLD) : 0;
+  const dragProgress = Math.min(1, Math.abs(dragX) / SWIPE_THRESHOLD);
+  const animating = Boolean(flyOff) || settling;
 
   return {
+    cardRef,
     dragX,
     dragY,
     flyOff,
+    settling,
     rotate,
     nopeOpacity,
     likeOpacity,
-    passOpacity,
+    dragProgress,
+    animating,
     isDragging: isDragRef,
     commitAction,
-    resetDrag,
-    handlers: {
-      onTouchStart,
-      onTouchMove,
-      onTouchEnd,
-      onTouchCancel: onTouchEnd,
-      onMouseDown,
-      onClick,
-    },
+    resetDrag
   };
 }

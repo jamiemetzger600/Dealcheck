@@ -22,6 +22,7 @@ import {
   getDealTasks,
   postDealTask,
   postQuickFollowUp,
+  postCompleteNudge,
   patchTask,
   getDealDocuments,
   postDealDocument,
@@ -150,6 +151,7 @@ router.delete('/deals/:id/contacts/:contactId', deleteDealContactLink);
 router.get('/deals/:id/tasks', getDealTasks);
 router.post('/deals/:id/tasks', postDealTask);
 router.post('/deals/:id/follow-up', postQuickFollowUp);
+router.post('/deals/:id/nudge/complete', postCompleteNudge);
 router.patch('/tasks/:taskId', patchTask);
 router.get('/tasks/:taskId/comments', getTaskComments);
 router.post('/tasks/:taskId/comments', postTaskComment);

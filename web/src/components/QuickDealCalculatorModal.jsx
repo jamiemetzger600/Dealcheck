@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DealCalculator from './DealCalculator';
+import IOIModal from './IOIModal';
 import { getCalculatorDefaultsFromSettings } from '../utils/calculatorDefaultsFromSettings';
 import { dealsAPI } from '../utils/api';
 import { saveCalculatorState } from '../utils/dealCalculatorStorage';
@@ -23,6 +24,7 @@ export default function QuickDealCalculatorModal({
   const [businessName, setBusinessName] = useState('');
   const [nameError, setNameError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [ioiPayload, setIoiPayload] = useState(null);
   const businessNameInputRef = useRef(null);
   const addToMyDealsPayloadRef = useRef(null);
 
@@ -180,10 +182,31 @@ export default function QuickDealCalculatorModal({
               showRefreshFromListing={false}
               addToMyDealsInFooter={false}
               collectAddToMyDealsPayloadRef={addToMyDealsPayloadRef}
+              onUseForIOI={(data) => {
+                console.log('[QuickDealCalculator] Quick IOI');
+                setIoiPayload(data);
+              }}
+              showQuickIOI="always"
             />
           </section>
         </div>
       </div>
+      {ioiPayload ? (
+        <IOIModal
+          deal={{
+            ...QUICK_CALCULATOR_DEAL,
+            name: businessName.trim() || QUICK_CALCULATOR_DEAL.name
+          }}
+          scenarios={ioiPayload.scenarios}
+          activeScenario={ioiPayload.activeScenario}
+          qualityPrefs={{
+            targetCOC: parseFloat(calculatorDefaults.targetCOC) || 25,
+            targetPayback: parseFloat(calculatorDefaults.targetPayback) || 4
+          }}
+          settings={settings}
+          onClose={() => setIoiPayload(null)}
+        />
+      ) : null}
     </div>
   );
 }

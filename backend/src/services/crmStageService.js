@@ -101,12 +101,27 @@ async function applyStageUpdate(actorUserId, deal, newStage, previousStage) {
   const industryKey = isFranchiseTagged(deal.industry)
     ? 'franchise'
     : matchIndustryKey(deal.industry);
+
+  let queuedTask = null;
+  if (trimmed) {
+    try {
+      const { ensureStageNudge } = await import('./crmNudgeService.js');
+      const queued = await ensureStageNudge(actorUserId, deal.id, trimmed, deal.industry);
+      queuedTask = queued?.task
+        ? { id: queued.task.id, title: queued.task.title || suggestedTaskForStage(trimmed, industryKey), created: queued.created }
+        : null;
+    } catch (err) {
+      console.warn('[crmStage] stage nudge skipped:', err.message);
+    }
+  }
+
   return {
     savedDealId: deal.id,
     progressStage: trimmed || null,
     progressHistory: newHistory,
     previousStage: previousStage || null,
     suggestedTask: trimmed ? suggestedTaskForStage(trimmed, industryKey) : null,
+    queuedTask,
     suggestedIndustryKey: industryKey
   };
 }

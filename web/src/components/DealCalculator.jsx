@@ -20,6 +20,7 @@ import {
   loadCalculatorState,
   saveCalculatorState
 } from '../utils/dealCalculatorStorage';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 const PER_DEAL_PERSIST_DEBOUNCE_MS = 400;
 /** Hidden for now — auto-suggest was not useful. Flip to true to restore the banner. */
@@ -46,8 +47,11 @@ export default function DealCalculator({
   addToMyDealsInFooter = true,
   collectAddToMyDealsPayloadRef = null,
   showRefreshFromListing = true,
-  className = ''
+  className = '',
+  /** 'always' = desktop footer + mobile top; 'mobile' = calculator top on phones only. */
+  showQuickIOI = 'always'
 }) {
+  const isMobile = useIsMobile();
   const [activeScenario, setActiveScenario] = useState(0);
   const [scenarios, setScenarios] = useState([]);
   const [targetCOC, setTargetCOC] = useState('25');
@@ -57,6 +61,9 @@ export default function DealCalculator({
   const [showScenarioCompare, setShowScenarioCompare] = useState(false);
   const persistTimerRef = useRef(null);
   const perDealPersistTimerRef = useRef(null);
+  const canOpenIOI = typeof onUseForIOI === 'function' && scenarios.length > 0;
+  const showMobileQuickIOI = canOpenIOI && isMobile && (showQuickIOI === 'mobile' || showQuickIOI === 'always');
+  const showFooterIOI = canOpenIOI && showQuickIOI === 'always' && !isMobile;
 
   const qualityPrefs = useMemo(
     () => ({
@@ -445,6 +452,22 @@ export default function DealCalculator({
           <ScenarioCompareTable analyses={compareAnalyses} bestScenarioIndices={bestCompareScenarioIndices} />
         )}
       </div>
+
+      {showMobileQuickIOI ? (
+        <button
+          type="button"
+          className="btn-primary calc-ioi-btn calc-ioi-btn--mobile"
+          onClick={() => {
+            console.log('[DealCalculator] Quick IOI (mobile)', {
+              dealId: deal?.id,
+              activeScenario
+            });
+            onUseForIOI({ scenarios, activeScenario });
+          }}
+        >
+          Quick IOI
+        </button>
+      ) : null}
 
       {showScenario3SuggestionBanner && (
         <div className="calc-scenario3-suggestion">
@@ -910,11 +933,11 @@ export default function DealCalculator({
         </div>
       </CalcAccordion>
 
-      {(onUseForIOI ||
+      {(showFooterIOI ||
         (addToMyDealsInFooter && typeof onAddToMyDeals === 'function') ||
         showRefreshFromListing) && (
       <div className="calc-footer-actions">
-        {onUseForIOI && (
+        {showFooterIOI && (
           <button
             type="button"
             className="btn-primary calc-ioi-btn"

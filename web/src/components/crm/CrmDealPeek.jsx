@@ -177,6 +177,13 @@ export default function CrmDealPeek({
         <button type="button" className="btn-primary" onClick={() => onOpen?.(dealId)}>
           Open
         </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => onOpen?.(dealId, { focusSection: 'ioi' })}
+        >
+          Quick IOI
+        </button>
         {deal.url ? (
           <a
             href={deal.url}

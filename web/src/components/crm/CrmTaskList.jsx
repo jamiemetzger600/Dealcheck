@@ -23,6 +23,8 @@ function sourceLabel(source) {
     follow_up_custom: 'Custom reminder',
     manual: 'Manual',
     stage_suggestion: 'Stage suggestion',
+    intake_nudge: 'Next step',
+    stage_nudge: 'Next step',
     talk_assign: 'Talk assign',
     quick_add: 'Quick add'
   };

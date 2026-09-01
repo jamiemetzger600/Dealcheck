@@ -2,11 +2,12 @@ import { useMemo } from 'react';
 import { crmAPI, teamsAPI } from '../../utils/api';
 import { formatDate } from '../../utils/normalizeDeal';
 
-/** Build dealId → next action from overdue/due-today tasks (overdue wins). */
+/** Build dealId → next action from overdue/due-today tasks (overdue wins), then computed nudges. */
 export function buildNextActionByDealId(today) {
   const map = new Map();
   const overdue = today?.tasks?.overdue || [];
   const dueToday = today?.tasks?.dueToday || [];
+  const nudges = today?.nudges || [];
   for (const t of dueToday) {
     const id = Number(t.saved_deal_id);
     if (!Number.isFinite(id) || map.has(id)) continue;
@@ -16,6 +17,11 @@ export function buildNextActionByDealId(today) {
     const id = Number(t.saved_deal_id);
     if (!Number.isFinite(id)) continue;
     map.set(id, { title: t.title, dueLabel: t.due_at ? formatDate(t.due_at) : 'Overdue', urgent: true });
+  }
+  for (const n of nudges) {
+    const id = Number(n.saved_deal_id);
+    if (!Number.isFinite(id) || map.has(id)) continue;
+    map.set(id, { title: n.title, dueLabel: 'Next step', urgent: false });
   }
   return map;
 }
@@ -44,6 +50,8 @@ export function getActionFilterDealIds(today, filterId) {
       return dealIdsFromItems(today.ddOverdue || [], (d) => d.saved_deal_id);
     case 'stale':
       return dealIdsFromItems(today.staleListings || [], (s) => s.savedDealId);
+    case 'nudges':
+      return dealIdsFromItems(today.nudges || [], (n) => n.saved_deal_id);
     case 'dormant':
       return dealIdsFromItems(today.dormantDeals || [], (d) => d.saved_deal_id);
     default:
@@ -76,6 +84,7 @@ export default function CrmActionStrip({
   const chips = useMemo(() => {
     const tasks = today?.tasks || {};
     return [
+      { id: 'nudges', label: 'Next steps', count: (today?.nudges || []).length, warn: false },
       { id: 'mentions', label: 'Mentions', count: (today?.unreadMentions || []).length, warn: true },
       { id: 'approvals', label: 'Approvals', count: (today?.pendingApprovals || []).length, warn: false },
       { id: 'overdue', label: 'Overdue', count: (tasks.overdue || []).length, warn: true },
@@ -87,6 +96,19 @@ export default function CrmActionStrip({
   }, [today]);
 
   const totalUrgent = chips.reduce((sum, c) => sum + c.count, 0);
+
+  const handleCompleteNudge = async (dealId, item) => {
+    try {
+      console.log('[CrmActionStrip] complete nudge', dealId, item.nudgeKey);
+      await crmAPI.completeNudge(dealId, {
+        taskId: item.taskId || undefined,
+        actionKey: item.nudgeKey || undefined
+      });
+      onRefresh?.();
+    } catch (err) {
+      alert('Failed to complete next step: ' + err.message);
+    }
+  };
 
   const handleCompleteTask = async (taskId) => {
     try {
@@ -158,6 +180,16 @@ export default function CrmActionStrip({
           dealId: s.savedDealId,
           title: s.name,
           sub: 'Feed financials changed — refresh from listing'
+        }));
+      case 'nudges':
+        return (today.nudges || []).map((n) => ({
+          key: `n-${n.saved_deal_id}-${n.key}`,
+          dealId: n.saved_deal_id,
+          title: n.title,
+          sub: n.deal_name,
+          nudgeKey: n.key,
+          taskId: n.task_id,
+          ctaLabel: n.ctaLabel || 'Did it'
         }));
       case 'dormant':
         return (today.dormantDeals || []).map((d) => ({
@@ -240,7 +272,16 @@ export default function CrmActionStrip({
                     </button>
                   </>
                 ) : null}
-                {item.taskId ? (
+                {item.nudgeKey ? (
+                  <button
+                    type="button"
+                    className="btn-primary btn-secondary--sm"
+                    onClick={() => handleCompleteNudge(item.dealId, item)}
+                  >
+                    {item.ctaLabel || 'Did it'}
+                  </button>
+                ) : null}
+                {item.taskId && !item.nudgeKey ? (
                   <button
                     type="button"
                     className="btn-secondary btn-secondary--sm"

@@ -244,12 +244,14 @@ export default function CrmDashboard({
   const handleStageChanged = (result, dealName) => {
     if (!result || result.unchanged) return;
     const stage = result.progressStage;
-    if (result.suggestedTask || stage === 'Starting Due Diligence') {
+    const queued = Boolean(result.queuedTask);
+    if (result.suggestedTask || queued || stage === 'Starting Due Diligence') {
       setStagePrompt({
         dealId: result.savedDealId,
         dealName: dealName || recordDeal?.name || peekDeal?.name,
         stage,
-        suggestedTask: result.suggestedTask
+        suggestedTask: result.queuedTask?.title || result.suggestedTask,
+        queued
       });
     }
   };
@@ -391,7 +393,7 @@ export default function CrmDashboard({
                 deal={peekDeal}
                 dealId={peekDealId}
                 nextAction={peekNextAction}
-                onOpen={(id) => openRecord(id)}
+                onOpen={openRecord}
                 onClose={handleClosePeek}
                 onStageChanged={handleStageChanged}
                 onRefresh={handleRefresh}
@@ -409,6 +411,7 @@ export default function CrmDashboard({
           dealName={stagePrompt.dealName}
           stage={stagePrompt.stage}
           suggestedTask={stagePrompt.suggestedTask}
+          queued={Boolean(stagePrompt.queued)}
           onAddTask={handleAddSuggestedTask}
           onStartDd={stagePrompt.stage === 'Starting Due Diligence' ? handleStartDdFromPrompt : null}
           onDismiss={() => setStagePrompt(null)}

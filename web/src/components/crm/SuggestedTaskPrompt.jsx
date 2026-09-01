@@ -1,10 +1,12 @@
 /**
- * One-tap prompt after pipeline stage change (Phase 2).
+ * One-tap prompt after pipeline stage change.
+ * When Vettr already queued the next step, only dismiss is needed.
  */
 export default function SuggestedTaskPrompt({
   dealName,
   stage,
   suggestedTask,
+  queued = false,
   onAddTask,
   onStartDd,
   onDismiss
@@ -15,10 +17,14 @@ export default function SuggestedTaskPrompt({
     <div className="crm-suggested-task" role="status">
       <p className="crm-suggested-task__text">
         {dealName ? <strong>{dealName}</strong> : 'Deal'} moved to <em>{stage}</em>.
-        {suggestedTask ? ` Suggested: ${suggestedTask}` : ''}
+        {queued && suggestedTask
+          ? ` Vettr queued: ${suggestedTask}`
+          : suggestedTask
+            ? ` Suggested: ${suggestedTask}`
+            : ''}
       </p>
       <div className="crm-suggested-task__actions">
-        {suggestedTask ? (
+        {suggestedTask && !queued ? (
           <button type="button" className="btn-primary" onClick={onAddTask}>
             Add task
           </button>

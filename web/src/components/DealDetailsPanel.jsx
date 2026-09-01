@@ -349,19 +349,22 @@ export default function DealDetailsPanel({
 
   const openIOIModal = useCallback((data) => {
     if (isGuest && typeof requireSignup === 'function') {
+      console.log('[DealDetailsPanel] Quick IOI blocked for guest');
       requireSignup('ioi', { dealDbId: deal?.dbId });
       return false;
     }
     const payload = data?.scenarios?.length ? data : resolveIOIScenarios();
     if (!payload?.scenarios?.length) {
+      console.log('[DealDetailsPanel] Quick IOI missing scenarios — opening calculator');
       setPrimarySection('calculator');
       setFocusedSection('calculator');
       return false;
     }
+    console.log('[DealDetailsPanel] opening Quick IOI', { dealId: deal?.id, scenarios: payload.scenarios.length });
     setIoiData(payload);
     setIoiModalKey((k) => k + 1);
     return true;
-  }, [isGuest, requireSignup, deal?.dbId, resolveIOIScenarios]);
+  }, [isGuest, requireSignup, deal?.dbId, deal?.id, resolveIOIScenarios]);
 
   const handleUseForIOI = useCallback((data) => {
     openIOIModal(data);
@@ -433,17 +436,12 @@ export default function DealDetailsPanel({
     });
   }, [primarySection, pinnedSection]);
 
-  const coreSections = useMemo(() => {
-    const sections = [
-      { id: 'description', label: 'Description', icon: 'description' },
-      { id: 'overview', label: 'Deal Overview', icon: 'overview' },
-      { id: 'calculator', label: 'Calculator', icon: 'calculator' },
-    ];
-    if (onIOISent) {
-      sections.push({ id: 'ioi', label: 'Quick IOI', icon: 'ioi' });
-    }
-    return sections;
-  }, [onIOISent]);
+  const coreSections = useMemo(() => ([
+    { id: 'description', label: 'Description', icon: 'description' },
+    { id: 'overview', label: 'Deal Overview', icon: 'overview' },
+    { id: 'calculator', label: 'Calculator', icon: 'calculator' },
+    { id: 'ioi', label: 'Quick IOI', icon: 'ioi' }
+  ]), []);
 
   const allSections = useMemo(() => {
     const extras = (extraSections || []).map((s) => ({
@@ -633,10 +631,11 @@ export default function DealDetailsPanel({
         calculatorDefaults={calculatorDefaults}
         onSaveCalculatorDefaults={onSaveCalculatorDefaults}
         onCalculatorPersisted={onCalculatorPersisted}
-        onUseForIOI={onIOISent ? handleUseForIOI : null}
+        onUseForIOI={handleUseForIOI}
+        showQuickIOI="always"
       />
     ),
-    ioi: onIOISent ? (
+    ioi: (
       <div className="deal-ioi-launch">
         <p className="deal-ioi-launch__lead">
           Draft an indicative offer email from your calculator scenarios. Configure financing in the Calculator, then generate and send the IOI here.
@@ -654,7 +653,7 @@ export default function DealDetailsPanel({
           </p>
         ) : null}
       </div>
-    ) : null,
+    ),
   };
 
   extraSections.forEach((extra) => {
@@ -746,9 +745,15 @@ export default function DealDetailsPanel({
           ) : (
             <h2>{deal.name || 'Deal Details'}</h2>
           )}
-          {(headerProgressControl || headerProgressLabel || deal.url || showSaveButton) ? (
-            <div className="deal-details-header-meta-row">
+          <div className="deal-details-header-meta-row">
               <div className="deal-details-header-cta-row">
+              <button
+                type="button"
+                className="btn-primary deal-details-ioi-header-btn"
+                onClick={() => openIOIModal()}
+              >
+                Quick IOI
+              </button>
               {renderSaveButton('deal-details-header-save')}
               {deal.url ? (
                 isGuest && !entitlements?.listingLinkEnabled ? (
@@ -837,18 +842,15 @@ export default function DealDetailsPanel({
                 </p>
               ) : null}
             </div>
-          ) : null}
         </div>
         <div className="deal-details-header-actions">
-          {onIOISent ? (
-            <button
-              type="button"
-              className="btn-primary deal-details-ioi-header-btn"
-              onClick={() => openIOIModal()}
-            >
-              Quick IOI
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="btn-primary deal-details-ioi-header-btn"
+            onClick={() => openIOIModal()}
+          >
+            Quick IOI
+          </button>
           {showPositionToggle && (
             <div className="panel-position-toggle" aria-label="Panel position">
               {POSITION_OPTIONS.map((option) => (
@@ -897,7 +899,10 @@ export default function DealDetailsPanel({
           }}
           settings={settings}
           onClose={handleCloseIOI}
-          onIOISent={onIOISent ? (text) => { onIOISent(text); handleCloseIOI(); } : null}
+          onIOISent={(text) => {
+            if (onIOISent) onIOISent(text);
+            handleCloseIOI();
+          }}
           onIOIPrefsSaved={onIOIPrefsSaved}
         />,
         document.body

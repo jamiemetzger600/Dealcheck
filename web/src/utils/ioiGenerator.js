@@ -1,5 +1,7 @@
 import { analyzeDealScenario, SELLER_NOTE_TERM_YEARS } from './dealCalculatorMath';
 
+export const DEFAULT_IOI_TIMELINE = '30-45 days from accepted offer';
+
 const EMAIL_IN_TEXT = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 
 function firstEmailInText(value) {
@@ -47,6 +49,24 @@ export function getBrokerEmailFromDeal(deal) {
   }
 
   return '';
+}
+
+/** Stable keys so broker email / closing notes / scenario picks persist per listing. */
+export function ioiDealKeys(deal) {
+  if (!deal) return [];
+  const keys = [];
+  const add = (value) => {
+    const key = String(value || '').trim();
+    if (key && !keys.includes(key)) keys.push(key);
+  };
+  if (deal.dbId != null && String(deal.dbId).trim() !== '') add(`md:${deal.dbId}`);
+  if (deal.savedDealId != null && String(deal.savedDealId).trim() !== '') add(`sd:${deal.savedDealId}`);
+  if (deal.id != null && String(deal.id).trim() !== '') add(String(deal.id));
+  return keys;
+}
+
+export function ioiDealKey(deal) {
+  return ioiDealKeys(deal)[0] || '';
 }
 
 function fmt(value) {

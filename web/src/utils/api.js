@@ -534,6 +534,12 @@ export const crmAPI = {
       body: JSON.stringify(payload)
     }),
 
+  completeNudge: (savedDealId, payload = {}) =>
+    apiRequest(`/crm/deals/${savedDealId}/nudge/complete`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+
   updateTask: (taskId, payload) =>
     apiRequest(`/crm/tasks/${taskId}`, {
       method: 'PATCH',

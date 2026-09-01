@@ -36,6 +36,7 @@ import { getDealAccess, assertCanRead, assertCanWrite, getMembership, VISIBLE_DE
 import { getUnreadCounts, getUnreadMentions } from '../services/dealThreadService.js';
 import { countUnreadAlerts } from '../services/userAlertService.js';
 import { findDormantDeals, getLastActivityByDealIds } from '../services/crmPresenceService.js';
+import { listNudgeQueue, completeNudge } from '../services/crmNudgeService.js';
 
   const KANBAN_DEAL_FIELDS = `
   id, deal_id, name, url, progress_stage, progress_history, status,
@@ -241,6 +242,11 @@ export const getCrmToday = async (req, res) => {
       console.warn('[crm] findDormantDeals skipped:', err.message);
       return [];
     });
+    const nudges = await listNudgeQueue(userId).catch((err) => {
+      console.warn('[crm] listNudgeQueue skipped:', err.message);
+      return [];
+    });
+
     const recentActivities = await pool.query(
       `SELECT a.id, a.saved_deal_id, a.activity_type, a.body, a.occurred_at, a.metadata,
               sd.name AS deal_name, u.email AS actor_email
@@ -258,6 +264,7 @@ export const getCrmToday = async (req, res) => {
       deals: dealsResult.rows,
       recentActivities: recentActivities.rows,
       dormantDeals,
+      nudges,
       tasks: taskSummary,
       staleListings,
       ddOverdue,
@@ -272,6 +279,7 @@ export const getCrmToday = async (req, res) => {
         + portalComments.length
         + approvals.rows.length
         + dormantDeals.length
+        + nudges.length
         // Prefer durable alert count for Talk pings; fall back to mention rows
         + Math.max(unreadAlertCount, unreadMentions.length)
     });
@@ -477,6 +485,20 @@ export const postQuickFollowUp = async (req, res) => {
       });
     }
     console.error('[crm] postQuickFollowUp error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const postCompleteNudge = async (req, res) => {
+  try {
+    const result = await completeNudge(req.user.userId, req.params.id, {
+      taskId: req.body?.taskId || null,
+      actionKey: req.body?.actionKey || null
+    });
+    res.json(result);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error('[crm] postCompleteNudge error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };

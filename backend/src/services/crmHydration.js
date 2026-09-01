@@ -250,6 +250,10 @@ export async function hydrateCrmForSavedDeal(userId, savedDealId, payload = {}) 
         contactId,
         metadata: { marketDealId: marketDealId || null, hydrated: Boolean(marketRow) }
       });
+      const { ensureIntakeNudge } = await import('./crmNudgeService.js');
+      await ensureIntakeNudge(userId, savedDealId).catch((err) => {
+        console.warn('[crmHydration] intake nudge skipped:', err.message);
+      });
     }
 
     if (marketRow && !(await hasActivityType(savedDealId, 'listing_hydrated'))) {

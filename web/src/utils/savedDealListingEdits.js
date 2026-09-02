@@ -9,6 +9,26 @@ function listingDateInputValue(v) {
   return s;
 }
 
+/** Convert date-input / epoch values back to BIGINT epoch ms for saved_deals.discovered_at. */
+export function listingDateToEpoch(dateStr, previousEpoch) {
+  if (dateStr == null || dateStr === '') return null;
+  const s = String(dateStr).trim();
+  if (!s) return null;
+  if (/^\d{10}$/.test(s)) return Number(s) * 1000;
+  if (/^\d{13}$/.test(s)) return Number(s);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    if (listingDateInputValue(previousEpoch) === s) {
+      const n = Number(previousEpoch);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    const [y, m, d] = s.split('-').map(Number);
+    const local = new Date(y, m - 1, d).getTime();
+    return Number.isFinite(local) ? local : null;
+  }
+  const parsed = Date.parse(s);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function listingEditsFromDeal(d) {
   if (!d) {
     return {
@@ -79,7 +99,7 @@ export function buildSavedDealListingPayload(le, br, dealFb) {
     remote: (le.remote || '').trim() || null,
     source: (le.source || '').trim() || null,
     sourceType: (le.sourceType || '').trim() || null,
-    discoveredAt: (le.discoveredAt || '').trim() || null,
+    discoveredAt: listingDateToEpoch(le.discoveredAt, dealFb?.discoveredAt),
     brokerName: br.name,
     brokerCompany: br.company,
     brokerPhone: br.phone,

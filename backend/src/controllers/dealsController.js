@@ -7,6 +7,7 @@ import {
   getMembership
 } from '../lib/teamAcl.js';
 import { getUnreadCounts } from '../services/dealThreadService.js';
+import { coerceDiscoveredAt } from '../lib/discoveredAt.js';
 
 /** Normalize URL for matching: same listing may appear with different fragments/casing. */
 function normalizeUrl(url) {
@@ -158,7 +159,7 @@ export const saveDeal = async (req, res) => {
            WHERE id = $27`,
           [
             dealId, name, url || null, description || null, broker || null, brokerName || null, brokerCompany || null,
-            brokerEmail || null, brokerPhone || null, source || null, sourceType || null, discoveredAt || null,
+            brokerEmail || null, brokerPhone || null, source || null, sourceType || null, coerceDiscoveredAt(discoveredAt),
             askingPrice ?? null, ebitda ?? null, revenue ?? null,
             location || null, city || null, state || null, county || null, country || null,
             industry || null, yearsEstablished || null, franchise || null, remote || null, listingId || null,
@@ -228,7 +229,7 @@ export const saveDeal = async (req, res) => {
       RETURNING id, saved_at, team_id`,
       [
         req.user.userId, dealId, name, url, description, broker, brokerName, brokerCompany,
-        brokerEmail, brokerPhone, source, sourceType, discoveredAt,
+        brokerEmail, brokerPhone, source, sourceType, coerceDiscoveredAt(discoveredAt),
         askingPrice, ebitda, revenue, location, city, state, county, country,
         industry, yearsEstablished, franchise, remote, listingId,
         notes, status || 'none', progressStage,
@@ -434,7 +435,7 @@ export const updateSavedDeal = async (req, res) => {
     }
     if (discoveredAt !== undefined) {
       updateFields.push(`discovered_at = $${paramIndex++}`);
-      values.push(discoveredAt);
+      values.push(coerceDiscoveredAt(discoveredAt));
     }
     if (listingId !== undefined) {
       updateFields.push(`listing_id = $${paramIndex++}`);
@@ -493,7 +494,13 @@ export const updateSavedDeal = async (req, res) => {
 
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
-    console.error('Update deal error:', error);
+    console.error('Update deal error:', {
+      message: error?.message,
+      code: error?.code,
+      detail: error?.detail,
+      id,
+      discoveredAt
+    });
     res.status(500).json({ error: 'Server error' });
   }
 };

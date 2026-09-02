@@ -3679,15 +3679,34 @@ button.aggregator-welcome__buybox {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 30px;
   width: 30px;
   height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  max-width: 30px;
+  max-height: 30px;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 0;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.deal-section-pin-btn svg,
+.deal-section-pin-btn__icon {
+  display: block;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  max-width: 16px;
+  max-height: 16px;
 }
 
 .deal-section-pin-btn:hover,
@@ -3699,8 +3718,7 @@ button.aggregator-welcome__buybox {
 
 .deal-section-pin-btn--active {
   border-color: var(--primary);
-  color: var(--primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .deal-section-slot-body {

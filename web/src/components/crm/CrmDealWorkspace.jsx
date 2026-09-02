@@ -1,8 +1,16 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import DealDetailsPanel from '../DealDetailsPanel';
 import { crmAPI, dealsAPI, teamsAPI } from '../../utils/api';
 import { formatDate, getDealProgressLabel } from '../../utils/normalizeDeal';
 import { PIPELINE_STAGE_OPTIONS } from '../../utils/pipelineStages';
+import { getCalculatorDefaultsFromSettings } from '../../utils/calculatorDefaultsFromSettings';
+import { patchCalculatorStateListingFinancials } from '../../utils/savedDealCalculatorSummary';
+import { saveCalculatorState } from '../../utils/dealCalculatorStorage';
+import {
+  listingEditsFromDeal,
+  buildSavedDealListingPayload,
+  mergeListingEditsIntoDeal
+} from '../../utils/savedDealListingEdits';
 import QuickFollowUp from './QuickFollowUp';
 import DdChecklist from './dd/DdChecklist';
 import UnderwritingCrmLaunch from './underwriting/UnderwritingCrmLaunch';
@@ -15,7 +23,7 @@ const RECORD_TABS = [
   {
     id: 'overview',
     label: 'Overview',
-    sections: ['description', 'overview', 'ioi', 'crm-organize', 'crm-progress']
+    sections: ['description', 'overview', 'ioi']
   },
   { id: 'calculator', label: 'Calculator', sections: ['calculator'] },
   { id: 'people', label: 'People', sections: ['broker-contact'] },
@@ -83,14 +91,26 @@ export default function CrmDealWorkspace({
   const [pinNote, setPinNote] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [localFocusSection, setLocalFocusSection] = useState(focusSectionId);
   const [activeTab, setActiveTab] = useState(() => tabFromFocusSection(focusSectionId));
-  const [tagInput, setTagInput] = useState('');
   const [customStageLabel, setCustomStageLabel] = useState(deal?.customStageLabel || '');
-  const [closeTargetDate, setCloseTargetDate] = useState(deal?.closeTargetDate || '');
   const [savingMeta, setSavingMeta] = useState(false);
+  const [listingEdits, setListingEdits] = useState(() => listingEditsFromDeal(deal));
+  const [brokerInfo, setBrokerInfo] = useState({
+    name: deal?.brokerName || '',
+    company: deal?.brokerCompany || '',
+    phone: deal?.brokerPhone || '',
+    email: deal?.brokerEmail || ''
+  });
+  const persistListingTimerRef = useRef(null);
+  const listingEditsRef = useRef(listingEdits);
+  const brokerInfoRef = useRef(brokerInfo);
+  const dealRef = useRef(deal);
+  const seededListingDealIdRef = useRef(null);
+  listingEditsRef.current = listingEdits;
+  brokerInfoRef.current = brokerInfo;
+  dealRef.current = deal;
 
   useEffect(() => {
     setLocalFocusSection(focusSectionId);
@@ -98,15 +118,28 @@ export default function CrmDealWorkspace({
   }, [focusSectionId, dealId]);
 
   const writeEnabled = detail?.access ? Boolean(detail.access.canWrite) : true;
+  const writeEnabledRef = useRef(writeEnabled);
+  writeEnabledRef.current = writeEnabled;
 
   useEffect(() => {
     if (!deal) return;
     setProgressStage(deal.progressStage || '');
     setProgressHistory(deal.progressHistory || []);
     setCustomStageLabel(deal.customStageLabel || '');
-    setCloseTargetDate(deal.closeTargetDate ? String(deal.closeTargetDate).slice(0, 10) : '');
-    setTagInput(Array.isArray(deal.tags) ? deal.tags.join(', ') : '');
   }, [deal]);
+
+  useEffect(() => {
+    if (!deal || !dealId) return;
+    if (seededListingDealIdRef.current === String(dealId)) return;
+    seededListingDealIdRef.current = String(dealId);
+    setListingEdits(listingEditsFromDeal(deal));
+    setBrokerInfo({
+      name: deal.brokerName || '',
+      company: deal.brokerCompany || '',
+      phone: deal.brokerPhone || '',
+      email: deal.brokerEmail || ''
+    });
+  }, [dealId, deal]);
 
   const loadDetail = useCallback(async () => {
     if (!dealId) {
@@ -169,19 +202,6 @@ export default function CrmDealWorkspace({
     await loadDetail();
   };
 
-  const handleRefreshListing = async () => {
-    if (!dealId) return;
-    setRefreshing(true);
-    try {
-      await crmAPI.refreshFromListing(dealId);
-      await handleRefresh();
-    } catch (err) {
-      alert('Failed to refresh from listing: ' + err.message);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   const handleAddCrmNote = async () => {
     if (!dealId || !noteText.trim()) return;
     setSavingNote(true);
@@ -222,26 +242,6 @@ export default function CrmDealWorkspace({
       await loadDetail();
     } catch (err) {
       alert(err.message || 'Failed to pin note');
-    }
-  };
-
-  const handleSaveOrganizeMeta = async () => {
-    if (!dealId || !writeEnabled) return;
-    setSavingMeta(true);
-    try {
-      const tags = tagInput
-        .split(/[|,]/)
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean);
-      await dealsAPI.updateDeal(dealId, {
-        tags,
-        closeTargetDate: closeTargetDate || null
-      });
-      onRefresh?.();
-    } catch (err) {
-      alert(err.message || 'Failed to save');
-    } finally {
-      setSavingMeta(false);
     }
   };
 
@@ -303,7 +303,7 @@ export default function CrmDealWorkspace({
       onRefresh?.();
       await loadDetail();
       if (newStage === 'Custom Status') {
-        setLocalFocusSection('crm-progress');
+        setLocalFocusSection('overview');
         console.log('[CrmDealWorkspace] Custom Status selected — prompt for label');
       }
     } catch (error) {
@@ -398,6 +398,82 @@ export default function CrmDealWorkspace({
     };
   }, [deal, detail]);
 
+  const calculatorDefaults = useMemo(
+    () => getCalculatorDefaultsFromSettings(settings),
+    [settings]
+  );
+
+  const persistListingPayload = useCallback(
+    async (payload) => {
+      const dealRow = dealRef.current;
+      if (!dealRow?.id || !writeEnabledRef.current) return;
+      const calculatorState = patchCalculatorStateListingFinancials(
+        dealRow,
+        { askingPrice: payload.askingPrice, ebitda: payload.ebitda },
+        calculatorDefaults
+      );
+      console.log('[CrmDealWorkspace] listing persist', dealRow.id, payload.name);
+      await dealsAPI.updateDeal(dealRow.id, { ...payload, calculatorState });
+      saveCalculatorState(dealRow.id, calculatorState);
+      onRefresh?.();
+    },
+    [calculatorDefaults, onRefresh]
+  );
+
+  useEffect(() => () => {
+    if (persistListingTimerRef.current) clearTimeout(persistListingTimerRef.current);
+  }, []);
+
+  const schedulePersistListing = useCallback(() => {
+    if (!writeEnabledRef.current) return;
+    if (persistListingTimerRef.current) clearTimeout(persistListingTimerRef.current);
+    persistListingTimerRef.current = setTimeout(async () => {
+      persistListingTimerRef.current = null;
+      try {
+        const payload = buildSavedDealListingPayload(
+          listingEditsRef.current,
+          brokerInfoRef.current,
+          dealRef.current
+        );
+        await persistListingPayload(payload);
+      } catch (e) {
+        console.error('[CrmDealWorkspace] listing persist failed:', e);
+        alert('Failed to save deal details: ' + e.message);
+      }
+    }, 1000);
+  }, [persistListingPayload]);
+
+  const handleListingEditChange = (key, value) => {
+    setListingEdits((prev) => ({ ...prev, [key]: value }));
+    schedulePersistListing();
+  };
+
+  const handleBrokerChange = (key, value) => {
+    setBrokerInfo((prev) => ({ ...prev, [key]: value }));
+    schedulePersistListing();
+  };
+
+  const mergedDeal = useMemo(
+    () => mergeListingEditsIntoDeal(dealWithBroker || deal, listingEdits, brokerInfo),
+    [deal, dealWithBroker, listingEdits, brokerInfo]
+  );
+
+  useEffect(() => {
+    if (!dealWithBroker) return;
+    setBrokerInfo((prev) => {
+      const empty = !prev.name && !prev.company && !prev.phone && !prev.email;
+      if (!empty) return prev;
+      const next = {
+        name: dealWithBroker.brokerName || '',
+        company: dealWithBroker.brokerCompany || '',
+        phone: dealWithBroker.brokerPhone || '',
+        email: dealWithBroker.brokerEmail || ''
+      };
+      if (!next.name && !next.company && !next.phone && !next.email) return prev;
+      return next;
+    });
+  }, [dealWithBroker]);
+
   const extraSections = [
     {
       id: 'broker-contact',
@@ -417,119 +493,6 @@ export default function CrmDealWorkspace({
             </p>
           ) : null}
           <CrmDealContacts dealId={dealId} canWrite={writeEnabled} onChanged={loadDetail} />
-        </div>
-      )
-    },
-    {
-      id: 'crm-organize',
-      label: 'Organize',
-      icon: 'pipeline',
-      render: () => (
-        <div className="crm-organize-meta">
-          <div className="form-group">
-            <label>Tags</label>
-            <input
-              className="modal-input"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              placeholder="hot, midwest, add-on"
-              disabled={!writeEnabled}
-            />
-          </div>
-          <div className="form-group">
-            <label>Target close</label>
-            <input
-              type="date"
-              className="modal-input"
-              value={closeTargetDate || ''}
-              onChange={(e) => setCloseTargetDate(e.target.value)}
-              disabled={!writeEnabled}
-            />
-          </div>
-          {deal?.externalSourceType ? (
-            <p className="crm-muted">Source: {deal.externalSourceType}{deal.referralSource ? ` · ${deal.referralSource}` : ''}</p>
-          ) : null}
-          {writeEnabled ? (
-            <button type="button" className="btn-primary btn-secondary--sm" disabled={savingMeta} onClick={handleSaveOrganizeMeta}>
-              {savingMeta ? 'Saving…' : 'Save'}
-            </button>
-          ) : null}
-        </div>
-      )
-    },
-    {
-      id: 'crm-progress',
-      label: 'Pipeline stage',
-      icon: 'pipeline',
-      render: () => (
-        <div className="progress-tracking">
-          <div className="input-group">
-            <label>Current stage</label>
-            <select
-              value={progressStage}
-              onChange={handleProgressSelectChange}
-              className="modal-input"
-              disabled={progressSaving || !writeEnabled}
-              aria-label="Current pipeline stage"
-            >
-              <option value="">Select stage</option>
-              {PIPELINE_STAGE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-              {progressStage && !PIPELINE_STAGE_OPTIONS.includes(progressStage) ? (
-                <option value={progressStage}>{progressStage} (saved)</option>
-              ) : null}
-            </select>
-            {progressStage === 'Custom Status' ? (
-              <div className="crm-custom-status">
-                <label htmlFor={`crm-custom-status-${dealId}`}>Custom status message</label>
-                <div className="crm-custom-status__row">
-                  <input
-                    id={`crm-custom-status-${dealId}`}
-                    type="text"
-                    className="modal-input"
-                    value={customStageLabel}
-                    onChange={(e) => setCustomStageLabel(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleSaveCustomStageLabel();
-                      }
-                    }}
-                    placeholder="e.g. Waiting on seller P&Ls"
-                    disabled={!writeEnabled || savingMeta}
-                    autoFocus
-                    maxLength={120}
-                    aria-label="Custom status message"
-                  />
-                  {writeEnabled ? (
-                    <button
-                      type="button"
-                      className="btn-primary btn-secondary--sm"
-                      disabled={savingMeta || !customStageLabel.trim()}
-                      onClick={handleSaveCustomStageLabel}
-                    >
-                      {savingMeta ? 'Saving…' : 'Save'}
-                    </button>
-                  ) : null}
-                </div>
-                <p className="crm-muted crm-custom-status__hint">
-                  This label shows on the kanban card and deal header instead of “Custom Status”.
-                </p>
-              </div>
-            ) : null}
-            {!writeEnabled ? (
-              <p className="crm-muted" style={{ marginTop: 8 }}>Viewer role — stage changes are read-only.</p>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={refreshing || !writeEnabled}
-            onClick={handleRefreshListing}
-          >
-            {refreshing ? 'Refreshing…' : 'Refresh from listing'}
-          </button>
         </div>
       )
     },
@@ -666,9 +629,9 @@ export default function CrmDealWorkspace({
           Remove from team
         </button>
       ) : null}
-      {deal?.url ? (
+      {mergedDeal?.url || deal?.url ? (
         <a
-          href={deal.url}
+          href={mergedDeal?.url || deal.url}
           target="_blank"
           rel="noopener noreferrer"
           className="btn-secondary"
@@ -747,7 +710,7 @@ export default function CrmDealWorkspace({
       </div>
       <DealDetailsPanel
         isOpen
-        deal={dealWithBroker || deal}
+        deal={mergedDeal || deal}
         position="center"
         onClose={onClose || (() => {})}
         settings={settings}
@@ -773,9 +736,21 @@ export default function CrmDealWorkspace({
           onCustomLabelSave: handleSaveCustomStageLabel,
           customLabelSaving: savingMeta
         }}
-        listingEdit={{
-          savedAtDisplay: deal.savedAt ? formatDate(deal.savedAt) : undefined
-        }}
+        listingEdit={
+          writeEnabled
+            ? {
+                savedAtDisplay: deal.savedAt ? formatDate(deal.savedAt) : undefined,
+                values: listingEdits,
+                onChange: handleListingEditChange,
+                alwaysEditOverview: true,
+                descriptionEditMode: true,
+                broker: brokerInfo,
+                onBrokerChange: handleBrokerChange
+              }
+            : {
+                savedAtDisplay: deal.savedAt ? formatDate(deal.savedAt) : undefined
+              }
+        }
       />
     </div>
   );

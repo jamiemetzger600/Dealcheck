@@ -13,64 +13,13 @@ import { saveCalculatorState } from '../utils/dealCalculatorStorage';
 import DealDetailsPanel from './DealDetailsPanel';
 import DealShareMenu from './DealShareMenu';
 import { useIsMobile } from '../hooks/useMediaQuery';
+import {
+  listingEditsFromDeal,
+  buildSavedDealListingPayload,
+  mergeListingEditsIntoDeal
+} from '../utils/savedDealListingEdits';
 
 const PROGRESS_STAGE_OPTIONS = PIPELINE_STAGE_OPTIONS;
-
-function listingEditsFromDeal(d) {
-  return {
-    name: d.name || '',
-    description: d.description || '',
-    url: d.url || '',
-    askingPrice: d.askingPrice != null && d.askingPrice !== '' ? String(d.askingPrice) : '',
-    ebitda: d.ebitda != null && d.ebitda !== '' ? String(d.ebitda) : '',
-    revenue: d.revenue != null && d.revenue !== '' ? String(d.revenue) : '',
-    location: d.location || '',
-    city: d.city || '',
-    state: d.state || '',
-    county: d.county || '',
-    country: d.country || '',
-    industry: d.industry || '',
-    yearsEstablished: d.yearsEstablished != null && d.yearsEstablished !== '' ? String(d.yearsEstablished) : '',
-    franchise: d.franchise != null && d.franchise !== '' ? String(d.franchise) : '',
-    remote: d.remote != null && d.remote !== '' ? String(d.remote) : '',
-    source: d.source || '',
-    sourceType: d.sourceType || '',
-    discoveredAt: d.discoveredAt != null && d.discoveredAt !== '' ? String(d.discoveredAt) : ''
-  };
-}
-
-function buildSavedDealListingPayload(le, br, dealFb) {
-  const num = (v) => {
-    if (v === '' || v == null) return null;
-    const n = parseFloat(String(v).replace(/,/g, '').trim());
-    return Number.isFinite(n) ? n : null;
-  };
-  const nameTrim = (le.name || '').trim();
-  return {
-    name: nameTrim || dealFb.name || 'Untitled deal',
-    description: le.description,
-    url: (le.url || '').trim() || null,
-    askingPrice: num(le.askingPrice),
-    ebitda: num(le.ebitda),
-    revenue: num(le.revenue),
-    location: (le.location || '').trim() || null,
-    city: (le.city || '').trim() || null,
-    state: (le.state || '').trim() || null,
-    county: (le.county || '').trim() || null,
-    country: (le.country || '').trim() || null,
-    industry: (le.industry || '').trim() || null,
-    yearsEstablished: (le.yearsEstablished || '').trim() || null,
-    franchise: (le.franchise || '').trim() || null,
-    remote: (le.remote || '').trim() || null,
-    source: (le.source || '').trim() || null,
-    sourceType: (le.sourceType || '').trim() || null,
-    discoveredAt: (le.discoveredAt || '').trim() || null,
-    brokerName: br.name,
-    brokerCompany: br.company,
-    brokerPhone: br.phone,
-    brokerEmail: br.email
-  };
-}
 
 function cocReturnTier(coc) {
   if (coc >= 100) return 'excellent';
@@ -720,38 +669,16 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
     });
   }, [flushListingPersistNow]);
 
-  const mergedDeal = useMemo(() => {
-    const num = (raw, fallback) => {
-      const n = parseFloat(String(raw ?? '').replace(/,/g, '').trim());
-      return Number.isFinite(n) ? n : fallback;
-    };
-    const nameTrim = (listingEdits.name || '').trim();
-    return {
-      ...deal,
-      name: nameTrim || deal.name,
-      description: listingEdits.description,
-      url: (listingEdits.url || '').trim() || deal.url,
-      askingPrice: num(listingEdits.askingPrice, deal.askingPrice),
-      ebitda: num(listingEdits.ebitda, deal.ebitda),
-      revenue: num(listingEdits.revenue, deal.revenue),
-      location: listingEdits.location,
-      city: listingEdits.city,
-      state: listingEdits.state,
-      county: listingEdits.county,
-      country: listingEdits.country,
-      industry: listingEdits.industry,
-      yearsEstablished: listingEdits.yearsEstablished || deal.yearsEstablished,
-      franchise: listingEdits.franchise || deal.franchise,
-      remote: listingEdits.remote || deal.remote,
-      source: listingEdits.source || deal.source,
-      sourceType: listingEdits.sourceType || deal.sourceType,
-      discoveredAt: listingEdits.discoveredAt || deal.discoveredAt,
-      brokerName: brokerInfo.name,
-      brokerCompany: brokerInfo.company,
-      brokerPhone: brokerInfo.phone,
-      brokerEmail: brokerInfo.email
-    };
-  }, [deal, listingEdits, brokerInfo]);
+  const handleBrokerChange = (key, value) => {
+    setBrokerInfo((prev) => ({ ...prev, [key]: value }));
+    if (!overviewEditModeRef.current) return;
+    schedulePersistListing();
+  };
+
+  const mergedDeal = useMemo(
+    () => mergeListingEditsIntoDeal(deal, listingEdits, brokerInfo),
+    [deal, listingEdits, brokerInfo]
+  );
 
   const headerProgressLabel = useMemo(() => {
     if (progressStage === 'Custom Status') {
@@ -1002,7 +929,9 @@ function SavedDealModal({ deal, settings = null, onClose, onUpdateNotes, onDelet
             descriptionEditMode,
             onToggleDescriptionEdit: toggleDescriptionEdit,
             overviewEditMode,
-            onToggleOverviewEdit: toggleOverviewEdit
+            onToggleOverviewEdit: toggleOverviewEdit,
+            broker: brokerInfo,
+            onBrokerChange: handleBrokerChange
           }}
         />
       </div>

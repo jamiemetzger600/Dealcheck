@@ -258,9 +258,8 @@ function SectionSlot({
               aria-label={isPinned ? `Unpin ${label}` : `Pin ${label}`}
               title={isPinned ? 'Unpin — hide this section' : 'Pin — keep visible while browsing other sections'}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M12 17v5" />
-                <path d="M9 3h6l1 7h4l-5 9v4H9v-4L5 10h4z" />
+              <svg className="deal-section-pin-btn__icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
               </svg>
             </button>
           ) : null}
@@ -492,12 +491,15 @@ export default function DealDetailsPanel({
     const n = Number(v);
     return Number.isFinite(n) ? n : NaN;
   };
+  const overviewEditing = Boolean(
+    listingEdit?.overviewEditMode || listingEdit?.alwaysEditOverview
+  );
   const askingN =
-    listingEdit?.overviewEditMode
+    overviewEditing
       ? parseMoneyInput(listingEdit.values.askingPrice)
       : numOrNaN(deal.askingPrice);
   const ebitdaN =
-    listingEdit?.overviewEditMode
+    overviewEditing
       ? parseMoneyInput(listingEdit.values.ebitda)
       : numOrNaN(deal.ebitda);
   const multiple =
@@ -566,23 +568,24 @@ export default function DealDetailsPanel({
         <div className="deal-overview-condensed">
           <div className="deal-overview-grid">
             {listingEdit ? (
-              listingEdit.overviewEditMode ? (
+              overviewEditing ? (
                 <>
                   <InfoCard label="Saved Date" value={listingEdit.savedAtDisplay} />
-                  <OverviewEditCard label="County" value={listingEdit.values.county} onChange={(v) => listingEdit.onChange('county', v)} />
-                  <OverviewEditCard label="Country" value={listingEdit.values.country} onChange={(v) => listingEdit.onChange('country', v)} />
-                  <OverviewEditCard label="Years Established" value={listingEdit.values.yearsEstablished} onChange={(v) => listingEdit.onChange('yearsEstablished', v)} />
-                  <OverviewEditCard label="Franchise" value={listingEdit.values.franchise} onChange={(v) => listingEdit.onChange('franchise', v)} />
-                  <OverviewEditCard label="Remote / Relocatable" value={listingEdit.values.remote} onChange={(v) => listingEdit.onChange('remote', v)} wide />
-                  <OverviewEditCard label="Asking Price" value={listingEdit.values.askingPrice} onChange={(v) => listingEdit.onChange('askingPrice', v)} accent />
-                  <OverviewEditCard label="EBITDA/SDE" value={listingEdit.values.ebitda} onChange={(v) => listingEdit.onChange('ebitda', v)} accent />
-                  <OverviewEditCard label="Revenue" value={listingEdit.values.revenue} onChange={(v) => listingEdit.onChange('revenue', v)} />
+                  <OverviewEditCard label="County" value={listingEdit.values.county} onChange={(v) => listingEdit.onChange('county', v)} placeholder="County" />
+                  <OverviewEditCard label="Country" value={listingEdit.values.country} onChange={(v) => listingEdit.onChange('country', v)} placeholder="Country" />
+                  <OverviewEditCard label="Years Established" value={listingEdit.values.yearsEstablished} onChange={(v) => listingEdit.onChange('yearsEstablished', v)} placeholder="Years" />
+                  <OverviewEditCard label="Franchise" value={listingEdit.values.franchise} onChange={(v) => listingEdit.onChange('franchise', v)} placeholder="Yes / No" />
+                  <OverviewEditCard label="Remote / Relocatable" value={listingEdit.values.remote} onChange={(v) => listingEdit.onChange('remote', v)} wide placeholder="Yes / No" />
+                  <OverviewEditCard label="Asking Price" value={listingEdit.values.askingPrice} onChange={(v) => listingEdit.onChange('askingPrice', v)} accent placeholder="0" />
+                  <OverviewEditCard label="EBITDA/SDE" value={listingEdit.values.ebitda} onChange={(v) => listingEdit.onChange('ebitda', v)} accent placeholder="0" />
+                  <OverviewEditCard label="Revenue" value={listingEdit.values.revenue} onChange={(v) => listingEdit.onChange('revenue', v)} placeholder="0" />
                   <InfoCard label="Multiple" value={multiple} />
-                  <OverviewEditCard label="Location" value={listingEdit.values.location} onChange={(v) => listingEdit.onChange('location', v)} />
-                  <OverviewEditCard label="City" value={listingEdit.values.city} onChange={(v) => listingEdit.onChange('city', v)} />
-                  <OverviewEditCard label="State" value={listingEdit.values.state} onChange={(v) => listingEdit.onChange('state', v)} />
-                  <OverviewEditCard label="Industry" value={listingEdit.values.industry} onChange={(v) => listingEdit.onChange('industry', v)} wide />
-                  <OverviewEditCard label="Listing URL" value={listingEdit.values.url} onChange={(v) => listingEdit.onChange('url', v)} wide />
+                  <OverviewEditCard label="Location" value={listingEdit.values.location} onChange={(v) => listingEdit.onChange('location', v)} placeholder="Location" />
+                  <OverviewEditCard label="City" value={listingEdit.values.city} onChange={(v) => listingEdit.onChange('city', v)} placeholder="City" />
+                  <OverviewEditCard label="State" value={listingEdit.values.state} onChange={(v) => listingEdit.onChange('state', v)} placeholder="State" />
+                  <OverviewEditCard label="Industry" value={listingEdit.values.industry} onChange={(v) => listingEdit.onChange('industry', v)} wide placeholder="Industry" />
+                  <OverviewEditCard label="Source" value={listingEdit.values.source} onChange={(v) => listingEdit.onChange('source', v)} placeholder="Source" />
+                  <OverviewEditCard label="Listing URL" value={listingEdit.values.url} onChange={(v) => listingEdit.onChange('url', v)} wide placeholder="https://" />
                 </>
               ) : (
                 <SavedDealOverviewReadOnlyCards deal={deal} savedAtDisplay={listingEdit.savedAtDisplay} multiple={multiple} />
@@ -605,13 +608,49 @@ export default function DealDetailsPanel({
         <div className="deal-broker-condensed">
           <h3>Broker Information</h3>
           {entitlements?.brokerContactVisible !== false ? (
-            <div className="deal-broker-grid">
-              <BrokerItem label="Broker Name" value={brokerName} />
-              <BrokerItem label="Company" value={brokerCompany} />
-              <BrokerItem label="Email" value={brokerEmail} href={brokerEmail !== '-' ? `mailto:${brokerEmail}` : null} />
-              <BrokerItem label="Phone" value={brokerPhone} href={brokerPhone !== '-' ? `tel:${brokerPhone}` : null} />
-              <BrokerItem label="Listed" value={listedDate} wide />
-            </div>
+            overviewEditing && listingEdit?.onBrokerChange ? (
+              <div className="deal-broker-grid">
+                <OverviewEditCard
+                  label="Broker Name"
+                  value={listingEdit.broker?.name || ''}
+                  onChange={(v) => listingEdit.onBrokerChange('name', v)}
+                  placeholder="Name"
+                />
+                <OverviewEditCard
+                  label="Company"
+                  value={listingEdit.broker?.company || ''}
+                  onChange={(v) => listingEdit.onBrokerChange('company', v)}
+                  placeholder="Company"
+                />
+                <OverviewEditCard
+                  label="Email"
+                  value={listingEdit.broker?.email || ''}
+                  onChange={(v) => listingEdit.onBrokerChange('email', v)}
+                  placeholder="email@example.com"
+                />
+                <OverviewEditCard
+                  label="Phone"
+                  value={listingEdit.broker?.phone || ''}
+                  onChange={(v) => listingEdit.onBrokerChange('phone', v)}
+                  placeholder="Phone"
+                />
+                <OverviewEditCard
+                  label="Listed"
+                  value={listingEdit.values.discoveredAt}
+                  onChange={(v) => listingEdit.onChange('discoveredAt', v)}
+                  wide
+                  placeholder="Listed date"
+                />
+              </div>
+            ) : (
+              <div className="deal-broker-grid">
+                <BrokerItem label="Broker Name" value={brokerName} />
+                <BrokerItem label="Company" value={brokerCompany} />
+                <BrokerItem label="Email" value={brokerEmail} href={brokerEmail !== '-' ? `mailto:${brokerEmail}` : null} />
+                <BrokerItem label="Phone" value={brokerPhone} href={brokerPhone !== '-' ? `tel:${brokerPhone}` : null} />
+                <BrokerItem label="Listed" value={listedDate} wide />
+              </div>
+            )
           ) : (
             <GatedPreviewText
               text={[brokerName, brokerCompany, brokerEmail, brokerPhone].filter((v) => v && v !== '-').join(' · ') || 'Broker contact available after sign up.'}
@@ -733,7 +772,7 @@ export default function DealDetailsPanel({
     <div className={`deal-details-panel panel-${position}`} onClick={panelOnly ? undefined : (e) => e.stopPropagation()}>
       <div className="deal-details-header">
         <div className="deal-details-header-title-block">
-          {listingEdit?.overviewEditMode ? (
+          {overviewEditing ? (
             <input
               type="text"
               className="deal-details-title-input"

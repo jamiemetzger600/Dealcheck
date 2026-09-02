@@ -27,10 +27,10 @@ import { useAuth } from '../../context/AuthContext';
 const VALID_VIEWS = new Set(['home', 'cards', 'list', 'tasks', 'contacts', 'calendar', 'analytics']);
 
 function normalizeCrmView(view) {
-  if (!view) return 'home';
+  if (!view) return 'cards';
   if (view === 'today' || view === 'pipeline') return 'home';
   if (VALID_VIEWS.has(view)) return view;
-  return 'home';
+  return 'cards';
 }
 
 function isEditableTarget(el) {
@@ -51,7 +51,9 @@ export default function CrmDashboard({
   initialDealId = null,
   initialCrmView = null,
   initialFocusSection = null,
-  onBackToInbox = null
+  onBackToInbox = null,
+  onCrmViewChange = null,
+  onLiveDealsRefresh = null
 }) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
@@ -98,6 +100,10 @@ export default function CrmDashboard({
       setCrmView(normalizeCrmView(initialCrmView));
     }
   }, [initialCrmView]);
+
+  useEffect(() => {
+    onCrmViewChange?.(crmView);
+  }, [crmView, onCrmViewChange]);
 
   // Deep link: section → full record; deal-only → peek
   useEffect(() => {
@@ -586,6 +592,7 @@ export default function CrmDashboard({
           nextActionByDealId={nextActionByDealId}
           overdueDealIds={ddOverdueDealIds}
           onAddDeal={onAddDeal}
+          onLiveDealsRefresh={onLiveDealsRefresh}
         />
       )}
 

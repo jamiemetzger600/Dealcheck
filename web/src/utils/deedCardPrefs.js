@@ -57,6 +57,10 @@ export function isEmptyDeedCardPrefs(prefs) {
   );
 }
 
+export function deedCardPrefsFingerprint(prefs) {
+  return JSON.stringify(normalizeDeedCardPrefs(prefs));
+}
+
 export function defaultDeedColorId(dealId) {
   const n = Math.abs(Number(dealId) || 0);
   return DEED_COLORS[n % DEED_COLORS.length].id;

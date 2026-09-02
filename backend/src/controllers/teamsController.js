@@ -930,10 +930,6 @@ export const getDeedBoardPrefs = async (req, res) => {
       return res.status(404).json({ error: 'Team not found' });
     }
     const prefs = sanitizeDeedBoardPrefs(row.deed_board_prefs);
-    console.log('[teams] deed-board get', teamId, {
-      order: prefs.order.length,
-      pins: Object.keys(prefs.pins).length
-    });
     res.json({
       prefs,
       updatedAt: row.deed_board_prefs_updated_at || null

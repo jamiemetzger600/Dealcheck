@@ -21,6 +21,12 @@ import GuestMyDealsEmpty from '../components/GuestMyDealsEmpty';
 import { loadGuestSettings, persistGuestSettings } from '../utils/guestSettings';
 import { useGuestAccess } from '../hooks/useGuestAccess';
 import { logGuestEvent } from '../utils/guestAnalytics';
+import {
+  persistDashboardLocation,
+  patchDashboardSearchParams,
+  readStoredDashboardLocation,
+  isValidCrmSubview
+} from '../utils/dashboardLocation';
 
 function isBuyBoxEmpty(buyBox) {
   if (!buyBox || typeof buyBox !== 'object') return true;
@@ -58,10 +64,9 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const { user, logout, loading: authLoading } = useAuth();
   const { activeTeamId } = useTeam();
   const { isGuest, entitlements, requireSignup } = useGuestAccess(user);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialDealDbId = searchParams.get('dealDbId') || null;
   const checkoutSessionId = searchParams.get('session_id');
-  const initialCrmView = searchParams.get('crmSubview') || null;
   const crmDealParam = searchParams.get('crmDeal');
   const sectionParam = searchParams.get('section');
 
@@ -71,7 +76,20 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     const tab = params.get('tab');
     // Legacy My Deals tab → Vettr CRM
     if (tab === 'saved-deals' || tab === 'crm' || params.get('crmDeal')) return 'crm';
+    if (tab === 'aggregator') return 'aggregator';
+    const stored = readStoredDashboardLocation();
+    if (stored?.tab === 'crm' || stored?.tab === 'aggregator') return stored.tab;
     return 'aggregator';
+  });
+  const [crmSubview, setCrmSubview] = useState(() => {
+    if (typeof window === 'undefined') return 'cards';
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'saved-deals') return 'list';
+    const fromUrl = params.get('crmSubview');
+    if (isValidCrmSubview(fromUrl)) return fromUrl;
+    const stored = readStoredDashboardLocation();
+    if (isValidCrmSubview(stored?.crmSubview)) return stored.crmSubview;
+    return 'cards';
   });
   const [guestTourBlocking, setGuestTourBlocking] = useState(false);
   const [firstVisitClosed, setFirstVisitClosed] = useState(false);
@@ -120,6 +138,8 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     return false;
   });
   const teamScopeBootstrappedRef = useRef(false);
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
 
   const loadScopedSavedDeals = useCallback(async () => {
     if (authLoading || isGuest) return;
@@ -226,6 +246,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     if (tabParam === 'saved-deals') {
       console.log('[Dashboard] redirecting legacy My Deals tab → Vettr CRM list');
       setActiveTab('crm');
+      setCrmSubview('list');
       setCrmInitialViewOverride((prev) => prev || 'list');
     }
     const n = Number(crmDealParam);
@@ -235,6 +256,17 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     setCrmInitialFocusSection(sectionParam || 'crm-talk');
     console.log('[Dashboard] deep link CRM deal', n, 'section', sectionParam);
   }, [crmDealParam, sectionParam, searchParams]);
+
+  useEffect(() => {
+    persistDashboardLocation({ tab: activeTab, crmSubview });
+    const next = patchDashboardSearchParams(searchParamsRef.current, {
+      tab: activeTab,
+      crmSubview: activeTab === 'crm' ? crmSubview : null
+    });
+    if (next.toString() === searchParamsRef.current.toString()) return;
+    console.log('[Dashboard] persist location', { tab: activeTab, crmSubview });
+    setSearchParams(next, { replace: true });
+  }, [activeTab, crmSubview, setSearchParams]);
 
   /** Team workspace change: refresh My Deals / CRM list silently; market feed stays mounted. */
   useEffect(() => {
@@ -436,6 +468,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
       console.log('[Dashboard] saved-deals tab remapped to Vettr CRM');
       if (isGuest) logGuestEvent('guest_my_deals_tab');
       setActiveTab('crm');
+      setCrmSubview('list');
       setCrmInitialViewOverride('list');
       return;
     }
@@ -447,7 +480,10 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
 
   const openVettrCrm = useCallback((opts = {}) => {
     setActiveTab('crm');
-    if (opts.view) setCrmInitialViewOverride(opts.view);
+    if (opts.view) {
+      setCrmInitialViewOverride(opts.view);
+      setCrmSubview(opts.view);
+    }
     if (opts.dealId != null) {
       setCrmInitialDealId(opts.dealId);
       setCrmInitialFocusSection(opts.focusSection ?? 'overview');
@@ -455,6 +491,11 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     } else if (opts.focusSection) {
       setCrmInitialFocusSection(opts.focusSection);
     }
+  }, []);
+
+  const handleCrmViewChange = useCallback((view) => {
+    setCrmSubview(view);
+    setCrmInitialViewOverride(null);
   }, []);
 
   const backToInbox = useCallback(() => {
@@ -577,9 +618,11 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onTodayLoaded={setCrmBadgeCount}
             onAddDeal={() => setShowManualDealModal(true)}
             initialDealId={crmInitialDealId}
-            initialCrmView={crmInitialViewOverride || initialCrmView}
+            initialCrmView={crmInitialViewOverride || crmSubview}
             initialFocusSection={crmInitialFocusSection}
             onBackToInbox={backToInbox}
+            onCrmViewChange={handleCrmViewChange}
+            onLiveDealsRefresh={loadScopedSavedDeals}
           />
           </div>
         )}
@@ -597,6 +640,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             setActiveTab('crm');
             if (alert?.alert_type === 'task_completed') {
               setCrmInitialViewOverride('tasks');
+              setCrmSubview('tasks');
               if (alert.saved_deal_id) setCrmInitialDealId(alert.saved_deal_id);
               setCrmInitialFocusSection(null);
               return;

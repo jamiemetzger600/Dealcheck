@@ -14,6 +14,7 @@ import {
   isEmptyDeedCardPrefs,
   loadDeedCardPrefs,
   normalizeDeedCardPrefs,
+  deedCardPrefsFingerprint,
   partitionDeedDeals,
   placeDealInOrder,
   saveDeedCardPrefs,
@@ -52,7 +53,8 @@ export default function CrmDeedBoard({
   onStageChanged = null,
   nextActionByDealId = null,
   overdueDealIds = null,
-  onAddDeal = null
+  onAddDeal = null,
+  onLiveDealsRefresh = null
 }) {
   const { isTeamMode, activeTeam, activeTeamId } = useTeam();
   const writeEnabled = !isTeamMode || activeTeam?.role !== 'viewer';
@@ -188,9 +190,15 @@ export default function CrmDeedBoard({
           }
         }
         if (cancelled || dirtyRef.current || dragDealIdRef.current) return;
-        prefsRef.current = next;
-        setPrefs(next);
-        saveDeedCardPrefs(next, teamBoardId);
+        if (deedCardPrefsFingerprint(next) !== deedCardPrefsFingerprint(prefsRef.current)) {
+          console.log('[CrmDeedBoard] team board live update', teamBoardId, {
+            pins: Object.keys(next.pins).length,
+            order: next.order.length
+          });
+          prefsRef.current = next;
+          setPrefs(next);
+          saveDeedCardPrefs(next, teamBoardId);
+        }
       } catch (err) {
         console.warn('[CrmDeedBoard] team board load failed', err.message);
       }
@@ -199,10 +207,16 @@ export default function CrmDeedBoard({
     pull({ seedIfEmpty: true });
     const onFocus = () => {
       pull();
+      onLiveDealsRefresh?.();
       onRefresh?.();
     };
     window.addEventListener('focus', onFocus);
-    const interval = window.setInterval(() => pull(), 20000);
+    const interval = window.setInterval(() => {
+      pull();
+      if (!dirtyRef.current && !dragDealIdRef.current) {
+        onLiveDealsRefresh?.();
+      }
+    }, 2000);
     return () => {
       cancelled = true;
       window.removeEventListener('focus', onFocus);
@@ -217,7 +231,7 @@ export default function CrmDeedBoard({
         }
       }
     };
-  }, [onRefresh, teamBoardId, writeEnabled]);
+  }, [onLiveDealsRefresh, onRefresh, teamBoardId, writeEnabled]);
 
   const ensureOrder = useCallback((list, extraIds = []) => {
     const seen = new Set();

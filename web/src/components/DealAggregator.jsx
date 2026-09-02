@@ -406,7 +406,7 @@ export default function DealAggregator({
   const [searchInput, setSearchInput] = useState('');
   const [searchListNameInput, setSearchListNameInput] = useState('');
   const [searchListSaving, setSearchListSaving] = useState(false);
-  const [showSearchSection, setShowSearchSection] = useState(true);
+  const [showSearchSection, setShowSearchSection] = useState(false);
   const [excludeKeywords, setExcludeKeywords] = useState(settings?.excludeKeywords || []);
   const [savedExcludeLists, setSavedExcludeLists] = useState(() =>
     settings ? getExcludeListLibrary(settings) : {}
@@ -2150,6 +2150,7 @@ export default function DealAggregator({
             </div>
           )}
 
+          <div className="keyword-filters-row">
           <div
             className={`exclude-keywords-section search-keywords-section${!showSearchSection ? ' exclude-keywords-section--collapsed' : ''}`}
             data-tour="search-bar"
@@ -2394,6 +2395,7 @@ export default function DealAggregator({
             </div>
             </>
             )}
+          </div>
           </div>
         </div>
 

@@ -1323,8 +1323,25 @@ button.aggregator-welcome__buybox {
   width: 100%;
 }
 
+.keyword-filters-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
+.keyword-filters-row .exclude-keywords-section {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+}
+
 .search-keywords-section {
   margin-top: 4px;
+}
+
+.keyword-filters-row .search-keywords-section {
+  margin-top: 0;
 }
 
 .exclude-header-preview {
@@ -6093,6 +6110,14 @@ button.aggregator-welcome__buybox {
   .aggregator-controls {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .keyword-filters-row {
+    flex-direction: column;
+  }
+
+  .keyword-filters-row .exclude-keywords-section {
+    width: 100%;
   }
 
   .controls-row,

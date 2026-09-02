@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { formatMoney, getDealProgressLabel } from '../../utils/normalizeDeal';
+import { formatMoney, getDealProgressLabel, isPassedOnDeal } from '../../utils/normalizeDeal';
 import { cocReturnTier } from '../../utils/pipelineStages';
 import { deedColorById, waitingOnLabels } from '../../utils/deedCardPrefs';
 
@@ -56,6 +56,7 @@ export default function CrmDeedCard({
   onContextMenu,
   onOpenField,
   onPin,
+  onArchive,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -64,7 +65,9 @@ export default function CrmDeedCard({
   const skipClick = useRef(false);
   const blockDrag = useRef(false);
   const color = deedColorById(colorId, deal.id);
-  const status = getDealProgressLabel(deal) || 'Unstaged';
+  const stageLabel = getDealProgressLabel(deal);
+  const statusUnset = !stageLabel;
+  const status = statusUnset ? 'Status: Tap to set' : stageLabel;
   const nextLabel = nextAction?.title || 'Set next step';
   const asking = summary?.askingPrice ?? deal.askingPrice;
   const ebitda = summary?.ebitda ?? deal.ebitda;
@@ -125,17 +128,12 @@ export default function CrmDeedCard({
     >
       <div className="crm-deed-card__inner">
         <header className="crm-deed-card__header">
-          {pinned ? (
-            <div className="crm-deed-card__kicker">
-              <span className="crm-deed-card__pin-mark" title="Pinned">📌</span>
-            </div>
-          ) : null}
           <h3 className="crm-deed-card__name">{deal.name || 'Untitled deal'}</h3>
         </header>
 
         <button
           type="button"
-          className="crm-deed-card__status"
+          className={`crm-deed-card__status${statusUnset ? ' crm-deed-card__status--empty' : ''}`}
           onClick={(e) => {
             stop(e);
             onOpenField?.('status');
@@ -234,9 +232,11 @@ export default function CrmDeedCard({
           <button type="button" onClick={() => onOpenField?.('color')}>
             Color
           </button>
-          <button type="button" onClick={() => onOpenField?.('status')}>
-            Status
-          </button>
+          {writeEnabled && !isPassedOnDeal(deal) ? (
+            <button type="button" onClick={() => onArchive?.()}>
+              Archive
+            </button>
+          ) : null}
           <button type="button" onClick={() => onOpen?.(deal.id)}>
             Open
           </button>

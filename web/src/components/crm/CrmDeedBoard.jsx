@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { crmAPI, dealsAPI } from '../../utils/api';
 import { normalizeDeal, getDealProgressLabel, isPassedOnDeal } from '../../utils/normalizeDeal';
 import { getCalculatorDefaultsFromSettings } from '../../utils/calculatorDefaultsFromSettings';
@@ -13,10 +13,15 @@ import {
   getWaitingOn,
   loadDeedCardPrefs,
   partitionDeedDeals,
-  reorderDealIds,
+  placeDealInOrder,
   saveDeedCardPrefs,
   waitingOnLabels
 } from '../../utils/deedCardPrefs';
+
+function closestCard(target) {
+  const el = target instanceof Element ? target : target?.parentElement;
+  return el?.closest('.crm-deed-card') || null;
+}
 
 function dealSearchHaystack(deal, waiting, nextAction) {
   const stage = getDealProgressLabel(deal) || 'unstaged';
@@ -51,7 +56,14 @@ export default function CrmDeedBoard({
   const writeEnabled = !isTeamMode || activeTeam?.role !== 'viewer';
   const [prefs, setPrefs] = useState(() => loadDeedCardPrefs());
   const [dragDealId, setDragDealId] = useState(null);
-  const [dropTargetId, setDropTargetId] = useState(null);
+  const dragDealIdRef = useRef(null);
+  const [dropAt, setDropAtState] = useState(null);
+  const dropAtRef = useRef(null);
+  const setDropAt = (value) => {
+    const next = typeof value === 'function' ? value(dropAtRef.current) : value;
+    dropAtRef.current = next;
+    setDropAtState(next);
+  };
   const [cardMenu, setCardMenu] = useState(null);
   const [modal, setModal] = useState(null);
   const [stageSaving, setStageSaving] = useState(false);
@@ -229,6 +241,21 @@ export default function CrmDeedBoard({
     setModal(null);
   }, [modalDeal, onRefresh]);
 
+  const handleArchiveDeal = useCallback(async (deal) => {
+    if (!deal?.id || !writeEnabled) return;
+    if (isPassedOnDeal(deal)) return;
+    if (!window.confirm(`Archive “${deal.name || 'this deal'}”? It will move to Archived (Passed On).`)) return;
+    try {
+      const result = await crmAPI.updateStage(deal.id, 'Passed On Deal');
+      console.log('[CrmDeedBoard] archive', deal.id, deal.name);
+      onStageChanged?.(result, deal.name);
+      setCardMenu(null);
+      onRefresh?.();
+    } catch (err) {
+      alert('Failed to archive deal: ' + (err.message || 'error'));
+    }
+  }, [onRefresh, onStageChanged, writeEnabled]);
+
   const handleDeleteDeal = useCallback(async (deal) => {
     if (!deal?.id || !writeEnabled) return;
     if (!window.confirm(`Delete “${deal.name || 'this deal'}” from Vettr CRM?`)) return;
@@ -256,7 +283,16 @@ export default function CrmDeedBoard({
         id: 'pin',
         label: prefs.pins?.[String(deal.id)] ? 'Unpin' : 'Pin',
         onSelect: () => handlePin(deal)
-      },
+      }
+    ];
+    if (writeEnabled && !isPassedOnDeal(deal)) {
+      items.push({
+        id: 'archive',
+        label: 'Archive',
+        onSelect: () => handleArchiveDeal(deal)
+      });
+    }
+    items.push(
       { id: 'sep-more', separator: true },
       {
         id: 'dd',
@@ -268,7 +304,7 @@ export default function CrmDeedBoard({
         label: 'Calculator',
         onSelect: () => openRecord(deal.id, { focusSection: 'calculator' })
       }
-    ];
+    );
     if (deal.url) {
       items.push({
         id: 'listing',
@@ -286,50 +322,95 @@ export default function CrmDeedBoard({
       });
     }
     return items;
-  }, [cardMenu, handleDeleteDeal, handlePin, openField, openRecord, prefs.pins, writeEnabled]);
+  }, [cardMenu, handleArchiveDeal, handleDeleteDeal, handlePin, openField, openRecord, prefs.pins, writeEnabled]);
 
   const handleDragStart = (e, dealId) => {
+    dragDealIdRef.current = dealId;
     setDragDealId(dealId);
+    setDropAt(null);
     e.dataTransfer.setData('text/plain', String(dealId));
     e.dataTransfer.effectAllowed = 'move';
+    console.log('[CrmDeedBoard] drag start', dealId);
   };
 
   const handleDragEnd = () => {
+    dragDealIdRef.current = null;
     setDragDealId(null);
-    setDropTargetId(null);
+    setDropAt(null);
   };
 
-  const handleDrop = (e, toDealId) => {
-    e.preventDefault();
-    const fromId = e.dataTransfer.getData('text/plain') || dragDealId;
-    setDropTargetId(null);
+  const commitDrop = useCallback((target) => {
+    const fromId = dragDealIdRef.current;
+    dragDealIdRef.current = null;
+    setDropAt(null);
     setDragDealId(null);
-    if (!fromId || String(fromId) === String(toDealId)) return;
+    if (!fromId || !target?.zone) return;
     const fromKey = String(fromId);
-    const toKey = String(toDealId);
-    const fromPinned = Boolean(prefs.pins?.[fromKey]);
-    const toPinned = Boolean(prefs.pins?.[toKey]);
+    const pin = target.zone === 'pinned';
+    const alreadyPinned = Boolean(prefs.pins?.[fromKey]);
+    const sameSpot = target.anchorId && String(target.anchorId) === fromKey && pin === alreadyPinned;
+    if (sameSpot) return;
+
+    const nextPins = { ...prefs.pins };
+    if (pin) nextPins[fromKey] = true;
+    else delete nextPins[fromKey];
+
     const currentOrder = ensureOrder(
       prefs.order.length ? prefs.order : allIds,
       allIds
     );
-    const nextOrder = reorderDealIds(currentOrder, fromId, toDealId);
-    const nextPins = { ...prefs.pins };
-    if (fromPinned !== toPinned) {
-      if (toPinned) nextPins[fromKey] = true;
-      else delete nextPins[fromKey];
-    }
+    const nextOrder = placeDealInOrder(currentOrder, fromKey, {
+      beforeId: target.edge === 'before' ? target.anchorId : null,
+      afterId: target.edge === 'after' ? target.anchorId : null
+    });
     persist({ ...prefs, order: nextOrder, pins: nextPins });
-    console.log('[CrmDeedBoard] reorder', fromId, '→', toDealId, { pin: Boolean(nextPins[fromKey]) });
+    console.log('[CrmDeedBoard] drop', fromKey, { pin, edge: target.edge, anchor: target.anchorId });
+  }, [allIds, ensureOrder, persist, prefs]);
+
+  const handleSectionDragOver = (e, zone) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!dragDealIdRef.current) return;
+    if (closestCard(e.target)) return;
+    setDropAt((prev) => {
+      if (prev?.zone === zone && prev.edge === 'end' && !prev.anchorId) return prev;
+      return { zone, anchorId: null, edge: 'end' };
+    });
   };
 
-  const renderCard = (deal) => {
+  const handleSectionDrop = (e, zone) => {
+    e.preventDefault();
+    if (closestCard(e.target)) return;
+    commitDrop(dropAtRef.current?.zone === zone ? dropAtRef.current : { zone, anchorId: null, edge: 'end' });
+  };
+
+  const handleCardDragOver = (e, dealId, zone) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (!dragDealIdRef.current || String(dragDealIdRef.current) === String(dealId)) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const edge = e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+    setDropAt((prev) => {
+      if (prev?.zone === zone && String(prev.anchorId) === String(dealId) && prev.edge === edge) return prev;
+      return { zone, anchorId: String(dealId), edge };
+    });
+  };
+
+  const handleCardDrop = (e, zone) => {
+    e.preventDefault();
+    e.stopPropagation();
+    commitDrop(dropAtRef.current?.zone === zone ? dropAtRef.current : { zone, anchorId: null, edge: 'end' });
+  };
+
+  const renderCard = (deal, zone) => {
     const id = deal.id;
     const nextAction =
       nextActionByDealId instanceof Map
         ? nextActionByDealId.get(Number(id)) || null
         : null;
     const colorId = prefs.colors?.[String(id)] || defaultDeedColorId(id);
+    const hovering = dropAt?.zone === zone && String(dropAt.anchorId) === String(id);
     return (
       <CrmDeedCard
         key={id}
@@ -342,22 +423,41 @@ export default function CrmDeedBoard({
         pinned={Boolean(prefs.pins?.[String(id)])}
         selected={selectedDealId != null && String(selectedDealId) === String(id)}
         dragging={String(dragDealId) === String(id)}
-        dropTarget={String(dropTargetId) === String(id)}
+        dropTarget={hovering}
         writeEnabled={writeEnabled}
         onOpen={openRecord}
         onContextMenu={handleContextMenu}
         onOpenField={(type) => openField(deal, type)}
         onPin={() => handlePin(deal)}
+        onArchive={() => handleArchiveDeal(deal)}
         onDragStart={(e) => handleDragStart(e, id)}
         onDragEnd={handleDragEnd}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          setDropTargetId(id);
-        }}
-        onDrop={(e) => handleDrop(e, id)}
+        onDragOver={(e) => handleCardDragOver(e, id, zone)}
+        onDrop={(e) => handleCardDrop(e, zone)}
       />
     );
+  };
+
+  const renderPlaceholder = (_zone, key, label) => (
+    <div key={key} className="crm-deed-board__placeholder" aria-hidden="true">
+      {label}
+    </div>
+  );
+
+  const renderGrid = (deals, zone) => {
+    const nodes = [];
+    const pinLabel = zone === 'pinned' ? 'Pin here' : 'Move here';
+    for (const deal of deals) {
+      const isAnchor = dropAt?.zone === zone && String(dropAt.anchorId) === String(deal.id);
+      const showBefore = Boolean(dragDealId) && isAnchor && dropAt.edge === 'before';
+      const showAfter = Boolean(dragDealId) && isAnchor && dropAt.edge === 'after';
+      if (showBefore) nodes.push(renderPlaceholder(zone, `ph-b-${deal.id}`, pinLabel));
+      nodes.push(renderCard(deal, zone));
+      if (showAfter) nodes.push(renderPlaceholder(zone, `ph-a-${deal.id}`, pinLabel));
+    }
+    const showEnd = Boolean(dragDealId) && dropAt?.zone === zone && dropAt.edge === 'end';
+    if (showEnd) nodes.push(renderPlaceholder(zone, `ph-end-${zone}`, pinLabel));
+    return nodes;
   };
 
   const pinnedDeals = orderedDeals.pinned;
@@ -366,11 +466,12 @@ export default function CrmDeedBoard({
   const hasFilters = Boolean(query.trim() || stageFilter || waitingFilter);
   const boardEmpty = normalized.length === 0;
   const matchEmpty = !boardEmpty && visibleCount === 0;
+  const dragging = Boolean(dragDealId);
 
   return (
-    <div className="crm-deed-board">
+    <div className={`crm-deed-board${dragging ? ' crm-deed-board--dragging' : ''}`}>
       <div className="crm-deed-board__banner">
-        <strong>Test view.</strong> Pin as many deals as you want — they stay on top. Passed-on deals are archived so they do not clutter the board.
+        <strong>Test view.</strong> Drag a card into <strong>Pinned</strong> to pin it. Drop it on Saved deals to unpin. Passed-on deals are archived.
         {writeEnabled ? '' : ' Viewer role — cards are read-only.'}
       </div>
 
@@ -468,28 +569,37 @@ export default function CrmDeedBoard({
         </div>
       ) : (
         <>
-          {pinnedDeals.length > 0 ? (
-            <section className="crm-deed-board__section" aria-label="Pinned deals">
-              <h2 className="crm-deed-board__section-title">
-                Pinned <span>{pinnedDeals.length}</span>
-              </h2>
-              <div className="crm-deed-board__grid">
-                {pinnedDeals.map(renderCard)}
-              </div>
-            </section>
-          ) : (
-            <p className="crm-deed-board__pin-hint">Pin a card to keep it on top. You can pin as many as you want.</p>
-          )}
+          <section
+            className={`crm-deed-board__section${dropAt?.zone === 'pinned' ? ' crm-deed-board__section--drop' : ''}`}
+            aria-label="Pinned deals"
+            onDragOver={(e) => handleSectionDragOver(e, 'pinned')}
+            onDrop={(e) => handleSectionDrop(e, 'pinned')}
+          >
+            <h2 className="crm-deed-board__section-title">
+              Pinned <span>{pinnedDeals.length}</span>
+            </h2>
+            <div className="crm-deed-board__grid">
+              {renderGrid(pinnedDeals, 'pinned')}
+              {pinnedDeals.length === 0 && !dragging ? (
+                <p className="crm-deed-board__pin-hint">Drag a card here to pin it.</p>
+              ) : null}
+            </div>
+          </section>
           {restDeals.length > 0 ? (
-            <section className="crm-deed-board__section" aria-label="Other deals">
+            <section
+              className={`crm-deed-board__section${dropAt?.zone === 'rest' ? ' crm-deed-board__section--drop' : ''}`}
+              aria-label={showArchived ? 'Archived deals' : 'Saved deals'}
+              onDragOver={(e) => handleSectionDragOver(e, 'rest')}
+              onDrop={(e) => handleSectionDrop(e, 'rest')}
+            >
               <h2 className="crm-deed-board__section-title">
                 {showArchived
                   ? (pinnedDeals.length > 0 ? 'Other archived' : 'Archived')
-                  : (pinnedDeals.length > 0 ? 'Other deals' : 'Deals')}{' '}
+                  : 'Saved deals'}{' '}
                 <span>{restDeals.length}</span>
               </h2>
               <div className="crm-deed-board__grid">
-                {restDeals.map(renderCard)}
+                {renderGrid(restDeals, 'rest')}
               </div>
             </section>
           ) : null}

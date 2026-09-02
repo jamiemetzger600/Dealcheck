@@ -10980,10 +10980,57 @@ button.aggregator-welcome__buybox {
   letter-spacing: 0;
 }
 
+.crm-deed-board__section {
+  border-radius: 12px;
+  padding: 8px 10px 4px;
+  outline: 2px dashed transparent;
+  background: transparent;
+  transition: outline-color 0.12s ease, background 0.12s ease;
+}
+
+.crm-deed-board--dragging .crm-deed-board__section {
+  outline-color: rgba(196, 196, 196, 0.35);
+}
+
+.crm-deed-board__section--drop {
+  outline-color: var(--primary);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .crm-deed-board__pin-hint {
   margin: 0;
+  flex: 1 1 100%;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
   font-size: 13px;
   color: var(--text-secondary);
+}
+
+.crm-deed-board__placeholder {
+  width: 236px;
+  flex: 0 0 236px;
+  min-height: 120px;
+  border: 2px dashed var(--primary);
+  border-radius: 6px;
+  background: rgba(196, 196, 196, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.crm-deed-board--dragging {
+  cursor: grabbing;
+}
+
+.crm-deed-board--dragging .crm-deed-card {
+  cursor: grabbing;
 }
 
 .crm-deed-board__archive-btn--on {
@@ -10997,6 +11044,7 @@ button.aggregator-welcome__buybox {
   gap: 16px;
   align-items: flex-start;
   padding-bottom: 8px;
+  min-height: 88px;
 }
 
 .crm-deed-card {
@@ -11006,7 +11054,7 @@ button.aggregator-welcome__buybox {
   color: #111;
   border: 2px solid #111;
   box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.35);
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
 }
 
@@ -11044,24 +11092,8 @@ button.aggregator-welcome__buybox {
   padding: 10px 8px 12px;
 }
 
-.crm-deed-card__kicker {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.crm-deed-card__pin-mark {
-  letter-spacing: 0;
-  font-size: 11px;
-}
-
 .crm-deed-card__name {
-  margin: 6px 0 0;
+  margin: 0;
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.03em;
@@ -11091,6 +11123,12 @@ button.aggregator-welcome__buybox {
 
 .crm-deed-card__status:hover {
   background: rgba(0, 0, 0, 0.05);
+}
+
+.crm-deed-card__status--empty {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.7;
 }
 
 .crm-deed-card__rows {

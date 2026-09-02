@@ -134,3 +134,21 @@ export function reorderDealIds(orderedIds, fromId, toId) {
   next.splice(insertAt, 0, from);
   return next;
 }
+
+/** Move `fromId` before, after, or to the end of the order list. */
+export function placeDealInOrder(orderedIds, fromId, { beforeId = null, afterId = null } = {}) {
+  const from = String(fromId);
+  const next = orderedIds.map(String).filter((id) => id !== from);
+  if (beforeId) {
+    const idx = next.indexOf(String(beforeId));
+    next.splice(idx >= 0 ? idx : next.length, 0, from);
+    return next;
+  }
+  if (afterId) {
+    const idx = next.indexOf(String(afterId));
+    next.splice(idx >= 0 ? idx + 1 : next.length, 0, from);
+    return next;
+  }
+  next.push(from);
+  return next;
+}

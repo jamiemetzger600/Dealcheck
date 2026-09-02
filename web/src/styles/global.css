@@ -561,13 +561,28 @@ a {
   max-width: 52ch;
 }
 
-.quick-calculator-body {
+.deal-details-body.quick-calculator-body {
   padding-top: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.deal-details-overlay.quick-calculator-overlay {
+  align-items: stretch;
+}
+
+.deal-details-panel.quick-calculator-panel {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
 }
 
 .quick-calculator-panel .deal-calculator-section {
   border: none;
   padding: 0;
+  overflow: visible;
 }
 
 .quick-calculator-name-row {

@@ -22,10 +22,39 @@ export const WAITING_DEFAULTS = [
   { id: 'nda', label: 'NDA' }
 ];
 
-const EMPTY = { order: [], pins: {}, colors: {}, waitingOn: {} };
-
 function dealKey(id) {
   return String(id);
+}
+
+export function deedBoardStorageKey(teamId = null) {
+  if (teamId == null || teamId === '') return STORAGE_KEY;
+  return `vettr.crm.deedCards.team.${teamId}.v1`;
+}
+
+export function emptyDeedCardPrefs() {
+  return { order: [], pins: {}, colors: {}, waitingOn: {} };
+}
+
+export function normalizeDeedCardPrefs(parsed) {
+  if (!parsed || typeof parsed !== 'object') {
+    return emptyDeedCardPrefs();
+  }
+  return {
+    order: Array.isArray(parsed.order) ? parsed.order.map(String) : [],
+    pins: parsed.pins && typeof parsed.pins === 'object' ? parsed.pins : {},
+    colors: parsed.colors && typeof parsed.colors === 'object' ? parsed.colors : {},
+    waitingOn: parsed.waitingOn && typeof parsed.waitingOn === 'object' ? parsed.waitingOn : {}
+  };
+}
+
+export function isEmptyDeedCardPrefs(prefs) {
+  const p = normalizeDeedCardPrefs(prefs);
+  return (
+    p.order.length === 0
+    && Object.keys(p.pins).length === 0
+    && Object.keys(p.colors).length === 0
+    && Object.keys(p.waitingOn).length === 0
+  );
 }
 
 export function defaultDeedColorId(dealId) {
@@ -40,27 +69,22 @@ export function deedColorById(colorId, dealId) {
   return DEED_COLORS.find((c) => c.id === fallbackId) || DEED_COLORS[7];
 }
 
-export function loadDeedCardPrefs() {
+export function loadDeedCardPrefs(teamId = null) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...EMPTY, pins: {}, colors: {}, waitingOn: {} };
-    const parsed = JSON.parse(raw);
-    return {
-      order: Array.isArray(parsed.order) ? parsed.order.map(String) : [],
-      pins: parsed.pins && typeof parsed.pins === 'object' ? parsed.pins : {},
-      colors: parsed.colors && typeof parsed.colors === 'object' ? parsed.colors : {},
-      waitingOn: parsed.waitingOn && typeof parsed.waitingOn === 'object' ? parsed.waitingOn : {}
-    };
+    const raw = localStorage.getItem(deedBoardStorageKey(teamId));
+    if (!raw) return emptyDeedCardPrefs();
+    return normalizeDeedCardPrefs(JSON.parse(raw));
   } catch (err) {
     console.warn('[deedCardPrefs] load failed', err.message);
-    return { ...EMPTY, pins: {}, colors: {}, waitingOn: {} };
+    return emptyDeedCardPrefs();
   }
 }
 
-export function saveDeedCardPrefs(prefs) {
+export function saveDeedCardPrefs(prefs, teamId = null) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+    localStorage.setItem(deedBoardStorageKey(teamId), JSON.stringify(normalizeDeedCardPrefs(prefs)));
     console.log('[deedCardPrefs] saved', {
+      teamId: teamId || 'personal',
       order: prefs.order?.length || 0,
       pins: Object.keys(prefs.pins || {}).length,
       colors: Object.keys(prefs.colors || {}).length

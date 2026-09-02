@@ -1163,6 +1163,14 @@ const migrations = [
       CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
       CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
     `
+  },
+  {
+    name: 'teams_deed_board_prefs_v5_89',
+    up: `
+      ALTER TABLE teams ADD COLUMN IF NOT EXISTS deed_board_prefs JSONB NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE teams ADD COLUMN IF NOT EXISTS deed_board_prefs_updated_at TIMESTAMPTZ;
+      ALTER TABLE teams ADD COLUMN IF NOT EXISTS deed_board_prefs_updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    `
   }
 ];
 

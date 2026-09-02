@@ -873,3 +873,110 @@ export const reviewApproval = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
+function sanitizeDeedBoardPrefs(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const order = Array.isArray(src.order)
+    ? [...new Set(src.order.map((id) => String(id)).filter(Boolean))].slice(0, 2000)
+    : [];
+  const pins = {};
+  if (src.pins && typeof src.pins === 'object' && !Array.isArray(src.pins)) {
+    for (const [key, value] of Object.entries(src.pins)) {
+      if (value) pins[String(key)] = true;
+    }
+  }
+  const colors = {};
+  if (src.colors && typeof src.colors === 'object' && !Array.isArray(src.colors)) {
+    for (const [key, value] of Object.entries(src.colors)) {
+      const id = String(value || '').slice(0, 40);
+      if (id) colors[String(key)] = id;
+    }
+  }
+  const waitingOn = {};
+  if (src.waitingOn && typeof src.waitingOn === 'object' && !Array.isArray(src.waitingOn)) {
+    for (const [key, value] of Object.entries(src.waitingOn)) {
+      if (!value || typeof value !== 'object') continue;
+      waitingOn[String(key)] = {
+        active: Array.isArray(value.active) ? value.active.map(String).slice(0, 40) : [],
+        custom: Array.isArray(value.custom)
+          ? value.custom
+            .filter((item) => item && item.label)
+            .slice(0, 20)
+            .map((item) => ({
+              id: String(item.id || '').slice(0, 40),
+              label: String(item.label).slice(0, 80)
+            }))
+          : []
+      };
+    }
+  }
+  return { order, pins, colors, waitingOn };
+}
+
+export const getDeedBoardPrefs = async (req, res) => {
+  try {
+    const teamId = Number(req.params.teamId);
+    const membership = await getMembership(req.user.userId, teamId);
+    if (!membership) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+    const result = await pool.query(
+      `SELECT deed_board_prefs, deed_board_prefs_updated_at
+       FROM teams WHERE id = $1`,
+      [teamId]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+    const prefs = sanitizeDeedBoardPrefs(row.deed_board_prefs);
+    console.log('[teams] deed-board get', teamId, {
+      order: prefs.order.length,
+      pins: Object.keys(prefs.pins).length
+    });
+    res.json({
+      prefs,
+      updatedAt: row.deed_board_prefs_updated_at || null
+    });
+  } catch (error) {
+    console.error('[teams] getDeedBoardPrefs error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const putDeedBoardPrefs = async (req, res) => {
+  try {
+    const teamId = Number(req.params.teamId);
+    const membership = await getMembership(req.user.userId, teamId);
+    if (!membership) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+    if (membership.role === 'viewer') {
+      return res.status(403).json({ error: 'Viewer cannot edit the team board' });
+    }
+    const prefs = sanitizeDeedBoardPrefs(req.body?.prefs);
+    const result = await pool.query(
+      `UPDATE teams
+       SET deed_board_prefs = $2::jsonb,
+           deed_board_prefs_updated_at = NOW(),
+           deed_board_prefs_updated_by = $3,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING deed_board_prefs, deed_board_prefs_updated_at`,
+      [teamId, JSON.stringify(prefs), req.user.userId]
+    );
+    const row = result.rows[0];
+    console.log('[teams] deed-board put', teamId, {
+      userId: req.user.userId,
+      order: prefs.order.length,
+      pins: Object.keys(prefs.pins).length
+    });
+    res.json({
+      prefs: sanitizeDeedBoardPrefs(row.deed_board_prefs),
+      updatedAt: row.deed_board_prefs_updated_at || null
+    });
+  } catch (error) {
+    console.error('[teams] putDeedBoardPrefs error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};

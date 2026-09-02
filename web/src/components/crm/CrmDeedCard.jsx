@@ -226,9 +226,11 @@ export default function CrmDeedCard({
             blockDrag.current = true;
           }}
         >
-          <button type="button" onClick={() => onPin?.()}>
-            {pinned ? 'Unpin' : 'Pin'}
-          </button>
+          {writeEnabled ? (
+            <button type="button" onClick={() => onPin?.()}>
+              {pinned ? 'Unpin' : 'Pin'}
+            </button>
+          ) : null}
           <button type="button" onClick={() => onOpenField?.('color')}>
             Color
           </button>

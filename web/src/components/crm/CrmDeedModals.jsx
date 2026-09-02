@@ -21,8 +21,34 @@ function ModalShell({ title, onClose, children, footer = null }) {
   );
 }
 
-function StatusModal({ deal, writeEnabled, saving, onChange, onClose }) {
-  const current = deal?.progressStage || '';
+function StatusModal({ deal, writeEnabled, saving, customSaving, onChange, onSaveCustom, onClose }) {
+  const initialStage = deal?.progressStage || '';
+  const [stage, setStage] = useState(initialStage);
+  const [customLabel, setCustomLabel] = useState(deal?.customStageLabel || '');
+
+  useEffect(() => {
+    setStage(deal?.progressStage || '');
+    setCustomLabel(deal?.customStageLabel || '');
+  }, [deal?.id, deal?.progressStage, deal?.customStageLabel]);
+
+  const busy = Boolean(saving || customSaving);
+  const showCustom = stage === 'Custom Status';
+
+  const handleSelect = (e) => {
+    const next = e.target.value;
+    setStage(next);
+    if (next === 'Custom Status') {
+      console.log('[CrmDeedModals] custom status selected', deal?.id);
+      return;
+    }
+    onChange?.(e);
+  };
+
+  const handleCustomSubmit = (e) => {
+    e.preventDefault();
+    onSaveCustom?.(customLabel);
+  };
+
   return (
     <ModalShell title="Current status" onClose={onClose}>
       <p className="crm-muted">{deal?.name}</p>
@@ -30,18 +56,45 @@ function StatusModal({ deal, writeEnabled, saving, onChange, onClose }) {
       <select
         id="crm-deed-status"
         className="modal-input"
-        value={current}
-        disabled={!writeEnabled || saving}
-        onChange={onChange}
+        value={stage}
+        disabled={!writeEnabled || busy}
+        onChange={handleSelect}
       >
         <option value="">Select status…</option>
         {PIPELINE_STAGE_OPTIONS.map((opt) => (
           <option key={opt} value={opt}>{opt}</option>
         ))}
-        {current && !PIPELINE_STAGE_OPTIONS.includes(current) ? (
-          <option value={current}>{current} (saved)</option>
+        {stage && !PIPELINE_STAGE_OPTIONS.includes(stage) ? (
+          <option value={stage}>{stage} (saved)</option>
         ) : null}
       </select>
+      {showCustom ? (
+        writeEnabled ? (
+          <form className="crm-deed-modal__form" onSubmit={handleCustomSubmit}>
+            <label htmlFor="crm-deed-custom-status">Custom status</label>
+            <input
+              id="crm-deed-custom-status"
+              className="modal-input"
+              value={customLabel}
+              onChange={(e) => setCustomLabel(e.target.value)}
+              placeholder="e.g. Waiting on seller P&Ls"
+              maxLength={120}
+              disabled={busy}
+              autoFocus
+              aria-label="Custom status message"
+            />
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={busy || !customLabel.trim()}
+            >
+              {customSaving ? 'Saving…' : 'Save custom status'}
+            </button>
+          </form>
+        ) : (
+          <p className="crm-muted">{customLabel.trim() || 'No custom status set.'}</p>
+        )
+      ) : null}
     </ModalShell>
   );
 }
@@ -223,7 +276,7 @@ function WaitingOnModal({ deal, waiting, writeEnabled, onClose, onSave }) {
   );
 }
 
-function ColorModal({ deal, colorId, onClose, onPick }) {
+function ColorModal({ deal, colorId, writeEnabled, onClose, onPick }) {
   return (
     <ModalShell title="Header color" onClose={onClose}>
       <p className="crm-muted">{deal?.name}</p>
@@ -234,13 +287,15 @@ function ColorModal({ deal, colorId, onClose, onPick }) {
             type="button"
             className={`crm-deed-swatch${colorId === c.id ? ' crm-deed-swatch--active' : ''}`}
             style={{ background: c.hex, color: c.ink }}
-            onClick={() => onPick?.(c.id)}
+            onClick={() => writeEnabled && onPick?.(c.id)}
+            disabled={!writeEnabled}
             aria-label={c.label}
           >
             {c.label}
           </button>
         ))}
       </div>
+      {writeEnabled ? null : <p className="crm-muted">Viewer role — color is read-only.</p>}
     </ModalShell>
   );
 }
@@ -256,6 +311,7 @@ export default function CrmDeedModals({
   stageSaving,
   onClose,
   onStageChange,
+  onSaveCustomStage,
   onCreateTask,
   onOpenTasks,
   onOpenCalculator,
@@ -283,7 +339,9 @@ export default function CrmDeedModals({
         deal={deal}
         writeEnabled={writeEnabled}
         saving={stageSaving}
+        customSaving={stageSaving}
         onChange={onStageChange}
+        onSaveCustom={onSaveCustomStage}
         onClose={onClose}
       />
     );
@@ -326,6 +384,7 @@ export default function CrmDeedModals({
       <ColorModal
         deal={deal}
         colorId={colorId}
+        writeEnabled={writeEnabled}
         onClose={onClose}
         onPick={onPickColor}
       />

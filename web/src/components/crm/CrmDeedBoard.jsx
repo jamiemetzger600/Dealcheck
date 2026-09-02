@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { crmAPI, dealsAPI } from '../../utils/api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { crmAPI, dealsAPI, teamsAPI } from '../../utils/api';
 import { normalizeDeal, getDealProgressLabel, isPassedOnDeal } from '../../utils/normalizeDeal';
 import { getCalculatorDefaultsFromSettings } from '../../utils/calculatorDefaultsFromSettings';
 import { getSavedDealCalculatorSummary } from '../../utils/savedDealCalculatorSummary';
@@ -11,7 +11,9 @@ import {
   WAITING_DEFAULTS,
   defaultDeedColorId,
   getWaitingOn,
+  isEmptyDeedCardPrefs,
   loadDeedCardPrefs,
+  normalizeDeedCardPrefs,
   partitionDeedDeals,
   placeDealInOrder,
   saveDeedCardPrefs,
@@ -52,9 +54,14 @@ export default function CrmDeedBoard({
   overdueDealIds = null,
   onAddDeal = null
 }) {
-  const { isTeamMode, activeTeam } = useTeam();
+  const { isTeamMode, activeTeam, activeTeamId } = useTeam();
   const writeEnabled = !isTeamMode || activeTeam?.role !== 'viewer';
-  const [prefs, setPrefs] = useState(() => loadDeedCardPrefs());
+  const teamBoardId = isTeamMode ? activeTeamId : null;
+  const [prefs, setPrefs] = useState(() => loadDeedCardPrefs(teamBoardId));
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
+  const teamSaveTimerRef = useRef(null);
+  const dirtyRef = useRef(false);
   const [dragDealId, setDragDealId] = useState(null);
   const dragDealIdRef = useRef(null);
   const [dropAt, setDropAtState] = useState(null);
@@ -129,9 +136,88 @@ export default function CrmDeedBoard({
   }, [normalized, showArchived]);
 
   const persist = useCallback((next) => {
+    prefsRef.current = next;
     setPrefs(next);
-    saveDeedCardPrefs(next);
-  }, []);
+    saveDeedCardPrefs(next, teamBoardId);
+    if (!teamBoardId || !writeEnabled) return;
+    dirtyRef.current = true;
+    if (teamSaveTimerRef.current) clearTimeout(teamSaveTimerRef.current);
+    teamSaveTimerRef.current = setTimeout(async () => {
+      teamSaveTimerRef.current = null;
+      try {
+        await teamsAPI.putDeedBoard(teamBoardId, prefsRef.current);
+        dirtyRef.current = false;
+        console.log('[CrmDeedBoard] team board synced', teamBoardId);
+      } catch (err) {
+        console.error('[CrmDeedBoard] team board save failed', err);
+        alert('Failed to share the team board: ' + (err.message || 'error'));
+      }
+    }, 450);
+  }, [teamBoardId, writeEnabled]);
+
+  useEffect(() => {
+    setPrefs(loadDeedCardPrefs(teamBoardId));
+  }, [teamBoardId]);
+
+  useEffect(() => {
+    if (!teamBoardId) return undefined;
+    let cancelled = false;
+
+    const pull = async ({ seedIfEmpty = false } = {}) => {
+      try {
+        if (dirtyRef.current) {
+          if (writeEnabled && !dragDealIdRef.current) {
+            await teamsAPI.putDeedBoard(teamBoardId, prefsRef.current);
+            dirtyRef.current = false;
+            console.log('[CrmDeedBoard] team board retry synced', teamBoardId);
+          }
+          return;
+        }
+        if (dragDealIdRef.current) return;
+        const data = await teamsAPI.getDeedBoard(teamBoardId);
+        if (cancelled) return;
+        let next = normalizeDeedCardPrefs(data.prefs);
+        if (seedIfEmpty && isEmptyDeedCardPrefs(next) && writeEnabled) {
+          const teamCache = loadDeedCardPrefs(teamBoardId);
+          const personal = loadDeedCardPrefs(null);
+          const seed = !isEmptyDeedCardPrefs(teamCache) ? teamCache : personal;
+          if (!isEmptyDeedCardPrefs(seed)) {
+            next = seed;
+            await teamsAPI.putDeedBoard(teamBoardId, seed);
+            console.log('[CrmDeedBoard] seeded team board from this browser');
+          }
+        }
+        if (cancelled || dirtyRef.current || dragDealIdRef.current) return;
+        prefsRef.current = next;
+        setPrefs(next);
+        saveDeedCardPrefs(next, teamBoardId);
+      } catch (err) {
+        console.warn('[CrmDeedBoard] team board load failed', err.message);
+      }
+    };
+
+    pull({ seedIfEmpty: true });
+    const onFocus = () => {
+      pull();
+      onRefresh?.();
+    };
+    window.addEventListener('focus', onFocus);
+    const interval = window.setInterval(() => pull(), 20000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(interval);
+      if (teamSaveTimerRef.current) {
+        clearTimeout(teamSaveTimerRef.current);
+        teamSaveTimerRef.current = null;
+        if (dirtyRef.current && writeEnabled) {
+          teamsAPI.putDeedBoard(teamBoardId, prefsRef.current).catch((err) => {
+            console.warn('[CrmDeedBoard] flush team board failed', err.message);
+          });
+        }
+      }
+    };
+  }, [onRefresh, teamBoardId, writeEnabled]);
 
   const ensureOrder = useCallback((list, extraIds = []) => {
     const seen = new Set();
@@ -177,6 +263,7 @@ export default function CrmDeedBoard({
   }, [modal, normalized]);
 
   const handlePin = useCallback((deal) => {
+    if (!writeEnabled) return;
     const key = String(deal.id);
     const nextPins = { ...prefs.pins };
     let nextOrder = ensureOrder(prefs.order, allIds);
@@ -192,29 +279,30 @@ export default function CrmDeedBoard({
       pins: nextPins,
       order: nextOrder
     });
-  }, [allIds, ensureOrder, persist, prefs]);
+  }, [allIds, ensureOrder, persist, prefs, writeEnabled]);
 
   const handlePickColor = useCallback((colorId) => {
-    if (!modalDeal) return;
+    if (!modalDeal || !writeEnabled) return;
     persist({
       ...prefs,
       colors: { ...prefs.colors, [String(modalDeal.id)]: colorId }
     });
     setModal(null);
-  }, [modalDeal, persist, prefs]);
+  }, [modalDeal, persist, prefs, writeEnabled]);
 
   const handleSaveWaiting = useCallback((waiting) => {
-    if (!modalDeal) return;
+    if (!modalDeal || !writeEnabled) return;
     persist({
       ...prefs,
       waitingOn: { ...prefs.waitingOn, [String(modalDeal.id)]: waiting }
     });
     setModal(null);
-  }, [modalDeal, persist, prefs]);
+  }, [modalDeal, persist, prefs, writeEnabled]);
 
   const handleStageChange = useCallback(async (e) => {
     const newStage = e.target.value;
     if (!modalDeal?.id || !newStage.trim() || stageSaving) return;
+    if (newStage === 'Custom Status') return;
     setStageSaving(true);
     try {
       const result = await crmAPI.updateStage(modalDeal.id, newStage);
@@ -228,6 +316,28 @@ export default function CrmDeedBoard({
       setStageSaving(false);
     }
   }, [modalDeal, onRefresh, onStageChanged, stageSaving]);
+
+  const handleSaveCustomStage = useCallback(async (label) => {
+    if (!modalDeal?.id || !writeEnabled || stageSaving) return;
+    const trimmed = String(label || '').trim();
+    if (!trimmed) {
+      alert('Enter a custom status label (e.g. “Waiting on seller P&Ls”).');
+      return;
+    }
+    setStageSaving(true);
+    try {
+      const result = await crmAPI.updateStage(modalDeal.id, 'Custom Status');
+      await dealsAPI.updateDeal(modalDeal.id, { customStageLabel: trimmed });
+      console.log('[CrmDeedBoard] custom stage', modalDeal.id, trimmed);
+      onStageChanged?.(result, modalDeal.name);
+      onRefresh?.();
+      setModal(null);
+    } catch (err) {
+      alert('Failed to save custom status: ' + (err.message || 'error'));
+    } finally {
+      setStageSaving(false);
+    }
+  }, [modalDeal, onRefresh, onStageChanged, stageSaving, writeEnabled]);
 
   const handleCreateTask = useCallback(async (title) => {
     if (!modalDeal?.id) return;
@@ -278,13 +388,15 @@ export default function CrmDeedBoard({
       { id: 'next', label: 'Next step', onSelect: () => openField(deal, 'next') },
       { id: 'metrics', label: 'Metrics', onSelect: () => openField(deal, 'metrics') },
       { id: 'waiting', label: 'Waiting on', onSelect: () => openField(deal, 'waiting') },
-      { id: 'color', label: 'Color', onSelect: () => openField(deal, 'color') },
-      {
+      { id: 'color', label: 'Color', onSelect: () => openField(deal, 'color') }
+    ];
+    if (writeEnabled) {
+      items.push({
         id: 'pin',
         label: prefs.pins?.[String(deal.id)] ? 'Unpin' : 'Pin',
         onSelect: () => handlePin(deal)
-      }
-    ];
+      });
+    }
     if (writeEnabled && !isPassedOnDeal(deal)) {
       items.push({
         id: 'archive',
@@ -344,7 +456,7 @@ export default function CrmDeedBoard({
     dragDealIdRef.current = null;
     setDropAt(null);
     setDragDealId(null);
-    if (!fromId || !target?.zone) return;
+    if (!fromId || !target?.zone || !writeEnabled) return;
     const fromKey = String(fromId);
     const pin = target.zone === 'pinned';
     const alreadyPinned = Boolean(prefs.pins?.[fromKey]);
@@ -365,7 +477,7 @@ export default function CrmDeedBoard({
     });
     persist({ ...prefs, order: nextOrder, pins: nextPins });
     console.log('[CrmDeedBoard] drop', fromKey, { pin, edge: target.edge, anchor: target.anchorId });
-  }, [allIds, ensureOrder, persist, prefs]);
+  }, [allIds, ensureOrder, persist, prefs, writeEnabled]);
 
   const handleSectionDragOver = (e, zone) => {
     e.preventDefault();
@@ -471,7 +583,18 @@ export default function CrmDeedBoard({
   return (
     <div className={`crm-deed-board${dragging ? ' crm-deed-board--dragging' : ''}`}>
       <div className="crm-deed-board__banner">
-        <strong>Test view.</strong> Drag a card into <strong>Pinned</strong> to pin it. Drop it on Saved deals to unpin. Passed-on deals are archived.
+        {isTeamMode ? (
+          <>
+            <strong>Team board.</strong> Pins, order, color, and waiting-on are shared with{' '}
+            {activeTeam?.name || 'the team'}. Drop a card into <strong>Pinned</strong> or reorder
+            pins — teammates see the same layout.
+          </>
+        ) : (
+          <>
+            <strong>Personal board.</strong> Drag a card into <strong>Pinned</strong> to pin it.
+            Drop it on Saved deals to unpin. Passed-on deals are archived.
+          </>
+        )}
         {writeEnabled ? '' : ' Viewer role — cards are read-only.'}
       </div>
 
@@ -630,6 +753,7 @@ export default function CrmDeedBoard({
         stageSaving={stageSaving}
         onClose={() => setModal(null)}
         onStageChange={handleStageChange}
+        onSaveCustomStage={handleSaveCustomStage}
         onCreateTask={handleCreateTask}
         onOpenTasks={() => {
           if (!modalDeal) return;

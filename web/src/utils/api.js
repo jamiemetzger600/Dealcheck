@@ -284,6 +284,14 @@ export const teamsAPI = {
 
   get: (teamId) => apiRequest(`/teams/${teamId}`),
 
+  getDeedBoard: (teamId) => apiRequest(`/teams/${teamId}/deed-board`),
+
+  putDeedBoard: (teamId, prefs) =>
+    apiRequest(`/teams/${teamId}/deed-board`, {
+      method: 'PUT',
+      body: JSON.stringify({ prefs })
+    }),
+
   invite: (teamId, { email, role = 'member' }) =>
     apiRequest(`/teams/${teamId}/invites`, {
       method: 'POST',

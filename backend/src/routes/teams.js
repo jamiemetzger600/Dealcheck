@@ -13,7 +13,9 @@ import {
   shareDealToTeam,
   unshareDeal,
   listPendingApprovals,
-  reviewApproval
+  reviewApproval,
+  getDeedBoardPrefs,
+  putDeedBoardPrefs
 } from '../controllers/teamsController.js';
 
 const router = express.Router();
@@ -26,6 +28,8 @@ router.get('/approvals', listPendingApprovals);
 router.post('/approvals/:approvalId/review', reviewApproval);
 
 router.get('/:teamId', getTeam);
+router.get('/:teamId/deed-board', getDeedBoardPrefs);
+router.put('/:teamId/deed-board', putDeedBoardPrefs);
 router.post('/:teamId/invites', inviteMember);
 router.post('/:teamId/invite-links', createInviteLink);
 router.delete('/:teamId/invites/:inviteId', revokeInvite);

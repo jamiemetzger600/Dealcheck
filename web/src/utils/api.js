@@ -60,7 +60,10 @@ async function apiRequest(endpoint, options = {}) {
     ...options.headers
   };
 
-  const isAuthAttempt = endpoint === '/auth/login' || endpoint === '/auth/register';
+  const isAuthAttempt = endpoint === '/auth/login'
+    || endpoint === '/auth/register'
+    || endpoint === '/auth/forgot-password'
+    || endpoint === '/auth/reset-password';
 
   let lastError;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -195,7 +198,19 @@ export const authAPI = {
     removeToken();
   },
 
-  getCurrentUser: () => apiRequest('/auth/me')
+  getCurrentUser: () => apiRequest('/auth/me'),
+
+  forgotPassword: (email) =>
+    apiRequest('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    }),
+
+  resetPassword: (token, password) =>
+    apiRequest('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password })
+    })
 };
 
 // User settings API

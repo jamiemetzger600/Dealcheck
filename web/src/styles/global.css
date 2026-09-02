@@ -7324,9 +7324,47 @@ button.aggregator-welcome__buybox {
   border-radius: 12px;
 }
 
-.crm-empty h2 {
-  margin: 0 0 8px;
-  font-size: 18px;
+.crm-empty p {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.crm-empty__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.team-invite-page--signed-out {
+  max-width: 480px;
+  margin: 80px auto;
+  padding: 0 16px;
+  color: var(--text-primary);
+}
+
+.team-invite-page--signed-out h1 {
+  margin: 0 0 12px;
+}
+
+.team-invite-page--signed-out p {
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.team-invite-page__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.billing-beta-note {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 0 0 12px;
 }
 
 .crm-layout {

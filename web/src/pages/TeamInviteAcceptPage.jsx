@@ -78,10 +78,13 @@ export default function TeamInviteAcceptPage() {
   if (!user) {
     const next = encodeURIComponent(`/teams/accept?token=${token}`);
     return (
-      <div className="team-invite-page">
+      <div className="team-invite-page team-invite-page--signed-out">
         <h1>Team invite</h1>
-        <p>Sign in to Vettr to join this team. Email invites require the invited address; link invites work with any account.</p>
-        <Link className="btn-primary" to={`/login?next=${next}`}>Sign in</Link>
+        <p>Sign in or create a Vettr account to join this team. Email invites require the invited address; link invites work with any account.</p>
+        <div className="team-invite-page__actions">
+          <Link className="btn-primary" to={`/login?next=${next}`}>Sign in</Link>
+          <Link className="btn-secondary" to={`/register?next=${next}`}>Create account</Link>
+        </div>
       </div>
     );
   }

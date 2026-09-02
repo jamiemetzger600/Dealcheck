@@ -1148,6 +1148,21 @@ const migrations = [
         ADD COLUMN IF NOT EXISTS google_email TEXT,
         ADD COLUMN IF NOT EXISTS granted_scopes TEXT;
     `
+  },
+  {
+    name: 'password_reset_tokens_v5_85',
+    up: `
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash VARCHAR(64) NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
+      CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+    `
   }
 ];
 

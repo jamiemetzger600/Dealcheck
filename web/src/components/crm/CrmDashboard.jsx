@@ -442,15 +442,22 @@ export default function CrmDashboard({
           {filteredDeals.length === 0 ? (
             <div className="crm-empty">
               <h2>No deals in Vettr CRM yet</h2>
-              <p>Save from Aggregator, add manually, or import a CSV of off-market deals.</p>
-              {typeof onAddDeal === 'function' ? (
-                <button type="button" className="btn-primary" onClick={onAddDeal}>
-                  Add deal manually
+              <p>Save a listing from Deal Aggregator, add one manually, or import a CSV of off-market deals.</p>
+              <div className="crm-empty__actions">
+                {typeof onBackToInbox === 'function' ? (
+                  <button type="button" className="btn-primary" onClick={onBackToInbox}>
+                    Browse Deal Aggregator
+                  </button>
+                ) : null}
+                {typeof onAddDeal === 'function' ? (
+                  <button type="button" className="btn-secondary" onClick={onAddDeal}>
+                    Add deal manually
+                  </button>
+                ) : null}
+                <button type="button" className="btn-secondary" onClick={() => setShowCsvImport(true)}>
+                  Import CSV
                 </button>
-              ) : null}
-              <button type="button" className="btn-secondary" onClick={() => setShowCsvImport(true)}>
-                Import CSV
-              </button>
+              </div>
             </div>
           ) : (
             <CrmKanban

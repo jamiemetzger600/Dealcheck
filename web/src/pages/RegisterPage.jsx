@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { mergeGuestSettingsIntoAccount } from '../utils/mergeGuestSettings';
@@ -18,17 +18,23 @@ export default function RegisterPage() {
   const location = useLocation();
   const signupCopy = location.state?.signupCopy || getSignupCopy(searchParams.get('reason') || 'default');
 
-  useEffect(() => {
-    if (user) navigate('/dashboard', { replace: true });
-  }, [user, navigate]);
-
-  const buildDashboardPath = () => {
+  const postAuthPath = useMemo(() => {
     const { returnTo, dealDbId } = parseAuthReturnParams(searchParams.toString());
+    if (returnTo && returnTo.includes('?')) {
+      if (!dealDbId) return returnTo;
+      const u = new URL(returnTo, 'http://vettr.local');
+      u.searchParams.set('dealDbId', dealDbId);
+      return `${u.pathname}?${u.searchParams.toString()}`;
+    }
     const p = new URLSearchParams();
     if (dealDbId) p.set('dealDbId', dealDbId);
     const qs = p.toString();
     return `${returnTo || '/dashboard'}${qs ? `?${qs}` : ''}`;
-  };
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (user) navigate(postAuthPath, { replace: true });
+  }, [user, navigate, postAuthPath]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,7 +46,7 @@ export default function RegisterPage() {
       await register(email, password);
       logGuestEvent('guest_register_complete');
       await mergeGuestSettingsIntoAccount();
-      navigate(buildDashboardPath());
+      navigate(postAuthPath);
     } catch (err) {
       const msg = err.message || 'Registration failed';
       setError(msg.includes('fetch') || msg === 'Request failed' || msg === 'Failed to fetch'
@@ -84,7 +90,7 @@ export default function RegisterPage() {
             <input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required placeholder="Re-enter password" />
           </div>
           <button type="submit" className="btn-primary" disabled={loading}>{loading ? 'Creating account...' : 'Sign Up'}</button>
-          <p className="auth-footer">Already have an account? <Link to="/login">Sign in</Link></p>
+          <p className="auth-footer">Already have an account? <Link to={`/login${location.search}`}>Sign in</Link></p>
           <p className="auth-footer"><Link to="/dashboard">Browse without signing in</Link></p>
         </form>
       </div>

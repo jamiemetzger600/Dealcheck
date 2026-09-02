@@ -1,7 +1,9 @@
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import pool from '../db/pool.js';
 import { setAuthCookie, clearAuthCookie } from '../lib/authCookies.js';
+import { sendEmail, isSmtpConfigured } from '../services/emailService.js';
 
 const SALT_ROUNDS = 10;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30d';
@@ -164,3 +166,128 @@ export const logout = async (req, res) => {
   clearAuthCookie(res);
   res.json({ message: 'Logout successful' });
 };
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function webAppBase() {
+  const raw =
+    process.env.WEB_APP_URL_LOCAL ||
+    process.env.WEB_APP_URL ||
+    'http://localhost:5173';
+  return raw.split(',')[0].trim().replace(/\/+$/, '');
+}
+
+export const forgotPassword = async (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const generic = { message: 'If that email is registered, we sent a reset link.' };
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email required' });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT id, email FROM users WHERE email = $1',
+      [email]
+    );
+    if (result.rows.length === 0) {
+      return res.json(generic);
+    }
+
+    const user = result.rows[0];
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = hashResetToken(token);
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+    await pool.query(
+      `UPDATE password_reset_tokens SET used_at = NOW()
+       WHERE user_id = $1 AND used_at IS NULL`,
+      [user.id]
+    );
+    await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3)`,
+      [user.id, tokenHash, expiresAt]
+    );
+
+    const resetUrl = `${webAppBase()}/reset-password?token=${token}`;
+    const html = `
+      <p>Reset your Vettr password using this link (expires in 1 hour):</p>
+      <p><a href="${resetUrl}">${resetUrl}</a></p>
+      <p>If you did not request this, you can ignore this email.</p>
+    `;
+
+    const mail = await sendEmail({
+      to: user.email,
+      subject: 'Reset your Vettr password',
+      html
+    });
+
+    console.log('[auth] password reset created', {
+      userId: user.id,
+      sent: Boolean(mail?.sent),
+      smtp: isSmtpConfigured()
+    });
+    if (!mail?.sent) {
+      console.log('[auth] password reset URL (email not sent)', resetUrl);
+    }
+
+    const payload = { ...generic };
+    return res.json(payload);
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    if (isDbActiveTimeQuotaError(error)) {
+      return res.status(503).json({ error: DB_ACTIVE_TIME_QUOTA });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  const password = String(req.body?.password || '');
+
+  if (!token || !password) {
+    return res.status(400).json({ error: 'Token and password required' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+
+  try {
+    const tokenHash = hashResetToken(token);
+    const found = await pool.query(
+      `SELECT id, user_id FROM password_reset_tokens
+       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()
+       LIMIT 1`,
+      [tokenHash]
+    );
+    if (found.rows.length === 0) {
+      return res.status(400).json({ error: 'This reset link is invalid or expired. Request a new one.' });
+    }
+
+    const row = found.rows[0];
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+      [passwordHash, row.user_id]
+    );
+    await pool.query(
+      'UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1',
+      [row.id]
+    );
+    console.log('[auth] password reset completed', { userId: row.user_id });
+    res.json({ message: 'Password updated. You can sign in.' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    if (isDbActiveTimeQuotaError(error)) {
+      return res.status(503).json({ error: DB_ACTIVE_TIME_QUOTA });
+    }
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+

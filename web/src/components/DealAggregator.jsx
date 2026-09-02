@@ -30,6 +30,7 @@ import MobileFeedToolbar from './MobileFeedToolbar';
 import GatedPreviewText from './GatedPreviewText';
 import { useIsMobile, useOrientation, startOfLocalDayISO } from '../hooks/useMediaQuery';
 import { useTeam } from '../context/TeamContext';
+import { claimPendingSaveDealDbId } from '../utils/pendingSaveDeal';
 import {
   cardMetricLocation,
   cardViewDescriptionPreview,
@@ -530,13 +531,29 @@ export default function DealAggregator({
 
   const initialOpenAppliedRef = useRef(false);
   useEffect(() => {
-    if (initialOpenAppliedRef.current || initialOpenDealDbId == null || !deals?.length) return;
+    if (initialOpenAppliedRef.current || initialOpenDealDbId == null) return;
     const match = deals.find((d) => String(d.dbId) === String(initialOpenDealDbId));
     if (match) {
       initialOpenAppliedRef.current = true;
       setSelectedDeal(match);
+      return;
     }
-  }, [initialOpenDealDbId, deals]);
+    if (loading) return;
+    initialOpenAppliedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      try {
+        const full = await fetchMarketDealByDbId(initialOpenDealDbId);
+        if (!cancelled && full) {
+          console.log('[DealAggregator] opened deal from return id', initialOpenDealDbId);
+          setSelectedDeal(full);
+        }
+      } catch (err) {
+        console.warn('[DealAggregator] initial open fetch failed', err?.message || err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [initialOpenDealDbId, deals, loading]);
 
   const savedDealIdSet = useMemo(
     () => new Set((savedDealIds || []).filter(Boolean).map((id) => String(id))),
@@ -1070,6 +1087,25 @@ export default function DealAggregator({
       setSavingDealId(null);
     }
   };
+
+  useEffect(() => {
+    if (isGuest) return;
+    const pendingId = claimPendingSaveDealDbId();
+    if (!pendingId) return;
+    (async () => {
+      try {
+        const deal = await fetchMarketDealByDbId(pendingId);
+        if (!deal) return;
+        console.log('[DealAggregator] pending save after signup', pendingId);
+        setSelectedDeal(deal);
+        await handleSaveDeal(deal);
+      } catch (err) {
+        console.warn('[DealAggregator] pending save failed', err?.message || err);
+      }
+    })();
+    // handleSaveDeal is recreated each render; claimPendingSaveDealDbId runs once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGuest]);
 
   const ensureDealSavedForCrm = useCallback(async (deal) => {
     if (!deal) return null;

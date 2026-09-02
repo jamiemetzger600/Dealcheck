@@ -304,13 +304,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
     }
   }, [authLoading, isGuest, suppressGuestOnboarding]);
 
-  // Auth can resolve after a guest-path render; never keep onboarding open for logged-in users.
-  useEffect(() => {
-    if (isGuest || buyBoxModalMode !== 'onboarding') return;
-    setShowBuyBoxModal(false);
-    setBuyBoxModalMode('closed');
-  }, [isGuest, buyBoxModalMode]);
-
   const handleTourDismiss = useCallback(() => {
     setTourForceOpen(false);
     setGuestTourBlocking(false);
@@ -336,7 +329,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   }, []);
 
   const showFirstVisitSheet =
-    isGuest &&
     !authLoading &&
     !suppressGuestOnboarding &&
     Boolean(settings) &&

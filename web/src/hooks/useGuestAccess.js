@@ -3,10 +3,27 @@ import { useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getEntitlementsForUser, getSignupCopy } from '../utils/guestEntitlements';
 import { logGuestEvent } from '../utils/guestAnalytics';
+import { setPendingSaveDealDbId } from '../utils/pendingSaveDeal';
+
+/** Only same-origin relative paths (blocks open redirects). */
+export function sanitizeInternalPath(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  let path = raw.trim();
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    /* already decoded */
+  }
+  if (!path.startsWith('/') || path.startsWith('//') || /\\|:/.test(path.split('?')[0])) {
+    return null;
+  }
+  return path;
+}
 
 export function parseAuthReturnParams(searchString) {
   const params = new URLSearchParams(searchString || '');
-  const returnTo = params.get('returnTo') || params.get('redirect') || null;
+  const raw = params.get('returnTo') || params.get('redirect') || params.get('next') || null;
+  const returnTo = sanitizeInternalPath(raw);
   const dealDbId = params.get('dealDbId') || null;
   return { returnTo, dealDbId };
 }
@@ -29,6 +46,9 @@ export function useGuestAccess(user) {
   const requireSignup = useCallback(
     (reason = 'default', meta = {}) => {
       logGuestEvent('guest_signup_prompt', { reason, ...meta });
+      if (reason === 'save' && meta.dealDbId != null && meta.dealDbId !== '') {
+        setPendingSaveDealDbId(meta.dealDbId);
+      }
       const copy = getSignupCopy(reason);
       const href = buildRegisterHref({
         reason,

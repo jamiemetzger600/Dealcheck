@@ -77,6 +77,9 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (email, password) => {
+    try {
+      sessionStorage.removeItem('vettr_skip_guest_onboarding');
+    } catch {}
     const data = await authAPI.register(email, password);
     setUser(data.user);
     return data;

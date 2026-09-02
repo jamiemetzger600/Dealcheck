@@ -68,6 +68,9 @@ export default function BillingPage() {
           <div className="pricing-plans">
             <div className="plan-card featured">
               <h3>Vettr Pro</h3>
+              <p className="billing-beta-note">
+                Beta testers already have full access on the Free plan. You do not need to subscribe to save deals, use CRM, or underwrite.
+              </p>
               <p className="price">$19.99<span>/month</span></p>
               <ul>
                 <li>Instant notifications</li>

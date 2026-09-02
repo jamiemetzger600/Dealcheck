@@ -21,11 +21,16 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
-        injectRegister: 'auto',
+        // App registers /sw.js itself (updateViaCache: 'none') so iOS fetches
+        // the latest worker from Cloudflare instead of a cached copy.
+        injectRegister: false,
         // Keep public/manifest.json as the source of truth
         manifest: false,
         includeAssets: ['vettr-logo.png', 'icons/icon-192.png', 'icons/icon-512.png'],
         workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
+          cleanupOutdatedCaches: true,
           navigateFallback: '/index.html',
           // Never let the service worker touch API traffic. The market feed uses
           // conditional (ETag / If-None-Match) requests; if the SW serves a cached

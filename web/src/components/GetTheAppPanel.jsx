@@ -8,7 +8,7 @@ import {
 } from '../utils/pwaInstall';
 
 /**
- * In-app “Get the app” instructions + Android install prompt.
+ * In-app “Get the app” instructions + Android install prompt + Chrome extension link.
  * Works in Settings or as a standalone section.
  */
 export default function GetTheAppPanel({ compact = false }) {
@@ -17,6 +17,7 @@ export default function GetTheAppPanel({ compact = false }) {
   const [promptBusy, setPromptBusy] = useState(false);
   const [promptResult, setPromptResult] = useState('');
   const platform = getInstallPlatform();
+  const chromeStoreUrl = (import.meta.env.VITE_CHROME_STORE_URL || '').trim();
 
   useEffect(() => {
     setStandalone(isStandaloneDisplay());
@@ -47,7 +48,7 @@ export default function GetTheAppPanel({ compact = false }) {
     return (
       <div className={`get-the-app${compact ? ' get-the-app--compact' : ''}`}>
         <p className="get-the-app__status get-the-app__status--ok" role="status">
-          You&apos;re using the installed Vettr app. Updates apply automatically when we deploy.
+          You&apos;re using the installed Vettr app. It checks Cloudflare for a new build when you open it and applies the update in the background.
         </p>
       </div>
     );
@@ -58,8 +59,32 @@ export default function GetTheAppPanel({ compact = false }) {
       {!compact && (
         <p className="get-the-app__intro">
           Install Vettr on your phone for a full-screen app experience — no App Store required.
-          Same login, deals, CRM, and due diligence.
+          Same login, deals, CRM, and due diligence. On desktop Chrome, install the extension to
+          analyze listings and sync My Deals.
         </p>
+      )}
+
+      {(platform === 'desktop' || chromeStoreUrl) && (
+        <div className="get-the-app__chrome" style={{ marginBottom: 16 }}>
+          <strong>Chrome extension</strong>
+          {chromeStoreUrl ? (
+            <p style={{ margin: '8px 0' }}>
+              <a
+                href={chromeStoreUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary"
+                style={{ display: 'inline-block', textDecoration: 'none' }}
+              >
+                Install the Chrome extension
+              </a>
+            </p>
+          ) : (
+            <p style={{ margin: '8px 0', fontSize: 14, color: 'var(--text-secondary, #666)' }}>
+              Chrome Web Store listing coming soon. See Settings → Chrome extension for sync details.
+            </p>
+          )}
+        </div>
       )}
 
       {canPrompt && (

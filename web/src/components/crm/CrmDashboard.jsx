@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { crmAPI, dealsAPI } from '../../utils/api';
-import { normalizeDeal } from '../../utils/normalizeDeal';
+import { normalizeDeal, isPassedOnDeal } from '../../utils/normalizeDeal';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import CrmKanban from './CrmKanban';
 import CrmDeedBoard from './CrmDeedBoard';
@@ -431,6 +431,7 @@ export default function CrmDashboard({
   const navBadges = {
     badge: today?.badgeCount ?? 0,
     deals: dealList.length,
+    cards: dealList.filter((d) => !isPassedOnDeal(normalizeDeal(d))).length,
     tasks: openTaskCount
   };
 

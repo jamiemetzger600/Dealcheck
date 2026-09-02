@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { crmAPI, dealsAPI } from '../../utils/api';
-import { normalizeDeal, getDealProgressLabel } from '../../utils/normalizeDeal';
+import { normalizeDeal, getDealProgressLabel, isPassedOnDeal } from '../../utils/normalizeDeal';
 import { getCalculatorDefaultsFromSettings } from '../../utils/calculatorDefaultsFromSettings';
 import { getSavedDealCalculatorSummary } from '../../utils/savedDealCalculatorSummary';
 import { useTeam } from '../../context/TeamContext';
@@ -58,6 +58,7 @@ export default function CrmDeedBoard({
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [waitingFilter, setWaitingFilter] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
 
   const calculatorDefaults = useMemo(
     () => getCalculatorDefaultsFromSettings(settings),
@@ -69,9 +70,17 @@ export default function CrmDeedBoard({
     [deals]
   );
 
+  const archivedCount = useMemo(
+    () => normalized.filter(isPassedOnDeal).length,
+    [normalized]
+  );
+  const activeCount = normalized.length - archivedCount;
+
   const orderedDeals = useMemo(() => {
     const q = query.trim().toLowerCase();
     const matched = normalized.filter((deal) => {
+      const passed = isPassedOnDeal(deal);
+      if (showArchived ? !passed : passed) return false;
       const waiting = getWaitingOn(prefs, deal.id);
       const nextAction =
         nextActionByDealId instanceof Map
@@ -92,18 +101,20 @@ export default function CrmDeedBoard({
       return true;
     });
     return partitionDeedDeals(matched, prefs);
-  }, [normalized, prefs, query, stageFilter, waitingFilter, nextActionByDealId]);
+  }, [normalized, prefs, query, stageFilter, waitingFilter, nextActionByDealId, showArchived]);
 
   const allIds = useMemo(() => normalized.map((d) => d.id), [normalized]);
 
   const stageOptions = useMemo(() => {
     const set = new Set();
     for (const deal of normalized) {
+      if (!showArchived && isPassedOnDeal(deal)) continue;
+      if (showArchived && !isPassedOnDeal(deal)) continue;
       const label = getDealProgressLabel(deal);
       if (label) set.add(label);
     }
     return [...set].sort();
-  }, [normalized]);
+  }, [normalized, showArchived]);
 
   const persist = useCallback((next) => {
     setPrefs(next);
@@ -359,7 +370,7 @@ export default function CrmDeedBoard({
   return (
     <div className="crm-deed-board">
       <div className="crm-deed-board__banner">
-        <strong>Test view.</strong> Pin as many deals as you want — they stay on top. Search or filter the board. Drag to reorder; drop onto a pinned card to pin.
+        <strong>Test view.</strong> Pin as many deals as you want — they stay on top. Passed-on deals are archived so they do not clutter the board.
         {writeEnabled ? '' : ' Viewer role — cards are read-only.'}
       </div>
 
@@ -413,9 +424,26 @@ export default function CrmDeedBoard({
             Clear
           </button>
         ) : null}
+        {archivedCount > 0 ? (
+          <button
+            type="button"
+            className={`btn-secondary${showArchived ? ' crm-deed-board__archive-btn--on' : ''}`}
+            aria-pressed={showArchived}
+            onClick={() => {
+              const next = !showArchived;
+              setShowArchived(next);
+              setStageFilter('');
+              console.log('[CrmDeedBoard] archive', next, archivedCount);
+            }}
+          >
+            {showArchived ? 'Back to active' : `Archived (${archivedCount})`}
+          </button>
+        ) : null}
         <span className="crm-kanban-count">
-          {visibleCount}{hasFilters ? ` of ${normalized.length}` : ''} deals
-          {pinnedDeals.length > 0 ? ` · ${pinnedDeals.length} pinned` : ''}
+          {showArchived
+            ? `${visibleCount}${hasFilters ? ` of ${archivedCount}` : ''} archived`
+            : `${visibleCount}${hasFilters ? ` of ${activeCount}` : ''} deals`}
+          {!showArchived && pinnedDeals.length > 0 ? ` · ${pinnedDeals.length} pinned` : ''}
         </span>
         {typeof onAddDeal === 'function' ? (
           <button type="button" className="btn-primary" onClick={onAddDeal}>
@@ -432,7 +460,11 @@ export default function CrmDeedBoard({
       ) : matchEmpty ? (
         <div className="crm-empty">
           <h2>No matching cards</h2>
-          <p>Try a different search or clear the filters.</p>
+          <p>
+            {showArchived
+              ? 'No archived (passed on) deals match.'
+              : 'Try a different search, or open Archived for passed-on deals.'}
+          </p>
         </div>
       ) : (
         <>
@@ -451,7 +483,10 @@ export default function CrmDeedBoard({
           {restDeals.length > 0 ? (
             <section className="crm-deed-board__section" aria-label="Other deals">
               <h2 className="crm-deed-board__section-title">
-                {pinnedDeals.length > 0 ? 'Other deals' : 'Deals'} <span>{restDeals.length}</span>
+                {showArchived
+                  ? (pinnedDeals.length > 0 ? 'Other archived' : 'Archived')
+                  : (pinnedDeals.length > 0 ? 'Other deals' : 'Deals')}{' '}
+                <span>{restDeals.length}</span>
               </h2>
               <div className="crm-deed-board__grid">
                 {restDeals.map(renderCard)}

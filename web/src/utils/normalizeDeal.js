@@ -190,3 +190,9 @@ export function getDealProgressLabel(deal) {
   }
   return stage;
 }
+
+/** True when the deal is marked Passed On (archived from Cards). */
+export function isPassedOnDeal(deal) {
+  const stage = String(getDealProgressLabel(deal) || deal?.progressStage || '').trim();
+  return stage === 'Passed On Deal' || /^passed on/i.test(stage);
+}

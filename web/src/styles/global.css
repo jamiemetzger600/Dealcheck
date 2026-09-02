@@ -10986,6 +10986,11 @@ button.aggregator-welcome__buybox {
   color: var(--text-secondary);
 }
 
+.crm-deed-board__archive-btn--on {
+  border-color: var(--primary);
+  color: var(--text-primary);
+}
+
 .crm-deed-board__grid {
   display: flex;
   flex-wrap: wrap;

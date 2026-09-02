@@ -77,7 +77,7 @@ export async function markDealTalkAlertsRead(userId, savedDealId) {
      WHERE user_id = $1
        AND saved_deal_id = $2
        AND read_at IS NULL
-       AND alert_type IN ('talk_mention', 'talk_assign')
+       AND alert_type IN ('talk_mention', 'talk_assign', 'talk_post')
      RETURNING id`,
     [userId, savedDealId]
   );

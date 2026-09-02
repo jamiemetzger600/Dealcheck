@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { crmAPI } from '../../utils/api';
 
 /**
- * Sticky in-app alerts for Talk @mentions / assigns.
- * Polls lightly so tagged users notice even when not on the CRM tab.
+ * Sticky in-app alerts for Talk posts, @mentions, and assigns.
+ * Polls lightly so teammates notice even when not on the CRM tab.
  */
 export default function TalkAlertBanner({
   enabled = true,

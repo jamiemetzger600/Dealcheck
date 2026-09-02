@@ -206,7 +206,7 @@ export default function DealThread({
     <div className="deal-thread">
       <div className="deal-thread__header">
         <h3>Talk</h3>
-        <p className="deal-thread__hint">@mention · assign + due date · link DD · resolve</p>
+        <p className="deal-thread__hint">Team is notified on every post · @mention · assign + due</p>
       </div>
 
       {error ? <p className="deal-thread__error">{error}</p> : null}

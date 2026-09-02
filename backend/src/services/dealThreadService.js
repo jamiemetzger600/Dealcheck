@@ -44,6 +44,37 @@ function talkAlertEmail({ subject, greeting, dealName, body, savedDealId }) {
   };
 }
 
+async function notifyTalkUser({
+  userId,
+  email,
+  alertType,
+  title,
+  greeting,
+  subject,
+  body,
+  savedDealId,
+  messageId,
+  dealName,
+  authorEmail,
+  extraMeta = {}
+}) {
+  await createUserAlert({
+    userId,
+    alertType,
+    title,
+    body: String(body || '').slice(0, 500),
+    savedDealId,
+    messageId,
+    metadata: { dealName, authorEmail, ...extraMeta }
+  }).catch((err) => console.warn(`[dealThread] ${alertType} alert failed:`, err.message));
+
+  if (!email) return;
+  const mail = talkAlertEmail({ subject, greeting, dealName, body, savedDealId });
+  await sendEmail({ to: email, ...mail }).catch((err) => {
+    console.warn(`[dealThread] ${alertType} email failed:`, err.message);
+  });
+}
+
 function extractEmailsFromBody(body) {
   const emails = new Set();
   let m;
@@ -228,78 +259,84 @@ export async function postDealMessage(userId, savedDealId, { body, assigneeUserI
   const authorRes = await pool.query(`SELECT email FROM users WHERE id = $1`, [userId]);
   const authorEmail = authorRes.rows[0]?.email || 'A teammate';
 
-  // Mentions: match @email against team members
+  // Mentions, assigns, then every other teammate (plain Talk posts used to be silent).
   if (access.deal.team_id) {
-    const emails = extractEmailsFromBody(text);
-    if (emails.length) {
-      const members = await pool.query(
-        `SELECT u.id, LOWER(u.email) AS email FROM team_members tm
-         JOIN users u ON u.id = tm.user_id
-         WHERE tm.team_id = $1 AND tm.status = 'active'`,
-        [access.deal.team_id]
+    const members = await pool.query(
+      `SELECT u.id, LOWER(u.email) AS email FROM team_members tm
+       JOIN users u ON u.id = tm.user_id
+       WHERE tm.team_id = $1 AND tm.status = 'active'`,
+      [access.deal.team_id]
+    );
+    const byEmail = new Map(members.rows.map((r) => [r.email, r]));
+    const notified = new Set();
+
+    for (const email of extractEmailsFromBody(text)) {
+      const member = byEmail.get(email);
+      if (!member || member.id === userId) continue;
+      await pool.query(
+        `INSERT INTO deal_message_mentions (message_id, user_id)
+         VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [message.id, member.id]
       );
-      const byEmail = new Map(members.rows.map((r) => [r.email, r.id]));
-
-      for (const email of emails) {
-        const mentionedId = byEmail.get(email);
-        if (!mentionedId || mentionedId === userId) continue;
-        await pool.query(
-          `INSERT INTO deal_message_mentions (message_id, user_id)
-           VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [message.id, mentionedId]
-        );
-
-        await createUserAlert({
-          userId: mentionedId,
-          alertType: 'talk_mention',
-          title: `${authorEmail} mentioned you`,
-          body: text.slice(0, 500),
-          savedDealId,
-          messageId: message.id,
-          metadata: { dealName, authorEmail }
-        }).catch((err) => console.warn('[dealThread] mention alert failed:', err.message));
-
-        const mail = talkAlertEmail({
-          subject: `${authorEmail} mentioned you on “${dealName}”`,
-          greeting: `${authorEmail} mentioned you in Talk:`,
-          dealName,
-          body: text,
-          savedDealId
-        });
-        await sendEmail({ to: email, ...mail }).catch((err) => {
-          console.warn('[dealThread] mention email failed:', err.message);
-        });
-      }
+      await notifyTalkUser({
+        userId: member.id,
+        email,
+        alertType: 'talk_mention',
+        title: `${authorEmail} mentioned you`,
+        greeting: `${authorEmail} mentioned you in Talk:`,
+        subject: `${authorEmail} mentioned you on “${dealName}”`,
+        body: text,
+        savedDealId,
+        messageId: message.id,
+        dealName,
+        authorEmail
+      });
+      notified.add(member.id);
     }
 
     if (assignee && assignee !== userId) {
-      const assigneeRow = await pool.query(`SELECT email FROM users WHERE id = $1`, [assignee]);
-      if (assigneeRow.rows[0]?.email) {
-        await createUserAlert({
+      const assigneeMember = members.rows.find((r) => r.id === assignee);
+      const assigneeEmail = assigneeMember?.email
+        || (await pool.query(`SELECT LOWER(email) AS email FROM users WHERE id = $1`, [assignee])).rows[0]?.email;
+      if (assigneeEmail) {
+        await notifyTalkUser({
           userId: assignee,
+          email: assigneeEmail,
           alertType: 'talk_assign',
           title: `${authorEmail} assigned you`,
-          body: text.slice(0, 500),
+          greeting: `${authorEmail} assigned you in Talk:`,
+          subject: `${authorEmail} assigned you on “${dealName}”`,
+          body: text,
           savedDealId,
           messageId: message.id,
-          metadata: {
-            dealName,
-            authorEmail,
-            dueAt: parsedDueAt || null
-          }
-        }).catch((err) => console.warn('[dealThread] assign alert failed:', err.message));
-
-        const mail = talkAlertEmail({
-          subject: `${authorEmail} assigned you on “${dealName}”`,
-          greeting: `${authorEmail} assigned you in Talk:`,
           dealName,
-          body: text,
-          savedDealId
+          authorEmail,
+          extraMeta: { dueAt: parsedDueAt || null }
         });
-        await sendEmail({ to: assigneeRow.rows[0].email, ...mail }).catch((err) => {
-          console.warn('[dealThread] assign email failed:', err.message);
-        });
+        notified.add(assignee);
       }
+    }
+
+    let postAlerts = 0;
+    for (const member of members.rows) {
+      if (member.id === userId || notified.has(member.id)) continue;
+      await notifyTalkUser({
+        userId: member.id,
+        email: member.email,
+        alertType: 'talk_post',
+        title: `${authorEmail} posted an update`,
+        greeting: `${authorEmail} posted an update in Talk:`,
+        subject: `${authorEmail} posted in Talk on “${dealName}”`,
+        body: text,
+        savedDealId,
+        messageId: message.id,
+        dealName,
+        authorEmail
+      });
+      postAlerts += 1;
+    }
+    if (postAlerts) {
+      console.log(`[dealThread] talk_post alerts=${postAlerts} message=${message.id} deal=${savedDealId}`);
     }
   }
 

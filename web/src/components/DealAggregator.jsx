@@ -432,6 +432,7 @@ export default function DealAggregator({
   /** @type {[{ message: string, showCrmCta?: boolean } | null, Function]} */
   const [saveToast, setSaveToast] = useState(null);
   const [savingDealId, setSavingDealId] = useState(null);
+  const [workspaceSaveOverride, setWorkspaceSaveOverride] = useState({});
   const [buyBoxSwitching, setBuyBoxSwitching] = useState(false);
   const [feedError, setFeedError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -564,6 +565,41 @@ export default function DealAggregator({
     () => new Set((saveScopeSavedDealIds ?? savedDealIds ?? []).filter(Boolean).map((id) => String(id))),
     [saveScopeSavedDealIds, savedDealIds]
   );
+
+  const isDealSavedInWorkspace = useCallback((deal) => {
+    if (!deal) return false;
+    const keys = marketDealMatchKeys(deal);
+    for (const k of keys) {
+      if (Object.prototype.hasOwnProperty.call(workspaceSaveOverride, k)) {
+        return Boolean(workspaceSaveOverride[k]);
+      }
+    }
+    return isDealInSavedList(deal, saveScopeDealIdSet);
+  }, [saveScopeDealIdSet, workspaceSaveOverride]);
+
+  const setWorkspaceSaved = useCallback((deal, saved) => {
+    setWorkspaceSaveOverride((prev) => {
+      const next = { ...prev };
+      for (const k of marketDealMatchKeys(deal)) next[k] = saved;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    setWorkspaceSaveOverride((prev) => {
+      const keys = Object.keys(prev);
+      if (!keys.length) return prev;
+      let changed = false;
+      const next = { ...prev };
+      for (const k of keys) {
+        if (Boolean(prev[k]) === saveScopeDealIdSet.has(k)) {
+          delete next[k];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [saveScopeDealIdSet]);
 
   const saveScopeRowIdMap = saveScopeRowIdByMarketDealId ?? savedRowIdByMarketDealId;
 
@@ -965,18 +1001,23 @@ export default function DealAggregator({
   const handleUnsaveDeal = async (deal) => {
     const rowId = getSavedRowIdForMarketDeal(deal);
     if (rowId == null) {
-      console.warn('[DealAggregator] No saved row id for market deal', deal?.id);
+      console.warn('[DealAggregator] No saved row id for market deal', deal?.id, deal?.dbId);
       alert('Could not remove this listing from Vettr CRM. Try refreshing the page.');
       return;
     }
     setSavingDealId(deal.id);
+    setWorkspaceSaved(deal, false);
     try {
       await dealsAPI.deleteDeal(rowId);
+      console.log('[DealAggregator] unsaved', { dealId: deal?.id, dbId: deal?.dbId, rowId, saveTargetLabel });
       setSaveToast({
         message: saveTeamId ? `Removed from ${saveTargetLabel}` : 'Removed from Vettr CRM'
       });
-      onSaveDeal();
+      if (typeof onSaveDeal === 'function') {
+        await onSaveDeal();
+      }
     } catch (error) {
+      setWorkspaceSaved(deal, true);
       alert('Failed to remove deal: ' + error.message);
     } finally {
       setSavingDealId(null);
@@ -984,7 +1025,7 @@ export default function DealAggregator({
   };
 
   const handleToggleSaveDeal = async (deal) => {
-    if (isDealInSavedList(deal, saveScopeDealIdSet)) {
+    if (isDealSavedInWorkspace(deal)) {
       await handleUnsaveDeal(deal);
     } else {
       await handleSaveDeal(deal);
@@ -1047,7 +1088,7 @@ export default function DealAggregator({
       }
       return null;
     }
-    if (isDealInSavedList(deal, saveScopeDealIdSet)) {
+    if (isDealSavedInWorkspace(deal)) {
       const alreadyMsg = saveTeamId
         ? `Already saved to ${saveTargetLabel}`
         : 'Already saved to Vettr CRM';
@@ -1066,6 +1107,7 @@ export default function DealAggregator({
     setSavingDealId(deal.id);
     try {
       const savedId = await persistNewSavedDeal(deal);
+      setWorkspaceSaved(deal, true);
       const toastMsg = payloadTeamId
         ? `Saved to ${saveTargetLabel}`
         : 'Saved to Vettr CRM';
@@ -1115,6 +1157,7 @@ export default function DealAggregator({
     setSavingDealId(deal.id);
     try {
       const savedId = await persistNewSavedDeal(deal);
+      setWorkspaceSaved(deal, true);
       console.log('[DealAggregator] auto-saved for status', { dealId: deal.id, savedDealId: savedId });
       return savedId;
     } catch (error) {
@@ -2489,7 +2532,7 @@ export default function DealAggregator({
               ) : (
                 dealsToShow.map((deal) => {
                   const isHidden = isDealHidden(deal, hiddenDealIds);
-                  const dealSaved = isDealInSavedList(deal, savedDealIdSet);
+                  const dealSaved = isDealSavedInWorkspace(deal);
                   return (
                   <tr key={deal.id} className={isHidden ? 'deal-row-hidden' : ''} onClick={() => setSelectedDeal(deal)}>
                     {visibleOrderedColumns.map((columnId) => renderDealCell(columnId, deal, {
@@ -2566,7 +2609,7 @@ export default function DealAggregator({
               <DealInboxView
                 deals={dealsToShow}
                 emptyMessage={emptyFeedMessage}
-                isDealSaved={(d) => isDealInSavedList(d, savedDealIdSet)}
+                isDealSaved={(d) => isDealSavedInWorkspace(d)}
                 isDealHidden={(d) => isDealHidden(d, hiddenDealIds)}
                 savingDealId={savingDealId}
                 onHide={handleToggleHidden}
@@ -2639,7 +2682,7 @@ export default function DealAggregator({
               ) : (
                 dealsToShow.map((deal) => {
                   const isHidden = isDealHidden(deal, hiddenDealIds);
-                  const dealSaved = isDealInSavedList(deal, savedDealIdSet);
+                  const dealSaved = isDealSavedInWorkspace(deal);
                   const descCard = cardViewDescriptionPreview(deal.description, 4);
                   const cardLoc = cardMetricLocation(deal);
                   return (
@@ -2763,7 +2806,7 @@ export default function DealAggregator({
         onSaveDeal={handleSaveDeal}
         onUnsaveDeal={handleUnsaveDeal}
         isSavingDeal={savingDealId != null && selectedDeal?.id === savingDealId}
-        dealSavedInMyDeals={selectedDeal ? isDealInSavedList(selectedDeal, saveScopeDealIdSet) : false}
+        dealSavedInMyDeals={selectedDeal ? isDealSavedInWorkspace(selectedDeal) : false}
         saveButtonLabel={`Save to ${saveTargetLabel}`}
         unsaveButtonTitle={`Click to remove from ${saveTargetLabel}`}
         savedHighlightStyle={showSavedHighlightInFeed}

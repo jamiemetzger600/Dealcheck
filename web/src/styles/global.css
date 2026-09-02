@@ -7744,12 +7744,20 @@ button.aggregator-welcome__buybox {
 }
 
 .deal-details-body--stack {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .deal-details-body--stack .deal-section-slots {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   gap: 12px;
   width: 100%;
 }
@@ -8272,6 +8280,57 @@ button.aggregator-welcome__buybox {
   box-shadow: 0 0 0 1px var(--primary);
 }
 
+.crm-card-menu {
+  position: fixed;
+  z-index: 1500;
+  min-width: 188px;
+  padding: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.crm-card-menu__item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crm-card-menu__item:hover,
+.crm-card-menu__item:focus-visible {
+  background: var(--bg-tertiary);
+  outline: none;
+}
+
+.crm-card-menu__item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.crm-card-menu__item--danger {
+  color: var(--error);
+}
+
+.crm-card-menu__item--danger:hover,
+.crm-card-menu__item--danger:focus-visible {
+  background: rgba(231, 76, 60, 0.12);
+}
+
+.crm-card-menu__sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
+}
+
 .crm-kanban-card__title {
   margin: 0 0 6px;
   font-size: 13px;
@@ -8527,6 +8586,9 @@ button.aggregator-welcome__buybox {
 
 .crm-drawer--record {
   width: min(960px, 100vw);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .crm-drawer--peek {
@@ -8557,8 +8619,24 @@ button.aggregator-welcome__buybox {
   }
 }
 
+.crm-deal-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.crm-deal-panel .crm-record-chrome {
+  flex-shrink: 0;
+}
+
 .crm-deal-panel .deal-details-panel {
   max-width: none;
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .crm-deal-panel .deal-details-panel--panel-only {
@@ -10836,3 +10914,483 @@ button.aggregator-welcome__buybox {
   margin: 0;
   font-size: 12px;
 }
+
+/* ── CRM deed cards (Monopoly test view) ─────────────────────────── */
+.crm-deed-board {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.crm-deed-board__banner {
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.crm-deed-board__banner strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.crm-deed-board__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-deed-board__search {
+  flex: 1 1 180px;
+  min-width: 160px;
+  max-width: 280px;
+}
+
+.crm-deed-board__search .modal-input,
+.crm-deed-board__toolbar > .modal-input {
+  width: 100%;
+  min-height: 36px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.crm-deed-board__toolbar > select.modal-input {
+  flex: 0 1 170px;
+  width: auto;
+  max-width: 200px;
+}
+
+.crm-deed-board__section-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.crm-deed-board__section-title span {
+  color: var(--text-primary);
+  letter-spacing: 0;
+}
+
+.crm-deed-board__pin-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.crm-deed-board__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  padding-bottom: 8px;
+}
+
+.crm-deed-card {
+  width: 236px;
+  flex: 0 0 236px;
+  background: #efe6c9;
+  color: #111;
+  border: 2px solid #111;
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  user-select: none;
+}
+
+.crm-deed-card:hover {
+  box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.42);
+}
+
+.crm-deed-card--selected {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.crm-deed-card--dragging {
+  opacity: 0.45;
+}
+
+.crm-deed-card--drop {
+  outline: 2px dashed #111;
+  outline-offset: 2px;
+}
+
+.crm-deed-card__inner {
+  margin: 7px;
+  border: 1.5px solid #111;
+  min-height: 340px;
+  display: flex;
+  flex-direction: column;
+  background: #f7f1dc;
+}
+
+.crm-deed-card__header {
+  background: var(--deed-color, #0072bb);
+  color: var(--deed-ink, #fff);
+  text-align: center;
+  padding: 10px 8px 12px;
+}
+
+.crm-deed-card__kicker {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.crm-deed-card__pin-mark {
+  letter-spacing: 0;
+  font-size: 11px;
+}
+
+.crm-deed-card__name {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1.25;
+  color: inherit;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.crm-deed-card__status {
+  display: block;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #111;
+  background: transparent;
+  color: #111;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px 8px 8px;
+  cursor: pointer;
+}
+
+.crm-deed-card__status:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.crm-deed-card__rows {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px 0;
+}
+
+.crm-deed-card__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #111;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+}
+
+.crm-deed-card__row span:first-child {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.crm-deed-card__row span:last-child {
+  text-align: right;
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-deed-card__row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.crm-deed-card__row--urgent span:last-child {
+  color: #9b1c1c;
+  font-weight: 700;
+}
+
+.crm-deed-card__metrics {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.18);
+  background: transparent;
+  color: #111;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 8px;
+  cursor: pointer;
+}
+
+.crm-deed-card__metrics:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.crm-deed-card__metrics span {
+  white-space: nowrap;
+}
+
+.crm-deed-card__coc[data-tier='excellent'],
+.crm-deed-card__coc[data-tier='very-good'] {
+  color: #1a7a3a;
+}
+
+.crm-deed-card__coc[data-tier='good'] {
+  color: #2f5d3a;
+}
+
+.crm-deed-card__coc[data-tier='fair'] {
+  color: #8a6a00;
+}
+
+.crm-deed-card__coc[data-tier='bad'] {
+  color: #9b1c1c;
+}
+
+.crm-deed-card__waiting {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px 6px;
+  border: none;
+  background: transparent;
+  color: #111;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.crm-deed-card__waiting:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.crm-deed-card__waiting-label {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.crm-deed-card__waiting-empty {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.crm-deed-card__waiting ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.crm-deed-card__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 6px;
+  padding: 6px 6px 8px;
+  border-top: 1px solid #111;
+}
+
+.crm-deed-card__shortcuts button {
+  border: none;
+  background: transparent;
+  color: #111;
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.crm-deed-card__shortcuts button:hover {
+  text-decoration: underline;
+}
+
+.crm-deed-modal-overlay {
+  z-index: 12000;
+}
+
+.crm-deed-modal-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.crm-deed-modal {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  color: var(--text-primary);
+}
+
+.crm-deed-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.crm-deed-modal__header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.crm-deed-modal__close {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.crm-deed-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.crm-deed-modal__body label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.crm-deed-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.crm-deed-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crm-deed-modal__next--urgent {
+  color: var(--error);
+}
+
+.crm-deed-modal__metrics {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crm-deed-modal__metrics div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crm-deed-modal__metrics dt {
+  color: var(--text-secondary);
+}
+
+.crm-deed-modal__metrics dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.crm-deed-modal__checks,
+.crm-deed-modal__custom {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crm-deed-modal__checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.crm-deed-modal__custom li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.crm-deed-modal__swatches {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.crm-deed-swatch {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  min-height: 40px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.crm-deed-swatch--active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+@media (max-width: 767px) {
+  .crm-deed-card {
+    width: 100%;
+    flex-basis: 100%;
+    max-width: 280px;
+    margin-inline: auto;
+  }
+}
+

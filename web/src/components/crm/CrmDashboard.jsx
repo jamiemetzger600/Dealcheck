@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { crmAPI } from '../../utils/api';
+import { crmAPI, dealsAPI } from '../../utils/api';
 import { normalizeDeal } from '../../utils/normalizeDeal';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import CrmKanban from './CrmKanban';
+import CrmDeedBoard from './CrmDeedBoard';
 import CrmDealWorkspace from './CrmDealWorkspace';
 import CrmDealPeek from './CrmDealPeek';
 import CrmObjectNav from './CrmObjectNav';
@@ -23,7 +24,7 @@ import CrmCsvImportModal from './CrmCsvImportModal';
 import SavedDeals from '../SavedDeals';
 import { useAuth } from '../../context/AuthContext';
 
-const VALID_VIEWS = new Set(['home', 'list', 'tasks', 'contacts', 'calendar', 'analytics']);
+const VALID_VIEWS = new Set(['home', 'cards', 'list', 'tasks', 'contacts', 'calendar', 'analytics']);
 
 function normalizeCrmView(view) {
   if (!view) return 'home';
@@ -68,6 +69,10 @@ export default function CrmDashboard({
   const [showCsvImport, setShowCsvImport] = useState(false);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [highlightContactId, setHighlightContactId] = useState(null);
+  /** Deals fetched by id when parent list is stale (e.g. just saved from extension). */
+  const [fetchedDealsById, setFetchedDealsById] = useState(() => new Map());
+  const [fetchingDealId, setFetchingDealId] = useState(null);
+  const [fetchDealError, setFetchDealError] = useState(null);
   const deepLinkHandled = useRef(false);
 
   const loadToday = useCallback(async () => {
@@ -128,14 +133,66 @@ export default function CrmDashboard({
     const raw = dealList.find(
       (d) => String(d.vettrId ?? '') === sid || String(d.id ?? '') === sid
     );
-    return raw ? normalizeDeal(raw) : null;
-  }, [dealList]);
+    if (raw) return normalizeDeal(raw);
+    const fetched = fetchedDealsById.get(sid);
+    return fetched ? normalizeDeal(fetched) : null;
+  }, [dealList, fetchedDealsById]);
+
+  /** When search/kanban has a deal the parent list doesn't, load it so peek/workspace can open. */
+  const ensureDealLoaded = useCallback(async (id) => {
+    if (id == null) return null;
+    const sid = String(id);
+    const existing = dealList.find(
+      (d) => String(d.vettrId ?? '') === sid || String(d.id ?? '') === sid
+    );
+    if (existing) return normalizeDeal(existing);
+    if (fetchedDealsById.has(sid)) return normalizeDeal(fetchedDealsById.get(sid));
+
+    setFetchingDealId(sid);
+    setFetchDealError(null);
+    try {
+      const data = await dealsAPI.getDeal(sid);
+      const deal = data?.deal;
+      if (!deal) throw new Error('Deal not found');
+      const normalized = normalizeDeal(deal);
+      setFetchedDealsById((prev) => {
+        const next = new Map(prev);
+        next.set(sid, normalized);
+        return next;
+      });
+      console.log('[CrmDashboard] fetched missing deal', sid, normalized?.name);
+      onRefresh?.();
+      return normalized;
+    } catch (err) {
+      console.warn('[CrmDashboard] fetch deal failed', sid, err.message);
+      setFetchDealError(err.message || 'Failed to load deal');
+      return null;
+    } finally {
+      setFetchingDealId((cur) => (cur === sid ? null : cur));
+    }
+  }, [dealList, fetchedDealsById, onRefresh]);
 
   const peekDeal = useMemo(() => findDeal(peekDealId), [findDeal, peekDealId]);
   const recordDeal = useMemo(() => findDeal(recordDealId), [findDeal, recordDealId]);
   const selectedDealId = recordDealId || peekDealId;
 
+  useEffect(() => {
+    const id = recordDealId || peekDealId;
+    if (id == null) return;
+    if (findDeal(id)) return;
+    ensureDealLoaded(id);
+  }, [recordDealId, peekDealId, findDeal, ensureDealLoaded]);
+
   const nextActionByDealId = useMemo(() => buildNextActionByDealId(today), [today]);
+
+  const ddOverdueDealIds = useMemo(() => {
+    const set = new Set();
+    for (const row of today?.ddOverdue || []) {
+      const id = Number(row.saved_deal_id);
+      if (Number.isFinite(id)) set.add(id);
+    }
+    return set;
+  }, [today]);
 
   const highlightDealIds = useMemo(
     () => getActionFilterDealIds(today, actionFilter),
@@ -163,20 +220,24 @@ export default function CrmDashboard({
 
   const openPeek = useCallback((id) => {
     console.log('[CrmDashboard] peek', id);
+    setFetchDealError(null);
     setPeekDealId(id);
     setRecordDealId(null);
     setWorkspaceFocusSection(null);
-  }, []);
+    ensureDealLoaded(id);
+  }, [ensureDealLoaded]);
 
   const openRecord = useCallback((id, opts = {}) => {
     console.log('[CrmDashboard] open record', id, opts.focusSection || null);
+    setFetchDealError(null);
     setRecordDealId(id);
     setPeekDealId(null);
     setWorkspaceFocusSection(opts.focusSection || null);
-  }, []);
+    ensureDealLoaded(id);
+  }, [ensureDealLoaded]);
 
   const handleSelectDeal = useCallback((id, opts = {}) => {
-    if (opts.focusSection) {
+    if (opts.openRecord || opts.focusSection) {
       openRecord(id, opts);
     } else {
       openPeek(id);
@@ -402,7 +463,43 @@ export default function CrmDashboard({
           </div>,
           document.body
         )
-      : null;
+      : selectedDealId
+        && !peekDeal
+        && !recordDeal
+        && typeof document !== 'undefined'
+        ? createPortal(
+          <div className="crm-peek-overlay" role="presentation">
+            <button
+              type="button"
+              className="crm-peek-overlay__backdrop"
+              aria-label="Close"
+              onClick={() => {
+                handleClosePeek();
+                handleCloseRecord();
+              }}
+            />
+            <aside className="crm-peek-overlay__panel" role="dialog" aria-modal="true" aria-label="Loading deal">
+              <div className="crm-panel" style={{ padding: 16 }}>
+                {fetchingDealId ? (
+                  <p className="crm-muted">Loading deal…</p>
+                ) : (
+                  <>
+                    <p>{fetchDealError || 'This deal could not be opened.'}</p>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => ensureDealLoaded(selectedDealId)}
+                    >
+                      Retry
+                    </button>
+                  </>
+                )}
+              </div>
+            </aside>
+          </div>,
+          document.body
+        )
+        : null;
 
   const mainContent = (
     <>
@@ -475,6 +572,20 @@ export default function CrmDashboard({
             />
           )}
         </>
+      )}
+
+      {crmView === 'cards' && (
+        <CrmDeedBoard
+          deals={filteredDeals}
+          settings={settings}
+          selectedDealId={selectedDealId}
+          onSelectDeal={handleSelectDeal}
+          onRefresh={handleRefresh}
+          onStageChanged={handleStageChanged}
+          nextActionByDealId={nextActionByDealId}
+          overdueDealIds={ddOverdueDealIds}
+          onAddDeal={onAddDeal}
+        />
       )}
 
       {crmView === 'list' && (

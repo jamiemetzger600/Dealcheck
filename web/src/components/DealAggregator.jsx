@@ -1057,8 +1057,9 @@ export default function DealAggregator({
         saveTeamId,
         toast: alreadyMsg
       });
-      setSaveToast({ message: alreadyMsg, showCrmCta: true });
-      return getSavedRowIdForMarketDeal(deal);
+      const existingId = getSavedRowIdForMarketDeal(deal);
+      setSaveToast({ message: alreadyMsg, showCrmCta: true, dealId: existingId });
+      return existingId;
     }
     const teamIdForSave = saveTeamId != null ? Number(saveTeamId) : null;
     const payloadTeamId = Number.isFinite(teamIdForSave) && teamIdForSave > 0 ? teamIdForSave : null;
@@ -1073,7 +1074,7 @@ export default function DealAggregator({
         vettrId: savedId,
         responseTeamId: payloadTeamId
       });
-      setSaveToast({ message: toastMsg, showCrmCta: true });
+      setSaveToast({ message: toastMsg, showCrmCta: true, dealId: savedId });
       return savedId;
     } catch (error) {
       console.error('[DealAggregator] save failed', {
@@ -2783,8 +2784,10 @@ export default function DealAggregator({
               type="button"
               className="save-toast__cta"
               onClick={() => {
+                const dealId = saveToast.dealId;
+                console.log('[DealAggregator] Open Vettr CRM from save toast', { dealId });
                 setSaveToast(null);
-                onOpenVettrCrm();
+                onOpenVettrCrm(dealId != null ? { dealId } : undefined);
               }}
             >
               Open Vettr CRM

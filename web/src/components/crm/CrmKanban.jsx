@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { crmAPI } from '../../utils/api';
+import { crmAPI, dealsAPI } from '../../utils/api';
+import CrmCardContextMenu from './CrmCardContextMenu';
 import { normalizeDeal, formatMoney } from '../../utils/normalizeDeal';
 import { getCalculatorDefaultsFromSettings } from '../../utils/calculatorDefaultsFromSettings';
 import { getSavedDealCalculatorSummary } from '../../utils/savedDealCalculatorSummary';
@@ -21,6 +22,7 @@ function KanbanCard({
   isSelected,
   onDragStart,
   onDragEnd,
+  onContextMenu = null,
   draggable = true,
   dimmed = false,
   highlighted = false,
@@ -58,12 +60,22 @@ function KanbanCard({
       onDragStart={draggable ? onDragStart : undefined}
       onDragEnd={draggable ? onDragEnd : undefined}
       onClick={() => onSelect(deal.id)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onContextMenu?.(e, deal);
+      }}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onSelect(deal.id);
+        }
+        if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+          e.preventDefault();
+          const r = e.currentTarget.getBoundingClientRect();
+          onContextMenu?.({ clientX: r.left + r.width / 2, clientY: r.bottom }, deal);
         }
       }}
     >
@@ -134,6 +146,7 @@ export default function CrmKanban({
   const [dragDealId, setDragDealId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [moving, setMoving] = useState(false);
+  const [cardMenu, setCardMenu] = useState(null);
 
   const calculatorDefaults = useMemo(
     () => getCalculatorDefaultsFromSettings(settings),
@@ -214,6 +227,72 @@ export default function CrmKanban({
     setDropTarget(columnId);
   };
 
+  const handleContextMenu = useCallback((e, deal) => {
+    if (!deal?.id) return;
+    console.log('[CrmKanban] context menu', deal.id, deal.name);
+    setCardMenu({ deal, x: e.clientX, y: e.clientY });
+  }, []);
+
+  const closeCardMenu = useCallback(() => setCardMenu(null), []);
+
+  const handleDeleteDeal = useCallback(async (deal) => {
+    if (!deal?.id || !canWriteBoard) return;
+    if (!window.confirm(`Delete “${deal.name || 'this deal'}” from Vettr CRM?`)) return;
+    try {
+      await dealsAPI.deleteDeal(deal.id);
+      console.log('[CrmKanban] deleted deal', deal.id);
+      setCardMenu(null);
+      await loadKanban();
+      onRefresh?.();
+    } catch (err) {
+      alert('Failed to delete deal: ' + (err.message || 'error'));
+    }
+  }, [canWriteBoard, loadKanban, onRefresh]);
+
+  const cardMenuItems = useMemo(() => {
+    const deal = cardMenu?.deal;
+    if (!deal) return [];
+    const items = [
+      {
+        id: 'open',
+        label: 'Open',
+        onSelect: () => onSelectDeal?.(deal.id, { openRecord: true })
+      },
+      {
+        id: 'calculator',
+        label: 'Calculator',
+        onSelect: () => onSelectDeal?.(deal.id, { focusSection: 'calculator' })
+      }
+    ];
+    if (deal.url) {
+      items.push({
+        id: 'listing',
+        label: 'Open listing',
+        onSelect: () => window.open(deal.url, '_blank', 'noopener,noreferrer')
+      });
+    }
+    items.push({
+      id: 'copy',
+      label: 'Copy name',
+      onSelect: () => {
+        const name = deal.name || '';
+        if (navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(name).catch(() => {});
+        }
+      }
+    });
+    if (canWriteBoard) {
+      items.push({ id: 'sep-del', separator: true });
+      items.push({
+        id: 'delete',
+        label: 'Delete',
+        danger: true,
+        onSelect: () => handleDeleteDeal(deal)
+      });
+    }
+    return items;
+  }, [cardMenu, canWriteBoard, onSelectDeal, handleDeleteDeal]);
+
   const handleDrop = async (e, columnId) => {
     e.preventDefault();
     setDropTarget(null);
@@ -274,7 +353,7 @@ export default function CrmKanban({
       <div className="crm-kanban-toolbar">
         <p className="crm-kanban-toolbar__hint">
           {canWriteBoard
-            ? 'Drag deals between columns to update pipeline stage. Click a card to peek — Open for the full record.'
+            ? 'Drag deals between columns to update pipeline stage. Click a card to peek — right-click for Open, Calculator, Delete.'
             : 'Viewer role — pipeline is read-only. Open a deal to use Talk.'}
         </p>
         <div className="crm-kanban-toolbar__actions">
@@ -340,6 +419,7 @@ export default function CrmKanban({
                         draggable={canWriteBoard}
                         onDragStart={(e) => handleDragStart(e, deal.id)}
                         onDragEnd={handleDragEnd}
+                        onContextMenu={handleContextMenu}
                         dimmed={dimmed}
                         highlighted={highlighted}
                         nextAction={nextAction}
@@ -352,6 +432,14 @@ export default function CrmKanban({
           })}
         </div>
       )}
+      {cardMenu ? (
+        <CrmCardContextMenu
+          x={cardMenu.x}
+          y={cardMenu.y}
+          items={cardMenuItems}
+          onClose={closeCardMenu}
+        />
+      ) : null}
     </div>
   );
 }

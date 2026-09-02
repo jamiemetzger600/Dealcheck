@@ -15,8 +15,9 @@ const RECORD_TABS = [
   {
     id: 'overview',
     label: 'Overview',
-    sections: ['description', 'overview', 'calculator', 'ioi', 'crm-organize', 'crm-progress']
+    sections: ['description', 'overview', 'ioi', 'crm-organize', 'crm-progress']
   },
+  { id: 'calculator', label: 'Calculator', sections: ['calculator'] },
   { id: 'people', label: 'People', sections: ['broker-contact'] },
   { id: 'tasks', label: 'Tasks', sections: ['crm-followup'] },
   { id: 'timeline', label: 'Timeline', sections: ['crm-timeline'] },
@@ -28,7 +29,7 @@ const RECORD_TABS = [
 const SECTION_TO_TAB = {
   description: 'overview',
   overview: 'overview',
-  calculator: 'overview',
+  calculator: 'calculator',
   ioi: 'overview',
   'crm-organize': 'overview',
   'crm-progress': 'overview',

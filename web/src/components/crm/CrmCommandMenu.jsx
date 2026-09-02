@@ -8,7 +8,8 @@ const ACTIONS = [
   { id: 'action-tasks', type: 'action', label: 'Go to Tasks', action: 'view', view: 'tasks' },
   { id: 'action-calendar', type: 'action', label: 'Go to Calendar', action: 'view', view: 'calendar' },
   { id: 'action-contacts', type: 'action', label: 'Go to Contacts', action: 'view', view: 'contacts' },
-  { id: 'action-deals', type: 'action', label: 'Go to Deals', action: 'view', view: 'home' }
+  { id: 'action-deals', type: 'action', label: 'Go to Deals', action: 'view', view: 'home' },
+  { id: 'action-cards', type: 'action', label: 'Go to Cards', action: 'view', view: 'cards' }
 ];
 
 /**

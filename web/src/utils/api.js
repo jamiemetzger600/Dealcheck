@@ -243,6 +243,9 @@ export const dealsAPI = {
     return apiRequest(`/deals${qs ? `?${qs}` : ''}`);
   },
 
+  /** Single deal by Vettr row id — used when CRM list is stale after extension save. */
+  getDeal: (id) => apiRequest(`/deals/${id}`),
+
   saveDeal: async (deal) => {
     const result = await apiRequest('/deals', {
       method: 'POST',

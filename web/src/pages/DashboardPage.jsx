@@ -448,8 +448,13 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const openVettrCrm = useCallback((opts = {}) => {
     setActiveTab('crm');
     if (opts.view) setCrmInitialViewOverride(opts.view);
-    if (opts.dealId != null) setCrmInitialDealId(opts.dealId);
-    if (opts.focusSection) setCrmInitialFocusSection(opts.focusSection);
+    if (opts.dealId != null) {
+      setCrmInitialDealId(opts.dealId);
+      setCrmInitialFocusSection(opts.focusSection ?? 'overview');
+      console.log('[Dashboard] open CRM at deal', opts.dealId, opts.focusSection ?? 'overview');
+    } else if (opts.focusSection) {
+      setCrmInitialFocusSection(opts.focusSection);
+    }
   }, []);
 
   const backToInbox = useCallback(() => {
@@ -527,7 +532,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             onMatchCountUpdate={handleMatchCountUpdate}
             onDealsStatsUpdate={handleDealsStatsUpdate}
             onSaveDeal={loadUserData}
-            onOpenVettrCrm={() => openVettrCrm({ view: 'home' })}
+            onOpenVettrCrm={(opts) => openVettrCrm({ view: 'home', ...(opts || {}) })}
             onSettingsUpdate={loadUserData}
             onConfigureBuyBox={() => {
               setBuyBoxModalMode('edit');

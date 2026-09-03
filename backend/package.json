@@ -1,6 +1,6 @@
 {
   "name": "vettr-backend",
-  "version": "5.0.91",
+  "version": "5.0.92",
   "description": "Backend API for Vettr mobile web and native apps",
   "main": "src/index.js",
   "type": "module",
@@ -29,6 +29,7 @@
     "nodemailer": "^6.9.7",
     "pg": "^8.11.3",
     "stripe": "^14.7.0",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

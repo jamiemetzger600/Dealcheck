@@ -6,6 +6,14 @@ import TeamsSettingsPanel from '../components/TeamsSettingsPanel';
 import GetTheAppPanel from '../components/GetTheAppPanel';
 import GoogleIntegrationsPanel from '../components/GoogleIntegrationsPanel';
 import { useAuth } from '../context/AuthContext';
+import {
+  notificationPermission,
+  pushSupported,
+  requestNotificationPermission,
+  showLocalNotification,
+  subscribeWebPush,
+  unsubscribeWebPush
+} from '../utils/webNotifications';
 
 const SETTINGS_EXPORT_VERSION = 1;
 const DEFAULT_SETTINGS = {
@@ -56,6 +64,10 @@ export default function SettingsPage() {
   const [notificationFrequency, setNotificationFrequency] = useState('daily');
   const [hideSavedDealsInFeed, setHideSavedDealsInFeed] = useState(false);
   const [crmEmailDigest, setCrmEmailDigest] = useState(false);
+  const [browserNotifications, setBrowserNotifications] = useState(false);
+  const [pushStatus, setPushStatus] = useState(() => notificationPermission());
+  const [notifyBusy, setNotifyBusy] = useState(false);
+  const [notifyMessage, setNotifyMessage] = useState('');
   const [showSavedHighlightInFeed, setShowSavedHighlightInFeed] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -64,8 +76,8 @@ export default function SettingsPage() {
   const [exportResetMessage, setExportResetMessage] = useState('');
   const fileInputRef = useRef(null);
 
-  const viteApiUrl = import.meta.env.VITE_API_URL || '';
   const viteExtensionId = import.meta.env.VITE_EXTENSION_ID || '';
+  const chromeStoreUrl = (import.meta.env.VITE_CHROME_STORE_URL || '').trim();
 
   useEffect(() => {
     loadSettings();
@@ -88,11 +100,117 @@ export default function SettingsPage() {
       setNotificationFrequency(data.notificationFrequency || 'daily');
       setHideSavedDealsInFeed(Boolean(data.preferences?.hideSavedDealsInFeed));
       setCrmEmailDigest(Boolean(data.preferences?.crmEmailDigest));
+      setBrowserNotifications(Boolean(data.preferences?.browserNotifications));
+      setPushStatus(notificationPermission());
       setShowSavedHighlightInFeed(data.preferences?.showSavedHighlightInFeed !== false);
     } catch (error) {
       console.error('Failed to load settings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const flashNotify = (msg) => {
+    setNotifyMessage(msg);
+    setTimeout(() => setNotifyMessage(''), 5000);
+  };
+
+  const handleToggleBrowserNotifications = async (checked) => {
+    const prev = browserNotifications;
+    setBrowserNotifications(checked);
+    setNotifyBusy(true);
+    try {
+      if (checked) {
+        const permission = await requestNotificationPermission();
+        setPushStatus(permission);
+        if (permission !== 'granted') {
+          setBrowserNotifications(false);
+          flashNotify(
+            permission === 'denied'
+              ? 'Notifications are blocked in the browser. Allow them for this site, then try again.'
+              : 'Notification permission is required.'
+          );
+          return;
+        }
+        const sub = await subscribeWebPush(userAPI);
+        if (!sub.ok && sub.reason !== 'unsupported') {
+          console.warn('[settings] push subscribe', sub.reason);
+        }
+        await userAPI.updateSettings({ preferences: { browserNotifications: true } });
+        setSettings((s) =>
+          s ? { ...s, preferences: { ...s.preferences, browserNotifications: true } } : s
+        );
+        await showLocalNotification('Vettr alerts on', {
+          body: 'You will get desktop and PWA alerts for matching deals and team CRM activity.',
+          tag: 'vettr-enabled',
+          url: '/settings'
+        });
+        flashNotify(
+          sub.ok
+            ? 'Desktop and PWA notifications enabled.'
+            : 'Desktop alerts enabled. PWA push is unavailable in this browser (install the app on iOS, or use Chrome/Edge).'
+        );
+      } else {
+        await unsubscribeWebPush(userAPI);
+        await userAPI.updateSettings({ preferences: { browserNotifications: false } });
+        setSettings((s) =>
+          s ? { ...s, preferences: { ...s.preferences, browserNotifications: false } } : s
+        );
+        flashNotify('Browser notifications turned off.');
+      }
+    } catch (err) {
+      setBrowserNotifications(prev);
+      flashNotify(err.message || 'Failed to update notifications');
+    } finally {
+      setNotifyBusy(false);
+    }
+  };
+
+  const handleTestDesktop = async () => {
+    setNotifyBusy(true);
+    try {
+      const permission = await requestNotificationPermission();
+      setPushStatus(permission);
+      if (permission !== 'granted') {
+        flashNotify('Allow notifications for this site first.');
+        return;
+      }
+      const shown = await showLocalNotification('Vettr test', {
+        body: 'Desktop notification is working.',
+        tag: 'vettr-test',
+        url: '/settings'
+      });
+      let pushNote = '';
+      try {
+        const r = await userAPI.testPush();
+        if (r?.pushed) pushNote = ' Push sent to installed app/other devices.';
+        else if (r?.reason === 'no_subscription') pushNote = ' Enable browser notifications to also test PWA push.';
+      } catch (err) {
+        console.warn('[settings] test push', err.message);
+      }
+      flashNotify(shown ? `Desktop test shown.${pushNote}` : `Could not show a desktop notification.${pushNote}`);
+    } finally {
+      setNotifyBusy(false);
+    }
+  };
+
+  const handleSendDigestNow = async () => {
+    setNotifyBusy(true);
+    try {
+      const r = await userAPI.sendDigestNow();
+      if (r?.sent) {
+        flashNotify(
+          `Summary sent${r.emailed ? ' (email)' : ''}${r.pushed ? ` · ${r.pushed} push` : ''}. ${r.deals || 0} matching deals, ${r.team || 0} team items.`
+        );
+      } else {
+        flashNotify(r?.reason === 'empty'
+          ? 'Nothing to send yet — no new matching deals or team activity in the lookback window.'
+          : 'Digest ran but had nothing to send.');
+      }
+    } catch (err) {
+      flashNotify(err.message || 'Failed to send digest');
+    } finally {
+      setNotifyBusy(false);
     }
   };
 
@@ -258,7 +376,10 @@ export default function SettingsPage() {
 
         <div className="settings-section">
           <h2>Notifications</h2>
-          <p>Choose how often you want to receive deal-matching notifications:</p>
+          <p>
+            Daily email at 9:00 AM Pacific groups new market deals by buy-box order, then team CRM
+            activity (for example &ldquo;jamie added 4 new deals&rdquo;) and @mentions.
+          </p>
 
           <div className="radio-group">
             <label>
@@ -269,7 +390,7 @@ export default function SettingsPage() {
                 onChange={(e) => setNotificationFrequency(e.target.value)}
               />
               <span>
-                <strong>Instant</strong> - Get notified immediately when new deals match (Paid plan required)
+                <strong>Instant</strong> — email as soon as new listings match (Paid plan). Desktop/PWA still follow the toggle below.
               </span>
             </label>
 
@@ -281,7 +402,7 @@ export default function SettingsPage() {
                 onChange={(e) => setNotificationFrequency(e.target.value)}
               />
               <span>
-                <strong>Daily</strong> - One email per day at 9:00 AM
+                <strong>Daily</strong> — one summary email per day at 9:00 AM
               </span>
             </label>
 
@@ -293,14 +414,57 @@ export default function SettingsPage() {
                 onChange={(e) => setNotificationFrequency(e.target.value)}
               />
               <span>
-                <strong>Weekly</strong> - One email every Monday at 9:00 AM
+                <strong>Weekly</strong> — one summary email every Monday at 9:00 AM
               </span>
             </label>
           </div>
 
           <button onClick={handleSave} className="btn-primary" disabled={saving}>
-            {saving ? 'Saving...' : 'Save Settings'}
+            {saving ? 'Saving...' : 'Save email frequency'}
           </button>
+
+          <div className="settings-checkbox-list" style={{ marginTop: 20 }}>
+            <label className="settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={browserNotifications}
+                disabled={notifyBusy || pushStatus === 'unsupported'}
+                onChange={(e) => handleToggleBrowserNotifications(e.target.checked)}
+              />
+              <span>
+                <strong>Desktop &amp; PWA alerts</strong> — OS notifications in the browser and the
+                installed app, including @mentions and batched team CRM updates. On iPhone, add Vettr
+                to the Home Screen first, then enable this.
+                {pushStatus === 'denied' ? ' (Blocked in the browser — reset permission for this site.)' : ''}
+                {pushStatus === 'unsupported' ? ' (This browser does not support notifications.)' : ''}
+                {!pushSupported() ? ' Web Push is not available here; desktop alerts still work while Vettr is open.' : ''}
+              </span>
+            </label>
+          </div>
+
+          <div className="settings-action-row" style={{ marginTop: 14, gap: 10, display: 'flex', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={notifyBusy}
+              onClick={handleTestDesktop}
+            >
+              {notifyBusy ? 'Working…' : 'Test desktop / PWA alert'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={notifyBusy}
+              onClick={handleSendDigestNow}
+            >
+              Send me today&apos;s summary now
+            </button>
+          </div>
+          {notifyMessage ? (
+            <p className="settings-message settings-message-success" role="status" style={{ marginTop: 12 }}>
+              {notifyMessage}
+            </p>
+          ) : null}
         </div>
 
         <div className="settings-section">
@@ -360,35 +524,41 @@ export default function SettingsPage() {
                 onChange={(e) => handleToggleCrmEmailDigest(e.target.checked)}
               />
               <span>
-                <strong>Daily CRM digest</strong> — morning email with overdue tasks, due-today items, and DD deadlines.
+                <strong>Daily CRM digest</strong> — fold overdue tasks, due-today items, and DD deadlines into the morning summary email.
               </span>
             </label>
           </div>
         ) : null}
 
         <div className="settings-section">
-          <h2>Chrome extension (free tier)</h2>
+          <h2>Chrome extension</h2>
           <p>
-            Install the Vettr extension in the same Chrome profile you use here. When you are signed in on this site, your
-            session is sent to the extension automatically—saved deals and calculator inputs sync to{' '}
-            <strong>My Deals</strong> without copying tokens or URLs.
+            Install the Vettr Chrome extension in the same Chrome profile you use here. Sign in once
+            (in the extension or on this site) so <strong>My Deals</strong> stay in sync both ways —
+            save on a listing page, see it on the web; edit notes here, see them in the extension.
           </p>
+          {chromeStoreUrl ? (
+            <p>
+              <a
+                href={chromeStoreUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary"
+                style={{ display: 'inline-block', textDecoration: 'none' }}
+              >
+                Install from Chrome Web Store
+              </a>
+            </p>
+          ) : (
+            <p style={{ fontSize: 14, color: 'var(--text-secondary, #666)' }}>
+              Chrome Web Store listing is coming soon. Until then, ask your Vettr admin for the
+              extension package, or load the unpacked build from the repo.
+            </p>
+          )}
           <p style={{ fontSize: 14, color: 'var(--text-secondary, #666)' }}>
-            If you just installed the extension, open this tab once while logged in so linking can complete.
-          </p>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary, #666)' }}>
-            <strong>Deployers:</strong> set <code>VITE_EXTENSION_ID</code> to the extension ID (Chrome Web Store ID or
-            unpacked ID from <code>chrome://extensions</code>) and add your production web origin to{' '}
-            <code>externally_connectable.matches</code> in the extension <code>manifest.json</code>.
-            {viteExtensionId ? (
-              <> Extension ID is configured for this build.</>
-            ) : (
-              <> This build has no <code>VITE_EXTENSION_ID</code>; automatic linking from the hosted site will not run until it is set.</>
-            )}
-          </p>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary, #666)' }}>
-            <strong>API base URL</strong> (for reference):{' '}
-            {viteApiUrl || 'Use the same value as VITE_API_URL in production, or the Vite dev proxy at /api locally.'}
+            After installing, open this Settings page once while signed in so the extension can link
+            to your account automatically
+            {viteExtensionId ? '.' : ' (automatic linking activates after the store listing ID is configured).'}
           </p>
         </div>
 

@@ -102,7 +102,11 @@ export default function TalkAlertBanner({
       <div className="talk-alert-banner__body">
         <strong className="talk-alert-banner__title">{top.title}</strong>
         <span className="talk-alert-banner__meta">
-          {top.deal_name || 'Deal'}
+          {top.alert_type === 'deal_match'
+            ? 'Buy box matches'
+            : top.alert_type === 'team_activity'
+              ? 'Team CRM'
+              : (top.deal_name || 'Deal')}
           {extra > 0 ? ` · +${extra} more` : ''}
         </span>
         {top.body ? (
@@ -111,7 +115,13 @@ export default function TalkAlertBanner({
       </div>
       <div className="talk-alert-banner__actions">
         <button type="button" className="btn-primary btn-secondary--sm" onClick={openTop}>
-          {top.alert_type === 'task_completed' ? 'Open Tasks' : 'Open Talk'}
+          {top.alert_type === 'task_completed'
+            ? 'Open Tasks'
+            : top.alert_type === 'deal_match'
+              ? 'Open Feed'
+              : top.alert_type === 'team_activity'
+                ? 'Open CRM'
+                : 'Open Talk'}
         </button>
         <button type="button" className="btn-secondary btn-secondary--sm" onClick={dismissTop}>
           Dismiss

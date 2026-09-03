@@ -1171,6 +1171,25 @@ const migrations = [
       ALTER TABLE teams ADD COLUMN IF NOT EXISTS deed_board_prefs_updated_at TIMESTAMPTZ;
       ALTER TABLE teams ADD COLUMN IF NOT EXISTS deed_board_prefs_updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
     `
+  },
+  {
+    name: 'push_subscriptions_v5_92',
+    up: `
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user
+        ON push_subscriptions (user_id);
+      ALTER TABLE user_settings
+        ADD COLUMN IF NOT EXISTS last_team_activity_notified TIMESTAMPTZ;
+    `
   }
 ];
 

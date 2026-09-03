@@ -645,6 +645,17 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
               setCrmInitialFocusSection(null);
               return;
             }
+            if (alert?.alert_type === 'deal_match') {
+              setActiveTab('aggregator');
+              return;
+            }
+            if (alert?.alert_type === 'team_activity') {
+              setCrmInitialViewOverride(null);
+              setCrmSubview('today');
+              setCrmInitialDealId(null);
+              setCrmInitialFocusSection(null);
+              return;
+            }
             if (!alert?.saved_deal_id) return;
             setCrmInitialViewOverride(null);
             setCrmInitialDealId(alert.saved_deal_id);

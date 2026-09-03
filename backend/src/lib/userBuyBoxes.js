@@ -105,6 +105,31 @@ export function criteriaFromSlot(slot) {
   return out;
 }
 
+function hasCriteriaValue(v) {
+  return v != null && v !== '' && (Array.isArray(v) ? v.length > 0 : true);
+}
+
+/** True when a slot has positive match filters (empty slots must not match the whole market). */
+export function slotHasMatchCriteria(slot) {
+  if (!slot || typeof slot !== 'object') return false;
+  const c = criteriaFromSlot(slot);
+  if (
+    hasCriteriaValue(c.minPrice) ||
+    hasCriteriaValue(c.maxPrice) ||
+    hasCriteriaValue(c.minEbitda) ||
+    hasCriteriaValue(c.maxEbitda) ||
+    hasCriteriaValue(c.minRevenue) ||
+    hasCriteriaValue(c.maxRevenue) ||
+    hasCriteriaValue(c.revenueMultiple) ||
+    hasCriteriaValue(c.targetStates) ||
+    hasCriteriaValue(c.excludeStates) ||
+    hasCriteriaValue(c.targetIndustries)
+  ) {
+    return true;
+  }
+  return typeof slot.feedSearch === 'string' && Boolean(slot.feedSearch.trim());
+}
+
 function mergeSlotFeed(i, stored, legacyFeed) {
   const lk = Array.isArray(legacyFeed.excludeKeywords) ? legacyFeed.excludeKeywords : [];
   const ll =

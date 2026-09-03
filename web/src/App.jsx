@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TeamProvider } from './context/TeamContext';
 import LoginPage from './pages/LoginPage';
@@ -15,6 +16,8 @@ import UnderwritingAppPage from './pages/underwriting/UnderwritingAppPage';
 import TeamInviteAcceptPage from './pages/TeamInviteAcceptPage';
 import AdminFeedbackPage from './pages/AdminFeedbackPage';
 import FeedbackShell from './components/feedback/FeedbackShell';
+import { userAPI } from './utils/api';
+import { syncPushIfGranted } from './utils/webNotifications';
 
 /** Full-screen splash shown while backend wakes from cold start (temporary — remove on paid plan). */
 function WakeUpSplash() {
@@ -50,6 +53,24 @@ function ProtectedRoute({ children }) {
 }
 
 function AppRoutes() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const settings = await userAPI.getSettings();
+        if (cancelled) return;
+        const enabled = Boolean(settings?.preferences?.browserNotifications);
+        await syncPushIfGranted(userAPI, enabled);
+      } catch (err) {
+        console.warn('[App] push sync skipped', err.message);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
   return (
     <FeedbackShell>
       <Routes>

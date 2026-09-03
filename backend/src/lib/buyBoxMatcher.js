@@ -54,3 +54,47 @@ export function dealMatchesBuyBox(deal, buyBox) {
 
   return true;
 }
+
+/** Map a market_deals row onto the matcher deal shape. */
+export function marketRowToMatchDeal(row) {
+  const industries = row?.industries;
+  let industry = '';
+  if (Array.isArray(industries)) industry = industries.filter(Boolean).join(' ');
+  else if (typeof industries === 'string') industry = industries;
+
+  const asking = row?.asking_price != null ? Number(row.asking_price) : null;
+  const revenue = row?.annual_revenue != null ? Number(row.annual_revenue) : null;
+  const ebitda = row?.annual_profit != null ? Number(row.annual_profit) : null;
+
+  return {
+    id: row?.id,
+    name: row?.name || 'Unnamed listing',
+    url: row?.listing_url || '',
+    askingPrice: Number.isFinite(asking) ? asking : null,
+    revenue: Number.isFinite(revenue) ? revenue : null,
+    ebitda: Number.isFinite(ebitda) ? ebitda : null,
+    state: row?.state || '',
+    industry,
+    location: [row?.city, row?.state].filter(Boolean).join(', '),
+    firstSeenAt: row?.first_seen_at || null
+  };
+}
+
+/** Slot feed search (AND terms) and exclude keywords. */
+export function dealPassesSlotFeed(deal, slot) {
+  if (!slot || typeof slot !== 'object') return true;
+  const text = `${deal.name || ''} ${deal.industry || ''} ${deal.location || ''} ${deal.state || ''}`.toLowerCase();
+  const exclude = Array.isArray(slot.excludeKeywords) ? slot.excludeKeywords : [];
+  for (const raw of exclude) {
+    const k = String(raw || '').trim().toLowerCase();
+    if (k && text.includes(k)) return false;
+  }
+  const search = typeof slot.feedSearch === 'string' ? slot.feedSearch.trim() : '';
+  if (!search) return true;
+  const terms = search
+    .split(/\s*[,&]\s*/)
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 8);
+  return terms.every((t) => text.includes(t));
+}

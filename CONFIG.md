@@ -25,6 +25,10 @@ Single reference for all environment variables and deployment config. Copy the r
 | `SMTP_PORT` | No | `587` | |
 | `SMTP_USER` | No | — | With SMTP_HOST for sending |
 | `SMTP_PASS` | No | — | Gmail: [App Password](https://support.google.com/accounts/answer/185833) |
+| `VAPID_PUBLIC_KEY` | No | — | Web Push public key for desktop/PWA alerts. Generate: `npx web-push generate-vapid-keys` |
+| `VAPID_PRIVATE_KEY` | No | — | Web Push private key (secret). Pair with the public key. |
+| `VAPID_SUBJECT` | No | `mailto:` + `SMTP_USER` | Contact URL or mailto used in VAPID. |
+| `DIGEST_TZ` | No | `America/Los_Angeles` | Timezone for the 9:00 AM daily/weekly summary email |
 | `GOOGLE_CALENDAR_CLIENT_ID` | No | — | OAuth Web client ID. Enables Connect Google (Calendar + Gmail send). Enable **Gmail API** and **Google Calendar API** on the same Cloud project. |
 | `GOOGLE_CALENDAR_CLIENT_SECRET` | No | — | OAuth client secret. Redirect URI: `{API_BASE_URL}/api/crm/calendar/oauth/callback` |
 | `AIRTABLE_SHARE_URL` | No | (hardcoded fallback) | Airtable shared view URL for scraper |
@@ -48,6 +52,7 @@ Single reference for all environment variables and deployment config. Copy the r
 |----------|----------|-------------------|--------|
 | `VITE_API_URL` | **Yes** (prod) | — | Stable Worker **including** `/api`: `https://vettr-api.metzgerbuildsthings.workers.dev/api`. Omit in dev to use Vite proxy. Never bake a `trycloudflare.com` URL into Pages. |
 | `VITE_EXTENSION_ID` | **Yes** (prod, web→ext link) | — | Chrome extension ID so logged-in web users auto-link the extension. See [docs/CHROME_WEB_STORE.md](docs/CHROME_WEB_STORE.md). |
+| `VITE_CHROME_STORE_URL` | No (until listing live) | — | Full Chrome Web Store URL for Install buttons in Settings / Get the app. |
 
 ---
 

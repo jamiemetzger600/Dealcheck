@@ -17,6 +17,8 @@ const OPTIONAL_BUT_RECOMMENDED = [
   { key: 'STRIPE_MONTHLY_PRICE_ID', hint: 'Stripe Price ID for monthly plan' },
   { key: 'STRIPE_YEARLY_PRICE_ID', hint: 'Stripe Price ID for yearly plan' },
   { key: 'SMTP_HOST', hint: 'Required for email notifications' },
+  { key: 'VAPID_PUBLIC_KEY', hint: 'Web Push public key (npx web-push generate-vapid-keys)' },
+  { key: 'VAPID_PRIVATE_KEY', hint: 'Web Push private key — keep secret' },
   { key: 'GOOGLE_CALENDAR_CLIENT_ID', hint: 'Required for CRM Google Calendar OAuth' },
   { key: 'GOOGLE_CALENDAR_CLIENT_SECRET', hint: 'Required for CRM Google Calendar OAuth' }
 ];

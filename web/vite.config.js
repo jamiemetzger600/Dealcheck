@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
         injectRegister: false,
         // Keep public/manifest.json as the source of truth
         manifest: false,
-        includeAssets: ['vettr-logo.png', 'icons/icon-192.png', 'icons/icon-512.png'],
+        includeAssets: ['vettr-logo.png', 'icons/icon-192.png', 'icons/icon-512.png', 'push-sw.js'],
         workbox: {
           skipWaiting: true,
           clientsClaim: true,
@@ -38,7 +38,8 @@ export default defineConfig(({ mode }) => {
           // stays empty in the installed PWA. API GETs must always hit the network.
           navigateFallbackDenylist: [/^\/api/, /\/version\.json$/],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
-          globIgnores: ['**/version.json']
+          globIgnores: ['**/version.json'],
+          importScripts: ['push-sw.js']
         }
       })
     ],

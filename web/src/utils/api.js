@@ -222,7 +222,23 @@ export const userAPI = {
     body: JSON.stringify(settings)
   }),
 
-  getEntitlements: () => apiRequest('/user/entitlements')
+  getEntitlements: () => apiRequest('/user/entitlements'),
+
+  getPushPublicKey: () => apiRequest('/user/push/public-key'),
+
+  subscribePush: (subscription) => apiRequest('/user/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify({ subscription })
+  }),
+
+  unsubscribePush: (payload = {}) => apiRequest('/user/push/unsubscribe', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+
+  testPush: () => apiRequest('/user/push/test', { method: 'POST' }),
+
+  sendDigestNow: () => apiRequest('/user/notifications/digest-now', { method: 'POST' })
 };
 
 // Deals API

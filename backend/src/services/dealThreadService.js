@@ -6,6 +6,7 @@ import {
 } from '../lib/teamAcl.js';
 import { sendEmail } from './emailService.js';
 import { createUserAlert, markDealTalkAlertsRead } from './userAlertService.js';
+import { sendPushToUser } from './pushService.js';
 
 const MENTION_RE = /@([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
 const WEB_APP_URL = (
@@ -67,6 +68,13 @@ async function notifyTalkUser({
     messageId,
     metadata: { dealName, authorEmail, ...extraMeta }
   }).catch((err) => console.warn(`[dealThread] ${alertType} alert failed:`, err.message));
+
+  await sendPushToUser(userId, {
+    title,
+    body: `${dealName}: ${String(body || '').slice(0, 140)}`,
+    url: '/dashboard?tab=crm',
+    tag: `talk-${alertType}`
+  }).catch((err) => console.warn(`[dealThread] ${alertType} push failed:`, err.message));
 
   if (!email) return;
   const mail = talkAlertEmail({ subject, greeting, dealName, body, savedDealId });

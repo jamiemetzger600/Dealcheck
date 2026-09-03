@@ -50,6 +50,19 @@ a {
   color: inherit;
 }
 
+/* Hide listing: remaining rows/cards ease into place (Chrome view transitions). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
 /* ── Wake-up splash (temporary — remove when on paid Koyeb plan) ──── */
 .wakeup-splash {
   position: fixed;
@@ -1627,6 +1640,14 @@ button.aggregator-welcome__buybox {
   background: rgba(255, 255, 255, 0.02);
 }
 
+.aggregator-table tbody tr.listing-exiting {
+  pointer-events: none;
+}
+
+.aggregator-table tbody tr.listing-exiting td {
+  overflow: hidden;
+}
+
 .deal-name-cell {
   min-width: 260px;
 }
@@ -1729,6 +1750,11 @@ button.aggregator-welcome__buybox {
   padding: 0;
   overflow: auto;
   flex: 1;
+}
+
+.deal-inbox__list > li.listing-exiting {
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .deal-inbox__row {

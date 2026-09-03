@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { dealsAPI, userAPI } from '../utils/api';
 import { loadCalculatorState, saveCalculatorState } from '../utils/dealCalculatorStorage';
@@ -31,6 +31,7 @@ import GatedPreviewText from './GatedPreviewText';
 import { useIsMobile, useOrientation, startOfLocalDayISO } from '../hooks/useMediaQuery';
 import { useTeam } from '../context/TeamContext';
 import { claimPendingSaveDealDbId } from '../utils/pendingSaveDeal';
+import { collapseListingEl, prefersReducedMotion } from '../utils/listingExit';
 import {
   cardMetricLocation,
   cardViewDescriptionPreview,
@@ -297,6 +298,8 @@ function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, enableSwipe,
   if (!enableSwipe) {
     return (
       <div
+        data-deal-id={deal?.id != null ? String(deal.id) : undefined}
+        style={deal?.id != null ? { viewTransitionName: `vt-deal-${String(deal.id).replace(/[^a-zA-Z0-9_-]/g, '_')}` } : undefined}
         className={`deal-card ${isHidden ? 'deal-card--hidden' : ''}`}
         onClick={() => onTap(deal)}
         role="button"
@@ -414,6 +417,8 @@ export default function DealAggregator({
   );
   const [currentSelectedList, setCurrentSelectedList] = useState(settings?.currentExcludeList || '');
   const [hiddenDealIds, setHiddenDealIds] = useState(settings?.hiddenDealIds || []);
+  const hiddenDealIdsRef = useRef(hiddenDealIds);
+  hiddenDealIdsRef.current = hiddenDealIds;
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [dealPanelPosition, setDealPanelPosition] = useState(settings?.preferences?.dealPanelPosition || 'center');
   const [showHiddenDeals, setShowHiddenDeals] = useState(false);
@@ -431,6 +436,7 @@ export default function DealAggregator({
   const [customFlexibilityInput, setCustomFlexibilityInput] = useState('');
   /** @type {[{ message: string, showCrmCta?: boolean } | null, Function]} */
   const [saveToast, setSaveToast] = useState(null);
+  const hidingIdsRef = useRef(new Set());
   const [savingDealId, setSavingDealId] = useState(null);
   const [workspaceSaveOverride, setWorkspaceSaveOverride] = useState({});
   const [buyBoxSwitching, setBuyBoxSwitching] = useState(false);
@@ -686,7 +692,10 @@ export default function DealAggregator({
       setCurrentSelectedSearchList(activeSearchList);
       setSearchListNameInput(activeSearchList);
     }
-    setHiddenDealIds(settings?.hiddenDealIds || []);
+    setHiddenDealIds((prev) => {
+      if (hidingIdsRef.current.size > 0) return prev;
+      return settings?.hiddenDealIds || [];
+    });
     setDealPanelPosition(settings?.preferences?.dealPanelPosition || 'center');
     setDealViewStyle(settings?.dealViewStyle || 'table');
     const cols = settings?.preferences?.cardColumnsPerRow;
@@ -793,6 +802,8 @@ export default function DealAggregator({
   useEffect(() => {
     localStorage.setItem('vettr_aggregator_sort', JSON.stringify(sortConfig));
   }, [sortConfig]);
+
+  const buyBoxFeedKey = JSON.stringify(settings?.buyBox || {});
 
   // ---------------------------------------------------------------------------
   // Server-side fetch: single API call per page/filter change
@@ -915,11 +926,12 @@ export default function DealAggregator({
     }
   }, [settings, feedSearchString, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords, mobileDailyFilter, deckScope]);
 
-  // Fetch on mount, filter/sort/page/search/hidden-ids change, and manual refresh
+  // Fetch on mount, filter/sort/page/search change, and manual refresh.
+  // Do not refetch on each Hide — client-side filter advances the list without a jump.
   useEffect(() => {
     if (settings) fetchServerDeals();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when inputs to fetchServerDeals change; avoid tying to unstable parent callbacks
-  }, [feedSearchString, sortConfig, currentPage, showHiddenDeals, hiddenDealIds, settings, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint, deckScope, mobileDailyFilter]);
+  }, [feedSearchString, sortConfig, currentPage, showHiddenDeals, buyBoxFeedKey, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint, deckScope, mobileDailyFilter]);
 
   // Manual refresh for the installed PWA (no browser reload / pull-to-refresh in
   // standalone mode). Clear the ETag cache so we always request a fresh 200.
@@ -1636,31 +1648,75 @@ export default function DealAggregator({
     await persistActiveSlotFeed({ excludeKeywords: nextKeywords, currentExcludeList: listName });
   };
 
-  const handleToggleHidden = async (deal) => {
+  const handleToggleHidden = async (deal, opts = {}) => {
+    const animate = opts.animate !== false;
+    const hideKey = deal?.id != null ? String(deal.id) : '';
     const tokenSet = hiddenStorageTokensForDeal(deal);
     const primary = hiddenStorageTokenForDeal(deal);
-    const currentlyHidden = [...tokenSet].some((t) => hiddenDealIds.includes(t));
-    const nextHiddenIds = currentlyHidden
-      ? hiddenDealIds.filter((id) => !tokenSet.has(id))
-      : hiddenDealIds.includes(primary)
-        ? hiddenDealIds
-        : [...hiddenDealIds, primary];
-    const previousHiddenIds = hiddenDealIds;
-    const previousSelectedDeal = selectedDeal;
-    setHiddenDealIds(nextHiddenIds);
-    if (selectedDeal && isDealHidden(selectedDeal, nextHiddenIds) && !showHiddenDeals) {
-      setSelectedDeal(null);
+    const currentHiddenIds = hiddenDealIdsRef.current;
+    const currentlyHidden = [...tokenSet].some((t) => currentHiddenIds.includes(t));
+    if (!currentlyHidden && hideKey && hidingIdsRef.current.has(hideKey)) {
+      console.log('[DealAggregator] hide ignored — already collapsing', hideKey);
+      return;
     }
-    try {
-      await saveSettings({ hiddenDealIds: nextHiddenIds });
-      if (typeof onSettingsUpdate === 'function') {
-        await onSettingsUpdate();
+    if (!currentlyHidden && hideKey) hidingIdsRef.current.add(hideKey);
+    const nextHiddenIds = currentlyHidden
+      ? currentHiddenIds.filter((id) => !tokenSet.has(id))
+      : currentHiddenIds.includes(primary)
+        ? currentHiddenIds
+        : [...currentHiddenIds, primary];
+    hiddenDealIdsRef.current = nextHiddenIds;
+    const previousHiddenIds = currentHiddenIds;
+    const previousSelectedDeal = selectedDeal;
+    const applyLocal = () => {
+      const latest = hiddenDealIdsRef.current;
+      setHiddenDealIds(latest);
+      if (selectedDeal && isDealHidden(selectedDeal, latest) && !showHiddenDeals) {
+        setSelectedDeal(null);
       }
-    } catch (error) {
-      setHiddenDealIds(previousHiddenIds);
-      setSelectedDeal(previousSelectedDeal);
-      console.error('[DealAggregator] persist hiddenDealIds failed:', error);
-      alert(`Failed to save hidden listings: ${error.message}`);
+    };
+    const shouldAnimate = Boolean(
+      animate
+      && !currentlyHidden
+      && !showHiddenDeals
+      && !showMobileDeck
+      && !prefersReducedMotion()
+    );
+    console.log('[DealAggregator] hide listing', {
+      dealId: deal?.id,
+      currentlyHidden,
+      shouldAnimate,
+      view: dealViewStyle
+    });
+    try {
+      if (shouldAnimate && dealViewStyle === 'card' && typeof document.startViewTransition === 'function') {
+        try {
+          await document.startViewTransition(() => {
+            flushSync(applyLocal);
+          }).finished;
+        } catch (err) {
+          console.warn('[DealAggregator] card hide transition skipped', err?.message);
+          applyLocal();
+        }
+      } else if (shouldAnimate) {
+        await collapseListingEl(deal);
+        applyLocal();
+      } else {
+        applyLocal();
+      }
+      try {
+        await saveSettings({ hiddenDealIds: hiddenDealIdsRef.current });
+        if (typeof onSettingsUpdate === 'function') {
+          await onSettingsUpdate();
+        }
+      } catch (error) {
+        setHiddenDealIds(previousHiddenIds);
+        setSelectedDeal(previousSelectedDeal);
+        console.error('[DealAggregator] persist hiddenDealIds failed:', error);
+        alert(`Failed to save hidden listings: ${error.message}`);
+      }
+    } finally {
+      if (hideKey) hidingIdsRef.current.delete(hideKey);
     }
   };
 
@@ -1858,7 +1914,7 @@ export default function DealAggregator({
 
   const handleDeckHide = async (deal) => {
     if (!isDealHidden(deal, hiddenDealIds)) {
-      await handleToggleHidden(deal);
+      await handleToggleHidden(deal, { animate: false });
     }
   };
 
@@ -2534,7 +2590,12 @@ export default function DealAggregator({
                   const isHidden = isDealHidden(deal, hiddenDealIds);
                   const dealSaved = isDealSavedInWorkspace(deal);
                   return (
-                  <tr key={deal.id} className={isHidden ? 'deal-row-hidden' : ''} onClick={() => setSelectedDeal(deal)}>
+                  <tr
+                    key={deal.id}
+                    data-deal-id={String(deal.id)}
+                    className={isHidden ? 'deal-row-hidden' : ''}
+                    onClick={() => setSelectedDeal(deal)}
+                  >
                     {visibleOrderedColumns.map((columnId) => renderDealCell(columnId, deal, {
                       isGuest,
                       entitlements,
@@ -2828,12 +2889,15 @@ export default function DealAggregator({
               className="save-toast__cta"
               onClick={() => {
                 const dealId = saveToast.dealId;
-                console.log('[DealAggregator] Open Vettr CRM from save toast', { dealId });
+                console.log('[DealAggregator] Open CRM from save toast', {
+                  dealId,
+                  crmLabel: saveTargetLabel
+                });
                 setSaveToast(null);
                 onOpenVettrCrm(dealId != null ? { dealId } : undefined);
               }}
             >
-              Open Vettr CRM
+              Open {saveTargetLabel}
             </button>
           ) : null}
         </div>,

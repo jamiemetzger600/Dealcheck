@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { crmAPI } from '../../utils/api';
+import { notificationOpenLabel, notificationPath } from '../../utils/notificationLinks';
+import { showLocalNotification } from '../../utils/webNotifications';
 
 /**
  * Sticky in-app alerts for Talk posts, @mentions, and assigns.
@@ -29,14 +31,18 @@ export default function TalkAlertBanner({
           if (seenIdsRef.current.has(alert.id)) continue;
           seenIdsRef.current.add(alert.id);
           if (document.hidden && Notification.permission === 'granted') {
-            try {
-              new Notification(alert.title || 'Vettr Talk', {
-                body: `${alert.deal_name || 'Deal'}: ${(alert.body || '').slice(0, 120)}`,
-                tag: `vettr-alert-${alert.id}`
-              });
-            } catch (err) {
+            const url = notificationPath({
+              alertType: alert.alert_type,
+              savedDealId: alert.saved_deal_id
+            });
+            showLocalNotification(alert.title || 'Vettr', {
+              body: `${alert.deal_name || 'Deal'}: ${(alert.body || '').slice(0, 120)}`,
+              tag: `vettr-alert-${alert.id}`,
+              url,
+              actionTitle: notificationOpenLabel(alert.alert_type)
+            }).catch((err) => {
               console.warn('[TalkAlertBanner] browser notification failed', err);
-            }
+            });
           }
         }
       } else {
@@ -115,13 +121,7 @@ export default function TalkAlertBanner({
       </div>
       <div className="talk-alert-banner__actions">
         <button type="button" className="btn-primary btn-secondary--sm" onClick={openTop}>
-          {top.alert_type === 'task_completed'
-            ? 'Open Tasks'
-            : top.alert_type === 'deal_match'
-              ? 'Open Feed'
-              : top.alert_type === 'team_activity'
-                ? 'Open CRM'
-                : 'Open Talk'}
+          {notificationOpenLabel(top.alert_type)}
         </button>
         <button type="button" className="btn-secondary btn-secondary--sm" onClick={dismissTop}>
           Dismiss

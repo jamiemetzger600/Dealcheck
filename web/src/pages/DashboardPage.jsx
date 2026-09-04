@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
 import { userAPI, dealsAPI, paymentsAPI, crmAPI } from '../utils/api';
@@ -27,6 +27,7 @@ import {
   readStoredDashboardLocation,
   isValidCrmSubview
 } from '../utils/dashboardLocation';
+import { notificationPath } from '../utils/notificationLinks';
 
 function isBuyBoxEmpty(buyBox) {
   if (!buyBox || typeof buyBox !== 'object') return true;
@@ -65,6 +66,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const { activeTeamId } = useTeam();
   const { isGuest, entitlements, requireSignup } = useGuestAccess(user);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const initialDealDbId = searchParams.get('dealDbId') || null;
   const checkoutSessionId = searchParams.get('session_id');
   const crmDealParam = searchParams.get('crmDeal');
@@ -140,6 +142,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const teamScopeBootstrappedRef = useRef(false);
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
+  const skipPersistFromUrlRef = useRef(false);
 
   const loadScopedSavedDeals = useCallback(async () => {
     if (authLoading || isGuest) return;
@@ -243,14 +246,30 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   /** Deep link: /dashboard?tab=crm&crmDeal=123&section=crm-talk (also legacy tab=saved-deals) */
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'saved-deals') {
+    if (tabParam === 'aggregator') {
+      if (activeTab !== 'aggregator') skipPersistFromUrlRef.current = true;
+      setActiveTab('aggregator');
+    } else if (tabParam === 'saved-deals') {
       console.log('[Dashboard] redirecting legacy My Deals tab → Vettr CRM list');
+      skipPersistFromUrlRef.current = true;
       setActiveTab('crm');
       setCrmSubview('list');
       setCrmInitialViewOverride((prev) => prev || 'list');
+    } else if (tabParam === 'crm' || searchParams.get('crmDeal')) {
+      if (activeTab !== 'crm') skipPersistFromUrlRef.current = true;
+      setActiveTab('crm');
+    }
+    const sub = searchParams.get('crmSubview');
+    if ((tabParam === 'crm' || searchParams.get('crmDeal')) && isValidCrmSubview(sub)) {
+      setCrmSubview(sub);
+      setCrmInitialViewOverride(sub);
     }
     const n = Number(crmDealParam);
-    if (!Number.isFinite(n) || n <= 0) return;
+    if (!Number.isFinite(n) || n <= 0) {
+      if (sectionParam) setCrmInitialFocusSection(sectionParam);
+      return;
+    }
+    skipPersistFromUrlRef.current = true;
     setActiveTab('crm');
     setCrmInitialDealId(n);
     setCrmInitialFocusSection(sectionParam || 'crm-talk');
@@ -259,6 +278,10 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
 
   useEffect(() => {
     persistDashboardLocation({ tab: activeTab, crmSubview });
+    if (skipPersistFromUrlRef.current) {
+      skipPersistFromUrlRef.current = false;
+      return;
+    }
     const next = patchDashboardSearchParams(searchParamsRef.current, {
       tab: activeTab,
       crmSubview: activeTab === 'crm' ? crmSubview : null
@@ -637,29 +660,12 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
               .catch(() => {});
           }}
           onOpenAlert={(alert) => {
-            setActiveTab('crm');
-            if (alert?.alert_type === 'task_completed') {
-              setCrmInitialViewOverride('tasks');
-              setCrmSubview('tasks');
-              if (alert.saved_deal_id) setCrmInitialDealId(alert.saved_deal_id);
-              setCrmInitialFocusSection(null);
-              return;
-            }
-            if (alert?.alert_type === 'deal_match') {
-              setActiveTab('aggregator');
-              return;
-            }
-            if (alert?.alert_type === 'team_activity') {
-              setCrmInitialViewOverride(null);
-              setCrmSubview('today');
-              setCrmInitialDealId(null);
-              setCrmInitialFocusSection(null);
-              return;
-            }
-            if (!alert?.saved_deal_id) return;
-            setCrmInitialViewOverride(null);
-            setCrmInitialDealId(alert.saved_deal_id);
-            setCrmInitialFocusSection('crm-talk');
+            const path = notificationPath({
+              alertType: alert?.alert_type,
+              savedDealId: alert?.saved_deal_id
+            });
+            console.log('[Dashboard] open alert', alert?.alert_type, path);
+            navigate(path);
           }}
         />
       )}

@@ -2,6 +2,7 @@ import pool from '../db/pool.js';
 import { deliverUserEmail } from './googleGmailService.js';
 import { sendPushToUser, userHasPushSubscription } from './pushService.js';
 import { createUserAlert } from './userAlertService.js';
+import { notificationOpenLabel, notificationPath } from '../lib/notificationLinks.js';
 import {
   loadNewMarketDeals,
   matchUserBuyBoxes,
@@ -240,15 +241,32 @@ export async function sendUserDigest(userRow, {
     ? `Vettr: ${subjectParts.slice(0, 2).join(' · ')}`
     : 'Vettr daily summary';
 
-  const result = { email: userRow.email, deals: grouped.total, team: team.total, emailed: false, pushed: 0 };
+  const result = {
+    email: userRow.email,
+    deals: grouped.total,
+    team: team.total,
+    emailed: false,
+    emailReason: null,
+    pushed: 0
+  };
 
   if (doEmail && html) {
     try {
       const mail = await deliverUserEmail(userId, { to: userRow.email, subject, html });
       result.emailed = Boolean(mail?.sent);
+      result.emailReason = mail?.sent ? null : (mail?.message || mail?.reason || 'not_sent');
+      console.log('[digest] email result', {
+        email: userRow.email,
+        emailed: result.emailed,
+        reason: result.emailReason,
+        via: mail?.id ? 'gmail' : mail?.messageId ? 'smtp' : 'none'
+      });
     } catch (err) {
+      result.emailReason = err.message;
       console.warn('[digest] email failed', { email: userRow.email, error: err.message });
     }
+  } else if (doEmail && !html) {
+    result.emailReason = 'empty_body';
   }
 
   const pushTitle = grouped.total
@@ -262,11 +280,17 @@ export async function sendUserDigest(userRow, {
   if (sendPush) {
     const hasSub = await userHasPushSubscription(userId);
     if (hasSub) {
+      const pushUrl = grouped.total
+        ? notificationPath({ alertType: 'deal_match' })
+        : notificationPath({ alertType: 'team_activity' });
       const pushed = await sendPushToUser(userId, {
         title: pushTitle,
         body: pushBody,
-        url: grouped.total ? '/dashboard' : '/dashboard?tab=crm',
-        tag: grouped.total ? 'deal-match' : 'team-activity'
+        url: pushUrl,
+        tag: grouped.total ? 'deal-match' : 'team-activity',
+        actionTitle: grouped.total
+          ? notificationOpenLabel('deal_match')
+          : notificationOpenLabel('team_activity')
       });
       result.pushed = pushed.sent || 0;
     }

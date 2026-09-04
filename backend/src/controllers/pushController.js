@@ -46,9 +46,10 @@ export const postTestPush = async (req, res) => {
   try {
     const pushed = await sendPushToUser(req.user.userId, {
       title: 'Vettr test notification',
-      body: 'Desktop and PWA alerts are working.',
+      body: 'Desktop and PWA alerts are working. Click Open Settings.',
       url: '/settings',
-      tag: 'vettr-test'
+      tag: 'vettr-test',
+      actionTitle: 'Open Settings'
     });
     res.json({ ok: true, pushed: pushed.sent, reason: pushed.reason || null });
   } catch (error) {

@@ -8,6 +8,12 @@ import { matchIndustryKey, isFranchiseTagged } from '../lib/industryMatcher.js';
 const NUDGE_SOURCES = ['intake_nudge', 'stage_nudge'];
 const FOLLOW_NDA_MIN_DAYS = 2;
 
+/**
+ * Off: do not auto-create industry/stage next-step tasks.
+ * Re-enable with a confirm-first UI — see docs/misc/ROADMAP.md
+ */
+export const AUTO_QUEUE_STAGE_NUDGES = false;
+
 function addDays(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -74,6 +80,10 @@ export async function ensureNudgeTask(userId, savedDealId, action) {
 
 /** First save to CRM (Inbox): queue Request NDA. Later stages: queue that stage's next step. */
 export async function ensureIntakeNudge(userId, savedDealId) {
+  if (!AUTO_QUEUE_STAGE_NUDGES) {
+    console.log('[crmNudge] auto-queue off, skip intake', { userId, savedDealId });
+    return null;
+  }
   const row = await pool.query(
     `SELECT id, progress_stage, industry
      FROM saved_deals WHERE id = $1`,
@@ -86,6 +96,10 @@ export async function ensureIntakeNudge(userId, savedDealId) {
 }
 
 export async function ensureStageNudge(userId, savedDealId, stage, industry) {
+  if (!AUTO_QUEUE_STAGE_NUDGES) {
+    console.log('[crmNudge] auto-queue off, skip stage', { userId, savedDealId, stage });
+    return null;
+  }
   const action = adminActionForStage(stage, industryKeyFor(industry));
   return ensureNudgeTask(userId, savedDealId, action);
 }
@@ -95,6 +109,7 @@ export async function ensureStageNudge(userId, savedDealId, stage, industry) {
  * open nudge task yet (covers deals saved before this feature).
  */
 export async function listComputedNudges(userId, { limit = 25 } = {}) {
+  if (!AUTO_QUEUE_STAGE_NUDGES) return [];
   const result = await pool.query(
     `SELECT sd.id AS saved_deal_id,
             sd.name AS deal_name,

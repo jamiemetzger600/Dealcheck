@@ -106,7 +106,8 @@ export async function sendPushToUser(userId, payload) {
     title: String(payload.title || 'Vettr').slice(0, 120),
     body: String(payload.body || '').slice(0, 240),
     url: payload.url || '/dashboard',
-    tag: payload.tag || 'vettr'
+    tag: payload.tag || 'vettr',
+    actionTitle: payload.actionTitle || 'Open Vettr'
   });
 
   let sent = 0;

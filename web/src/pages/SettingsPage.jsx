@@ -143,7 +143,8 @@ export default function SettingsPage() {
         await showLocalNotification('Vettr alerts on', {
           body: 'You will get desktop and PWA alerts for matching deals and team CRM activity.',
           tag: 'vettr-enabled',
-          url: '/settings'
+          url: '/settings',
+          actionTitle: 'Open Settings'
         });
         flashNotify(
           sub.ok
@@ -176,9 +177,10 @@ export default function SettingsPage() {
         return;
       }
       const shown = await showLocalNotification('Vettr test', {
-        body: 'Desktop notification is working.',
+        body: 'Desktop notification is working. Use Open Settings if this toast is still showing.',
         tag: 'vettr-test',
-        url: '/settings'
+        url: '/settings',
+        actionTitle: 'Open Settings'
       });
       let pushNote = '';
       try {
@@ -198,9 +200,14 @@ export default function SettingsPage() {
     setNotifyBusy(true);
     try {
       const r = await userAPI.sendDigestNow();
-      if (r?.sent) {
+      if (r?.emailed) {
         flashNotify(
-          `Summary sent${r.emailed ? ' (email)' : ''}${r.pushed ? ` · ${r.pushed} push` : ''}. ${r.deals || 0} matching deals, ${r.team || 0} team items.`
+          `Email sent to ${r.email || 'your account'}. ${r.deals || 0} matching deals, ${r.team || 0} team items.`
+        );
+      } else if (r?.sent) {
+        const why = r.emailReason || 'Gmail send is not available and server SMTP is off.';
+        flashNotify(
+          `Summary built (${r.deals || 0} deals, ${r.team || 0} team items) but email did not send. ${why}`
         );
       } else {
         flashNotify(r?.reason === 'empty'
@@ -461,7 +468,11 @@ export default function SettingsPage() {
             </button>
           </div>
           {notifyMessage ? (
-            <p className="settings-message settings-message-success" role="status" style={{ marginTop: 12 }}>
+            <p
+              className={`settings-message ${notifyMessage.toLowerCase().includes('did not send') || notifyMessage.toLowerCase().includes('failed') ? 'settings-message-error' : 'settings-message-success'}`}
+              role="status"
+              style={{ marginTop: 12 }}
+            >
               {notifyMessage}
             </p>
           ) : null}

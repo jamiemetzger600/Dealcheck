@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { TeamProvider } from './context/TeamContext';
@@ -18,6 +18,33 @@ import AdminFeedbackPage from './pages/AdminFeedbackPage';
 import FeedbackShell from './components/feedback/FeedbackShell';
 import { userAPI } from './utils/api';
 import { syncPushIfGranted } from './utils/webNotifications';
+
+function NotificationClickBridge() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return undefined;
+    const onMessage = (event) => {
+      const data = event.data;
+      if (!data || data.type !== 'VETTR_NOTIFICATION_CLICK') return;
+      const raw = data.url || '/dashboard';
+      try {
+        const u = new URL(raw, window.location.origin);
+        if (u.origin !== window.location.origin) {
+          console.warn('[notifications] ignored off-origin click', raw);
+          return;
+        }
+        const next = `${u.pathname}${u.search}`;
+        console.log('[notifications] open', next);
+        navigate(next);
+      } catch (err) {
+        console.warn('[notifications] bad url', raw, err);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage);
+  }, [navigate]);
+  return null;
+}
 
 /** Full-screen splash shown while backend wakes from cold start (temporary — remove on paid plan). */
 function WakeUpSplash() {
@@ -134,6 +161,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <TeamProvider>
+          <NotificationClickBridge />
           <AppRoutes />
         </TeamProvider>
       </AuthProvider>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { crmAPI, dealsAPI } from '../../utils/api';
 import { normalizeDeal, isPassedOnDeal } from '../../utils/normalizeDeal';
@@ -76,7 +76,6 @@ export default function CrmDashboard({
   const [fetchingDealId, setFetchingDealId] = useState(null);
   const [fetchDealError, setFetchDealError] = useState(null);
   const [locallySeenDealIds, setLocallySeenDealIds] = useState(() => new Set());
-  const deepLinkHandled = useRef(false);
 
   const loadToday = useCallback(async () => {
     setLoading(true);
@@ -109,10 +108,6 @@ export default function CrmDashboard({
   // Deep link: section → full record; deal-only → peek
   useEffect(() => {
     if (!initialDealId) return;
-    if (deepLinkHandled.current && String(initialDealId) === String(recordDealId || peekDealId)) {
-      return;
-    }
-    deepLinkHandled.current = true;
     if (initialFocusSection) {
       console.log('[CrmDashboard] deep link → record', initialDealId, initialFocusSection);
       setRecordDealId(initialDealId);
@@ -328,14 +323,13 @@ export default function CrmDashboard({
   const handleStageChanged = (result, dealName) => {
     if (!result || result.unchanged) return;
     const stage = result.progressStage;
-    const queued = Boolean(result.queuedTask);
-    if (result.suggestedTask || queued || stage === 'Starting Due Diligence') {
+    if (stage === 'Starting Due Diligence') {
       setStagePrompt({
         dealId: result.savedDealId,
         dealName: dealName || recordDeal?.name || peekDeal?.name,
         stage,
-        suggestedTask: result.queuedTask?.title || result.suggestedTask,
-        queued
+        suggestedTask: null,
+        queued: false
       });
     }
   };

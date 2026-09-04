@@ -1,5 +1,20 @@
 # Vettr - Product Roadmap
 
+## CRM next-step suggestions (parked)
+
+**Status:** Off in product (as of API 5.0.97). Do not auto-create tasks from pipeline stage or industry playbook.
+
+Buyers liked the idea of a proactive next step, but a wrong auto-task (for example construction WIP/bonding on a smog-test listing) is more frustrating than helpful.
+
+**When we bring it back:**
+- Never write a task until the user confirms (Add task / dismiss).
+- Show why it was suggested (stage + industry).
+- Let them edit the title before it is saved.
+- Prefer a generic stage suggestion when industry is unknown or a weak match.
+- Existing open `intake_nudge` / `stage_nudge` tasks can stay until the user completes or deletes them.
+
+---
+
 ## Google Workspace integrations
 
 ### Now (v5.0)

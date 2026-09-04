@@ -40,21 +40,32 @@ export async function getNotificationRegistration() {
   }
 }
 
-export async function showLocalNotification(title, { body, tag, url } = {}) {
+export async function showLocalNotification(title, { body, tag, url, actionTitle } = {}) {
   if (typeof Notification === 'undefined') return false;
   if (Notification.permission !== 'granted') return false;
+  const openUrl = url || '/dashboard';
+  const openLabel = actionTitle || 'Open Vettr';
+  const options = {
+    body: body || '',
+    tag: tag || 'vettr',
+    data: { url: openUrl },
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    requireInteraction: true,
+    renotify: true,
+    actions: [
+      { action: 'open', title: openLabel },
+      { action: 'dismiss', title: 'Dismiss' }
+    ]
+  };
   try {
     const reg = await getNotificationRegistration();
     if (reg?.showNotification) {
-      await reg.showNotification(title, {
-        body: body || '',
-        tag: tag || 'vettr',
-        data: { url: url || '/dashboard' },
-        icon: '/icons/icon-192.png'
-      });
+      await reg.showNotification(title, options);
+      console.log('[webNotifications] shown via SW', { title, url: openUrl });
       return true;
     }
-    new Notification(title, { body: body || '', tag: tag || 'vettr' });
+    new Notification(title, { body: options.body, tag: options.tag, icon: options.icon });
     return true;
   } catch (err) {
     console.warn('[webNotifications] local notification failed', err);

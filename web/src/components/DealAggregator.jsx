@@ -377,6 +377,8 @@ export default function DealAggregator({
   saveScopeCrmByMarketDealId = {},
   poolNewDealsFilter = null,
   onClearPoolNewDealsFilter,
+  filterNewToday = false,
+  onClearNewToday = null,
   isGuest = false,
   entitlements = null,
   persistSettings: persistSettingsProp = null,
@@ -744,7 +746,7 @@ export default function DealAggregator({
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchKeywordsFingerprint, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger, deckScope, mobileDailyFilter]);
+  }, [searchKeywordsFingerprint, sortConfig, showHiddenDeals, viewMode, excludeKeywordsFingerprint, hideSavedDealsInFeed, poolNewFinger, deckScope, mobileDailyFilter, filterNewToday]);
 
   // Reset prefetch flag when filters change
   useEffect(() => {
@@ -843,6 +845,8 @@ export default function DealAggregator({
           firstSeenAfter = new Date(end.getTime() - 12 * 60 * 60 * 1000).toISOString();
         }
       }
+    } else if (filterNewToday) {
+      firstSeenAfter = startOfLocalDayISO();
     }
 
     const params = buildMarketDealsParams({
@@ -861,8 +865,12 @@ export default function DealAggregator({
       restrictToDbIds,
       firstSeenAfter,
       firstSeenBefore,
-      updatedAfter: mobileDailyFilter ? startOfLocalDayISO() : null,
+      updatedAfter: mobileDailyFilter && !filterNewToday ? startOfLocalDayISO() : null,
     });
+
+    if (filterNewToday) {
+      console.log('[DealAggregator] newToday filter', { firstSeenAfter });
+    }
 
     if (
       typeof window !== 'undefined' &&
@@ -924,14 +932,14 @@ export default function DealAggregator({
         setIsFetching(false);
       }
     }
-  }, [settings, feedSearchString, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords, mobileDailyFilter, deckScope]);
+  }, [settings, feedSearchString, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords, mobileDailyFilter, deckScope, filterNewToday]);
 
   // Fetch on mount, filter/sort/page/search change, and manual refresh.
   // Do not refetch on each Hide — client-side filter advances the list without a jump.
   useEffect(() => {
     if (settings) fetchServerDeals();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when inputs to fetchServerDeals change; avoid tying to unstable parent callbacks
-  }, [feedSearchString, sortConfig, currentPage, showHiddenDeals, buyBoxFeedKey, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint, deckScope, mobileDailyFilter]);
+  }, [feedSearchString, sortConfig, currentPage, showHiddenDeals, buyBoxFeedKey, manualRefreshToken, poolNewFinger, excludeKeywordsFingerprint, deckScope, mobileDailyFilter, filterNewToday]);
 
   // Manual refresh for the installed PWA (no browser reload / pull-to-refresh in
   // standalone mode). Clear the ETag cache so we always request a fresh 200.
@@ -1945,6 +1953,19 @@ export default function DealAggregator({
           </p>
           {typeof onClearPoolNewDealsFilter === 'function' ? (
             <button type="button" className="pool-new-deals-banner__clear" onClick={onClearPoolNewDealsFilter}>
+              Back to Buy Box feed
+            </button>
+          ) : null}
+        </div>
+      )}
+      {filterNewToday && !poolNewMode && (
+        <div className="pool-new-deals-banner" role="region" aria-label="New matches today">
+          <p>
+            Showing new buy-box matches from today
+            {totalFromAPI > 0 ? ` (${totalFromAPI.toLocaleString()})` : ''}.
+          </p>
+          {typeof onClearNewToday === 'function' ? (
+            <button type="button" className="pool-new-deals-banner__clear" onClick={onClearNewToday}>
               Back to Buy Box feed
             </button>
           ) : null}

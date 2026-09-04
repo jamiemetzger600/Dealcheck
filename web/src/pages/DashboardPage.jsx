@@ -71,6 +71,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   const checkoutSessionId = searchParams.get('session_id');
   const crmDealParam = searchParams.get('crmDeal');
   const sectionParam = searchParams.get('section');
+  const newTodayParam = searchParams.get('newToday') === '1';
 
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window === 'undefined') return 'aggregator';
@@ -612,6 +613,13 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             saveScopeCrmByMarketDealId={saveScopeCrmByMarketDealId}
             poolNewDealsFilter={poolNewDealsFilter}
             onClearPoolNewDealsFilter={() => setPoolNewDealsFilter(null)}
+            filterNewToday={newTodayParam}
+            onClearNewToday={() => {
+              const next = new URLSearchParams(searchParams);
+              next.delete('newToday');
+              console.log('[Dashboard] clear newToday filter');
+              setSearchParams(next, { replace: true });
+            }}
             isGuest={isGuest}
             entitlements={entitlements}
             persistSettings={persistSettings}
@@ -660,9 +668,12 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
               .catch(() => {});
           }}
           onOpenAlert={(alert) => {
+            const meta = alert?.metadata && typeof alert.metadata === 'object' ? alert.metadata : {};
             const path = notificationPath({
               alertType: alert?.alert_type,
-              savedDealId: alert?.saved_deal_id
+              savedDealId: alert?.saved_deal_id,
+              dealDbId: meta.dealDbId,
+              newToday: meta.newToday
             });
             console.log('[Dashboard] open alert', alert?.alert_type, path);
             navigate(path);

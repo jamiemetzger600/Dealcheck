@@ -44,7 +44,7 @@ export async function showLocalNotification(title, { body, tag, url, actionTitle
   if (typeof Notification === 'undefined') return false;
   if (Notification.permission !== 'granted') return false;
   const openUrl = url || '/dashboard';
-  const openLabel = actionTitle || 'Open Vettr';
+  const openLabel = actionTitle || 'Open';
   const options = {
     body: body || '',
     tag: tag || 'vettr',

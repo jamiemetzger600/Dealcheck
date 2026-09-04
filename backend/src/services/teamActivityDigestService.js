@@ -25,7 +25,8 @@ export async function getTeamActivitySince(userId, sinceDate) {
     `SELECT sd.shared_by_user_id AS actor_id,
             u.email AS actor_email,
             COUNT(*)::int AS n,
-            ARRAY_AGG(sd.name ORDER BY sd.saved_at DESC) FILTER (WHERE sd.name IS NOT NULL) AS names
+            ARRAY_AGG(sd.name ORDER BY sd.saved_at DESC) FILTER (WHERE sd.name IS NOT NULL) AS names,
+            ARRAY_AGG(sd.id ORDER BY sd.saved_at DESC) AS ids
      FROM saved_deals sd
      JOIN users u ON u.id = COALESCE(sd.shared_by_user_id, sd.user_id)
      JOIN team_members me ON me.team_id = sd.team_id AND me.user_id = $1 AND me.status = 'active'
@@ -67,7 +68,8 @@ export async function getTeamActivitySince(userId, sinceDate) {
     actorEmail: r.actor_email,
     label: actorLabel(r.actor_email),
     count: r.n,
-    names: Array.isArray(r.names) ? r.names.filter(Boolean).slice(0, 8) : []
+    names: Array.isArray(r.names) ? r.names.filter(Boolean).slice(0, 8) : [],
+    ids: Array.isArray(r.ids) ? r.ids.map((id) => Number(id)).filter((id) => id > 0).slice(0, 8) : []
   }));
 
   const stageRows = stages.rows.map((r) => ({

@@ -31,11 +31,14 @@ export default function TalkAlertBanner({
           if (seenIdsRef.current.has(alert.id)) continue;
           seenIdsRef.current.add(alert.id);
           if (document.hidden && Notification.permission === 'granted') {
+            const meta = alert.metadata && typeof alert.metadata === 'object' ? alert.metadata : {};
             const url = notificationPath({
               alertType: alert.alert_type,
-              savedDealId: alert.saved_deal_id
+              savedDealId: alert.saved_deal_id,
+              dealDbId: meta.dealDbId,
+              newToday: meta.newToday
             });
-            showLocalNotification(alert.title || 'Vettr', {
+            showLocalNotification(alert.title || 'New update', {
               body: `${alert.deal_name || 'Deal'}: ${(alert.body || '').slice(0, 120)}`,
               tag: `vettr-alert-${alert.id}`,
               url,

@@ -2,7 +2,7 @@ import pool from '../db/pool.js';
 import { deliverUserEmail } from './googleGmailService.js';
 import { sendPushToUser, userHasPushSubscription } from './pushService.js';
 import { createUserAlert } from './userAlertService.js';
-import { notificationOpenLabel, notificationPath } from '../lib/notificationLinks.js';
+import { buildDigestNotification } from '../lib/digestNotification.js';
 import {
   loadNewMarketDeals,
   matchUserBuyBoxes,
@@ -131,14 +131,18 @@ function buildDigestHtml({ grouped, team, crmLines }) {
 </html>`;
 }
 
-async function loadCrmLines(userId) {
+function crmItem({ kind, title, dealName, savedDealId, html }) {
+  return { kind, title, dealName: dealName || '', savedDealId: savedDealId || null, html };
+}
+
+async function loadCrmItems(userId) {
   const tasks = await getTodayTaskSummary(userId).catch(() => ({ overdue: [], dueToday: [], badgeCount: 0 }));
   const ddOverdue = await getDdOverdueForToday(userId).catch(() => []);
   const portalComments = await getRecentPortalComments(userId).catch(() => []);
   const staleListings = await findStaleListings(userId).catch(() => []);
   const dormantDeals = await findDormantDeals(userId, { days: 14, limit: 10 }).catch(() => []);
   const approvals = await pool.query(
-    `SELECT a.id, sd.name AS deal_name, a.action_type, a.to_value, u.email AS requester_email
+    `SELECT a.id, a.saved_deal_id, sd.name AS deal_name, a.action_type, a.to_value, u.email AS requester_email
      FROM deal_approvals a
      JOIN saved_deals sd ON sd.id = a.saved_deal_id
      JOIN users u ON u.id = a.requested_by
@@ -151,21 +155,55 @@ async function loadCrmLines(userId) {
   ).catch(() => ({ rows: [] }));
 
   return [
-    ...approvals.rows.map(
-      (a) =>
-        `<li>Approval: ${escapeHtml(a.requester_email)} — ${escapeHtml(a.deal_name || 'deal')}${a.to_value ? ` → ${escapeHtml(a.to_value)}` : ''}</li>`
-    ),
-    ...(tasks.overdue || []).map((t) => `<li>Overdue: ${escapeHtml(t.title)} (${escapeHtml(t.deal_name)})</li>`),
-    ...(tasks.dueToday || []).map((t) => `<li>Due today: ${escapeHtml(t.title)} (${escapeHtml(t.deal_name)})</li>`),
-    ...ddOverdue.map((d) => `<li>DD overdue: ${escapeHtml(d.title)} (${escapeHtml(d.deal_name)})</li>`),
-    ...portalComments.map(
-      (c) => `<li>Portal comment: ${escapeHtml(c.item_title || 'item')} (${escapeHtml(c.deal_name)})</li>`
-    ),
-    ...staleListings.map((s) => `<li>Stale listing: ${escapeHtml(s.name || s.deal_name || 'deal')}</li>`),
-    ...dormantDeals.map(
-      (d) =>
-        `<li>Dormant (${d.days_idle}d): ${escapeHtml(d.deal_name)}${d.progress_stage ? ` — ${escapeHtml(d.progress_stage)}` : ''}</li>`
-    )
+    ...approvals.rows.map((a) => crmItem({
+      kind: 'approval',
+      title: `Approval: ${a.deal_name || 'deal'}`,
+      dealName: a.deal_name,
+      savedDealId: a.saved_deal_id,
+      html: `<li>Approval: ${escapeHtml(a.requester_email)} — ${escapeHtml(a.deal_name || 'deal')}${a.to_value ? ` → ${escapeHtml(a.to_value)}` : ''}</li>`
+    })),
+    ...(tasks.overdue || []).map((t) => crmItem({
+      kind: 'overdue',
+      title: t.title,
+      dealName: t.deal_name,
+      savedDealId: t.saved_deal_id,
+      html: `<li>Overdue: ${escapeHtml(t.title)} (${escapeHtml(t.deal_name)})</li>`
+    })),
+    ...(tasks.dueToday || []).map((t) => crmItem({
+      kind: 'due_today',
+      title: t.title,
+      dealName: t.deal_name,
+      savedDealId: t.saved_deal_id,
+      html: `<li>Due today: ${escapeHtml(t.title)} (${escapeHtml(t.deal_name)})</li>`
+    })),
+    ...ddOverdue.map((d) => crmItem({
+      kind: 'dd_overdue',
+      title: `DD overdue: ${d.title}`,
+      dealName: d.deal_name,
+      savedDealId: d.saved_deal_id,
+      html: `<li>DD overdue: ${escapeHtml(d.title)} (${escapeHtml(d.deal_name)})</li>`
+    })),
+    ...portalComments.map((c) => crmItem({
+      kind: 'portal',
+      title: `Portal comment: ${c.item_title || 'item'}`,
+      dealName: c.deal_name,
+      savedDealId: c.saved_deal_id,
+      html: `<li>Portal comment: ${escapeHtml(c.item_title || 'item')} (${escapeHtml(c.deal_name)})</li>`
+    })),
+    ...staleListings.map((s) => crmItem({
+      kind: 'stale',
+      title: `Listing updated: ${s.name || s.deal_name || 'deal'}`,
+      dealName: s.name || s.deal_name,
+      savedDealId: s.savedDealId || s.id,
+      html: `<li>Stale listing: ${escapeHtml(s.name || s.deal_name || 'deal')}</li>`
+    })),
+    ...dormantDeals.map((d) => crmItem({
+      kind: 'dormant',
+      title: `Dormant: ${d.deal_name}`,
+      dealName: d.deal_name,
+      savedDealId: d.saved_deal_id,
+      html: `<li>Dormant (${d.days_idle}d): ${escapeHtml(d.deal_name)}${d.progress_stage ? ` — ${escapeHtml(d.progress_stage)}` : ''}</li>`
+    }))
   ];
 }
 
@@ -220,15 +258,17 @@ export async function sendUserDigest(userRow, {
   }
 
   const team = includeTeam ? await getTeamActivitySince(userId, teamSince) : { headlines: [], total: 0, mentions: [], added: [], stages: [] };
-  const crmLines = includeCrm ? await loadCrmLines(userId) : [];
+  const crmItems = includeCrm ? await loadCrmItems(userId) : [];
+  const crmLines = crmItems.map((item) => item.html);
 
-  const hasContent = grouped.total > 0 || team.total > 0 || crmLines.length > 0;
+  const hasContent = grouped.total > 0 || team.total > 0 || crmItems.length > 0;
   if (!hasContent) {
     console.log('[digest] empty, skip', { email: userRow.email, frequency });
     return { sent: false, reason: 'empty', email: userRow.email };
   }
 
   const html = buildDigestHtml({ grouped, team, crmLines });
+  const push = buildDigestNotification({ grouped, team, crmItems });
   const subjectParts = [];
   if (grouped.total) subjectParts.push(`${grouped.total} matching deal${grouped.total === 1 ? '' : 's'}`);
   if (team.added?.[0]) {
@@ -239,7 +279,7 @@ export async function sendUserDigest(userRow, {
   }
   const subject = subjectParts.length
     ? `Vettr: ${subjectParts.slice(0, 2).join(' · ')}`
-    : 'Vettr daily summary';
+    : push.title;
 
   const result = {
     email: userRow.email,
@@ -269,28 +309,22 @@ export async function sendUserDigest(userRow, {
     result.emailReason = 'empty_body';
   }
 
-  const pushTitle = grouped.total
-    ? `${grouped.total} new deal${grouped.total === 1 ? '' : 's'} match your buy box`
-    : (team.headlines[0] || 'Vettr summary');
-  const pushBody = [
-    grouped.total ? summarizeMatchGroups(grouped) : '',
-    teamActivityPushText(team)
-  ].filter(Boolean).join(' · ').slice(0, 220);
+  console.log('[digest] push copy', {
+    email: userRow.email,
+    title: push.title,
+    url: push.url,
+    alertType: push.alertType
+  });
 
   if (sendPush) {
     const hasSub = await userHasPushSubscription(userId);
     if (hasSub) {
-      const pushUrl = grouped.total
-        ? notificationPath({ alertType: 'deal_match' })
-        : notificationPath({ alertType: 'team_activity' });
       const pushed = await sendPushToUser(userId, {
-        title: pushTitle,
-        body: pushBody,
-        url: pushUrl,
-        tag: grouped.total ? 'deal-match' : 'team-activity',
-        actionTitle: grouped.total
-          ? notificationOpenLabel('deal_match')
-          : notificationOpenLabel('team_activity')
+        title: push.title,
+        body: push.body,
+        url: push.url,
+        tag: push.tag,
+        actionTitle: push.actionTitle
       });
       result.pushed = pushed.sent || 0;
     }
@@ -301,19 +335,36 @@ export async function sendUserDigest(userRow, {
       await createUserAlert({
         userId,
         alertType: 'deal_match',
-        title: pushTitle,
-        body: pushBody,
-        metadata: { total: grouped.total, boxes: grouped.groups.map((g) => ({ name: g.name, count: g.deals.length + (g.overflow || 0) })) }
+        title: push.alertType === 'deal_match' ? push.title : `${grouped.total} new deals match your buy box`,
+        body: push.alertType === 'deal_match' ? push.body : summarizeMatchGroups(grouped),
+        metadata: {
+          total: grouped.total,
+          dealDbId: push.dealDbId || null,
+          newToday: true,
+          boxes: grouped.groups.map((g) => ({ name: g.name, count: g.deals.length + (g.overflow || 0) }))
+        }
       }).catch((err) => console.warn('[digest] deal_match alert failed', err.message));
     }
     if (team.total) {
+      const teamDealId = team.mentions?.[0]?.saved_deal_id || team.added?.[0]?.ids?.[0] || null;
       await createUserAlert({
         userId,
         alertType: 'team_activity',
         title: team.headlines[0] || 'Team activity',
         body: team.headlines.slice(1).join(' · ') || teamActivityPushText(team),
+        savedDealId: team.added?.[0]?.count === 1 ? teamDealId : (team.mentions?.length === 1 ? teamDealId : null),
         metadata: { headlines: team.headlines, added: team.added, stages: team.stages }
       }).catch((err) => console.warn('[digest] team_activity alert failed', err.message));
+    }
+    if (crmItems.length && !grouped.total && !team.total) {
+      await createUserAlert({
+        userId,
+        alertType: push.alertType,
+        title: push.title,
+        body: push.body,
+        savedDealId: push.savedDealId,
+        metadata: { kind: crmItems[0]?.kind || null }
+      }).catch((err) => console.warn('[digest] crm alert failed', err.message));
     }
   }
 

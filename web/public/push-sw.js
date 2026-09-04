@@ -17,7 +17,7 @@ self.addEventListener('push', (event) => {
     data = { title: 'Vettr', body: event.data ? event.data.text() : '' };
   }
   const title = data.title || 'Vettr';
-  const actionTitle = data.actionTitle || 'Open Vettr';
+  const actionTitle = data.actionTitle || 'Open';
   const options = {
     body: data.body || '',
     tag: data.tag || 'vettr',
@@ -31,6 +31,7 @@ self.addEventListener('push', (event) => {
       { action: 'dismiss', title: 'Dismiss' }
     ]
   };
+  console.log('[push-sw] show', { title, url: options.data.url, tag: options.tag });
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
@@ -42,18 +43,28 @@ self.addEventListener('notificationclick', (event) => {
   const target = notificationTargetUrl(event.notification.data);
   console.log('[push-sw] notificationclick', { action, target });
 
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
-      for (const client of clientsArr) {
-        if (client.url.startsWith(self.location.origin) && 'focus' in client) {
-          client.postMessage({ type: 'VETTR_NOTIFICATION_CLICK', url: target });
-          return client.focus();
+  event.waitUntil((async () => {
+    const clientsArr = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clientsArr) {
+      if (!client.url.startsWith(self.location.origin) || !('focus' in client)) continue;
+      try {
+        client.postMessage({ type: 'VETTR_NOTIFICATION_CLICK', url: target });
+      } catch (err) {
+        console.warn('[push-sw] postMessage failed', err);
+      }
+      if (typeof client.navigate === 'function') {
+        try {
+          const navigated = await client.navigate(target);
+          if (navigated && 'focus' in navigated) return navigated.focus();
+        } catch (err) {
+          console.warn('[push-sw] navigate failed', err);
         }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(target);
-      return undefined;
-    })
-  );
+      return client.focus();
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(target);
+    return undefined;
+  })());
 });
 
 self.addEventListener('message', (event) => {

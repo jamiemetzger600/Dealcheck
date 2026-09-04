@@ -2772,6 +2772,12 @@ export default function DealAggregator({
                           <button type="button" className="deal-card__btn deal-card__btn-hide" onClick={(e) => { e.stopPropagation(); handleToggleHidden(deal); }} title={isHidden ? 'Unhide' : 'Hide'} aria-label={isHidden ? 'Unhide' : 'Hide'}>{isHidden ? 'Unhide' : 'Hide'}</button>
                         </div>
                       </div>
+                      {cardLoc ? (
+                        <p className="deal-card__location" title={cardLoc.value}>
+                          <span className="deal-card__location-label">{cardLoc.label}</span>
+                          <span className="deal-card__location-value">{cardLoc.value}</span>
+                        </p>
+                      ) : null}
                       <div className="deal-card__date">
                         <span className={`deal-date-age ${getListingAgeClass(deal.discoveredAt)}`} title={listingAgeTitle(deal.discoveredAt)}>
                           Date Added: {formatDealDate(deal.discoveredAt)}
@@ -2793,8 +2799,7 @@ export default function DealAggregator({
                         )}
                       </p>
                       <div
-                        className="deal-card__metrics"
-                        style={cardLoc ? { gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' } : undefined}
+                        className={`deal-card__metrics${cardLoc ? ' deal-card__metrics--with-loc' : ''}`}
                       >
                         <div className="deal-card__metric">
                           <span className="deal-card__metric-value" title={formatMoney(deal.askingPrice)}>{formatMoneyShort(deal.askingPrice)}</span>
@@ -2813,7 +2818,7 @@ export default function DealAggregator({
                           <span className="deal-card__metric-label">C.F. Multiple</span>
                         </div>
                         {cardLoc && (
-                          <div className="deal-card__metric">
+                          <div className="deal-card__metric deal-card__metric--location">
                             <span className="deal-card__metric-value" title={cardLoc.value}>{cardLoc.value}</span>
                             <span className="deal-card__metric-label">{cardLoc.label}</span>
                           </div>

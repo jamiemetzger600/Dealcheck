@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { crmAPI, userAPI } from '../utils/api';
-import { generateIOIText, generateIOISubject, getBrokerEmailFromDeal } from '../utils/ioiGenerator';
+import { generateIOIText, generateIOISubject, getBrokerEmailFromDeal, isValidIoiEmail } from '../utils/ioiGenerator';
 import { loadIoiDraft, saveIoiDraft } from '../utils/ioiDraftStorage';
 
 const DEFAULT_TIMELINE = '30-45 days from accepted offer';
@@ -362,18 +362,32 @@ export default function IOIModal({
     });
   };
 
+  const brokerEmailTrimmed = brokerEmail.trim();
+  const brokerEmailValid = !brokerEmailTrimmed || isValidIoiEmail(brokerEmailTrimmed);
   const canSend = selectedIndices.length > 0 && previewText.trim().length > 0;
-  const canSendGmail = canSend && Boolean(brokerEmail.trim());
+  const canSendGmail = canSend && Boolean(brokerEmailTrimmed) && isValidIoiEmail(brokerEmailTrimmed);
   const gmailReady = Boolean(gmailStatus?.gmail);
 
   const handleSendFromGmail = async () => {
-    if (!canSendGmail) return;
+    if (!canSend) {
+      setGmailError('Select a scenario and keep a non-empty email preview before sending.');
+      return;
+    }
+    if (!brokerEmailTrimmed) {
+      setGmailError('Add a broker email to send from Gmail.');
+      return;
+    }
+    if (!isValidIoiEmail(brokerEmailTrimmed)) {
+      console.warn('[IOI] invalid broker email blocked send', { brokerEmail: brokerEmailTrimmed });
+      setGmailError('Enter a valid broker email address before sending.');
+      return;
+    }
     setGmailError(null);
     setSendingGmail(true);
     await persistIoiInputsNow();
     try {
       await crmAPI.sendGmail({
-        to: brokerEmail.trim(),
+        to: brokerEmailTrimmed,
         subject: generateIOISubject(deal),
         text: previewText
       });
@@ -387,12 +401,38 @@ export default function IOIModal({
     }
   };
 
+  const handleSendEmailGuarded = async () => {
+    if (!canSend) {
+      console.warn('[IOI] Open in Gmail blocked — empty preview or no scenarios');
+      return;
+    }
+    if (brokerEmailTrimmed && !isValidIoiEmail(brokerEmailTrimmed)) {
+      setGmailError('Enter a valid broker email address, or clear the field to open Gmail without a recipient.');
+      return;
+    }
+    setGmailError(null);
+    await handleSendEmail();
+  };
+
+  const handleSendMailAppGuarded = async () => {
+    if (!canSend) {
+      console.warn('[IOI] Default mail app blocked — empty preview or no scenarios');
+      return;
+    }
+    if (brokerEmailTrimmed && !isValidIoiEmail(brokerEmailTrimmed)) {
+      setGmailError('Enter a valid broker email address, or clear the field to open your mail app without a recipient.');
+      return;
+    }
+    setGmailError(null);
+    await handleSendMailApp();
+  };
+
   return (
     <div className="modal-overlay ioi-modal-overlay" onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-card ioi-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-card ioi-modal" role="dialog" aria-modal="true" aria-labelledby="ioi-modal-title" onClick={(e) => e.stopPropagation()}>
         <div className="ioi-modal-header">
-          <h2>Quick IOI</h2>
-          <button type="button" className="deal-details-close" onClick={onClose}>×</button>
+          <h2 id="ioi-modal-title">Quick IOI</h2>
+          <button type="button" className="deal-details-close ioi-modal-close" onClick={onClose} aria-label="Close Quick IOI">×</button>
         </div>
 
         <div className="ioi-modal-body">
@@ -422,16 +462,26 @@ export default function IOIModal({
             <input
               id="ioi-broker-email"
               type="email"
-              className="ioi-input"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              className={`ioi-input${!brokerEmailValid ? ' ioi-input--invalid' : ''}`}
               value={brokerEmail}
               onChange={(e) => {
                 brokerEmailTouchedRef.current = true;
                 setBrokerEmail(e.target.value);
+                if (gmailError) setGmailError(null);
               }}
               onBlur={persistIoiInputsNow}
               placeholder="broker@example.com"
+              aria-invalid={!brokerEmailValid}
             />
-            <p className="ioi-hint">Saved for this listing. Required to send from Gmail.</p>
+            {!brokerEmailValid ? (
+              <p className="ioi-warn">Enter a valid email (name@domain.com).</p>
+            ) : (
+              <p className="ioi-hint">Saved for this listing. Required to send from Gmail.</p>
+            )}
           </div>
 
           {/* Buyer company + signature (saved for next time) */}
@@ -497,7 +547,7 @@ export default function IOIModal({
             </div>
             <textarea
               className="ioi-preview"
-              rows={16}
+              rows={10}
               value={previewText}
               onChange={(e) => {
                 previewEditedRef.current = true;
@@ -518,29 +568,34 @@ export default function IOIModal({
               <Link to="/settings">Connect Google in Settings</Link> to send this IOI from your Gmail without a compose tab.
             </p>
           )}
-          {gmailReady && !brokerEmail.trim() && canSend && (
+          {gmailReady && !brokerEmailTrimmed && canSend && (
             <p className="ioi-warn">Add a broker email to send from Gmail.</p>
           )}
-          <button type="button" className="btn-secondary" onClick={handleCopy} disabled={!canSend}>
-            Copy to Clipboard
-          </button>
-          {gmailReady ? (
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleSendFromGmail}
-              disabled={!canSendGmail || sendingGmail}
-            >
-              {sendingGmail ? 'Sending…' : `Send from Gmail${gmailStatus?.googleEmail ? ` (${gmailStatus.googleEmail})` : ''}`}
+          <div className="ioi-modal-footer__actions">
+            <button type="button" className="btn-secondary" onClick={handleCopy} disabled={!canSend}>
+              Copy to Clipboard
             </button>
+            {gmailReady ? (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleSendFromGmail}
+                disabled={!canSendGmail || sendingGmail}
+              >
+                {sendingGmail ? 'Sending…' : 'Send from Gmail'}
+              </button>
+            ) : null}
+            <button type="button" className={gmailReady ? 'btn-secondary' : 'btn-primary'} onClick={handleSendEmailGuarded} disabled={!canSend}>
+              Open in Gmail
+            </button>
+            <button type="button" className="btn-secondary ioi-mailapp-btn" onClick={handleSendMailAppGuarded} disabled={!canSend}>
+              Default mail app
+            </button>
+            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+          </div>
+          {gmailReady && gmailStatus?.googleEmail ? (
+            <p className="ioi-hint ioi-gmail-account">Sending as {gmailStatus.googleEmail}</p>
           ) : null}
-          <button type="button" className={gmailReady ? 'btn-secondary' : 'btn-primary'} onClick={handleSendEmail} disabled={!canSend}>
-            Open in Gmail
-          </button>
-          <button type="button" className="btn-secondary ioi-mailapp-btn" onClick={() => handleSendMailApp()} disabled={!canSend}>
-            Default mail app
-          </button>
-          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
         </div>
       </div>
     </div>

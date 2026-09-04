@@ -3,6 +3,8 @@ import { analyzeDealScenario, SELLER_NOTE_TERM_YEARS } from './dealCalculatorMat
 export const DEFAULT_IOI_TIMELINE = '30-45 days from accepted offer';
 
 const EMAIL_IN_TEXT = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+/** Full-string email check for broker / send fields (IOI submit validation). */
+const EMAIL_FULL = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 function firstEmailInText(value) {
   if (value == null || value === '') return '';
@@ -12,6 +14,13 @@ function firstEmailInText(value) {
   const haystack = mailto ? mailto[1] : s;
   const m = haystack.match(EMAIL_IN_TEXT);
   return m ? m[0] : '';
+}
+
+/** True when value is a single well-formed email address. */
+export function isValidIoiEmail(value) {
+  if (value == null) return false;
+  const s = String(value).trim();
+  return EMAIL_FULL.test(s);
 }
 
 /** Prefer explicit broker fields; fall back to first email found in contact / description text. */

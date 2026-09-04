@@ -23,8 +23,15 @@ export function useMediaQuery(query) {
 
 export const MOBILE_MAX_WIDTH_PX = 767;
 
+/**
+ * Phones in landscape often report width > 767 (e.g. ~844), which would
+ * otherwise flip Vettr into desktop chrome. Treat short landscape viewports
+ * as mobile so rotation does not reshape the feed.
+ */
+export const MOBILE_MEDIA_QUERY = `(max-width: ${MOBILE_MAX_WIDTH_PX}px), (max-width: 950px) and (max-height: 500px) and (orientation: landscape)`;
+
 export function useIsMobile() {
-  return useMediaQuery(`(max-width: ${MOBILE_MAX_WIDTH_PX}px)`);
+  return useMediaQuery(MOBILE_MEDIA_QUERY);
 }
 
 export function useIsTablet() {

@@ -1,5 +1,4 @@
 import { normalizeGeoScalar } from './normalizeMarketDeal';
-import { deedColorById } from './deedCardPrefs';
 
 /** State for card metrics; else city, county, country; then combined location line. */
 export function cardMetricLocation(deal) {
@@ -97,20 +96,22 @@ export function listingAgeTitle(discoveredAt) {
   return `${dateStr} — ${days} days ago`;
 }
 
-function hashSeed(value) {
-  const raw = String(value ?? '');
-  const numeric = Number(raw);
-  if (Number.isFinite(numeric) && numeric !== 0) return Math.abs(numeric);
-  let h = 0;
-  for (let i = 0; i < raw.length; i += 1) {
-    h = ((h << 5) - h + raw.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-}
+/** Listing-age header colors — matches `.deal-age-legend` dots (aggregator cards only). */
+const AGE_HEADER_COLORS = {
+  fresh: { hex: '#4ade80', ink: '#111' },   // 0–2w
+  recent: { hex: '#facc15', ink: '#111' },  // 2–4w
+  aging: { hex: '#f87171', ink: '#111' },   // 4–8w
+  older: { hex: '#6b7280', ink: '#fff' },   // 8w+
+  unknown: { hex: '#6b7280', ink: '#fff' },
+};
 
-/** CRM deed header color, stable per listing. */
 export function aggregatorDeedColor(deal) {
-  return deedColorById(null, hashSeed(deal?.dbId ?? deal?.id));
+  const days = getListingAgeDays(deal?.discoveredAt);
+  if (days == null) return AGE_HEADER_COLORS.unknown;
+  if (days < 14) return AGE_HEADER_COLORS.fresh;
+  if (days < 28) return AGE_HEADER_COLORS.recent;
+  if (days < 56) return AGE_HEADER_COLORS.aging;
+  return AGE_HEADER_COLORS.older;
 }
 
 export function aggregatorCardStatus(deal) {

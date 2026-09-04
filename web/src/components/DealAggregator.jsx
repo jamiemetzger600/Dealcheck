@@ -33,6 +33,8 @@ import { useTeam } from '../context/TeamContext';
 import { claimPendingSaveDealDbId } from '../utils/pendingSaveDeal';
 import { collapseListingEl, prefersReducedMotion } from '../utils/listingExit';
 import {
+  aggregatorCardStatus,
+  aggregatorDeedColor,
   cardMetricLocation,
   cardViewDescriptionPreview,
   formatMoneyShort,
@@ -40,6 +42,7 @@ import {
   formatDealDate,
   getListingAgeClass,
   listingAgeTitle,
+  profitMultipleTier,
 } from '../utils/dealCardDisplay';
 
 const PER_PAGE = 50;
@@ -343,6 +346,135 @@ function SwipeableDealCard({ deal, isHidden, onHide, onLike, onTap, enableSwipe,
           Like
         </div>
         {children}
+      </div>
+    </div>
+  );
+}
+
+function stopCardAction(e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function AggregatorDeedCardBody({
+  deal,
+  isHidden,
+  dealSaved,
+  isGuest,
+  entitlements,
+  requireSignup,
+  savingDealId,
+  saveTargetLabel,
+  showSavedHighlightInFeed,
+  onToggleSave,
+  onToggleHidden,
+  onOpen,
+}) {
+  const color = aggregatorDeedColor(deal);
+  const status = aggregatorCardStatus(deal);
+  const descCard = cardViewDescriptionPreview(deal.description, 3);
+  const cardLoc = cardMetricLocation(deal);
+  const multipleOk = deal.profitMultiple != null && Number.isFinite(Number(deal.profitMultiple));
+
+  return (
+    <div
+      className="deal-card__inner"
+      style={{ '--deed-color': color.hex, '--deed-ink': color.ink }}
+    >
+      <header className="deal-card__header">
+        <h3 className="deal-card__name">{deal.name || 'Unnamed Business'}</h3>
+      </header>
+
+      <div className="deal-card__status">{status}</div>
+
+      <div className="deal-card__rows">
+        <div className="deal-card__row">
+          <span>{cardLoc?.label || 'Location'}</span>
+          <span title={cardLoc?.value || undefined}>{cardLoc?.value || '—'}</span>
+        </div>
+      </div>
+
+      <div className="deal-card__blurb">
+        <span className="deal-card__blurb-label">Description</span>
+        {isGuest ? (
+          <GatedPreviewText
+            text={deal.description}
+            limit={entitlements?.previewCharLimit ?? 120}
+            entitlements={entitlements}
+            serverTruncated={deal.descriptionTruncated}
+            reason="description_click"
+            onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
+            className="deal-card-description"
+          />
+        ) : (
+          <span className={`deal-card__blurb-text${descCard.full ? '' : ' deal-card__blurb-text--empty'}`}>
+            {descCard.full || 'No description available.'}
+          </span>
+        )}
+      </div>
+
+      <div className="deal-card__rows">
+        <div
+          className="deal-card__row"
+          title={listingAgeTitle(deal.discoveredAt)}
+        >
+          <span>Date added</span>
+          <span className={`deal-date-age ${getListingAgeClass(deal.discoveredAt)}`}>
+            {formatDealDate(deal.discoveredAt)}
+          </span>
+        </div>
+      </div>
+
+      <div className="deal-card__metrics">
+        <div className="deal-card__metric">
+          <span className="deal-card__metric-value" title={formatMoney(deal.askingPrice)}>{formatMoneyShort(deal.askingPrice)}</span>
+          <span className="deal-card__metric-label">Purchase Price</span>
+        </div>
+        <div className="deal-card__metric">
+          <span className="deal-card__metric-value" title={formatMoney(deal.revenue)}>{formatMoneyShort(deal.revenue)}</span>
+          <span className="deal-card__metric-label">Revenue</span>
+        </div>
+        <div className="deal-card__metric">
+          <span className="deal-card__metric-value" title={formatMoney(deal.ebitda)}>{formatMoneyShort(deal.ebitda)}</span>
+          <span className="deal-card__metric-label">EBITDA</span>
+        </div>
+        <div className="deal-card__metric">
+          <span
+            className="deal-card__metric-value deal-card__multiple"
+            data-tier={multipleOk ? profitMultipleTier(deal.profitMultiple) : 'neutral'}
+            title={multipleOk ? `${formatRatio(deal.profitMultiple)}X multiple` : 'Multiple'}
+          >
+            {multipleOk ? `${formatRatio(deal.profitMultiple)}X` : '—'}
+          </span>
+          <span className="deal-card__metric-label">Multiple</span>
+        </div>
+      </div>
+
+      <div className="deal-card__shortcuts" onClick={stopCardAction}>
+        <button
+          type="button"
+          className={`deal-card__btn-save${dealSaved ? (showSavedHighlightInFeed ? ' deal-card__btn-save--saved' : ' deal-card__btn-save--saved-muted') : ''}`}
+          onClick={() => onToggleSave(deal)}
+          disabled={savingDealId === deal.id}
+          title={dealSaved ? `Click to remove from ${saveTargetLabel}` : `Save to ${saveTargetLabel}`}
+          aria-label={dealSaved ? `Saved — click to remove from ${saveTargetLabel}` : `Save to ${saveTargetLabel}`}
+        >
+          {dealSaved ? 'Saved' : 'Save'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onToggleHidden(deal)}
+          title={isHidden ? 'Unhide' : 'Hide'}
+          aria-label={isHidden ? 'Unhide' : 'Hide'}
+        >
+          {isHidden ? 'Unhide' : 'Hide'}
+        </button>
+        <button type="button" onClick={() => {
+          console.log('[AggregatorDeedCard] open', { id: deal?.id, dbId: deal?.dbId });
+          onOpen(deal);
+        }}>
+          Open
+        </button>
       </div>
     </div>
   );
@@ -2765,8 +2897,6 @@ export default function DealAggregator({
                 dealsToShow.map((deal) => {
                   const isHidden = isDealHidden(deal, hiddenDealIds);
                   const dealSaved = isDealSavedInWorkspace(deal);
-                  const descCard = cardViewDescriptionPreview(deal.description, 4);
-                  const cardLoc = cardMetricLocation(deal);
                   return (
                     <SwipeableDealCard
                       key={deal.id}
@@ -2777,69 +2907,20 @@ export default function DealAggregator({
                       onTap={setSelectedDeal}
                       enableSwipe={false}
                     >
-                      <div className="deal-card__header">
-                        <h3 className="deal-card__name">{deal.name || 'Unnamed Business'}</h3>
-                        <div className="deal-card__actions">
-                          <button
-                            type="button"
-                            className={`deal-card__btn deal-card__btn-save${dealSaved ? (showSavedHighlightInFeed ? ' deal-card__btn-save--saved' : ' deal-card__btn-save--saved-muted') : ''}`}
-                            onClick={(e) => { e.stopPropagation(); handleToggleSaveDeal(deal); }}
-                            disabled={savingDealId === deal.id}
-                            title={dealSaved ? `Click to remove from ${saveTargetLabel}` : `Save to ${saveTargetLabel}`}
-                            aria-label={dealSaved ? `Saved — click to remove from ${saveTargetLabel}` : `Save to ${saveTargetLabel}`}
-                          >
-                            {dealSaved ? 'Saved' : 'Save'}
-                          </button>
-                          <button type="button" className="deal-card__btn deal-card__btn-hide" onClick={(e) => { e.stopPropagation(); handleToggleHidden(deal); }} title={isHidden ? 'Unhide' : 'Hide'} aria-label={isHidden ? 'Unhide' : 'Hide'}>{isHidden ? 'Unhide' : 'Hide'}</button>
-                        </div>
-                      </div>
-                      <div className="deal-card__date">
-                        <span className={`deal-date-age ${getListingAgeClass(deal.discoveredAt)}`} title={listingAgeTitle(deal.discoveredAt)}>
-                          Date Added: {formatDealDate(deal.discoveredAt)}
-                        </span>
-                      </div>
-                      <p className="deal-card__subtitle" title={descCard.full || undefined}>
-                        {isGuest ? (
-                          <GatedPreviewText
-                            text={deal.description}
-                            limit={entitlements?.previewCharLimit ?? 120}
-                            entitlements={entitlements}
-                            serverTruncated={deal.descriptionTruncated}
-                            reason="description_click"
-                            onRequireSignup={(reason) => requireSignup?.(reason, { dealDbId: deal.dbId })}
-                            className="deal-card-description"
-                          />
-                        ) : (
-                          descCard.preview || 'No description available.'
-                        )}
-                      </p>
-                      <div
-                        className="deal-card__metrics"
-                        style={cardLoc ? { gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' } : undefined}
-                      >
-                        <div className="deal-card__metric">
-                          <span className="deal-card__metric-value" title={formatMoney(deal.askingPrice)}>{formatMoneyShort(deal.askingPrice)}</span>
-                          <span className="deal-card__metric-label">Asking Price</span>
-                        </div>
-                        <div className="deal-card__metric">
-                          <span className="deal-card__metric-value" title={formatMoney(deal.revenue)}>{formatMoneyShort(deal.revenue)}</span>
-                          <span className="deal-card__metric-label">Gross Revenue</span>
-                        </div>
-                        <div className="deal-card__metric">
-                          <span className="deal-card__metric-value" title={formatMoney(deal.ebitda)}>{formatMoneyShort(deal.ebitda)}</span>
-                          <span className="deal-card__metric-label">Adj. Cash Flow</span>
-                        </div>
-                        <div className="deal-card__metric">
-                          <span className="deal-card__metric-value">{deal.profitMultiple != null ? `${formatRatio(deal.profitMultiple)}X` : '—'}</span>
-                          <span className="deal-card__metric-label">C.F. Multiple</span>
-                        </div>
-                        {cardLoc && (
-                          <div className="deal-card__metric">
-                            <span className="deal-card__metric-value" title={cardLoc.value}>{cardLoc.value}</span>
-                            <span className="deal-card__metric-label">{cardLoc.label}</span>
-                          </div>
-                        )}
-                      </div>
+                      <AggregatorDeedCardBody
+                        deal={deal}
+                        isHidden={isHidden}
+                        dealSaved={dealSaved}
+                        isGuest={isGuest}
+                        entitlements={entitlements}
+                        requireSignup={requireSignup}
+                        savingDealId={savingDealId}
+                        saveTargetLabel={saveTargetLabel}
+                        showSavedHighlightInFeed={showSavedHighlightInFeed}
+                        onToggleSave={handleToggleSaveDeal}
+                        onToggleHidden={handleToggleHidden}
+                        onOpen={setSelectedDeal}
+                      />
                     </SwipeableDealCard>
                   );
                 })

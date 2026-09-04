@@ -1,4 +1,5 @@
 import { normalizeGeoScalar } from './normalizeMarketDeal';
+import { deedColorById } from './deedCardPrefs';
 
 /** State for card metrics; else city, county, country; then combined location line. */
 export function cardMetricLocation(deal) {
@@ -94,4 +95,38 @@ export function listingAgeTitle(discoveredAt) {
   if (days === 0) return `${dateStr} — today`;
   if (days === 1) return `${dateStr} — 1 day ago`;
   return `${dateStr} — ${days} days ago`;
+}
+
+function hashSeed(value) {
+  const raw = String(value ?? '');
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric !== 0) return Math.abs(numeric);
+  let h = 0;
+  for (let i = 0; i < raw.length; i += 1) {
+    h = ((h << 5) - h + raw.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+/** CRM deed header color, stable per listing. */
+export function aggregatorDeedColor(deal) {
+  return deedColorById(null, hashSeed(deal?.dbId ?? deal?.id));
+}
+
+export function aggregatorCardStatus(deal) {
+  const industry = String(deal?.industry || '').trim();
+  if (industry) return industry;
+  const source = String(deal?.source || deal?.sourceType || '').trim();
+  if (source) return source.replace(/_/g, ' ');
+  return 'Listing';
+}
+
+/** Lower cash-flow multiple is stronger for a buyer. */
+export function profitMultipleTier(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 'neutral';
+  if (n <= 2.5) return 'excellent';
+  if (n <= 3.5) return 'good';
+  if (n <= 5) return 'fair';
+  return 'bad';
 }

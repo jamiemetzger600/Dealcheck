@@ -53,6 +53,7 @@ export default function CrmDeedBoard({
   onStageChanged = null,
   nextActionByDealId = null,
   overdueDealIds = null,
+  locallySeenDealIds = null,
   onAddDeal = null,
   onLiveDealsRefresh = null
 }) {
@@ -547,6 +548,7 @@ export default function CrmDeedBoard({
         overdueDealIds={overdueDealIds}
         colorId={colorId}
         pinned={Boolean(prefs.pins?.[String(id)])}
+        unseen={Boolean(deal.unseenFromTeam) && !locallySeenDealIds?.has(String(id))}
         selected={selectedDealId != null && String(selectedDealId) === String(id)}
         dragging={String(dragDealId) === String(id)}
         dropTarget={hovering}

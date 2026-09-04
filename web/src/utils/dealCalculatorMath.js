@@ -334,6 +334,15 @@ export function stringifyDealNumber(value) {
   return value ? String(Math.round(value)) : '';
 }
 
+export function defaultScenarioName(index) {
+  return `Scenario ${index + 1}`;
+}
+
+export function scenarioDisplayName(scenario, index) {
+  const name = typeof scenario?.name === 'string' ? scenario.name.trim() : '';
+  return name || defaultScenarioName(index);
+}
+
 export function isValidCalculatorPayload(data, scenarioCount) {
   return (
     data &&
@@ -366,8 +375,8 @@ export function createDefaultScenarios(deal, calculatorDefaults = {}) {
     dismissDealOpportunity: false
   };
   return [
-    { ...base },
-    { ...base, sbaPercent: '70', equityPercent: '20', sellerEnabled: true, sellerPercent: '10' },
-    { ...base, sbaPercent: '60', equityPercent: '20', sellerEnabled: true, sellerPercent: '20' }
+    { ...base, name: defaultScenarioName(0) },
+    { ...base, name: defaultScenarioName(1), sbaPercent: '70', equityPercent: '20', sellerEnabled: true, sellerPercent: '10' },
+    { ...base, name: defaultScenarioName(2), sbaPercent: '60', equityPercent: '20', sellerEnabled: true, sellerPercent: '20' }
   ];
 }

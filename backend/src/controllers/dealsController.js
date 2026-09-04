@@ -7,6 +7,7 @@ import {
   getMembership
 } from '../lib/teamAcl.js';
 import { getUnreadCounts } from '../services/dealThreadService.js';
+import { attachUnseenFromTeam, markDealSeen } from '../services/savedDealViewsService.js';
 import { coerceDiscoveredAt } from '../lib/discoveredAt.js';
 
 /** Normalize URL for matching: same listing may appear with different fragments/casing. */
@@ -78,9 +79,13 @@ export const getSavedDeals = async (req, res) => {
       userId,
       result.rows.map((r) => r.id)
     ).catch(() => ({}));
+    const withUnseen = await attachUnseenFromTeam(userId, result.rows).catch((err) => {
+      console.warn('[deals] attachUnseenFromTeam skipped', err.message);
+      return result.rows;
+    });
 
     res.json({
-      deals: result.rows.map((d) => ({
+      deals: withUnseen.map((d) => ({
         ...d,
         unread_messages: unread[d.id] || 0
       }))
@@ -261,6 +266,9 @@ export const saveDeal = async (req, res) => {
     });
 
     if (teamId) {
+      await markDealSeen(req.user.userId, savedDealId).catch((err) => {
+        console.warn('[deals] markDealSeen on save skipped', err.message);
+      });
       await pool.query(
         `INSERT INTO deal_messages (saved_deal_id, author_user_id, body, message_kind)
          VALUES ($1, $2, $3, 'system')`,
@@ -501,6 +509,55 @@ export const updateSavedDeal = async (req, res) => {
       id,
       discoveredAt
     });
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+/** GET /api/deals/:id — single saved deal (CRM open-by-id when list is stale). */
+export const getSavedDealById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const access = await getDealAccess(req.user.userId, id);
+    assertCanRead(access);
+
+    const result = await pool.query(
+      `SELECT ${DEAL_SELECT_FIELDS}
+       FROM saved_deals
+       WHERE id = $1`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deal not found' });
+    }
+
+    await markDealSeen(req.user.userId, id).catch((err) => {
+      console.warn('[deals] markDealSeen on getById skipped', err.message);
+    });
+    const unread = await getUnreadCounts(req.user.userId, [Number(id)]).catch(() => ({}));
+    const deal = {
+      ...result.rows[0],
+      unread_messages: unread[Number(id)] || 0,
+      unseen_from_team: false
+    };
+    console.log('[deals] getById', { id, userId: req.user.userId, name: deal.name });
+    res.json({ deal });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error('Get deal by id error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const markSavedDealSeen = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const access = await getDealAccess(req.user.userId, id);
+    assertCanRead(access);
+    await markDealSeen(req.user.userId, id);
+    res.json({ ok: true });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error('[deals] markSavedDealSeen error', error);
     res.status(500).json({ error: 'Server error' });
   }
 };

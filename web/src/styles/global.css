@@ -4142,6 +4142,18 @@ button.aggregator-welcome__buybox {
   color: var(--text-primary);
 }
 
+.calc-scenario-tab-input {
+  min-width: 0;
+  max-width: 180px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.calc-scenario-tab-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
 .calc-scenario-bar {
   margin-bottom: 16px;
 }
@@ -11104,6 +11116,44 @@ button.aggregator-welcome__buybox {
 
 .crm-deed-card:hover {
   box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.42);
+}
+
+@keyframes crm-deed-card-unseen-glow {
+  0%,
+  100% {
+    box-shadow:
+      5px 5px 0 rgba(0, 0, 0, 0.35),
+      0 0 0 2px rgba(234, 179, 8, 0.55),
+      0 0 16px rgba(250, 204, 21, 0.45);
+  }
+  50% {
+    box-shadow:
+      5px 5px 0 rgba(0, 0, 0, 0.35),
+      0 0 0 3px rgba(250, 204, 21, 0.85),
+      0 0 26px rgba(250, 204, 21, 0.7);
+  }
+}
+
+.crm-deed-card--unseen {
+  animation: crm-deed-card-unseen-glow 2.2s ease-in-out infinite;
+  z-index: 1;
+}
+
+.crm-deed-card--unseen:hover {
+  box-shadow:
+    7px 7px 0 rgba(0, 0, 0, 0.42),
+    0 0 0 3px rgba(250, 204, 21, 0.85),
+    0 0 26px rgba(250, 204, 21, 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-deed-card--unseen {
+    animation: none;
+    box-shadow:
+      5px 5px 0 rgba(0, 0, 0, 0.35),
+      0 0 0 2px rgba(250, 204, 21, 0.7),
+      0 0 18px rgba(250, 204, 21, 0.5);
+  }
 }
 
 .crm-deed-card--selected {

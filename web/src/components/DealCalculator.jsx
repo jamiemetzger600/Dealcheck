@@ -8,7 +8,9 @@ import {
   isValidCalculatorPayload,
   parseMoney,
   SELLER_NOTE_TERM_YEARS,
-  stringifyDealNumber
+  stringifyDealNumber,
+  defaultScenarioName,
+  scenarioDisplayName
 } from '../utils/dealCalculatorMath';
 import {
   isScenario3Pristine,
@@ -59,6 +61,9 @@ export default function DealCalculator({
   const [targetOfferResult, setTargetOfferResult] = useState(null);
   const [addingToMyDeals, setAddingToMyDeals] = useState(false);
   const [showScenarioCompare, setShowScenarioCompare] = useState(false);
+  const [renamingScenarioIndex, setRenamingScenarioIndex] = useState(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const renameInputRef = useRef(null);
   const persistTimerRef = useRef(null);
   const perDealPersistTimerRef = useRef(null);
   const canOpenIOI = typeof onUseForIOI === 'function' && scenarios.length > 0;
@@ -90,7 +95,11 @@ export default function DealCalculator({
     else if (isValidCalculatorPayload(fromListingKey, n)) stored = fromListingKey;
 
     if (stored) {
-      const merged = stored.scenarios.map((s, i) => ({ ...defaults[i], ...s }));
+      const merged = stored.scenarios.map((s, i) => {
+        const mergedRow = { ...defaults[i], ...s };
+        mergedRow.name = scenarioDisplayName(mergedRow, i);
+        return mergedRow;
+      });
       setScenarios(merged);
       setActiveScenario(Math.min(Number(stored.activeScenario) || 0, merged.length - 1));
       setTargetCOC(
@@ -111,6 +120,8 @@ export default function DealCalculator({
       setTargetCOC(cocDefault);
       setUiOpen({ ...DEFAULT_UI });
     }
+    setRenamingScenarioIndex(null);
+    setRenameDraft('');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset calculator state when switching deals; not when financing defaults sync from server
   }, [deal?.id]);
 
@@ -242,6 +253,33 @@ export default function DealCalculator({
       current.map((scenario, index) => (index === activeScenario ? { ...scenario, ...patch } : scenario))
     );
   }, [activeScenario]);
+
+  const commitScenarioName = useCallback((index, raw) => {
+    const next = String(raw || '').trim() || defaultScenarioName(index);
+    setScenarios((current) =>
+      current.map((scenario, i) => (i === index ? { ...scenario, name: next } : scenario))
+    );
+    console.log('[DealCalculator] renamed scenario', { index, name: next, dealId: deal?.id });
+    setRenamingScenarioIndex(null);
+    setRenameDraft('');
+  }, [deal?.id]);
+
+  const startRenameScenario = useCallback((index) => {
+    const current = scenarios[index];
+    setShowScenarioCompare(false);
+    setActiveScenario(index);
+    setRenamingScenarioIndex(index);
+    setRenameDraft(scenarioDisplayName(current, index));
+  }, [scenarios]);
+
+  useEffect(() => {
+    if (renamingScenarioIndex == null) return undefined;
+    const el = renameInputRef.current;
+    if (!el) return undefined;
+    el.focus();
+    el.select();
+    return undefined;
+  }, [renamingScenarioIndex]);
 
   const updateScenario = useCallback(
     (field, value) => {
@@ -427,19 +465,53 @@ export default function DealCalculator({
 
       <div className="calc-scenario-bar">
         <div className="calc-scenario-tabs">
-          {scenarios.map((_, index) => (
-            <button
-              key={`scenario-${index + 1}`}
-              type="button"
-              className={`calc-scenario-tab ${!showScenarioCompare && activeScenario === index ? 'active' : ''}`}
-              onClick={() => {
-                setShowScenarioCompare(false);
-                setActiveScenario(index);
-              }}
-            >
-              Scenario {index + 1}
-            </button>
-          ))}
+          {scenarios.map((scenario, index) =>
+            renamingScenarioIndex === index ? (
+              <input
+                key={`scenario-${index + 1}`}
+                ref={renameInputRef}
+                type="text"
+                className="calc-scenario-tab calc-scenario-tab-input active"
+                value={renameDraft}
+                maxLength={80}
+                aria-label={`Name for ${defaultScenarioName(index)}`}
+                onChange={(event) => setRenameDraft(event.target.value)}
+                onBlur={() => commitScenarioName(index, renameDraft)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    commitScenarioName(index, renameDraft);
+                  } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setRenamingScenarioIndex(null);
+                    setRenameDraft('');
+                  }
+                }}
+              />
+            ) : (
+              <button
+                key={`scenario-${index + 1}`}
+                type="button"
+                className={`calc-scenario-tab ${!showScenarioCompare && activeScenario === index ? 'active' : ''}`}
+                title="Click the active tab again, or double-click, to rename"
+                onClick={() => {
+                  setShowScenarioCompare(false);
+                  if (!showScenarioCompare && activeScenario === index) {
+                    startRenameScenario(index);
+                    return;
+                  }
+                  setActiveScenario(index);
+                  setRenamingScenarioIndex(null);
+                }}
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  startRenameScenario(index);
+                }}
+              >
+                {scenarioDisplayName(scenario, index)}
+              </button>
+            )
+          )}
           <button
             type="button"
             className={`calc-scenario-tab calc-scenario-compare-btn ${showScenarioCompare ? 'active' : ''}`}
@@ -449,7 +521,11 @@ export default function DealCalculator({
           </button>
         </div>
         {showScenarioCompare && (
-          <ScenarioCompareTable analyses={compareAnalyses} bestScenarioIndices={bestCompareScenarioIndices} />
+          <ScenarioCompareTable
+            analyses={compareAnalyses}
+            bestScenarioIndices={bestCompareScenarioIndices}
+            scenarioLabels={scenarios.map((scenario, index) => scenarioDisplayName(scenario, index))}
+          />
         )}
       </div>
 
@@ -991,7 +1067,7 @@ const COMPARE_ROWS = [
   }
 ];
 
-function ScenarioCompareTable({ analyses, bestScenarioIndices }) {
+function ScenarioCompareTable({ analyses, bestScenarioIndices, scenarioLabels = [] }) {
   return (
     <div className="calc-scenario-compare" role="region" aria-label="Scenario comparison">
       <table className="calc-scenario-compare-table">
@@ -1006,7 +1082,9 @@ function ScenarioCompareTable({ analyses, bestScenarioIndices }) {
                   scope="col"
                   className={isBest ? 'calc-scenario-compare-col--best' : undefined}
                 >
-                  <span className="calc-scenario-compare-col-label">Scenario {index + 1}</span>
+                  <span className="calc-scenario-compare-col-label">
+                    {scenarioLabels[index] || defaultScenarioName(index)}
+                  </span>
                   {isBest ? <span className="calc-scenario-best-pill">Best ROI</span> : null}
                 </th>
               );

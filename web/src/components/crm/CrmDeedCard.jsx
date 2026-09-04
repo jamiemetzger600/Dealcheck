@@ -48,6 +48,7 @@ export default function CrmDeedCard({
   overdueDealIds = null,
   colorId,
   pinned = false,
+  unseen = false,
   selected = false,
   dragging = false,
   dropTarget = false,
@@ -84,7 +85,8 @@ export default function CrmDeedCard({
         selected ? 'crm-deed-card--selected' : '',
         dragging ? 'crm-deed-card--dragging' : '',
         dropTarget ? 'crm-deed-card--drop' : '',
-        pinned ? 'crm-deed-card--pinned' : ''
+        pinned ? 'crm-deed-card--pinned' : '',
+        unseen ? 'crm-deed-card--unseen' : ''
       ].filter(Boolean).join(' ')}
       draggable={writeEnabled}
       onDragStart={writeEnabled ? (e) => {

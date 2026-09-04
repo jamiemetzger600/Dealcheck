@@ -16,6 +16,7 @@ import {
   assertCanRead,
   assertCanApprove
 } from '../lib/teamAcl.js';
+import { markAllTeamDealsSeenForUser, markDealSeen } from '../services/savedDealViewsService.js';
 
 function webAppBase() {
   // Always use WEB_APP_URL so invite links point at the live app (e.g. vettr.pages.dev).
@@ -189,6 +190,9 @@ async function copyPersonalDealToTeam({
   );
   const teamSavedDealId = inserted.rows[0].id;
   const actor = actorUserId || sharedByUserId;
+  await markDealSeen(actor, teamSavedDealId).catch((err) => {
+    console.warn('[teams] markDealSeen on share skipped', err.message);
+  });
   const body = message || 'Deal shared with the team';
 
   await pool.query(
@@ -514,6 +518,10 @@ export const acceptInvite = async (req, res) => {
       [invite.id]
     );
     await client.query('COMMIT');
+
+    await markAllTeamDealsSeenForUser(req.user.userId, invite.team_id).catch((err) => {
+      console.warn('[teams] backfill views on join skipped', err.message);
+    });
 
     const team = await pool.query(`SELECT id, name FROM teams WHERE id = $1`, [invite.team_id]);
     console.log(`[teams] user=${req.user.userId} accepted invite team=${invite.team_id}`);

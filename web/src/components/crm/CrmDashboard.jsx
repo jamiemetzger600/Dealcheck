@@ -75,6 +75,7 @@ export default function CrmDashboard({
   const [fetchedDealsById, setFetchedDealsById] = useState(() => new Map());
   const [fetchingDealId, setFetchingDealId] = useState(null);
   const [fetchDealError, setFetchDealError] = useState(null);
+  const [locallySeenDealIds, setLocallySeenDealIds] = useState(() => new Set());
   const deepLinkHandled = useRef(false);
 
   const loadToday = useCallback(async () => {
@@ -224,14 +225,29 @@ export default function CrmDashboard({
     [filteredDeals]
   );
 
+  const markDealSeenLocally = useCallback((id) => {
+    if (id == null) return;
+    const sid = String(id);
+    setLocallySeenDealIds((prev) => {
+      if (prev.has(sid)) return prev;
+      const next = new Set(prev);
+      next.add(sid);
+      return next;
+    });
+    dealsAPI.markDealSeen(sid).catch((err) => {
+      console.warn('[CrmDashboard] markDealSeen failed', sid, err.message);
+    });
+  }, []);
+
   const openPeek = useCallback((id) => {
     console.log('[CrmDashboard] peek', id);
     setFetchDealError(null);
     setPeekDealId(id);
     setRecordDealId(null);
     setWorkspaceFocusSection(null);
+    markDealSeenLocally(id);
     ensureDealLoaded(id);
-  }, [ensureDealLoaded]);
+  }, [ensureDealLoaded, markDealSeenLocally]);
 
   const openRecord = useCallback((id, opts = {}) => {
     console.log('[CrmDashboard] open record', id, opts.focusSection || null);
@@ -239,8 +255,9 @@ export default function CrmDashboard({
     setRecordDealId(id);
     setPeekDealId(null);
     setWorkspaceFocusSection(opts.focusSection || null);
+    markDealSeenLocally(id);
     ensureDealLoaded(id);
-  }, [ensureDealLoaded]);
+  }, [ensureDealLoaded, markDealSeenLocally]);
 
   const handleSelectDeal = useCallback((id, opts = {}) => {
     if (opts.openRecord || opts.focusSection) {
@@ -591,6 +608,7 @@ export default function CrmDashboard({
           onStageChanged={handleStageChanged}
           nextActionByDealId={nextActionByDealId}
           overdueDealIds={ddOverdueDealIds}
+          locallySeenDealIds={locallySeenDealIds}
           onAddDeal={onAddDeal}
           onLiveDealsRefresh={onLiveDealsRefresh}
         />

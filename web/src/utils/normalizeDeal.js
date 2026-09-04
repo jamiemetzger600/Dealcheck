@@ -83,6 +83,7 @@ export function normalizeDeal(deal) {
     externalSourceType: deal.external_source_type || deal.externalSourceType || null,
     tags: Array.isArray(deal.tags) ? deal.tags : (deal.tags ? [].concat(deal.tags) : []),
     customStageLabel: deal.custom_stage_label || deal.customStageLabel || null,
+    unseenFromTeam: Boolean(deal.unseen_from_team ?? deal.unseenFromTeam),
     
     // Computed fields (if available)
     qualityScore: deal.quality_score || deal.qualityScore,

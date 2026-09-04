@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { crmAPI, userAPI } from '../utils/api';
 import { generateIOIText, generateIOISubject, getBrokerEmailFromDeal } from '../utils/ioiGenerator';
+import { scenarioDisplayName } from '../utils/dealCalculatorMath';
 import { loadIoiDraft, saveIoiDraft } from '../utils/ioiDraftStorage';
 
 const DEFAULT_TIMELINE = '30-45 days from accepted offer';
@@ -400,14 +401,17 @@ export default function IOIModal({
           <div className="ioi-section">
             <label className="ioi-section-label">Include Scenarios</label>
             <div className="ioi-scenario-selector">
-              {scenarios.map((_, idx) => (
+              {scenarios.map((scenario, idx) => (
                 <label key={idx} className="ioi-scenario-check">
                   <input
                     type="checkbox"
                     checked={selected.has(idx)}
                     onChange={() => toggleScenario(idx)}
                   />
-                  <span>Scenario {idx + 1}{idx === activeScenario ? ' (active)' : ''}</span>
+                  <span>
+                    {scenarioDisplayName(scenario, idx)}
+                    {idx === activeScenario ? ' (active)' : ''}
+                  </span>
                 </label>
               ))}
             </div>

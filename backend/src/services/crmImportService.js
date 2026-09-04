@@ -2,6 +2,7 @@ import pool from '../db/pool.js';
 import { getMembership } from '../lib/teamAcl.js';
 import { hydrateCrmForSavedDeal } from './crmHydration.js';
 import { createContact, linkContactToDeal } from './crmContactService.js';
+import { markDealSeen } from './savedDealViewsService.js';
 
 const EXTERNAL_SOURCE_TYPES = new Set([
   'broker_intro',
@@ -228,6 +229,11 @@ export async function importDealsFromCsv(userId, csvText, { teamId = null } = {}
       );
 
       const savedDealId = result.rows[0].id;
+      if (teamId) {
+        await markDealSeen(userId, savedDealId).catch((err) => {
+          console.warn('[crmImport] markDealSeen skipped', err.message);
+        });
+      }
       await hydrateCrmForSavedDeal(userId, savedDealId, {
         dealId,
         source: 'CSV import',

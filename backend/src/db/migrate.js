@@ -1190,6 +1190,27 @@ const migrations = [
       ALTER TABLE user_settings
         ADD COLUMN IF NOT EXISTS last_team_activity_notified TIMESTAMPTZ;
     `
+  },
+  {
+    name: 'saved_deal_views_v5_94',
+    up: `
+      CREATE TABLE IF NOT EXISTS saved_deal_views (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        saved_deal_id INTEGER NOT NULL REFERENCES saved_deals(id) ON DELETE CASCADE,
+        seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, saved_deal_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_saved_deal_views_deal
+        ON saved_deal_views (saved_deal_id);
+
+      INSERT INTO saved_deal_views (user_id, saved_deal_id)
+      SELECT tm.user_id, sd.id
+      FROM saved_deals sd
+      INNER JOIN team_members tm
+        ON tm.team_id = sd.team_id AND tm.status = 'active'
+      WHERE sd.team_id IS NOT NULL
+      ON CONFLICT (user_id, saved_deal_id) DO NOTHING;
+    `
   }
 ];
 

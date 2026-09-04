@@ -20,12 +20,18 @@ export function calcSbaDebtServicePer1(bankRateDecimal, bankYears) {
   return 0;
 }
 
-export function calcSellerDebtServicePer1(sellerRateDecimal, paymentType) {
+export function resolveSellerNoteTermYears(scenario) {
+  const fromScenario = parseFloat(scenario?.sellerTermYears ?? scenario?.sellerTerm);
+  if (fromScenario > 0) return fromScenario;
+  return SELLER_NOTE_TERM_YEARS;
+}
+
+export function calcSellerDebtServicePer1(sellerRateDecimal, paymentType, sellerYears = SELLER_NOTE_TERM_YEARS) {
   if (paymentType === 'interest-only') return sellerRateDecimal;
-  const sellerYears = SELLER_NOTE_TERM_YEARS;
-  if (sellerRateDecimal === 0) return 1 / sellerYears;
+  const years = sellerYears > 0 ? sellerYears : SELLER_NOTE_TERM_YEARS;
+  if (sellerRateDecimal === 0) return 1 / years;
   const r = sellerRateDecimal / 12;
-  const n = sellerYears * 12;
+  const n = years * 12;
   const monthlyPer1 = (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
   return monthlyPer1 * 12;
 }
@@ -83,13 +89,14 @@ export function buildFinancingCoefficients(scenario) {
   const sellerStandby = scenario.sellerStandby === 'yes' ? 'yes' : 'no';
   const sellerRate = (parseFloat(scenario.sellerRate) || 0) / 100;
   const sellerPaymentType = scenario.sellerPaymentType === 'interest-only' ? 'interest-only' : 'amortizing';
+  const sellerTermYears = resolveSellerNoteTermYears(scenario);
   const bankRate = (parseFloat(scenario.sbaRate) || 0) / 100;
   const bankYears = parseFloat(scenario.sbaTerm) || 10;
 
   const sbaDSPer1 = calcSbaDebtServicePer1(bankRate, bankYears);
   let sellerDSPer1 = 0;
   if (sellerEnabled && sellerPercent > 0) {
-    sellerDSPer1 = calcSellerDebtServicePer1(sellerRate, sellerPaymentType);
+    sellerDSPer1 = calcSellerDebtServicePer1(sellerRate, sellerPaymentType, sellerTermYears);
   }
   const sellerDSForDSCR = sellerStandby === 'yes' ? 0 : sellerDSPer1;
   const totalDSPer1 =
@@ -103,6 +110,7 @@ export function buildFinancingCoefficients(scenario) {
     sellerStandby,
     sellerPaymentType,
     sellerRate,
+    sellerTermYears,
     bankRate,
     bankYears,
     sbaDSPer1,
@@ -150,7 +158,7 @@ export function analyzeDealScenario(scenario, qualityPrefs = {}) {
     if (sellerPaymentType === 'interest-only') {
       sellerAnnualDS = sellerNoteAmt * sellerRate;
     } else {
-      const sy = SELLER_NOTE_TERM_YEARS;
+      const sy = fin.sellerTermYears || SELLER_NOTE_TERM_YEARS;
       const r = sellerRate / 12;
       const n = sy * 12;
       if (sellerRate === 0) {
@@ -368,6 +376,7 @@ export function createDefaultScenarios(deal, calculatorDefaults = {}) {
     sellerEnabled: false,
     sellerPercent: '10',
     sellerRate: String(calculatorDefaults.sellerRate ?? '6'),
+    sellerTermYears: String(calculatorDefaults.sellerTermYears ?? SELLER_NOTE_TERM_YEARS),
     sellerStandby: calculatorDefaults.sellerStandby === 'yes' ? 'yes' : 'no',
     sellerPaymentType: calculatorDefaults.sellerPaymentType === 'interest-only' ? 'interest-only' : 'amortizing',
     usePurchaseOverride: false,

@@ -1,4 +1,4 @@
-import { analyzeDealScenario, SELLER_NOTE_TERM_YEARS } from './dealCalculatorMath';
+import { analyzeDealScenario, resolveSellerNoteTermYears } from './dealCalculatorMath';
 
 export const DEFAULT_IOI_TIMELINE = '30-45 days from accepted offer';
 
@@ -80,6 +80,31 @@ function pct(value) {
   return `${n}%`;
 }
 
+/**
+ * Principal + interest the seller collects on the note over the full term.
+ * Interest-only: interest accrues each year; principal is repaid at maturity.
+ * Amortizing: fully amortizing monthly payments over `years`.
+ */
+export function sellerNoteLifetime(principal, rateDecimal, years, paymentType) {
+  const P = Number(principal) || 0;
+  const nYears = Number(years) || 0;
+  if (P <= 0 || nYears <= 0) {
+    return { interest: 0, totalFromNote: 0, years: nYears };
+  }
+  if (paymentType === 'interest-only') {
+    const interest = P * (Number(rateDecimal) || 0) * nYears;
+    return { interest, totalFromNote: P + interest, years: nYears };
+  }
+  const n = Math.round(nYears * 12);
+  if (!rateDecimal || rateDecimal <= 0) {
+    return { interest: 0, totalFromNote: P, years: nYears };
+  }
+  const r = rateDecimal / 12;
+  const monthly = P * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+  const totalPayments = monthly * n;
+  return { interest: totalPayments - P, totalFromNote: totalPayments, years: nYears };
+}
+
 export function generateIOISubject(deal) {
   return `Indication of Interest - ${deal.name || 'Business Acquisition'}`;
 }
@@ -91,19 +116,42 @@ export function generateIOISubject(deal) {
 function buildScenarioBlock(scenario, analysis, label) {
   const fin = analysis.fin;
   const lines = [];
-
-  const cashAtClose = analysis.sbaLoanSize + analysis.equityAmount;
+  const hasSellerNote = Boolean(fin.sellerEnabled && analysis.sellerNoteAmt > 0);
+  const receivedAtClose = analysis.purchasePrice - (hasSellerNote ? analysis.sellerNoteAmt : 0);
 
   lines.push(`--- ${label} ---`);
-  lines.push(`Offer Price: ${fmt(analysis.purchasePrice)}`);
-  lines.push(`Cash at Close: ${fmt(cashAtClose)} (SBA loan + buyer equity)`);
-  lines.push(`  SBA Loan (${pct(fin.sbaPercent)}): ${fmt(analysis.sbaLoanSize)} at ${pct(fin.bankRate * 100)} over ${fin.bankYears} years`);
+  lines.push(`Total Consideration: ${fmt(analysis.purchasePrice)}`);
+  lines.push(`Total Received at Close: ${fmt(receivedAtClose)}`);
+
+  if (hasSellerNote) {
+    lines.push(`  (Seller note of ${fmt(analysis.sellerNoteAmt)} is not paid at close)`);
+  }
+
+  lines.push(`  SBA Loan (${pct(fin.sbaPercent)}): ${fmt(analysis.sbaLoanSize)}`);
   lines.push(`  Buyer Equity (${pct(fin.equityPercent)}): ${fmt(analysis.equityAmount)}`);
 
-  if (fin.sellerEnabled && analysis.sellerNoteAmt > 0) {
+  if (hasSellerNote) {
+    const termYears = resolveSellerNoteTermYears(scenario);
     const rateDisplay = (fin.sellerRate * 100).toFixed(1);
     const standbyNote = fin.sellerStandby === 'yes' ? ' (full standby)' : '';
-    lines.push(`  Seller Note (${pct(fin.sellerPercent)}): ${fmt(analysis.sellerNoteAmt)} at ${rateDisplay}% - ${fin.sellerPaymentType}, ${SELLER_NOTE_TERM_YEARS} year term${standbyNote}`);
+    const lifetime = sellerNoteLifetime(
+      analysis.sellerNoteAmt,
+      fin.sellerRate,
+      termYears,
+      fin.sellerPaymentType
+    );
+    const totalReceived = receivedAtClose + lifetime.totalFromNote;
+    lines.push(`  Seller Note (${pct(fin.sellerPercent)}): ${fmt(analysis.sellerNoteAmt)} at ${rateDisplay}% - ${fin.sellerPaymentType}, ${termYears} year term${standbyNote}`);
+    lines.push(`    Interest over ${termYears} years: ${fmt(lifetime.interest)}`);
+    lines.push(`    Total Received (at close + note principal + interest): ${fmt(totalReceived)}`);
+    console.log('[IOI] seller note totals', {
+      consideration: analysis.purchasePrice,
+      receivedAtClose,
+      notePrincipal: analysis.sellerNoteAmt,
+      termYears,
+      interest: Math.round(lifetime.interest),
+      totalReceived: Math.round(totalReceived)
+    });
   }
 
   lines.push('');

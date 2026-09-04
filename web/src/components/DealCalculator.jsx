@@ -292,7 +292,8 @@ export default function DealCalculator({
         'salary',
         'sellerRate',
         'sellerStandby',
-        'sellerPaymentType'
+        'sellerPaymentType',
+        'sellerTermYears'
       ];
       setScenarios((current) => {
         const next = current.map((scenario, index) =>
@@ -312,7 +313,8 @@ export default function DealCalculator({
               salary: updated.salary ?? calculatorDefaults.salary,
               sellerRate: updated.sellerRate ?? calculatorDefaults.sellerRate,
               sellerStandby: updated.sellerStandby ?? calculatorDefaults.sellerStandby,
-              sellerPaymentType: updated.sellerPaymentType ?? calculatorDefaults.sellerPaymentType
+              sellerPaymentType: updated.sellerPaymentType ?? calculatorDefaults.sellerPaymentType,
+              sellerTermYears: updated.sellerTermYears ?? calculatorDefaults.sellerTermYears
             });
           }, 600);
         }
@@ -731,7 +733,7 @@ export default function DealCalculator({
               className={`calc-accordion-summary ${!currentScenario.sellerEnabled ? 'calc-accordion-summary--muted' : ''}`.trim()}
             >
               {currentScenario.sellerEnabled
-                ? `${finCoeff.sellerPercent}% • ${currentScenario.sellerRate || '6'}% • ${currentScenario.sellerPaymentType === 'interest-only' ? 'Interest Only' : 'Amortizing'}${finCoeff.sellerStandby === 'yes' ? ' • Standby' : ''}`
+                ? `${finCoeff.sellerPercent}% • ${currentScenario.sellerRate || '6'}% • ${currentScenario.sellerTermYears || SELLER_NOTE_TERM_YEARS}yr • ${currentScenario.sellerPaymentType === 'interest-only' ? 'Interest Only' : 'Amortizing'}${finCoeff.sellerStandby === 'yes' ? ' • Standby' : ''}`
                 : 'Not enabled'}
             </span>
           </div>
@@ -781,6 +783,17 @@ export default function DealCalculator({
                   />
                 </div>
                 <div className="form-group">
+                  <label>Term (Yrs)</label>
+                  <input
+                    type="number"
+                    value={currentScenario.sellerTermYears || SELLER_NOTE_TERM_YEARS}
+                    onChange={(e) => updateScenario('sellerTermYears', e.target.value)}
+                    min="1"
+                    step="1"
+                    disabled={!currentScenario.sellerEnabled}
+                  />
+                </div>
+                <div className="form-group">
                   <label>Payment Type</label>
                   <select
                     value={currentScenario.sellerPaymentType || 'amortizing'}
@@ -792,7 +805,6 @@ export default function DealCalculator({
                   </select>
                 </div>
               </div>
-              <p className="calc-hint">Seller note amortizes over {SELLER_NOTE_TERM_YEARS} years (extension default).</p>
             </div>
           )}
         </div>

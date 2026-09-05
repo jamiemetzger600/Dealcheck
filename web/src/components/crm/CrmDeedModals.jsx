@@ -277,10 +277,20 @@ function WaitingOnModal({ deal, waiting, writeEnabled, onClose, onSave }) {
 }
 
 function ColorModal({ deal, colorId, writeEnabled, onClose, onPick }) {
+  const autoActive = !colorId;
   return (
     <ModalShell title="Header color" onClose={onClose}>
       <p className="crm-muted">{deal?.name}</p>
       <div className="crm-deed-modal__swatches">
+        <button
+          type="button"
+          className={`crm-deed-swatch crm-deed-swatch--age${autoActive ? ' crm-deed-swatch--active' : ''}`}
+          onClick={() => writeEnabled && onPick?.(null)}
+          disabled={!writeEnabled}
+          aria-label="Age — 0 to 2 weeks green, then yellow, red, grey"
+        >
+          Age
+        </button>
         {DEED_COLORS.map((c) => (
           <button
             key={c.id}
@@ -295,6 +305,7 @@ function ColorModal({ deal, colorId, writeEnabled, onClose, onPick }) {
           </button>
         ))}
       </div>
+      <p className="crm-muted">Age follows listing date added — same 0–2w / 2–4w / 4–8w / 8w+ colors as Deal Aggregator. Color overrides that.</p>
       {writeEnabled ? null : <p className="crm-muted">Viewer role — color is read-only.</p>}
     </ModalShell>
   );

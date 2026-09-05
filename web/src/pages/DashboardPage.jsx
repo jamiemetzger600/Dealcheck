@@ -28,6 +28,7 @@ import {
   isValidCrmSubview
 } from '../utils/dashboardLocation';
 import { notificationPath } from '../utils/notificationLinks';
+import { pollWhenVisible } from '../utils/pollWhenVisible';
 
 function isBuyBoxEmpty(buyBox) {
   if (!buyBox || typeof buyBox !== 'object') return true;
@@ -237,10 +238,10 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         .catch((err) => console.warn('[Dashboard] CRM today prefetch failed', err.message));
     };
     pull();
-    const t = setInterval(pull, 45000);
+    const stopPoll = pollWhenVisible(pull, 45000);
     return () => {
       cancelled = true;
-      clearInterval(t);
+      stopPoll();
     };
   }, [authLoading, isGuest]);
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { crmAPI } from '../../utils/api';
 import { notificationOpenLabel, notificationPath } from '../../utils/notificationLinks';
 import { showLocalNotification } from '../../utils/webNotifications';
+import { pollWhenVisible } from '../../utils/pollWhenVisible';
 
 /**
  * Sticky in-app alerts for Talk posts, @mentions, and assigns.
@@ -59,11 +60,11 @@ export default function TalkAlertBanner({
   useEffect(() => {
     if (!enabled) return undefined;
     refresh({ notifyBrowser: false });
-    const t = setInterval(() => refresh({ notifyBrowser: true }), pollMs);
+    const stopPoll = pollWhenVisible(() => refresh({ notifyBrowser: true }), pollMs);
     const onFocus = () => refresh({ notifyBrowser: false });
     window.addEventListener('focus', onFocus);
     return () => {
-      clearInterval(t);
+      stopPoll();
       window.removeEventListener('focus', onFocus);
     };
   }, [enabled, pollMs]);

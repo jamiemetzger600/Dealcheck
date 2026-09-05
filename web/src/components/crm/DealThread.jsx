@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { crmAPI } from '../../utils/api';
+import { pollWhenVisible } from '../../utils/pollWhenVisible';
 
 const REACTIONS = ['👍', '✅', '❓'];
 
@@ -114,8 +115,7 @@ export default function DealThread({
   useEffect(() => {
     load();
     if (!pollMs) return undefined;
-    const t = setInterval(() => load({ quiet: true }), pollMs);
-    return () => clearInterval(t);
+    return pollWhenVisible(() => load({ quiet: true }), pollMs);
   }, [load, pollMs]);
 
   useEffect(() => {

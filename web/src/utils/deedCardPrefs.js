@@ -3,9 +3,8 @@ const STORAGE_KEY = 'vettr.crm.deedCards.v1';
 export const DEED_COLORS = [
   { id: 'brown', hex: '#955436', ink: '#fff', label: 'Brown' },
   { id: 'light-blue', hex: '#aae0fa', ink: '#111', label: 'Light blue' },
-  { id: 'pink', hex: '#d93a96', ink: '#fff', label: 'Pink' },
   { id: 'orange', hex: '#f7941d', ink: '#111', label: 'Orange' },
-  { id: 'red', hex: '#ed1b24', ink: '#fff', label: 'Red' },
+  { id: 'red', hex: '#ef4444', ink: '#fff', label: 'Red' },
   { id: 'yellow', hex: '#fef200', ink: '#111', label: 'Yellow' },
   { id: 'green', hex: '#1fb25a', ink: '#fff', label: 'Green' },
   { id: 'dark-blue', hex: '#0072bb', ink: '#fff', label: 'Dark blue' }
@@ -39,10 +38,17 @@ export function normalizeDeedCardPrefs(parsed) {
   if (!parsed || typeof parsed !== 'object') {
     return emptyDeedCardPrefs();
   }
+  const allowed = new Set(DEED_COLORS.map((c) => c.id));
+  const colors = {};
+  if (parsed.colors && typeof parsed.colors === 'object') {
+    for (const [id, colorId] of Object.entries(parsed.colors)) {
+      if (allowed.has(colorId)) colors[id] = colorId;
+    }
+  }
   return {
     order: Array.isArray(parsed.order) ? parsed.order.map(String) : [],
     pins: parsed.pins && typeof parsed.pins === 'object' ? parsed.pins : {},
-    colors: parsed.colors && typeof parsed.colors === 'object' ? parsed.colors : {},
+    colors,
     waitingOn: parsed.waitingOn && typeof parsed.waitingOn === 'object' ? parsed.waitingOn : {}
   };
 }
@@ -70,7 +76,7 @@ export function deedColorById(colorId, dealId) {
   const found = DEED_COLORS.find((c) => c.id === colorId);
   if (found) return found;
   const fallbackId = defaultDeedColorId(dealId);
-  return DEED_COLORS.find((c) => c.id === fallbackId) || DEED_COLORS[7];
+  return DEED_COLORS.find((c) => c.id === fallbackId) || DEED_COLORS[DEED_COLORS.length - 1];
 }
 
 export function loadDeedCardPrefs(teamId = null) {

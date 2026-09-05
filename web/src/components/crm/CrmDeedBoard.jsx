@@ -4,12 +4,12 @@ import { normalizeDeal, getDealProgressLabel, isPassedOnDeal } from '../../utils
 import { getCalculatorDefaultsFromSettings } from '../../utils/calculatorDefaultsFromSettings';
 import { getSavedDealCalculatorSummary } from '../../utils/savedDealCalculatorSummary';
 import { useTeam } from '../../context/TeamContext';
+import DealAgeLegend from '../DealAgeLegend';
 import CrmCardContextMenu from './CrmCardContextMenu';
 import CrmDeedCard from './CrmDeedCard';
 import CrmDeedModals from './CrmDeedModals';
 import {
   WAITING_DEFAULTS,
-  defaultDeedColorId,
   getWaitingOn,
   isEmptyDeedCardPrefs,
   loadDeedCardPrefs,
@@ -20,6 +20,7 @@ import {
   saveDeedCardPrefs,
   waitingOnLabels
 } from '../../utils/deedCardPrefs';
+import { pollWhenVisible } from '../../utils/pollWhenVisible';
 
 function closestCard(target) {
   const el = target instanceof Element ? target : target?.parentElement;
@@ -180,6 +181,10 @@ export default function CrmDeedBoard({
         const data = await teamsAPI.getDeedBoard(teamBoardId);
         if (cancelled) return;
         let next = normalizeDeedCardPrefs(data.prefs);
+        const incomingColors = data.prefs?.colors && typeof data.prefs.colors === 'object'
+          ? data.prefs.colors
+          : {};
+        const droppedLegacy = Object.keys(incomingColors).length !== Object.keys(next.colors).length;
         if (seedIfEmpty && isEmptyDeedCardPrefs(next) && writeEnabled) {
           const teamCache = loadDeedCardPrefs(teamBoardId);
           const personal = loadDeedCardPrefs(null);
@@ -200,28 +205,43 @@ export default function CrmDeedBoard({
           setPrefs(next);
           saveDeedCardPrefs(next, teamBoardId);
         }
+        if (droppedLegacy && writeEnabled) {
+          console.log('[CrmDeedBoard] drop non-aging header colors', incomingColors);
+          prefsRef.current = next;
+          setPrefs(next);
+          saveDeedCardPrefs(next, teamBoardId);
+          try {
+            await teamsAPI.putDeedBoard(teamBoardId, next);
+            dirtyRef.current = false;
+            console.log('[CrmDeedBoard] team board colors now age-only');
+          } catch (err) {
+            console.warn('[CrmDeedBoard] failed to persist age-only colors', err.message);
+          }
+        }
       } catch (err) {
         console.warn('[CrmDeedBoard] team board load failed', err.message);
       }
     };
 
     pull({ seedIfEmpty: true });
-    const onFocus = () => {
-      pull();
-      onLiveDealsRefresh?.();
-      onRefresh?.();
-    };
-    window.addEventListener('focus', onFocus);
-    const interval = window.setInterval(() => {
+    const liveTick = () => {
       pull();
       if (!dirtyRef.current && !dragDealIdRef.current) {
         onLiveDealsRefresh?.();
       }
-    }, 2000);
+    };
+    const onFocus = () => {
+      liveTick();
+      onRefresh?.();
+    };
+    window.addEventListener('focus', onFocus);
+    const LIVE_SYNC_MS = 30000;
+    console.log('[CrmDeedBoard] live sync every', LIVE_SYNC_MS / 1000, 's, paused when tab hidden');
+    const stopPoll = pollWhenVisible(liveTick, LIVE_SYNC_MS);
     return () => {
       cancelled = true;
       window.removeEventListener('focus', onFocus);
-      window.clearInterval(interval);
+      stopPoll();
       if (teamSaveTimerRef.current) {
         clearTimeout(teamSaveTimerRef.current);
         teamSaveTimerRef.current = null;
@@ -298,9 +318,18 @@ export default function CrmDeedBoard({
 
   const handlePickColor = useCallback((colorId) => {
     if (!modalDeal || !writeEnabled) return;
+    const key = String(modalDeal.id);
+    const nextColors = { ...prefs.colors };
+    if (!colorId) {
+      delete nextColors[key];
+      console.log('[CrmDeedBoard] color → age', key);
+    } else {
+      nextColors[key] = colorId;
+      console.log('[CrmDeedBoard] color override', key, colorId);
+    }
     persist({
       ...prefs,
-      colors: { ...prefs.colors, [String(modalDeal.id)]: colorId }
+      colors: nextColors
     });
     setModal(null);
   }, [modalDeal, persist, prefs, writeEnabled]);
@@ -536,7 +565,7 @@ export default function CrmDeedBoard({
       nextActionByDealId instanceof Map
         ? nextActionByDealId.get(Number(id)) || null
         : null;
-    const colorId = prefs.colors?.[String(id)] || defaultDeedColorId(id);
+    const colorId = prefs.colors?.[String(id)] || null;
     const hovering = dropAt?.zone === zone && String(dropAt.anchorId) === String(id);
     return (
       <CrmDeedCard
@@ -690,6 +719,7 @@ export default function CrmDeedBoard({
             Add deal
           </button>
         ) : null}
+        <DealAgeLegend title="Listing age by date added" />
       </div>
 
       {boardEmpty ? (
@@ -764,7 +794,7 @@ export default function CrmDeedBoard({
             : null
         }
         waiting={modalDeal ? getWaitingOn(prefs, modalDeal.id) : null}
-        colorId={modalDeal ? (prefs.colors?.[String(modalDeal.id)] || defaultDeedColorId(modalDeal.id)) : null}
+        colorId={modalDeal ? (prefs.colors?.[String(modalDeal.id)] || null) : null}
         writeEnabled={writeEnabled}
         stageSaving={stageSaving}
         onClose={() => setModal(null)}

@@ -57,10 +57,29 @@ export function formatRatio(value) {
   return Number.isNaN(numeric) ? '—' : numeric.toFixed(2);
 }
 
+export function parseDealDate(value) {
+  if (value == null || value === '') return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const s = String(value).trim();
+  if (!s) return null;
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    const d = new Date(s.length <= 10 ? n * 1000 : n);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export function formatDealDate(value) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
+  const date = parseDealDate(value);
+  if (!date) return '—';
   return date.toLocaleDateString();
 }
 
@@ -72,9 +91,8 @@ const AGE_BUCKETS = [
 ];
 
 function getListingAgeDays(discoveredAt) {
-  if (!discoveredAt) return null;
-  const d = new Date(discoveredAt);
-  if (Number.isNaN(d.getTime())) return null;
+  const d = parseDealDate(discoveredAt);
+  if (!d) return null;
   return Math.floor((Date.now() - d.getTime()) / MS_PER_DAY);
 }
 
@@ -96,22 +114,31 @@ export function listingAgeTitle(discoveredAt) {
   return `${dateStr} — ${days} days ago`;
 }
 
-/** Listing-age header colors — matches `.deal-age-legend` dots (aggregator cards only). */
-const AGE_HEADER_COLORS = {
-  fresh: { hex: '#4ade80', ink: '#111' },   // 0–2w
-  recent: { hex: '#facc15', ink: '#111' },  // 2–4w
-  aging: { hex: '#f87171', ink: '#111' },   // 4–8w
-  older: { hex: '#6b7280', ink: '#fff' },   // 8w+
-  unknown: { hex: '#6b7280', ink: '#fff' },
+/** Listing-age header colors — matches `.deal-age-legend` dots. */
+export const AGE_HEADER_COLORS = {
+  fresh: { hex: '#4ade80', ink: '#111', id: 'age-fresh', label: '0–2w' },
+  recent: { hex: '#facc15', ink: '#111', id: 'age-recent', label: '2–4w' },
+  aging: { hex: '#ef4444', ink: '#fff', id: 'age-aging', label: '4–8w' },
+  older: { hex: '#6b7280', ink: '#fff', id: 'age-older', label: '8w+' },
+  unknown: { hex: '#6b7280', ink: '#fff', id: 'age-unknown', label: 'Unknown' },
 };
 
-export function aggregatorDeedColor(deal) {
-  const days = getListingAgeDays(deal?.discoveredAt);
+export function dealAgeHeaderColor(dateValue) {
+  const days = getListingAgeDays(dateValue);
   if (days == null) return AGE_HEADER_COLORS.unknown;
   if (days < 14) return AGE_HEADER_COLORS.fresh;
   if (days < 28) return AGE_HEADER_COLORS.recent;
   if (days < 56) return AGE_HEADER_COLORS.aging;
   return AGE_HEADER_COLORS.older;
+}
+
+export function aggregatorDeedColor(deal) {
+  return dealAgeHeaderColor(deal?.discoveredAt);
+}
+
+/** Listing date — same clock as aggregator Card headers. */
+export function crmDealAgeDate(deal) {
+  return deal?.discoveredAt || deal?.savedAt || deal?.updatedAt || null;
 }
 
 export function aggregatorCardStatus(deal) {

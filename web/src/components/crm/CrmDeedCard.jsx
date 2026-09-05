@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import { formatMoney, getDealProgressLabel, isPassedOnDeal } from '../../utils/normalizeDeal';
 import { cocReturnTier } from '../../utils/pipelineStages';
-import { deedColorById, waitingOnLabels } from '../../utils/deedCardPrefs';
+import { DEED_COLORS, waitingOnLabels } from '../../utils/deedCardPrefs';
+import { crmDealAgeDate, dealAgeHeaderColor } from '../../utils/dealCardDisplay';
 
 function ddStatusForDeal(deal, overdueDealIds) {
   const id = Number(deal?.id);
@@ -65,7 +66,11 @@ export default function CrmDeedCard({
 }) {
   const skipClick = useRef(false);
   const blockDrag = useRef(false);
-  const color = deedColorById(colorId, deal.id);
+  const picked = DEED_COLORS.find((c) => c.id === colorId);
+  const color = picked || dealAgeHeaderColor(crmDealAgeDate(deal));
+  if (colorId && !picked) {
+    console.log('[CrmDeedCard] skip non-aging color', colorId, '→', color.label, deal?.id);
+  }
   const stageLabel = getDealProgressLabel(deal);
   const statusUnset = !stageLabel;
   const status = statusUnset ? 'Status: Tap to set' : stageLabel;

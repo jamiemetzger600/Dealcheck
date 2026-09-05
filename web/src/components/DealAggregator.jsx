@@ -22,6 +22,7 @@ import {
   parseSearchKeywords,
   patchActiveBuyBoxFlexibility
 } from '../utils/buyBoxes';
+import DealAgeLegend from './DealAgeLegend';
 import DealDetailsPanel from './DealDetailsPanel';
 import DealInboxView from './DealInboxView';
 import { useCrmStageControl } from '../hooks/useCrmStageControl';
@@ -2396,16 +2397,7 @@ export default function DealAggregator({
                 />
               )}
             </label>
-            <div className="deal-age-legend" title="Listing age by date added">
-              <span className="deal-age-legend__dot deal-age-legend__dot--fresh" />
-              <span className="deal-age-legend__label">0–2w</span>
-              <span className="deal-age-legend__dot deal-age-legend__dot--recent" />
-              <span className="deal-age-legend__label">2–4w</span>
-              <span className="deal-age-legend__dot deal-age-legend__dot--aging" />
-              <span className="deal-age-legend__label">4–8w</span>
-              <span className="deal-age-legend__dot deal-age-legend__dot--older" />
-              <span className="deal-age-legend__label">8w+</span>
-            </div>
+            <DealAgeLegend title="Listing age by date added" />
           </div>
 
           {showColumnsPanel && (

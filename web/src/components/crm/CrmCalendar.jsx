@@ -15,11 +15,13 @@ export default function CrmCalendar() {
     setLoading(true);
     let oauthConfigured = false;
     let redirectUri = null;
+    let misconfigured = false;
 
     try {
       const config = await crmAPI.getCalendarOAuthConfig();
       oauthConfigured = Boolean(config.oauthConfigured);
       redirectUri = config.redirectUri || null;
+      misconfigured = Boolean(config.misconfigured);
     } catch (err) {
       console.error('[CrmCalendar] oauth config load failed', err);
     }
@@ -29,7 +31,8 @@ export default function CrmCalendar() {
       setStatus({
         ...connection,
         oauthConfigured: oauthConfigured || Boolean(connection.oauthConfigured),
-        redirectUri: redirectUri || connection.redirectUri || null
+        redirectUri: redirectUri || connection.redirectUri || null,
+        misconfigured: misconfigured || Boolean(connection.misconfigured)
       });
     } catch (err) {
       console.error('[CrmCalendar] calendar status load failed', err);
@@ -37,6 +40,7 @@ export default function CrmCalendar() {
         connected: false,
         oauthConfigured,
         redirectUri,
+        misconfigured,
         statusError: err.message || 'Could not load calendar connection status'
       });
     } finally {
@@ -138,6 +142,13 @@ export default function CrmCalendar() {
         <p className="crm-muted crm-calendar__redirect">
           OAuth redirect URI (register in Google Cloud):{' '}
           <code>{status.redirectUri}</code>
+        </p>
+      ) : null}
+      {status?.misconfigured ? (
+        <p className="crm-panel--error crm-calendar__misconfig" role="alert">
+          OAuth redirect is misconfigured (localhost under a production-like setup). Set{' '}
+          <code>API_BASE_URL</code> to the public Worker origin, then restart the API. Connect
+          will fail until the redirect URI above is public.
         </p>
       ) : null}
       <button

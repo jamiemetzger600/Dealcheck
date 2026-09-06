@@ -130,6 +130,15 @@ export default function GoogleIntegrationsPanel() {
         </p>
       ) : null}
 
+      {status?.misconfigured ? (
+        <p className="settings-message settings-message-error" role="alert">
+          OAuth redirect is misconfigured: the API is using a localhost redirect URI under a
+          production-like setup. Set <code>API_BASE_URL</code> on the API to the public Worker
+          origin (no trailing <code>/api</code>), then restart. Google will reject connect until
+          this matches the URI above.
+        </p>
+      ) : null}
+
       {!oauthReady ? (
         <p>
           Add <code>GOOGLE_CALENDAR_CLIENT_ID</code> and <code>GOOGLE_CALENDAR_CLIENT_SECRET</code> to the

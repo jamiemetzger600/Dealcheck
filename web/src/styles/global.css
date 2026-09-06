@@ -9584,6 +9584,22 @@ button.aggregator-welcome__buybox {
   font-size: 12px;
 }
 
+.crm-calendar__misconfig {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: left;
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--text-primary);
+  border: 1px solid rgba(231, 76, 60, 0.4);
+}
+
+.crm-calendar__misconfig code {
+  font-size: 12px;
+  word-break: break-all;
+}
+
 .crm-calendar-view {
   display: flex;
   flex-direction: column;

@@ -5,7 +5,6 @@ import { dealsAPI, userAPI } from '../utils/api';
 import { loadCalculatorState, saveCalculatorState } from '../utils/dealCalculatorStorage';
 import {
   fetchMarketDeals,
-  fetchMarketDealsStats,
   fetchMarketDealByDbId,
   buildMarketDealsParams,
   mapSortField,
@@ -495,7 +494,6 @@ export default function DealAggregator({
   manualRefreshToken,
   matchCount = 0,
   onMatchCountUpdate,
-  onDealsStatsUpdate,
   onSaveDeal,
   onOpenVettrCrm = null,
   preferredViewStyle = null,
@@ -1035,20 +1033,9 @@ export default function DealAggregator({
       setTotalFromAPI(result.pagination.total);
       setTotalPages(result.pagination.total_pages);
 
+      // Nav Deal Aggregator badge must match Matches (buy-box-filtered pagination.total).
       onMatchCountUpdate(result.pagination.total);
-
-      if (typeof onDealsStatsUpdate === 'function') {
-        fetchMarketDealsStats(signal).then((stats) => {
-          if (stats && !signal.aborted) {
-            onDealsStatsUpdate({
-              total: stats.total_deals,
-              newToday: stats.new_today,
-              showing: result.pagination.total,
-              sources: (stats.by_source || []).length || 1,
-            });
-          }
-        }).catch(() => {});
-      }
+      console.log('[DealAggregator] match count → nav badge', result.pagination.total);
     } catch (error) {
       if (error?.name === 'AbortError' || signal?.aborted) return;
       console.error('Failed to fetch deals:', error);
@@ -1065,7 +1052,7 @@ export default function DealAggregator({
         setIsFetching(false);
       }
     }
-  }, [settings, feedSearchString, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, onDealsStatsUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords, mobileDailyFilter, deckScope, filterNewToday]);
+  }, [settings, feedSearchString, sortConfig, hiddenDealIds, showHiddenDeals, currentPage, manualRefreshToken, onMatchCountUpdate, feedSource, poolNewFinger, poolNewMode, poolNewDealsFilter, excludeKeywords, mobileDailyFilter, deckScope, filterNewToday]);
 
   // Fetch on mount, filter/sort/page/search change, and manual refresh.
   // Do not refetch on each Hide — client-side filter advances the list without a jump.

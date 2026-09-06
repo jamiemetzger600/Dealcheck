@@ -20,7 +20,7 @@ import {
   verifyOAuthState,
   exchangeCodeAndStoreTokens,
   disconnectGoogleCalendar,
-  getGoogleCalendarRedirectUri,
+  getGoogleCalendarRedirectDiagnostics,
   connectionHasGmailSend
 } from '../services/googleCalendarService.js';
 import { sendGmailMessage } from '../services/googleGmailService.js';
@@ -595,9 +595,11 @@ export const postDealDocument = async (req, res) => {
 export const getCalendarOAuthConfig = async (req, res) => {
   try {
     const configured = isGoogleCalendarOAuthConfigured();
+    const { redirectUri, misconfigured } = getGoogleCalendarRedirectDiagnostics();
     res.json({
       oauthConfigured: configured,
-      redirectUri: getGoogleCalendarRedirectUri()
+      redirectUri,
+      misconfigured
     });
   } catch (error) {
     console.error('[crm] getCalendarOAuthConfig error:', error);
@@ -613,6 +615,7 @@ export const getCalendarStatus = async (req, res) => {
       [req.user.userId]
     );
     const connection = row.rows[0] || null;
+    const { redirectUri, misconfigured } = getGoogleCalendarRedirectDiagnostics();
     res.json({
       connected: Boolean(connection),
       provider: connection?.provider || null,
@@ -621,7 +624,8 @@ export const getCalendarStatus = async (req, res) => {
       gmail: connectionHasGmailSend(connection),
       calendar: Boolean(connection),
       oauthConfigured: isGoogleCalendarOAuthConfigured(),
-      redirectUri: getGoogleCalendarRedirectUri(),
+      redirectUri,
+      misconfigured,
       smtpConfigured: isSmtpConfigured()
     });
   } catch (error) {

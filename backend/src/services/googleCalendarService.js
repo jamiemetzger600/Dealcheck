@@ -33,6 +33,53 @@ export function getGoogleCalendarRedirectUri() {
   return `${base}/api/crm/calendar/oauth/callback`;
 }
 
+function isLocalhostHostname(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+}
+
+/**
+ * True when redirect would hit localhost but the process does not look like local-dev
+ * (NODE_ENV=production, or WEB_APP_URL points at a public host).
+ */
+export function isGoogleCalendarRedirectMisconfigured() {
+  let redirectHost = '';
+  try {
+    redirectHost = new URL(getGoogleCalendarRedirectUri()).hostname;
+  } catch {
+    return false;
+  }
+  if (!isLocalhostHostname(redirectHost)) return false;
+
+  const nodeEnv = String(process.env.NODE_ENV || '').toLowerCase();
+  if (nodeEnv === 'production') return true;
+
+  const webAppUrl = String(process.env.WEB_APP_URL || '').trim();
+  if (!webAppUrl) return false;
+  try {
+    const webHost = new URL(webAppUrl).hostname;
+    return Boolean(webHost) && !isLocalhostHostname(webHost);
+  } catch {
+    return false;
+  }
+}
+
+let redirectMisconfigWarned = false;
+
+export function getGoogleCalendarRedirectDiagnostics() {
+  const redirectUri = getGoogleCalendarRedirectUri();
+  const misconfigured = isGoogleCalendarRedirectMisconfigured();
+  if (misconfigured && !redirectMisconfigWarned) {
+    redirectMisconfigWarned = true;
+    console.error(
+      '[google-calendar] MISCONFIGURED OAuth redirect: URI resolves to localhost under a production-like environment. ' +
+        'Set API_BASE_URL to the public Worker origin (no trailing /api), e.g. https://vettr-api.metzgerbuildsthings.workers.dev. ' +
+        `Current redirectUri=${redirectUri} NODE_ENV=${process.env.NODE_ENV || ''} WEB_APP_URL=${process.env.WEB_APP_URL || ''}`
+    );
+  }
+  return { redirectUri, misconfigured };
+}
+
 function createOAuthState(userId, returnTo = 'calendar') {
   const dest = returnTo === 'settings' ? 'settings' : 'calendar';
   return jwt.sign(

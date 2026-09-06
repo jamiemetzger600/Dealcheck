@@ -118,9 +118,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
   /** One-shot Aggregator layout hint (e.g. return from CRM → Inbox on mobile). */
   const [aggregatorViewHint, setAggregatorViewHint] = useState(null);
   const [matchCount, setMatchCount] = useState(0);
-  const [totalDeals, setTotalDeals] = useState(0);
-  const [newTodayCount, setNewTodayCount] = useState(0);
-  const [showingCount, setShowingCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showBuyBoxModal, setShowBuyBoxModal] = useState(false);
@@ -403,12 +400,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
 
   const handleMatchCountUpdate = (count) => setMatchCount(count);
 
-  const handleDealsStatsUpdate = ({ total = 0, newToday = 0, showing = 0 }) => {
-    setTotalDeals(total);
-    setNewTodayCount(newToday);
-    setShowingCount(showing);
-  };
-
   const handleFetchDeals = () => {
     setRefreshKey((current) => current + 1);
     setActiveTab('aggregator');
@@ -573,7 +564,7 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
         isGuest={isGuest}
         activeTab={activeTab}
         setActiveTab={handleTabChange}
-        aggregatorCount={totalDeals}
+        aggregatorCount={matchCount}
         crmCount={savedDeals.length}
         crmBadgeCount={crmBadgeCount}
         compact={mobileDeckActive && isMobile && activeTab === 'aggregator'}
@@ -596,7 +587,6 @@ export default function DashboardPage({ feedSource = 'airtable' }) {
             manualRefreshToken={refreshKey}
             matchCount={matchCount}
             onMatchCountUpdate={handleMatchCountUpdate}
-            onDealsStatsUpdate={handleDealsStatsUpdate}
             onSaveDeal={loadUserData}
             onOpenVettrCrm={(opts) => openVettrCrm({ view: 'home', ...(opts || {}) })}
             onSettingsUpdate={loadUserData}
